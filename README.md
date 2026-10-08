@@ -20,6 +20,7 @@ Portovenere è il primo territorio e il laboratorio reale; l'engine non contiene
 apps/guide                 app Next.js (PWA, poi Capacitor)
 packages/domain            identificativi, vocabolari, ontologia, schemi del Territory Pack
 packages/territory-pack    caricamento, validazione, CLI guide-pack
+packages/context-engine    posizione, geofence, movimento, pianificazione con ancora, monitor del tempo
 territories/               Territory Pack (_synthetic/: territori inventati per i test)
 supabase/migrations/       schema del database v0.2
 ```
@@ -43,7 +44,7 @@ Fase 0 (fondazioni) in corso:
 - [x] Territory Pack v1: schema, validatore, CLI `guide-pack`
 - [x] territorio sintetico di test e controllo "nessun codice per territorio"
 - [x] schema del database v0.2 (grafo, affermazioni con prove, narrazione, changeset)
-- [ ] Tour Context Engine (posizione, tempo, ancore, pianificazione)
+- [x] Tour Context Engine (posizione, geofence, movimento, tempo, ancore, pianificazione)
 - [ ] Narrative Planner (narrazione componibile)
 - [ ] compilazione dei bundle di runtime
 - [ ] Studio minimo con changeset

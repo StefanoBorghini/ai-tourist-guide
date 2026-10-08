@@ -1,0 +1,10 @@
+- id: leggenda-della-sirena
+  kind: legend
+  labels:
+    it: { name: Leggenda della sirena di prova }
+    en: { name: Legend of the test mermaid }
+- id: assedio-immaginario
+  kind: event
+  labels:
+    it: { name: Assedio immaginario }
+    en: { name: Imaginary siege }

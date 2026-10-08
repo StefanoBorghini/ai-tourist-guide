@@ -1,0 +1,24 @@
+- id: repubblica-introduzione-it
+  anchor: repubblica-immaginaria
+  unitType: context
+  locale: it
+  durationS: 20
+  text: >-
+    Per capire questi luoghi bisogna conoscere la Repubblica Immaginaria. Era uno stato
+    marinaro che viveva di commerci, e per proteggerli costruì lungo la costa torri,
+    mura e porte fortificate. Molto di ciò che vedrai oggi nasce da quella necessità di difesa.
+  assertions: [repubblica-controllo-costa]
+  introduces: [repubblica-immaginaria, difese-costiere]
+  resumeHook: Come ti dicevo, la Repubblica Immaginaria viveva di commerci.
+- id: repubblica-introduzione-en
+  anchor: repubblica-immaginaria
+  unitType: context
+  locale: en
+  durationS: 20
+  text: >-
+    To understand these places you need to know the Imaginary Republic. It was a maritime
+    state that lived on trade, and to protect it, it built towers, walls and fortified gates
+    along the coast. Much of what you will see today comes from that need for defence.
+  assertions: [repubblica-controllo-costa]
+  introduces: [repubblica-immaginaria, difese-costiere]
+  resumeHook: As I was saying, the Imaginary Republic lived on trade.

@@ -1,0 +1,70 @@
+- id: porta-apertura-it
+  anchor: porta-del-borgo
+  unitType: opening
+  locale: it
+  durationS: 20
+  text: >-
+    Sei davanti alla Porta del Borgo. Per secoli è stata l'unico ingresso via terra al paese
+    fortificato: chi arrivava dall'entroterra doveva passare da qui, sotto un arco largo
+    circa quattro metri e mezzo. Fermati un attimo e immagina le guardie ai lati.
+  assertions: [porta-funzione, porta-larghezza]
+  requires: [it.test:difese-costiere]
+  hooks:
+    - target: torre-di-prova
+      text: Della difesa del borgo ti racconterò di più alla torre.
+  resumeHook: Come ti dicevo, questa porta era l'unico ingresso via terra.
+- id: chiesa-datazione-it
+  anchor: chiesa-di-san-test
+  unitType: context
+  locale: it
+  durationS: 22
+  text: >-
+    Quanti anni ha questa chiesa? Le fonti non sono d'accordo. Una cronaca racconta che fu
+    fondata intorno al 1150, mentre una guida più recente data l'edificio attuale tra il 1220
+    e il 1240. Forse la chiesa che vedi è stata ricostruita sopra una più antica.
+  assertions: [chiesa-datazione-a, chiesa-datazione-b]
+  resumeHook: Tornando all'età della chiesa, le fonti non concordano.
+- id: torre-dettaglio-it
+  anchor: torre-di-prova
+  unitType: detail
+  locale: it
+  durationS: 20
+  text: >-
+    Questa torre faceva parte del sistema di difesa della costa. Probabilmente era presidiata
+    dalla Repubblica Immaginaria. Si parla anche di un assedio, ma non è certo che sia avvenuto
+    proprio qui: è uno di quei dettagli che gli storici stanno ancora cercando di chiarire.
+  assertions: [torre-controllo, assedio-luogo]
+  requires: [it.test:repubblica-immaginaria, it.test:difese-costiere]
+  resumeHook: Come ti dicevo, la torre era parte delle difese della costa.
+- id: belvedere-leggenda-it
+  anchor: belvedere
+  unitType: legend
+  locale: it
+  durationS: 18
+  text: >-
+    Da questo belvedere nasce una leggenda. Si racconta che una sirena cantasse da qui per
+    avvisare i pescatori dell'arrivo delle tempeste. È una leggenda, raccolta dalla voce degli
+    abitanti, ma spiega bene quanto il mare fosse al centro della vita del borgo.
+  assertions: [sirena-racconto, sirena-luogo]
+  introduces: [leggenda-della-sirena]
+- id: belvedere-ada-it
+  anchor: belvedere
+  unitType: curiosity
+  locale: it
+  durationS: 12
+  text: >-
+    Una curiosità: secondo la tradizione del borgo, la poetessa Ada Inventata veniva proprio
+    qui a scrivere le sue poesie, guardando il mare.
+  assertions: [ada-belvedere]
+- id: porta-apertura-en
+  anchor: porta-del-borgo
+  unitType: opening
+  locale: en
+  durationS: 20
+  text: >-
+    You are standing in front of the Village Gate. For centuries it was the only landward
+    entrance to the fortified village: anyone arriving from inland had to pass through here,
+    under an arch about four and a half metres wide. Pause for a moment and picture the guards.
+  assertions: [porta-funzione, porta-larghezza]
+  requires: [it.test:difese-costiere]
+  resumeHook: As I was saying, this gate was the only landward entrance.

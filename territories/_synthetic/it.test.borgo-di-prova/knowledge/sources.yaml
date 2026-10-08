@@ -1,0 +1,15 @@
+- id: guida-fittizia
+  sourceKind: book
+  title: Guida fittizia del Borgo di Prova
+  authors: [Studiosa Inventata]
+  year: 2005
+  language: it
+  reliability: B
+  fictional: true
+- id: racconto-orale-fittizio
+  sourceKind: oral_testimony
+  title: Racconto raccolto da un abitante immaginario
+  year: 2024
+  language: it
+  reliability: D
+  fictional: true

@@ -1,0 +1,12 @@
+schemaVersion: 1
+id: it.test
+kind: area
+version: 0.1.0
+fictional: true
+name:
+  it: Area di prova
+  en: Test area
+defaultLocale: it
+locales: [it, en]
+qualityTier: silver
+dependsOn: []

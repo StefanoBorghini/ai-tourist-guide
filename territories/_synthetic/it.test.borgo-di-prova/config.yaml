@@ -1,0 +1,12 @@
+narration:
+  allowedQualityTiers: [silver, gold]
+guide:
+  defaultMode: ask
+  maxProposalsPer10Min: 2
+features:
+  partnerSuggestions: false
+safetyNotes:
+  - id: scogliera
+    text:
+      it: Il sentiero del belvedere costeggia una scogliera senza parapetto.
+      en: The belvedere path runs along a cliff with no railing.

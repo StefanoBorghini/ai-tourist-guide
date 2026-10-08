@@ -14,6 +14,36 @@ Portovenere è il primo territorio e il laboratorio reale; l'engine non contiene
 | [v0.1 · Schema database](docs/v0.1-architecture/schema.sql) | Schema Supabase/PostgreSQL della v0.1 (da rivedere secondo il modello dati v0.2) |
 | [v0.1 · Tool AI](docs/v0.1-architecture/ai-tools.ts) | Definizioni dei tool della guida AI |
 
+## Struttura del repository
+
+```
+apps/guide                 app Next.js (PWA, poi Capacitor)
+packages/domain            identificativi, vocabolari, ontologia, schemi del Territory Pack
+packages/territory-pack    caricamento, validazione, CLI guide-pack
+territories/               Territory Pack (_synthetic/: territori inventati per i test)
+supabase/migrations/       schema del database v0.2
+```
+
+## Sviluppo
+
+Requisiti: Node 22 o superiore.
+
+```bash
+npm install
+npm run ci               # typecheck, test, validazione dei pack, controllo territori
+npm run packs:validate   # valida i Territory Pack
+npm run dev              # app in locale
+```
+
 ## Stato
 
-Fase 0 (fondazioni) non ancora iniziata. Stack previsto: Next.js, React, TypeScript, Supabase, Vercel.
+Fase 0 (fondazioni) in corso:
+
+- [x] monorepo, app Next.js minima
+- [x] Territory Pack v1: schema, validatore, CLI `guide-pack`
+- [x] territorio sintetico di test e controllo "nessun codice per territorio"
+- [x] schema del database v0.2 (grafo, affermazioni con prove, narrazione, changeset)
+- [ ] Tour Context Engine (posizione, tempo, ancore, pianificazione)
+- [ ] Narrative Planner (narrazione componibile)
+- [ ] compilazione dei bundle di runtime
+- [ ] Studio minimo con changeset

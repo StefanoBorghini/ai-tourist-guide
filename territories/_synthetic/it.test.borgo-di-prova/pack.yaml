@@ -1,0 +1,12 @@
+schemaVersion: 1
+id: it.test.borgo-di-prova
+kind: destination
+version: 0.1.0
+fictional: true
+name:
+  it: Borgo di Prova
+  en: Test Village
+defaultLocale: it
+locales: [it, en]
+qualityTier: silver
+dependsOn: [it.test]

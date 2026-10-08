@@ -1,0 +1,7 @@
+- id: molo-di-prova
+  anchorKind: pier
+  location: [0.0005, 0.0005]
+  safetyMarginMin: 10
+  labels:
+    it: { name: Molo dei battelli }
+    en: { name: Ferry pier }

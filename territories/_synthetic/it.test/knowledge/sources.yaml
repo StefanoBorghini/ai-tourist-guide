@@ -1,0 +1,8 @@
+- id: cronaca-immaginaria
+  sourceKind: book
+  title: Cronaca immaginaria dell'Area di prova
+  authors: [Autore Fittizio]
+  year: 1990
+  language: it
+  reliability: A
+  fictional: true

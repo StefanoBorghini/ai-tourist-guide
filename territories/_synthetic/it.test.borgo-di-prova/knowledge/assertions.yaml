@@ -1,0 +1,133 @@
+- id: porta-larghezza
+  subject: porta-del-borgo
+  predicate: measures
+  value: { amount: 4.5, unit: m }
+  type: fact
+  certainty: established
+  status: verified
+  texts:
+    it: L'arco della Porta del Borgo è largo circa quattro metri e mezzo.
+    en: The arch of the Village Gate is about four and a half metres wide.
+  evidence:
+    - { source: guida-fittizia, locator: "p. 3" }
+  authoredBy: redazione-test
+  verifiedBy: verificatore-test
+- id: porta-funzione
+  subject: porta-del-borgo
+  predicate: has_theme
+  object: it.test:difese-costiere
+  type: fact
+  certainty: established
+  status: verified
+  texts:
+    it: La porta era l'unico ingresso via terra al borgo fortificato.
+    en: The gate was the only landward entrance to the fortified village.
+  evidence:
+    - { source: guida-fittizia, locator: "p. 4" }
+  authoredBy: redazione-test
+  verifiedBy: verificatore-test
+- id: chiesa-datazione-a
+  subject: chiesa-di-san-test
+  predicate: dated
+  value: { yearFrom: 1150, circa: true }
+  type: disputed
+  dispute: datazione-chiesa
+  status: verified
+  texts:
+    it: Secondo la cronaca, la chiesa fu fondata intorno al 1150.
+    en: According to the chronicle, the church was founded around 1150.
+  evidence:
+    - { source: it.test:cronaca-immaginaria, locator: "p. 21" }
+  authoredBy: redazione-test
+  verifiedBy: verificatore-test
+- id: chiesa-datazione-b
+  subject: chiesa-di-san-test
+  predicate: dated
+  value: { yearFrom: 1220, yearTo: 1240 }
+  type: disputed
+  dispute: datazione-chiesa
+  status: verified
+  texts:
+    it: Secondo la guida, la chiesa attuale risale al periodo tra il 1220 e il 1240.
+    en: According to the guide, the present church dates from between 1220 and 1240.
+  evidence:
+    - { source: guida-fittizia, locator: "p. 9" }
+  authoredBy: redazione-test
+  verifiedBy: verificatore-test
+- id: torre-controllo
+  subject: torre-di-prova
+  predicate: controlled_by
+  object: it.test:repubblica-immaginaria
+  type: fact
+  certainty: probable
+  status: verified
+  texts:
+    it: La torre fu probabilmente presidiata dalla Repubblica Immaginaria.
+    en: The tower was probably garrisoned by the Imaginary Republic.
+  evidence:
+    - { source: it.test:cronaca-immaginaria, locator: "p. 30" }
+  authoredBy: redazione-test
+  verifiedBy: verificatore-test
+- id: assedio-luogo
+  subject: assedio-immaginario
+  predicate: occurred_at
+  object: torre-di-prova
+  type: fact
+  certainty: uncertain
+  status: verified
+  texts:
+    it: Non è certo che l'assedio immaginario sia avvenuto proprio alla torre.
+    en: It is not certain that the imaginary siege took place at the tower itself.
+  evidence:
+    - { source: guida-fittizia, locator: "p. 15" }
+  authoredBy: redazione-test
+  verifiedBy: verificatore-test
+- id: sirena-racconto
+  subject: leggenda-della-sirena
+  predicate: tells
+  type: legend
+  status: verified
+  texts:
+    it: Si racconta che una sirena cantasse dal belvedere per avvisare i pescatori delle tempeste.
+    en: Legend has it that a mermaid sang from the belvedere to warn fishermen of storms.
+  evidence:
+    - { source: racconto-orale-fittizio }
+  authoredBy: redazione-test
+  verifiedBy: verificatore-test
+- id: sirena-luogo
+  subject: leggenda-della-sirena
+  predicate: set_in
+  object: belvedere
+  type: fact
+  certainty: established
+  status: verified
+  texts:
+    it: La leggenda della sirena è ambientata al belvedere.
+    en: The legend of the mermaid is set at the belvedere.
+  evidence:
+    - { source: racconto-orale-fittizio }
+  authoredBy: redazione-test
+  verifiedBy: verificatore-test
+- id: ada-belvedere
+  subject: it.test:ada-inventata
+  predicate: visited
+  object: belvedere
+  type: tradition
+  status: verified
+  texts:
+    it: Secondo la tradizione del borgo, Ada Inventata scriveva le sue poesie al belvedere.
+    en: According to village tradition, Ada Inventata wrote her poems at the belvedere.
+  evidence:
+    - { source: racconto-orale-fittizio }
+  authoredBy: redazione-test
+  verifiedBy: verificatore-test
+- id: torre-scalini
+  subject: torre-di-prova
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: draft
+  texts:
+    it: Per salire in cima alla torre si percorrono circa 140 gradini.
+  evidence: []
+  authoredBy: redazione-test

@@ -1,0 +1,11 @@
+- id: giro-breve
+  labels:
+    it: { name: Il borgo in 45 minuti }
+    en: { name: The village in 45 minutes }
+  durationMin: 45
+  stops:
+    - { place: porta-del-borgo, dwellMin: 5 }
+    - { place: chiesa-di-san-test, dwellMin: 10 }
+    - { place: torre-di-prova, dwellMin: 10 }
+    - { place: belvedere, dwellMin: 5, optional: true }
+  endAnchor: molo-di-prova

@@ -1,0 +1,26 @@
+{
+  "name": "ai-guide-engine",
+  "private": true,
+  "packageManager": "npm@10.9.4",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "packs:validate": "npm run validate --workspace @guide/territory-pack -- territories",
+    "check:no-territory-code": "node scripts/check-no-territory-code.mjs",
+    "ci": "npm run typecheck && npm run test && npm run packs:validate && npm run check:no-territory-code"
+  },
+  "devDependencies": {
+    "turbo": "2.11.2",
+    "typescript": "5.9.3",
+    "yaml": "^2.9.1"
+  }
+}

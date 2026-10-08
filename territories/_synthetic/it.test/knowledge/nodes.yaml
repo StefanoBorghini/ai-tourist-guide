@@ -1,0 +1,15 @@
+- id: repubblica-immaginaria
+  kind: organization
+  labels:
+    it: { name: Repubblica Immaginaria, short: Stato marinaro inventato per i test }
+    en: { name: Imaginary Republic, short: Maritime state invented for tests }
+- id: difese-costiere
+  kind: theme
+  labels:
+    it: { name: Difese costiere }
+    en: { name: Coastal defences }
+- id: ada-inventata
+  kind: person
+  labels:
+    it: { name: Ada Inventata, short: Poetessa immaginaria, aliases: [Ada] }
+    en: { name: Ada Inventata, short: Imaginary poet, aliases: [Ada] }

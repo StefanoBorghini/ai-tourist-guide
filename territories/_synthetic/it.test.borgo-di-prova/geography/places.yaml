@@ -1,0 +1,56 @@
+- id: porta-del-borgo
+  placeKind: poi
+  categories: [gate, fortification]
+  location: [0.0010, 0.0010]
+  importance: 4
+  dwellMin: 5
+  labels:
+    it: { name: Porta del Borgo }
+    en: { name: Village Gate }
+  geofences:
+    - { kind: arrival, radiusM: 30 }
+  accessibility: { stepFree: true }
+- id: carrugio-centrale
+  placeKind: feature
+  categories: [street]
+  location: [0.0015, 0.0012]
+  importance: 2
+  dwellMin: 3
+  partOf: porta-del-borgo
+  labels:
+    it: { name: Carrugio centrale }
+    en: { name: Main alley }
+- id: chiesa-di-san-test
+  placeKind: poi
+  categories: [church]
+  location: [0.0025, 0.0015]
+  importance: 5
+  dwellMin: 10
+  labels:
+    it: { name: Chiesa di San Test }
+    en: { name: Church of San Test }
+  geofences:
+    - { kind: arrival, radiusM: 35 }
+- id: torre-di-prova
+  placeKind: poi
+  categories: [tower, fortification]
+  location: [0.0030, 0.0030]
+  elevationM: 60
+  importance: 4
+  dwellMin: 10
+  labels:
+    it: { name: Torre di Prova }
+    en: { name: Test Tower }
+  geofences:
+    - { kind: arrival, radiusM: 40 }
+    - { kind: viewpoint, radiusM: 25, center: [0.0025, 0.0015], viewBearingDeg: 20, viewToleranceDeg: 40 }
+  accessibility: { stepFree: false, stairs: 140 }
+- id: belvedere
+  placeKind: site
+  categories: [viewpoint]
+  location: [0.0040, 0.0020]
+  importance: 3
+  dwellMin: 5
+  labels:
+    it: { name: Belvedere }
+    en: { name: Belvedere }

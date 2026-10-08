@@ -200,6 +200,17 @@ export function planTour(request: PlanRequest): TourPlan {
     sequence = exact;
   }
 
+  // A parità (quasi) di durata, si preferisce il verso che parte dalla tappa più vicina:
+  // si entra dalla porta del borgo, non dal fondo. Il percorso al contrario ha lo stesso valore.
+  if (sequence.length > 1) {
+    const reversed = [...sequence].reverse();
+    const reversedEnd = simulate(reversed).end;
+    const firstWalk = (seq: readonly Candidate[]) => walk(start, seq[0]!, "@start", seq[0]!.id);
+    if (reversedEnd <= simulate(sequence).end + 30_000 && firstWalk(reversed) < firstWalk(sequence)) {
+      sequence = reversed;
+    }
+  }
+
   const result = simulate(sequence);
   return {
     status: sequence.length > 0 ? "ok" : "no_candidates",

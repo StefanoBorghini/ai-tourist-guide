@@ -225,6 +225,14 @@ describe("pianificatore", () => {
     expect(plan.value).toBeGreaterThanOrEqual(25);
   });
 
+  it("a parità di durata parte dalla tappa più vicina", () => {
+    const plan = planTour({ now, start: start(), candidates: inputs.places, anchor: anchorAt(now, 60) });
+    const nearest = [...plan.stops].sort(
+      (a, b) => distanceM(start().location, at(a.placeId)) - distanceM(start().location, at(b.placeId)),
+    )[0]!;
+    expect(plan.stops[0]!.placeId).toBe(nearest.placeId);
+  });
+
   it("produce orari coerenti tra tappe successive", () => {
     const plan = planTour({ now, start: start(), candidates: inputs.places, budgetMin: 120 });
     let t = now;

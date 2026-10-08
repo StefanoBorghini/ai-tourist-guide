@@ -15,7 +15,8 @@ import { parse } from "yaml";
 const ROOT = new URL("..", import.meta.url).pathname;
 const CODE_DIRS = ["apps", "packages"];
 const CODE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|json|css)$/;
-const SKIP_DIR = new Set(["node_modules", ".next", "dist", ".turbo", "test", "tests", "__tests__", "fixtures"]);
+// "bundles": file generati dai Territory Pack al build dell'app (apps/guide/public/bundles), non codice.
+const SKIP_DIR = new Set(["node_modules", ".next", "dist", ".turbo", "test", "tests", "__tests__", "fixtures", "bundles"]);
 const SKIP_FILE = /(\.test\.|\.spec\.|package-lock\.json$)/;
 
 function walk(dir, visit) {

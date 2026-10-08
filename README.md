@@ -17,7 +17,7 @@ Portovenere è il primo territorio e il laboratorio reale; l'engine non contiene
 ## Struttura del repository
 
 ```
-apps/guide                 app Next.js (PWA, poi Capacitor)
+apps/guide                 app Next.js: walk mode, voce, simulatore di camminata, GPS (PWA, poi Capacitor)
 packages/domain            identificativi, vocabolari, ontologia, schemi del Territory Pack
 packages/territory-pack    caricamento, validazione, CLI guide-pack
 packages/context-engine    posizione, geofence, movimento, pianificazione con ancora, monitor del tempo
@@ -49,4 +49,5 @@ Fase 0 (fondazioni) in corso:
 - [x] Tour Context Engine (posizione, geofence, movimento, tempo, ancore, pianificazione)
 - [x] Narrative Planner (narrazione componibile, memoria del tour, raccordi a modello)
 - [x] compilazione dei bundle di runtime (solo fatti raccontabili, deterministici, verificati all'apertura)
+- [x] prima app: runtime della guida, voce (sintesi del dispositivo), walk mode, simulatore, GPS
 - [ ] Studio minimo con changeset

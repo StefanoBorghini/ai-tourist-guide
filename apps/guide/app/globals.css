@@ -104,3 +104,21 @@ h2 { font-size: 17px; margin: 10px 0 0; }
 .badge.offline {
   background: var(--muted, #555);
 }
+
+.ask-form {
+  display: flex;
+  gap: 8px;
+}
+.ask-form input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.ask-answer {
+  margin-top: 12px;
+}

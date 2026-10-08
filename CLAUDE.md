@@ -20,7 +20,8 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 
 - `apps/guide` — app Next.js (PWA, poi Capacitor). `lib/runtime.ts` collega motore di contesto e narrazione (logica
   pura, testata); al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
-  `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due)
+  `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
+  `lib/ask.ts` (prompt e controllo delle risposte, puro e testato) e `app/api/guide/ask` per le domande all'AI
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack
 - `packages/territory-pack` — caricamento, validazione e CLI `guide-pack` (`validate`, `photos`: coordinate dall'EXIF)
 - `packages/context-engine` — motore di contesto sul dispositivo: geofence, movimento, pianificatore con ancora,

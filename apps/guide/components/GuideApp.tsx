@@ -8,6 +8,7 @@ import { simulateWalk, type SimStop } from "../lib/simulator";
 import { GuideVoice, type SpeechState } from "../lib/speech";
 import { uiFor } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
+import { AskBox } from "./AskBox";
 import { MiniMap } from "./MiniMap";
 
 interface BundleEntry {
@@ -365,6 +366,8 @@ export function GuideApp() {
         )}
         {runtime.plan?.status === "no_time" && <p className="anchor late">{t.noPlan}</p>}
       </section>
+
+      <AskBox content={content} runtime={runtime} voice={voiceRef.current} online={online} t={t} />
 
       <MiniMap content={content} runtime={runtime} />
 

@@ -54,6 +54,11 @@ export const UI = {
     offlineNow: "Sei offline: puoi usare solo i territori già scaricati.",
     offlineNoBundle: "Nessun territorio scaricato su questo dispositivo.",
     offlineBadge: "Offline",
+    askTitle: "Fai una domanda alla guida",
+    askPlaceholder: "Es. chi l'ha costruita?",
+    askSend: "Chiedi",
+    askVoice: "Fai la domanda a voce",
+    askVerified: "Risposta basata su informazioni verificate",
   },
   en: {
     tagline: "The guide that tells you about the place as you walk.",
@@ -108,8 +113,14 @@ export const UI = {
     offlineNow: "You are offline: only downloaded territories are available.",
     offlineNoBundle: "No territory downloaded on this device.",
     offlineBadge: "Offline",
+    askTitle: "Ask the guide",
+    askPlaceholder: "E.g. who built it?",
+    askSend: "Ask",
+    askVoice: "Ask by voice",
+    askVerified: "Answer based on verified information",
   },
 } as const;
 
 export type UiLocale = keyof typeof UI;
+export type UiText = (typeof UI)[UiLocale];
 export const uiFor = (locale: string) => UI[(locale in UI ? locale : "en") as UiLocale];

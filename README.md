@@ -62,5 +62,7 @@ Fase 0 (fondazioni) in corso:
 - [x] prima app: runtime della guida, voce (sintesi del dispositivo), walk mode, simulatore, GPS
 - [x] immagini con licenza nei pack e nei bundle; coordinate dei luoghi lette dalle foto (EXIF)
 - [x] funzionamento offline: service worker e "Scarica per l'uso offline" (pagina, bundle, immagini)
-- [ ] domande alla guida (AI, solo su affermazioni verificate)
+- [x] domande alla guida (`/api/guide/ask`): risponde solo con affermazioni verificate del bundle, le cita; risposte
+      con citazioni inesistenti o numeri non presenti nelle fonti vengono scartate. Richiede `ANTHROPIC_API_KEY`
+      nelle variabili d'ambiente del progetto (senza, l'app funziona ma non risponde alle domande)
 - [ ] Studio minimo con changeset

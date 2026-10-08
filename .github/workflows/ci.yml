@@ -23,5 +23,7 @@ jobs:
         run: npm run packs:validate
       - name: Nessun codice specifico per territorio
         run: npm run check:no-territory-code
+      - name: Compila un bundle di prova
+        run: npm run bundles:build:test
       - name: Build app
         run: npm run build

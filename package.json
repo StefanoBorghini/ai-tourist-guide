@@ -16,7 +16,8 @@
     "test": "turbo run test",
     "packs:validate": "npm run validate --workspace @guide/territory-pack -- territories",
     "check:no-territory-code": "node scripts/check-no-territory-code.mjs",
-    "ci": "npm run typecheck && npm run test && npm run packs:validate && npm run check:no-territory-code"
+    "ci": "npm run typecheck && npm run test && npm run packs:validate && npm run check:no-territory-code && npm run bundles:build:test",
+    "bundles:build:test": "npm run build-bundle --workspace @guide/bundle -- territories --destination it.test.borgo-di-prova --locale it --allow-fictional"
   },
   "devDependencies": {
     "turbo": "2.11.2",

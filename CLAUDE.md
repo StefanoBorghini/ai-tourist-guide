@@ -24,6 +24,8 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   monitor del tempo, istantanea per la narrazione. TypeScript puro, senza rete né AI; testato con tracce GPS simulate
 - `packages/narrative-planner` — decide cosa raccontare in ogni tappa (unità, prerequisiti, richiami, ganci) e
   aggiorna la memoria del tour. Deterministico: l'AI riceve il piano e rende solo i raccordi
+- `packages/bundle` — compila un Territory Pack in un bundle di runtime per lingua (solo affermazioni raccontabili,
+  deterministico, con hash) e lo rilegge sul dispositivo. L'app usa solo i bundle, mai il database
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime)
 
@@ -31,6 +33,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 
 - `npm run ci` — typecheck, test, validazione dei pack, controllo territori
 - `npm run packs:validate` — valida tutti i pack sotto `territories/`
+- `npm run bundles:build:test` — compila il bundle del territorio sintetico in `dist/bundles/`
 - `npm run dev` / `npm run build` — app
 
 ## Convenzioni

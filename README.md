@@ -22,6 +22,7 @@ packages/domain            identificativi, vocabolari, ontologia, schemi del Ter
 packages/territory-pack    caricamento, validazione, CLI guide-pack
 packages/context-engine    posizione, geofence, movimento, pianificazione con ancora, monitor del tempo
 packages/narrative-planner scelta delle unità narrative per tappa, prerequisiti, richiami, memoria del tour
+packages/bundle            compilazione e lettura dei bundle scaricabili (offline), CLI guide-bundle
 territories/               Territory Pack (_synthetic/: territori inventati per i test)
 supabase/migrations/       schema del database v0.2
 ```
@@ -47,5 +48,5 @@ Fase 0 (fondazioni) in corso:
 - [x] schema del database v0.2 (grafo, affermazioni con prove, narrazione, changeset)
 - [x] Tour Context Engine (posizione, geofence, movimento, tempo, ancore, pianificazione)
 - [x] Narrative Planner (narrazione componibile, memoria del tour, raccordi a modello)
-- [ ] compilazione dei bundle di runtime
+- [x] compilazione dei bundle di runtime (solo fatti raccontabili, deterministici, verificati all'apertura)
 - [ ] Studio minimo con changeset

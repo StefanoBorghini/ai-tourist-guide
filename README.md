@@ -61,6 +61,6 @@ Fase 0 (fondazioni) in corso:
 - [x] compilazione dei bundle di runtime (solo fatti raccontabili, deterministici, verificati all'apertura)
 - [x] prima app: runtime della guida, voce (sintesi del dispositivo), walk mode, simulatore, GPS
 - [x] immagini con licenza nei pack e nei bundle; coordinate dei luoghi lette dalle foto (EXIF)
-- [ ] funzionamento offline
+- [x] funzionamento offline: service worker e "Scarica per l'uso offline" (pagina, bundle, immagini)
 - [ ] domande alla guida (AI, solo su affermazioni verificate)
 - [ ] Studio minimo con changeset

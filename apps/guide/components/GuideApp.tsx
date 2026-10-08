@@ -7,6 +7,7 @@ import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent 
 import { simulateWalk, type SimStop } from "../lib/simulator";
 import { GuideVoice, type SpeechState } from "../lib/speech";
 import { uiFor } from "../lib/i18n";
+import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
 import { MiniMap } from "./MiniMap";
 
 interface BundleEntry {
@@ -31,6 +32,10 @@ export function GuideApp() {
   const [screen, setScreen] = useState<Screen>("home");
   const [content, setContent] = useState<BundleContent | null>(null);
   const [bundleBase, setBundleBase] = useState("");
+  const [opened, setOpened] = useState<{ url: string; manifest: BundleManifest } | null>(null);
+  const [offline, setOffline] = useState<"no" | "downloading" | "yes" | "error">("no");
+  const [progress, setProgress] = useState(0);
+  const [online, setOnline] = useState(true);
   const [budget, setBudget] = useState(45);
   const [returnToAnchor, setReturnToAnchor] = useState(true);
   const [mode, setMode] = useState<GuideMode>("ask");
@@ -57,6 +62,18 @@ export function GuideApp() {
   const rerender = useCallback(() => setTick((n) => n + 1), []);
 
   useEffect(() => {
+    registerServiceWorker();
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+
+  useEffect(() => {
     fetch("/bundles/index.json")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { bundles: BundleEntry[] }) => setEntries(d.bundles))
@@ -70,6 +87,8 @@ export function GuideApp() {
       const json = await (await fetch(base + manifest.content)).text();
       setContent(await verifyBundle(manifest, json));
       setBundleBase(base);
+      setOpened({ url: entry.manifest, manifest });
+      setOffline((await isBundleCached(entry.manifest, manifest).catch(() => false)) ? "yes" : "no");
       setScreen("setup");
     } catch (e) {
       setError((e as Error).message);
@@ -177,6 +196,18 @@ export function GuideApp() {
   const runtime = runtimeRef.current;
   const currentSegment = useMemo(() => transcript.find((s) => s.id === speech.currentId) ?? null, [transcript, speech.currentId]);
 
+  const saveOffline = async () => {
+    if (!opened) return;
+    setOffline("downloading");
+    setProgress(0);
+    try {
+      await downloadBundle(opened.url, opened.manifest, setProgress);
+      setOffline("yes");
+    } catch {
+      setOffline("error");
+    }
+  };
+
   // ------------------------------------------------------------------ schermate
 
   if (screen === "home") {
@@ -187,7 +218,8 @@ export function GuideApp() {
         <p className="eyebrow">AI Guide</p>
         <h1>{t.tagline}</h1>
         <h2>{t.chooseDestination}</h2>
-        {error && <p className="error">{error}</p>}
+        {!online && <p className="notice">{t.offlineNow}</p>}
+        {error && <p className="error">{online ? error : t.offlineNoBundle}</p>}
         <div className="stack">
           {[...byDestination.values()].map((group) => (
             <div key={group[0]!.destination} className="card">
@@ -243,6 +275,22 @@ export function GuideApp() {
         {content.safetyNotes.map((n) => (
           <p key={n.id} className="notice">⚠ {n.text}</p>
         ))}
+        {offlineSupported() && opened && (
+          <div className="offline-box">
+            {offline === "yes" ? (
+              <p className="ok">✓ {t.offlineReady}</p>
+            ) : (
+              <>
+                <button className="button" disabled={offline === "downloading" || !online} onClick={saveOffline}>
+                  ⬇ {t.offlineDownload} ({Math.ceil(opened.manifest.totalBytes / 1024)} KB)
+                </button>
+                {offline === "downloading" && <p className="muted small">{Math.round(progress * 100)}%</p>}
+                {offline === "error" && <p className="error">{t.offlineError}</p>}
+                <p className="muted small">{t.offlineHint}</p>
+              </>
+            )}
+          </div>
+        )}
         <button className="button primary big" onClick={startTour}>{t.start}</button>
       </main>
     );
@@ -261,6 +309,7 @@ export function GuideApp() {
         <button className="link" onClick={() => { stopSimulation(); voiceRef.current?.stop(); setScreen("setup"); }}>← {t.back}</button>
         <strong>{content.name}</strong>
         {content.fictional && <span className="badge">{t.fictional}</span>}
+        {!online && <span className="badge offline">{t.offlineBadge}</span>}
       </header>
 
       {complete && <p className="notice success">{t.complete}</p>}

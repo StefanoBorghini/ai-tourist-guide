@@ -93,3 +93,14 @@ h2 { font-size: 17px; margin: 10px 0 0; }
 .place-photo .credit a {
   color: inherit;
 }
+
+.offline-box {
+  margin: 16px 0;
+}
+.offline-box .ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+.badge.offline {
+  background: var(--muted, #555);
+}

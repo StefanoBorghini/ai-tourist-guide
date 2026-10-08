@@ -47,6 +47,13 @@ export const UI = {
     transcript: "Testo del racconto",
     noVoice: "Il tuo browser non ha la sintesi vocale: leggi il testo qui sotto.",
     back: "Indietro",
+    offlineDownload: "Scarica per l'uso offline",
+    offlineReady: "Disponibile offline: puoi fare il giro anche senza rete.",
+    offlineHint: "Consigliato prima di partire: in giro la rete può mancare.",
+    offlineError: "Download non riuscito. Riprova con una connessione stabile.",
+    offlineNow: "Sei offline: puoi usare solo i territori già scaricati.",
+    offlineNoBundle: "Nessun territorio scaricato su questo dispositivo.",
+    offlineBadge: "Offline",
   },
   en: {
     tagline: "The guide that tells you about the place as you walk.",
@@ -94,6 +101,13 @@ export const UI = {
     transcript: "Transcript",
     noVoice: "Your browser has no speech synthesis: read the text below.",
     back: "Back",
+    offlineDownload: "Download for offline use",
+    offlineReady: "Available offline: you can do the tour without a connection.",
+    offlineHint: "Recommended before you set off: the signal may drop along the way.",
+    offlineError: "Download failed. Try again on a stable connection.",
+    offlineNow: "You are offline: only downloaded territories are available.",
+    offlineNoBundle: "No territory downloaded on this device.",
+    offlineBadge: "Offline",
   },
 } as const;
 

@@ -22,6 +22,8 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 - `packages/territory-pack` — caricamento, validazione e CLI `guide-pack`
 - `packages/context-engine` — motore di contesto sul dispositivo: geofence, movimento, pianificatore con ancora,
   monitor del tempo, istantanea per la narrazione. TypeScript puro, senza rete né AI; testato con tracce GPS simulate
+- `packages/narrative-planner` — decide cosa raccontare in ogni tappa (unità, prerequisiti, richiami, ganci) e
+  aggiorna la memoria del tour. Deterministico: l'AI riceve il piano e rende solo i raccordi
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime)
 

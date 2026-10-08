@@ -1,0 +1,66 @@
+# Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
+# Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+- id: borgo-60
+  labels:
+    it:
+      name: 'Portovenere: borgo e San Pietro – circa 60 min'
+    en:
+      name: 'Portovenere: village and San Pietro – about 60 min'
+  durationMin: 60
+  calibration: draft
+  notes:
+  - 'Stato nella ricerca: DRAFT_FIELD_CALIBRATION_REQUIRED'
+  - 'Tempi di sosta provvisori: da misurare sul posto.'
+  stops:
+  - place: porta-del-borgo
+    dwellMin: 5
+  - place: san-lorenzo
+    dwellMin: 10
+  - place: palazzata-a-mare
+    dwellMin: 8
+  - place: san-pietro
+    dwellMin: 12
+  - place: grotta-byron
+    dwellMin: 8
+- id: borgo-90
+  labels:
+    it:
+      name: Portovenere storico – circa 90 min
+    en:
+      name: Historic Portovenere – about 90 min
+  durationMin: 90
+  calibration: draft
+  notes:
+  - 'Stato nella ricerca: DRAFT_FIELD_CALIBRATION_REQUIRED'
+  - 'Tempi di sosta provvisori: da misurare sul posto.'
+  stops:
+  - place: porta-del-borgo
+    dwellMin: 5
+  - place: san-lorenzo
+    dwellMin: 10
+  - place: palazzata-a-mare
+    dwellMin: 8
+  - place: castello-doria
+    dwellMin: 25
+  - place: san-pietro
+    dwellMin: 12
+  - place: grotta-byron
+    dwellMin: 8
+- id: palmaria-210
+  labels:
+    it:
+      name: Periplo Palmaria – 3h30
+    en:
+      name: Palmaria circuit – 3h30
+  durationMin: 210
+  calibration: draft
+  difficulty: medium
+  elevationGainM: 198
+  sources:
+  - parco-palmaria
+  notes:
+  - 'Stato nella ricerca: SOURCE_VERIFIED_TIME_DIFFICULTY_NEEDS_CURRENT_ACCESS_CHECK'
+  - 'Tempi di sosta provvisori: da misurare sul posto.'
+  stops:
+  - place: palmaria
+    dwellMin: 210

@@ -26,6 +26,11 @@ function rateLimited(key: string, now = Date.now()): boolean {
 
 let client: Anthropic | null = null;
 
+/** Le domande sono disponibili? (L'app lo chiede per decidere se invitare a farle.) */
+export function GET(): Response {
+  return Response.json({ available: Boolean(process.env.ANTHROPIC_API_KEY) }, { headers: { "cache-control": "no-store" } });
+}
+
 export async function POST(request: Request): Promise<Response> {
   const parsed = askRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "richiesta non valida" }, { status: 400 });

@@ -1,0 +1,539 @@
+# Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
+# Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+- id: porta-del-borgo
+  placeKind: poi
+  categories:
+  - history
+  - architecture
+  - urban
+  location:
+  - 9.8485
+  - 44.041
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 4
+  dwellMin: 5
+  labels:
+    it:
+      name: Porta del Borgo
+    en:
+      name: Porta del Borgo
+  geofences:
+  - kind: arrival
+    radiusM: 50
+  curation:
+    storyStatus: FACTS_ONLY_UNTIL_PRIMARY_SOURCE_VERIFIED
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.041, lon 9.8485, raggio 50 m (NOT VERIFIED).
+- id: torre-capitolare
+  placeKind: poi
+  categories:
+  - history
+  - architecture
+  - fortifications
+  location:
+  - 9.8483
+  - 44.0412
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 3
+  dwellMin: 3
+  labels:
+    it:
+      name: Torre Capitolare
+    en:
+      name: Torre Capitolare
+  geofences:
+  - kind: arrival
+    radiusM: 40
+  curation:
+    storyStatus: VERIFY_DETAILED_DATING_BEFORE_AI_NARRATION
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0412, lon 9.8483, raggio 40 m (NOT VERIFIED).
+- id: san-lorenzo
+  placeKind: poi
+  categories:
+  - religion
+  - history
+  - architecture
+  - art
+  location:
+  - 9.8488
+  - 44.0418
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 5
+  dwellMin: 10
+  labels:
+    it:
+      name: Chiesa di San Lorenzo
+    en:
+      name: Church of San Lorenzo
+  geofences:
+  - kind: arrival
+    radiusM: 50
+  curation:
+    storyStatus: FACTS_PLUS_TRADITION_SEPARATION_REQUIRED
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0418, lon 9.8488, raggio 50 m (NOT VERIFIED).
+    - >-
+      Nota della ricerca: The cedar-trunk story is local devotional tradition and must not be presented as independently
+      proven history.
+    - >-
+      Il contenuto della tradizione del tronco di cedro non è nel materiale di ricerca: serve la fonte con il racconto
+      prima di poterlo narrare.
+- id: san-pietro
+  placeKind: poi
+  categories:
+  - religion
+  - history
+  - architecture
+  - landscape
+  location:
+  - 9.8527
+  - 44.0359
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 5
+  dwellMin: 12
+  labels:
+    it:
+      name: Chiesa di San Pietro
+    en:
+      name: Church of San Pietro
+  geofences:
+  - kind: arrival
+    radiusM: 50
+  curation:
+    storyStatus: FACTS_AND_HYPOTHESES_MUST_BE_SEPARATED
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0359, lon 9.8527, raggio 50 m (NOT VERIFIED).
+    - >-
+      Nota della ricerca: Earlier Christian and possible Roman antecedents must be narrated as hypotheses where
+      not independently verified.
+- id: castello-doria
+  placeKind: poi
+  categories:
+  - history
+  - architecture
+  - fortifications
+  - landscape
+  location:
+  - 9.8535
+  - 44.0365
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 5
+  dwellMin: 25
+  labels:
+    it:
+      name: Castello Doria
+    en:
+      name: Doria Castle
+  geofences:
+  - kind: arrival
+    radiusM: 60
+  curation:
+    storyStatus: HIGH_VALUE_POI_PRIMARY_SOURCE_EXPANSION_REQUIRED
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0365, lon 9.8535, raggio 60 m (NOT VERIFIED).
+    - >-
+      Nota della ricerca: Exact construction phases should be taken from municipal/heritage documentation before
+      exact AI narration.
+- id: grotta-byron
+  placeKind: feature
+  categories:
+  - nature
+  - literature
+  - landscape
+  - legend
+  location:
+  - 9.8522
+  - 44.0358
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 4
+  dwellMin: 8
+  labels:
+    it:
+      name: Grotta di Byron / Cala dell'Arpaia
+    en:
+      name: Byron's Grotto / Cala dell'Arpaia
+  geofences:
+  - kind: arrival
+    radiusM: 30
+  curation:
+    storyStatus: FACT_PLUS_TRADITION_LEGEND
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0358, lon 9.8522, raggio 30 m (NOT VERIFIED).
+- id: forte-san-pietro
+  placeKind: poi
+  categories:
+  - fortifications
+  - history
+  location:
+  - 9.8529
+  - 44.0365
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 3
+  dwellMin: 5
+  labels:
+    it:
+      name: Forte / sistema fortificato di San Pietro
+    en:
+      name: San Pietro fort and fortifications
+  geofences:
+  - kind: arrival
+    radiusM: 20
+  curation:
+    storyStatus: DETAILED_PRIMARY_SOURCE_VERIFICATION_REQUIRED
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0365, lon 9.8529, raggio 20 m (NOT VERIFIED).
+- id: piazza-bastreri
+  placeKind: poi
+  categories:
+  - urban
+  - landscape
+  - local-life
+  location:
+  - 9.8479
+  - 44.0402
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 2
+  dwellMin: 3
+  labels:
+    it:
+      name: Piazza Bastreri
+    en:
+      name: Piazza Bastreri
+  geofences:
+  - kind: arrival
+    radiusM: 40
+  curation:
+    storyStatus: FIELD_CONTENT_REQUIRED
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0402, lon 9.8479, raggio 40 m (NOT VERIFIED).
+- id: palazzata-a-mare
+  placeKind: poi
+  categories:
+  - architecture
+  - urban
+  - landscape
+  location:
+  - 9.8475
+  - 44.0396
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 4
+  dwellMin: 8
+  labels:
+    it:
+      name: Palazzata a mare
+    en:
+      name: Palazzata a mare (seafront houses)
+  geofences:
+  - kind: arrival
+    radiusM: 60
+  curation:
+    storyStatus: FACT
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0396, lon 9.8475, raggio 60 m (NOT VERIFIED).
+- id: scalinata-san-pietro
+  placeKind: feature
+  categories:
+  - urban
+  - landscape
+  - walking
+  location:
+  - 9.8528
+  - 44.036
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 2
+  dwellMin: 3
+  labels:
+    it:
+      name: Scalinata / salita verso San Pietro
+    en:
+      name: Steps up to San Pietro
+  geofences:
+  - kind: arrival
+    radiusM: 20
+  accessibility:
+    stepFree: false
+    notes:
+      it: 'Salita ripida a gradini (dal nome e dalla descrizione: da rilevare).'
+  curation:
+    storyStatus: FIELD_VERIFICATION_REQUIRED
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.036, lon 9.8528, raggio 20 m (NOT VERIFIED).
+- id: palmaria
+  placeKind: site
+  categories:
+  - nature
+  - geology
+  - history
+  - hiking
+  - unesco
+  location:
+  - 9.842
+  - 44.0431
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 5
+  dwellMin: 60
+  labels:
+    it:
+      name: Isola Palmaria
+    en:
+      name: Palmaria Island
+  geofences:
+  - kind: arrival
+    radiusM: 200
+  curation:
+    storyStatus: FACT
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0431, lon 9.842, raggio 200 m (NOT VERIFIED).
+    - Accesso e condizioni del periplo da verificare prima della pubblicazione.
+    - >-
+      Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+  walkable: false
+- id: grotta-azzurra
+  placeKind: feature
+  categories:
+  - nature
+  - sea
+  - geology
+  location:
+  - 9.842
+  - 44.0425
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 3
+  dwellMin: 20
+  partOf: palmaria
+  labels:
+    it:
+      name: Grotta Azzurra
+    en:
+      name: Blue Grotto (Grotta Azzurra)
+  geofences:
+  - kind: arrival
+    radiusM: 30
+  curation:
+    storyStatus: FACT_WITH_ACCESS_RULES_TO_BE_CURRENTLY_VERIFIED
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0425, lon 9.842, raggio 30 m (NOT VERIFIED).
+    - Regole di accesso attuali da verificare (informazione pratica, non storica).
+    - >-
+      Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+  walkable: false
+- id: tino
+  placeKind: site
+  categories:
+  - nature
+  - history
+  - religion
+  - unesco
+  location:
+  - 9.8517
+  - 44.0277
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 4
+  dwellMin: 30
+  labels:
+    it:
+      name: Isola del Tino
+    en:
+      name: Tino Island
+  geofences:
+  - kind: arrival
+    radiusM: 150
+  curation:
+    storyStatus: FACT_PLUS_ACCESS_RULES_REQUIRED
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0277, lon 9.8517, raggio 150 m (NOT VERIFIED).
+    - 'Nota della ricerca: Access and visitor rules are time-sensitive and require current verification.'
+    - >-
+      Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+  walkable: false
+- id: tinetto
+  placeKind: site
+  categories:
+  - nature
+  - history
+  - religion
+  - unesco
+  location:
+  - 9.85
+  - 44.0236
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 3
+  dwellMin: 20
+  labels:
+    it:
+      name: Isola del Tinetto
+    en:
+      name: Tinetto Island
+  geofences:
+  - kind: arrival
+    radiusM: 100
+  curation:
+    storyStatus: FACT
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0236, lon 9.85, raggio 100 m (NOT VERIFIED).
+    - >-
+      Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+  walkable: false
+- id: le-grazie
+  placeKind: site
+  categories:
+  - village
+  - maritime-history
+  - diving
+  - culture
+  location:
+  - 9.8772
+  - 44.0298
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 3
+  dwellMin: 30
+  labels:
+    it:
+      name: Le Grazie
+    en:
+      name: Le Grazie
+  geofences:
+  - kind: arrival
+    radiusM: 80
+  curation:
+    storyStatus: FACT_WITH_LOCAL_TRADITION
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0298, lon 9.8772, raggio 80 m (NOT VERIFIED).
+    - >-
+      Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+  walkable: false
+- id: santuario-le-grazie
+  placeKind: poi
+  categories:
+  - religion
+  - art
+  - history
+  location:
+  - 9.8765
+  - 44.0299
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 3
+  dwellMin: 15
+  partOf: le-grazie
+  labels:
+    it:
+      name: Santuario di Nostra Signora delle Grazie
+    en:
+      name: Sanctuary of Nostra Signora delle Grazie
+  geofences:
+  - kind: arrival
+    radiusM: 30
+  curation:
+    storyStatus: PRIMARY_ART_HISTORY_SOURCE_EXPANSION_REQUIRED
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.0299, lon 9.8765, raggio 30 m (NOT VERIFIED).
+    - >-
+      Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+  walkable: false
+- id: fezzano
+  placeKind: site
+  categories:
+  - village
+  - maritime
+  - walking
+  location:
+  - 9.812
+  - 44.049
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 2
+  dwellMin: 20
+  labels:
+    it:
+      name: Fezzano
+    en:
+      name: Fezzano
+  geofences:
+  - kind: arrival
+    radiusM: 80
+  curation:
+    storyStatus: FIELD_AND_MUNICIPAL_SOURCE_EXPANSION_REQUIRED
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.049, lon 9.812, raggio 80 m (NOT VERIFIED).
+    - >-
+      Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+  walkable: false
+- id: muzzerone
+  placeKind: feature
+  categories:
+  - nature
+  - sport
+  - landscape
+  - hiking
+  location:
+  - 9.85
+  - 44.034
+  coordinates:
+    status: preliminary
+    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+  importance: 2
+  dwellMin: 30
+  labels:
+    it:
+      name: Muzzerone / palestra di roccia
+    en:
+      name: Muzzerone climbing area
+  geofences:
+  - kind: arrival
+    radiusM: 100
+  curation:
+    storyStatus: FACT
+    notes:
+    - >-
+      Coordinate preliminari dal materiale di ricerca v1: lat 44.034, lon 9.85, raggio 100 m (NOT VERIFIED).

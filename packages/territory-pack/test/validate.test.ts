@@ -242,3 +242,63 @@ describe("media", () => {
     expect(errorCodes(packs)).toEqual(expect.arrayContaining(["UNRESOLVED_REF", "MEDIA_ALT"]));
   });
 });
+
+describe("verifica sul campo e stadi di rilascio", () => {
+  const unitAssertion = (packs: Map<string, TerritoryPack>) => {
+    const unit = village(packs).units[0]!;
+    return village(packs).assertions.find((a) => a.id === unit.assertions[0])!;
+  };
+
+  it("in produzione pretende coordinate rilevate sul posto", () => {
+    const packs = loadSynthetic();
+    village(packs).places[0]!.coordinates = { status: "preliminary" };
+    expect(errorCodes(packs)).toContain("COORDINATES_NOT_VERIFIED");
+  });
+
+  it("in fase di ricerca le coordinate preliminari sono solo un avviso", () => {
+    const packs = loadSynthetic();
+    village(packs).manifest.releaseStage = "research";
+    village(packs).places[0]!.coordinates = { status: "preliminary" };
+    expect(errorCodes(packs)).not.toContain("COORDINATES_NOT_VERIFIED");
+    expect(warningCodes(packs)).toContain("COORDINATES_PRELIMINARY");
+  });
+
+  it("un'unità può usare affermazioni in revisione solo prima della produzione", () => {
+    const packs = loadSynthetic();
+    unitAssertion(packs).status = "in_review";
+    delete unitAssertion(packs).verifiedBy;
+    expect(errorCodes(packs)).toContain("UNIT_ASSERTION_NOT_NARRATABLE");
+    village(packs).manifest.releaseStage = "field_test";
+    expect(errorCodes(packs)).not.toContain("UNIT_ASSERTION_NOT_NARRATABLE");
+    unitAssertion(packs).status = "draft";
+    expect(errorCodes(packs)).toContain("UNIT_ASSERTION_NOT_NARRATABLE");
+  });
+
+  it("segnala geofence di arrivo sovrapposti", () => {
+    const packs = loadSynthetic();
+    const [a, b] = village(packs).places;
+    a!.geofences = [{ kind: "arrival", radiusM: 50, minDwellS: 8, maxAccuracyM: 35 }];
+    b!.geofences = [{ kind: "arrival", radiusM: 50, minDwellS: 8, maxAccuracyM: 35 }];
+    b!.location = [a!.location[0], a!.location[1] + 0.0003]; // ~33 m
+    expect(warningCodes(packs)).toContain("GEOFENCE_OVERLAP");
+  });
+
+  it("in produzione un percorso deve essere calibrato; una sola tappa è ammessa", () => {
+    const packs = loadSynthetic();
+    const route = village(packs).routes[0]!;
+    route.stops = route.stops.slice(0, 1);
+    expect(errorCodes(packs)).toEqual([]);
+    route.calibration = "draft";
+    expect(errorCodes(packs)).toContain("ROUTE_NOT_CALIBRATED");
+  });
+
+  it("le informazioni pratiche scadute vanno ricontrollate", () => {
+    const packs = loadSynthetic();
+    village(packs).places[0]!.practical = [
+      { id: "orari", kind: "opening_hours", text: { it: "Aperto 9-18" }, checkedAt: "2026-01-01", recheckAfterDays: 30 },
+    ];
+    const issues = validatePacks(packs, { today: "2026-03-01" });
+    expect(issues.map((i) => i.code)).toContain("PRACTICAL_STALE");
+    expect(validatePacks(packs, { today: "2026-01-15" }).map((i) => i.code)).not.toContain("PRACTICAL_STALE");
+  });
+});

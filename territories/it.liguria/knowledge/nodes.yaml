@@ -1,0 +1,11 @@
+# Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
+# Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+- id: unesco-portovenere-cinque-terre
+  kind: territory
+  labels:
+    it:
+      name: Portovenere, Cinque Terre e Isole (Palmaria, Tino e Tinetto)
+      short: Sito Patrimonio Mondiale UNESCO
+    en:
+      name: Portovenere, Cinque Terre, and the Islands (Palmaria, Tino and Tinetto)
+      short: UNESCO World Heritage property

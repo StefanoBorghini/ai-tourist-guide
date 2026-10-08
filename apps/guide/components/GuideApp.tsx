@@ -9,6 +9,7 @@ import { GuideVoice, type SpeechState } from "../lib/speech";
 import { uiFor } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
 import { AskBox } from "./AskBox";
+import { DebugPanel } from "./DebugPanel";
 import { MiniMap } from "./MiniMap";
 
 interface BundleEntry {
@@ -16,6 +17,8 @@ interface BundleEntry {
   name: string;
   locale: string;
   fictional: boolean;
+  /** Bundle di anteprima: territorio con contenuti ancora in revisione. */
+  preview?: boolean;
   manifest: string;
 }
 
@@ -37,7 +40,11 @@ export function GuideApp() {
   const [offline, setOffline] = useState<"no" | "downloading" | "yes" | "error">("no");
   const [progress, setProgress] = useState(0);
   const [online, setOnline] = useState(true);
+  const [askAvailable, setAskAvailable] = useState(false);
   const [budget, setBudget] = useState(45);
+  const [routeRef, setRouteRef] = useState<string | null>(null);
+  const [debug, setDebug] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
   const [returnToAnchor, setReturnToAnchor] = useState(true);
   const [mode, setMode] = useState<GuideMode>("ask");
   const [avoidStairs, setAvoidStairs] = useState(false);
@@ -54,13 +61,42 @@ export function GuideApp() {
   const voiceRef = useRef<GuideVoice | null>(null);
   const simRef = useRef<{ fixes: Fix[]; index: number; timer: ReturnType<typeof setInterval> | null }>({ fixes: [], index: 0, timer: null });
   const gpsWatchRef = useRef<number | null>(null);
+  /** Punto di partenza del giro (ancora o prima tappa del percorso): da qui parte anche la simulazione. */
+  const tourStartRef = useRef<LngLat | null>(null);
   const speechStateRef = useRef<SpeechState>("idle");
   const proposalRef = useRef(proposal);
   proposalRef.current = proposal;
 
-  const locale = content?.locale ?? (typeof navigator !== "undefined" && navigator.language.startsWith("it") ? "it" : "en");
+  // La lingua del dispositivo si legge dopo il montaggio: il server non la conosce
+  // e leggerla durante il rendering produce un'idratazione diversa (errore React #418).
+  const [deviceLocale, setDeviceLocale] = useState<"it" | "en">("en");
+  useEffect(() => setDeviceLocale(navigator.language.startsWith("it") ? "it" : "en"), []);
+  const locale = content?.locale ?? deviceLocale;
   const t = uiFor(locale);
   const rerender = useCallback(() => setTick((n) => n + 1), []);
+
+  useEffect(() => {
+    // Modalità debug: ?debug=1 nell'indirizzo la attiva e la ricorda su questo dispositivo.
+    try {
+      const q = new URLSearchParams(window.location.search).get("debug");
+      if (q !== null) localStorage.setItem("guide-debug", q === "0" ? "0" : "1");
+      setDebug(localStorage.getItem("guide-debug") === "1");
+    } catch {
+      setDebug(new URLSearchParams(window.location.search).get("debug") === "1");
+    }
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/guide/ask", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { available: false }))
+      .then((d: { available?: boolean }) => setAskAvailable(d.available === true))
+      .catch(() => setAskAvailable(false));
+  }, [online]);
+
+  // Si invita a fare domande solo quando si possono davvero fare.
+  useEffect(() => {
+    if (runtimeRef.current) runtimeRef.current.inviteQuestions = online && askAvailable;
+  }, [online, askAvailable]);
 
   useEffect(() => {
     registerServiceWorker();
@@ -123,15 +159,24 @@ export function GuideApp() {
     if (!content) return;
     const now = Date.now();
     const runtime = new GuideRuntime(content, mode);
+    runtime.inviteQuestions = online && askAvailable;
     const anchor = content.anchors[0];
-    const start = anchor?.location ?? content.places[0]!.location;
+    const route = routeRef ? content.routes.find((r) => r.ref === routeRef) : undefined;
+    // Con un percorso curato si parte dalla sua prima tappa; altrimenti dall'ancora (o dal primo luogo).
+    const firstStop = route ? content.places.find((p) => p.ref === route.stops[0]?.place) : undefined;
+    const start = firstStop?.location ?? anchor?.location ?? content.places[0]!.location;
     runtime.startTour({
       now,
       start,
-      ...(returnToAnchor && anchor ? { anchor: { ref: anchor.ref, deadline: now + budget * 60_000 } } : { budgetMin: budget }),
+      ...(route
+        ? { route: route.ref, budgetMin: route.durationMin }
+        : returnToAnchor && anchor
+          ? { anchor: { ref: anchor.ref, deadline: now + budget * 60_000 } }
+          : { budgetMin: budget }),
       avoidStairs,
     });
     runtimeRef.current = runtime;
+    tourStartRef.current = start;
     voiceRef.current?.stop();
     voiceRef.current = GuideVoice.available()
       ? new GuideVoice(content.locale === "it" ? "it-IT" : "en-GB", (state, current) => {
@@ -148,7 +193,7 @@ export function GuideApp() {
   const startSimulation = () => {
     const runtime = runtimeRef.current;
     if (!runtime?.plan || !content) return;
-    const from: LngLat = runtime.lastFix?.location ?? content.anchors[0]?.location ?? content.places[0]!.location;
+    const from: LngLat = runtime.lastFix?.location ?? tourStartRef.current ?? content.places[0]!.location;
     const remaining = runtime.plan.stops.filter((s) => !runtime.visited.includes(s.placeId));
     const stops: SimStop[] = remaining.map((s) => ({ location: content.places.find((p) => p.ref === s.placeId)!.location, dwellS: 25 }));
     if (runtime.anchor) stops.push({ location: runtime.anchor.location, dwellS: 5 });
@@ -172,6 +217,7 @@ export function GuideApp() {
     }
     if (!("geolocation" in navigator)) return;
     stopSimulation();
+    setGpsError(null);
     gpsWatchRef.current = navigator.geolocation.watchPosition(
       (p) =>
         handleEvents(
@@ -182,7 +228,10 @@ export function GuideApp() {
             speedMs: p.coords.speed ?? undefined,
           }),
         ),
-      () => setGps(false),
+      (err) => {
+        setGpsError(err.message || `errore ${err.code}`);
+        setGps(false);
+      },
       { enableHighAccuracy: true, maximumAge: 2000 },
     );
     setGps(true);
@@ -226,6 +275,7 @@ export function GuideApp() {
             <div key={group[0]!.destination} className="card">
               <strong>{group[0]!.name}</strong>
               {group[0]!.fictional && <span className="badge">{t.fictional}</span>}
+              {group[0]!.preview && <span className="badge preview">{t.previewBadge}</span>}
               <div className="row">
                 {group.map((e) => (
                   <button key={e.locale} className="button" onClick={() => openBundle(e)}>
@@ -247,15 +297,37 @@ export function GuideApp() {
         <button className="link" onClick={() => setScreen("home")}>← {t.back}</button>
         <h1>{content.name}</h1>
         {content.fictional && <p className="notice">{t.fictionalNote}</p>}
-        <h2>{t.howLong}</h2>
-        <div className="row wrap">
+        {content.preview && <p className="notice preview">{t.previewNote}</p>}
+        {content.routes.length > 0 && (
+          <>
+            <h2>{t.routeTitle}</h2>
+            <div className="stack">
+              <button className={`chip ${routeRef === null ? "on" : ""}`} onClick={() => setRouteRef(null)}>
+                {t.routeFree}
+              </button>
+              {content.routes.map((r) => (
+                <button key={r.ref} className={`chip route ${routeRef === r.ref ? "on" : ""}`} onClick={() => setRouteRef(r.ref)}>
+                  <span>{r.name}</span>
+                  <span className="muted small">
+                    {r.durationMin} {t.minutes}
+                    {r.difficulty && <> · {t.difficulty[r.difficulty]}</>}
+                    {r.elevationGainM !== undefined && <> · +{r.elevationGainM} m</>}
+                    {r.calibration === "draft" && <> · {t.routeDraft}</>}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {routeRef === null && <h2>{t.howLong}</h2>}
+        {routeRef === null && <div className="row wrap">
           {BUDGETS.map((b) => (
             <button key={b} className={`chip ${budget === b ? "on" : ""}`} onClick={() => setBudget(b)}>
               {b} {t.minutes}
             </button>
           ))}
-        </div>
-        {anchor && (
+        </div>}
+        {anchor && routeRef === null && (
           <label className="check">
             <input type="checkbox" checked={returnToAnchor} onChange={(e) => setReturnToAnchor(e.target.checked)} />
             {t.returnTo} {anchor.name} {t.by} {clock(Date.now() + budget * 60_000, locale)}
@@ -311,6 +383,14 @@ export function GuideApp() {
         <strong>{content.name}</strong>
         {content.fictional && <span className="badge">{t.fictional}</span>}
         {!online && <span className="badge offline">{t.offlineBadge}</span>}
+        {content.preview && <span className="badge preview">{t.previewBadge}</span>}
+        <button className={`link debug-toggle ${debug ? "on" : ""}`} onClick={() => {
+          const next = !debug;
+          setDebug(next);
+          try { localStorage.setItem("guide-debug", next ? "1" : "0"); } catch { /* memoria non disponibile */ }
+        }} aria-pressed={debug}>
+          debug
+        </button>
       </header>
 
       {complete && <p className="notice success">{t.complete}</p>}
@@ -367,7 +447,9 @@ export function GuideApp() {
         {runtime.plan?.status === "no_time" && <p className="anchor late">{t.noPlan}</p>}
       </section>
 
-      <AskBox content={content} runtime={runtime} voice={voiceRef.current} online={online} t={t} />
+      {debug && <DebugPanel content={content} runtime={runtime} gpsError={gpsError} />}
+
+      {askAvailable && <AskBox content={content} runtime={runtime} voice={voiceRef.current} online={online} t={t} />}
 
       <MiniMap content={content} runtime={runtime} />
 

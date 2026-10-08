@@ -3,6 +3,7 @@
     it: { name: Il borgo in 45 minuti }
     en: { name: The village in 45 minutes }
   durationMin: 45
+  calibration: field_calibrated
   stops:
     - { place: porta-del-borgo, dwellMin: 5 }
     - { place: chiesa-di-san-test, dwellMin: 10 }

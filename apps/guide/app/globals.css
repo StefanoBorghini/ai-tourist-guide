@@ -122,3 +122,104 @@ h2 { font-size: 17px; margin: 10px 0 0; }
 .ask-answer {
   margin-top: 12px;
 }
+
+.badge.preview {
+  background: var(--accent);
+}
+.notice.preview {
+  border-left: 4px solid var(--warn);
+}
+.chip.route {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+.debug-toggle {
+  margin-left: auto;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+.debug-toggle.on {
+  opacity: 1;
+  font-weight: 700;
+}
+.debug {
+  font-size: 0.85rem;
+}
+.debug h3 {
+  margin: 14px 0 6px;
+  font-size: 0.95rem;
+}
+.debug code {
+  font-size: 0.8rem;
+}
+.debug-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 10px;
+  margin: 0;
+}
+.debug-grid dt {
+  color: var(--muted);
+}
+.debug-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.debug-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.debug-table th,
+.debug-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 4px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.debug-table tr.active td {
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+.debug-notes {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+.debug-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.debug-form select,
+.debug-form input {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  min-width: 0;
+}
+.debug-points {
+  padding-left: 20px;
+}
+.debug-points li {
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+.good {
+  color: var(--ok);
+}
+.warn {
+  color: var(--warn);
+}
+.bad {
+  color: var(--danger);
+}
+.chip.on .muted {
+  color: inherit;
+  opacity: 0.85;
+}

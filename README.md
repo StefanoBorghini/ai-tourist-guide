@@ -23,7 +23,8 @@ packages/territory-pack    caricamento, validazione, CLI guide-pack
 packages/context-engine    posizione, geofence, movimento, pianificazione con ancora, monitor del tempo
 packages/narrative-planner scelta delle unità narrative per tappa, prerequisiti, richiami, memoria del tour
 packages/bundle            compilazione e lettura dei bundle scaricabili (offline), CLI guide-bundle
-territories/               Territory Pack (_synthetic/: territori inventati per i test)
+territories/               Territory Pack (_synthetic/: territori inventati per i test;
+                           it.liguria.sp.portovenere: primo territorio reale, in fase di ricerca)
 supabase/migrations/       schema del database v0.2
 ```
 
@@ -65,4 +66,9 @@ Fase 0 (fondazioni) in corso:
 - [x] domande alla guida (`/api/guide/ask`): risponde solo con affermazioni verificate del bundle, le cita; risposte
       con citazioni inesistenti o numeri non presenti nelle fonti vengono scartate. Richiede `ANTHROPIC_API_KEY`
       nelle variabili d'ambiente del progetto (senza, l'app funziona ma non risponde alle domande)
+- [x] stadi di rilascio (ricerca, prova sul campo, produzione) e bundle di anteprima dichiarati come tali;
+      stato delle coordinate, curatela, informazioni pratiche datate, ipotesi, percorsi curati
+- [x] primo territorio reale: Portovenere (18 luoghi, in ricerca: vedi `territories/it.liguria.sp.portovenere/README.md`)
+- [x] modalità debug per il test sul campo (`?debug=1`): GPS, geofence, stati redazionali, rilievo delle posizioni
+- [ ] Portovenere verificato sul campo (coordinate, percorsi) e dalla redazione (affermazioni)
 - [ ] Studio minimo con changeset

@@ -59,6 +59,13 @@ export const UI = {
     askSend: "Chiedi",
     askVoice: "Fai la domanda a voce",
     askVerified: "Risposta basata su informazioni verificate",
+    previewBadge: "Anteprima",
+    previewNote: "Anteprima per il test sul campo: i contenuti sono in revisione e non ancora verificati, le posizioni dei luoghi sono provvisorie.",
+    routeTitle: "Percorso",
+    routeFree: "Giro libero: scegli tu il tempo",
+    routeDraft: "tempi da calibrare",
+    difficulty: { easy: "facile", medium: "media difficoltà", hard: "impegnativo" },
+    askInReview: "Risposta basata su contenuti in revisione (anteprima)",
   },
   en: {
     tagline: "The guide that tells you about the place as you walk.",
@@ -118,6 +125,13 @@ export const UI = {
     askSend: "Ask",
     askVoice: "Ask by voice",
     askVerified: "Answer based on verified information",
+    previewBadge: "Preview",
+    previewNote: "Field-test preview: content is under review and not yet verified; place positions are provisional.",
+    routeTitle: "Route",
+    routeFree: "Free tour: you choose the time",
+    routeDraft: "timings to be calibrated",
+    difficulty: { easy: "easy", medium: "medium difficulty", hard: "demanding" },
+    askInReview: "Answer based on content under review (preview)",
   },
 } as const;
 

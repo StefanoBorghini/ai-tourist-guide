@@ -1,5 +1,6 @@
 import {
   anchorStatus,
+  distanceM,
   GeofenceTracker,
   MotionDetector,
   planTour,
@@ -54,6 +55,8 @@ export interface TourOptions {
   anchor?: { ref: string; deadline: number };
   avoidStairs?: boolean;
   interests?: string[];
+  /** Percorso curato (riferimento completo): tappe e ordine li decide la redazione. */
+  route?: string;
 }
 
 /**
@@ -61,6 +64,29 @@ export interface TourOptions {
  * ogni tappa di un tour deve poter essere riconosciuta.
  */
 export const DEFAULT_ARRIVAL_RADIUS_M = 25;
+
+const INVITE = {
+  it: "Se hai domande su questo luogo, chiedimi pure.",
+  en: "If you have any questions about this place, just ask.",
+} as const;
+
+/** Istantanea per la modalità debug del test sul campo. */
+export interface DebugSnapshot {
+  fix: Fix | null;
+  motion: Motion;
+  currentPlaceRef: string | null;
+  pendingProposal: string | null;
+  places: {
+    ref: string;
+    name: string;
+    distanceM: number | null;
+    coordinateStatus: string;
+    storyStatus: string | null;
+    notes: string[];
+    narratable: number;
+    fences: { kind: string; radiusM: number; phase: string; tooImprecise: boolean }[];
+  }[];
+}
 
 /** Tempo di racconto per tappa: una parte della sosta prevista, tra 30 secondi e 3 minuti. */
 export function narrationBudgetS(dwellMin: number): number {
@@ -83,6 +109,8 @@ export class GuideRuntime {
   pendingProposal: string | null = null;
   lastAnchorStatus: AnchorStatus | null = null;
   lastFix: Fix | null = null;
+  /** Se vero, dopo il racconto di un luogo la guida invita a fare domande. */
+  inviteQuestions = false;
   private narratedHere = new Set<string>();
   private segmentCounter = 0;
 
@@ -133,11 +161,21 @@ export class GuideRuntime {
       if (!a) throw new Error(`ancora sconosciuta: ${options.anchor.ref}`);
       this.anchor = { ...a, deadline: options.anchor.deadline };
     }
+    const route = options.route ? this.content.routes.find((r) => r.ref === options.route) : undefined;
+    if (options.route && !route) throw new Error(`percorso sconosciuto: ${options.route}`);
+    const candidates = route
+      ? route.stops.flatMap((s) => {
+          const place = this.places.find((p) => p.id === s.place);
+          return place ? [{ ...place, dwellMin: s.dwellMin ?? place.dwellMin }] : [];
+        })
+      : this.places;
+    const budgetMin = options.budgetMin ?? route?.durationMin;
     this.plan = planTour({
       now: options.now,
       start: { location: options.start },
-      candidates: this.places,
-      ...(options.budgetMin !== undefined ? { budgetMin: options.budgetMin } : {}),
+      candidates,
+      ...(route ? { fixedOrder: true } : {}),
+      ...(budgetMin !== undefined ? { budgetMin } : {}),
       ...(this.anchor ? { anchor: this.anchor } : {}),
       ...(options.avoidStairs !== undefined ? { avoidStairs: options.avoidStairs } : {}),
       ...(options.interests ? { interests: options.interests } : {}),
@@ -217,10 +255,36 @@ export class GuideRuntime {
         text: item.kind === "unit" ? this.library.units.get(item.unitRef)!.text : renderBridgeTemplate(item, this.content.locale, this.library),
         placeRef,
       }));
+      // Invito a fare domande: frase fissa, senza fatti, solo se le domande sono disponibili.
+      if (this.inviteQuestions) {
+        segments.push({ id: `s${++this.segmentCounter}`, kind: "bridge", text: INVITE[this.content.locale === "it" ? "it" : "en"], placeRef });
+      }
       events.push({ type: "narration", placeRef, name, segments });
     }
     if (this.isTourComplete()) events.push({ type: "tour_complete" });
     return events;
+  }
+
+  /** Stato completo per la diagnostica sul campo: luoghi ordinati per distanza, geofence, stati redazionali. */
+  debugSnapshot(): DebugSnapshot {
+    const fix = this.lastFix;
+    const fences = this.tracker.inspect();
+    const units = [...this.library.units.values()];
+    const places = this.content.places
+      .map((p) => ({
+        ref: p.ref,
+        name: p.name,
+        distanceM: fix ? Math.round(distanceM(fix.location, p.location)) : null,
+        coordinateStatus: p.coordinateStatus,
+        storyStatus: p.curation?.storyStatus ?? null,
+        notes: p.curation?.notes ?? [],
+        narratable: units.filter((u) => u.anchor === p.ref).length,
+        fences: fences
+          .filter((f) => f.placeId === p.ref)
+          .map((f) => ({ kind: f.kind, radiusM: f.radiusM, phase: f.phase, tooImprecise: !!fix && fix.accuracyM > f.maxAccuracyM })),
+      }))
+      .sort((a, b) => (a.distanceM ?? 0) - (b.distanceM ?? 0) || a.name.localeCompare(b.name));
+    return { fix, motion: this.motion, currentPlaceRef: this.currentPlaceRef, pendingProposal: this.pendingProposal, places };
   }
 
   /** Piano narrativo per un luogo, senza modificare la memoria. */

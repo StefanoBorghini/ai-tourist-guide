@@ -1,0 +1,18 @@
+# Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
+# Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+schemaVersion: 1
+id: it.liguria.sp.portovenere
+kind: destination
+version: 0.1.0
+name:
+  it: Portovenere
+  en: Portovenere
+defaultLocale: it
+locales:
+- it
+- en
+qualityTier: bronze
+dependsOn:
+- it.liguria
+releaseStage: research
+editorialStatus: RESEARCH_READY_NOT_PRODUCTION_VERIFIED

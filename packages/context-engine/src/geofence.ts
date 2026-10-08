@@ -114,6 +114,18 @@ export class GeofenceTracker {
     return events;
   }
 
+  /** Stato di ogni geofence, per la diagnostica (modalità debug dell'app). */
+  inspect(): { fenceId: string; placeId: string; kind: GeofenceKind; radiusM: number; maxAccuracyM: number; phase: FenceState["phase"] }[] {
+    return this.fences.map((f) => ({
+      fenceId: f.id,
+      placeId: f.placeId,
+      kind: f.kind,
+      radiusM: f.radiusM,
+      maxAccuracyM: f.maxAccuracyM,
+      phase: this.states.get(f.id)!.phase,
+    }));
+  }
+
   /** Geofence in cui il visitatore si trova ora (inside o in uscita non ancora confermata). */
   activeFenceIds(): string[] {
     return [...this.states].filter(([, s]) => s.phase === "inside" || s.phase === "exiting").map(([id]) => id);

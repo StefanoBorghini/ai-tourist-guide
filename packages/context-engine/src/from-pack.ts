@@ -24,6 +24,7 @@ export function engineInputsFromPack(pack: TerritoryPack): EngineInputs {
     tags: p.categories,
     stepFree: p.accessibility?.stepFree,
     stairs: p.accessibility?.stairs,
+    walkable: p.walkable,
   }));
 
   const fences: FenceDefinition[] = pack.places.flatMap((p) =>

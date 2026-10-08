@@ -2,6 +2,7 @@
   placeKind: poi
   categories: [gate, fortification]
   location: [0.0010, 0.0010]
+  coordinates: { status: field_verified, verifiedAt: "2026-05-15", verifiedBy: redazione-test, method: rilievo fittizio }
   importance: 4
   dwellMin: 5
   labels:
@@ -14,6 +15,7 @@
   placeKind: feature
   categories: [street]
   location: [0.0015, 0.0012]
+  coordinates: { status: field_verified, verifiedAt: "2026-05-15", verifiedBy: redazione-test, method: rilievo fittizio }
   importance: 2
   dwellMin: 3
   partOf: porta-del-borgo
@@ -24,6 +26,7 @@
   placeKind: poi
   categories: [church]
   location: [0.0025, 0.0015]
+  coordinates: { status: field_verified, verifiedAt: "2026-05-15", verifiedBy: redazione-test, method: rilievo fittizio }
   importance: 5
   dwellMin: 10
   labels:
@@ -35,6 +38,7 @@
   placeKind: poi
   categories: [tower, fortification]
   location: [0.0030, 0.0030]
+  coordinates: { status: field_verified, verifiedAt: "2026-05-15", verifiedBy: redazione-test, method: rilievo fittizio }
   elevationM: 60
   importance: 4
   dwellMin: 10
@@ -49,6 +53,7 @@
   placeKind: site
   categories: [viewpoint]
   location: [0.0040, 0.0020]
+  coordinates: { status: field_verified, verifiedAt: "2026-05-15", verifiedBy: redazione-test, method: rilievo fittizio }
   importance: 3
   dwellMin: 5
   labels:

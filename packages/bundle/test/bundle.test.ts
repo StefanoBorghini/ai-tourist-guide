@@ -203,3 +203,39 @@ describe("media", () => {
     expect(build({ readAsset }).manifest).toEqual(build({ readAsset }).manifest);
   });
 });
+
+describe("anteprima per i territori non ancora in produzione", () => {
+  const withStage = (stage: "research" | "production") => {
+    const copy = structuredClone(packs);
+    const dest = copy.get(D)!;
+    dest.manifest.releaseStage = stage;
+    const a = dest.assertions.find((x) => x.status === "verified")!;
+    a.status = "in_review";
+    delete a.verifiedBy;
+    // In produzione nessuna unità può citarla: le si tolgono le unità che la usano.
+    if (stage === "production") dest.units = dest.units.filter((u) => !u.assertions.includes(a.id));
+    return { copy, ref: ref(a.id) };
+  };
+
+  it("in produzione esclude le affermazioni in revisione e non è un'anteprima", () => {
+    const { copy, ref: r } = withStage("production");
+    const { content } = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+    expect(content.preview).toBe(false);
+    expect(content.assertions.map((a) => a.ref)).not.toContain(r);
+  });
+
+  it("in ricerca le include, marcate, e il bundle si dichiara anteprima", () => {
+    const { copy, ref: r } = withStage("research");
+    const { content } = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+    expect(content.preview).toBe(true);
+    expect(content.releaseStage).toBe("research");
+    expect(content.assertions.find((a) => a.ref === r)?.inReview).toBe(true);
+    // Le bozze restano fuori anche in anteprima.
+    const drafts = copy.get(D)!.assertions.filter((a) => a.status === "draft").map((a) => ref(a.id));
+    expect(content.assertions.some((a) => drafts.includes(a.ref))).toBe(false);
+  });
+
+  it("porta nei luoghi lo stato delle coordinate", () => {
+    expect(build().content.places.every((p) => p.coordinateStatus === "field_verified")).toBe(true);
+  });
+});

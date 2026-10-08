@@ -26,6 +26,8 @@ export interface Candidate extends Point {
   tags?: readonly string[];
   stepFree?: boolean | undefined;
   stairs?: number | undefined;
+  /** false se non si raggiunge a piedi (es. un'isola): mai proposto come tappa. */
+  walkable?: boolean | undefined;
 }
 
 export interface AnchorTarget extends Point {
@@ -46,6 +48,11 @@ export interface PlanRequest {
   interests?: readonly string[];
   avoidStairs?: boolean;
   estimator?: WalkEstimator;
+  /**
+   * Percorso curato: i candidati sono le tappe nell'ordine dato. L'ordine non cambia;
+   * una tappa che non sta nel tempo disponibile viene saltata.
+   */
+  fixedOrder?: boolean;
 }
 
 export interface PlannedStop {
@@ -91,11 +98,12 @@ export function planTour(request: PlanRequest): TourPlan {
   }
 
   const visited = request.visited ?? new Set<string>();
-  const pool = request.candidates
+  const eligible = request.candidates
     .filter((c) => !visited.has(c.id))
-    .filter((c) => !request.avoidStairs || (c.stepFree !== false && !(c.stairs && c.stairs > 0)))
-    .slice()
-    .sort((a, b) => a.id.localeCompare(b.id));
+    // In un percorso curato le tappe le ha scelte la redazione (es. il giro di un'isola).
+    .filter((c) => request.fixedOrder || c.walkable !== false)
+    .filter((c) => !request.avoidStairs || (c.stepFree !== false && !(c.stairs && c.stairs > 0)));
+  const pool = eligible.slice().sort((a, b) => a.id.localeCompare(b.id));
 
   const walkCache = new Map<string, number>();
   const walk = (a: Point & { id?: string }, b: Point & { id?: string }, keyA: string, keyB: string) => {
@@ -137,6 +145,24 @@ export function planTour(request: PlanRequest): TourPlan {
   }
 
   const values = new Map(pool.map((c) => [c.id, candidateValue(c, request.interests)]));
+
+  if (request.fixedOrder) {
+    const seq: Candidate[] = [];
+    for (const c of eligible) {
+      if (simulate([...seq, c]).end <= availableUntil) seq.push(c);
+    }
+    const result = simulate(seq);
+    return {
+      status: seq.length > 0 ? "ok" : eligible.length > 0 ? "no_time" : "no_candidates",
+      stops: result.stops,
+      availableUntil,
+      endAt: result.end,
+      returnWalkS: result.returnWalkS,
+      slackS: (availableUntil - result.end) / 1000,
+      value: seq.reduce((sum, c) => sum + values.get(c.id)!, 0),
+    };
+  }
+
   let sequence: Candidate[] = [];
   let currentEnd = empty.end;
 

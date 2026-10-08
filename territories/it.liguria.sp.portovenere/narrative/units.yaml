@@ -1,0 +1,443 @@
+# Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
+# Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+- id: san-lorenzo-opening-it
+  anchor: san-lorenzo
+  unitType: opening
+  locale: it
+  durationS: 11
+  text: >-
+    Questa è la chiesa di San Lorenzo, un edificio romanico a tre navate. Secondo il materiale turistico locale,
+    fu consacrata nel 1130 da papa Innocenzo II.
+  assertions: &id001
+  - sl-romanica
+  - sl-consacrazione
+- id: san-lorenzo-opening-en
+  anchor: san-lorenzo
+  unitType: opening
+  locale: en
+  durationS: 12
+  text: >-
+    This is the church of San Lorenzo, a Romanesque building with three naves. According to local tourism material,
+    it was consecrated in 1130 by Pope Innocent II.
+  assertions: *id001
+- id: san-lorenzo-detail-it
+  anchor: san-lorenzo
+  unitType: detail
+  locale: it
+  durationS: 5
+  text: 'Guarda la facciata: è decorata da fasce alternate bianche e nere.'
+  assertions: &id002
+  - sl-facciata
+- id: san-lorenzo-detail-en
+  anchor: san-lorenzo
+  unitType: detail
+  locale: en
+  durationS: 6
+  text: 'Look at the façade: it is decorated with alternating black and white bands.'
+  assertions: *id002
+- id: san-lorenzo-context-it
+  anchor: san-lorenzo
+  unitType: context
+  locale: it
+  durationS: 5
+  text: All'interno la chiesa custodisce la Madonna Bianca, oggetto di grande venerazione.
+  assertions: &id003
+  - sl-madonna-bianca
+- id: san-lorenzo-context-en
+  anchor: san-lorenzo
+  unitType: context
+  locale: en
+  durationS: 5
+  text: Inside, the church houses the Madonna Bianca, an object of deep veneration.
+  assertions: *id003
+- id: san-pietro-opening-it
+  anchor: san-pietro
+  unitType: opening
+  locale: it
+  durationS: 7
+  text: >-
+    Eccoci alla chiesa di San Pietro, sul promontorio roccioso: è uno dei luoghi simbolo di Porto Venere.
+  assertions: &id004
+  - sp-promontorio
+- id: san-pietro-opening-en
+  anchor: san-pietro
+  unitType: opening
+  locale: en
+  durationS: 7
+  text: 'Here is the church of San Pietro, on the rocky promontory: one of Porto Venere''s defining landmarks.'
+  assertions: *id004
+- id: san-pietro-context-it
+  anchor: san-pietro
+  unitType: context
+  locale: it
+  durationS: 16
+  text: >-
+    Secondo il materiale turistico locale, la fase gotica genovese della chiesa risale agli anni tra il 1256 e il
+    1277. In seguito l'edificio subì danni di natura militare e fu restaurato tra il 1929 e il 1934.
+  assertions: &id005
+  - sp-fase-gotica
+  - sp-restauro
+- id: san-pietro-context-en
+  anchor: san-pietro
+  unitType: context
+  locale: en
+  durationS: 12
+  text: >-
+    According to local tourism material, the church's Gothic Genoese phase dates from 1256 to 1277. The building
+    later suffered military damage and was restored between 1929 and 1934.
+  assertions: *id005
+- id: san-pietro-curiosity-it
+  anchor: san-pietro
+  unitType: curiosity
+  locale: it
+  durationS: 11
+  text: >-
+    E prima di questa chiesa? Si ipotizza che qui sorgessero edifici cristiani più antichi, e forse perfino romani.
+    Ma è un'ipotesi, non un fatto accertato.
+  assertions: &id006
+  - sp-origini
+- id: san-pietro-curiosity-en
+  anchor: san-pietro
+  unitType: curiosity
+  locale: en
+  durationS: 11
+  text: >-
+    And before this church? It is hypothesised that earlier Christian, and perhaps even Roman, buildings stood here.
+    But it is a hypothesis, not an established fact.
+  assertions: *id006
+- id: castello-doria-opening-it
+  anchor: castello-doria
+  unitType: opening
+  locale: it
+  durationS: 9
+  text: >-
+    Questo è il Castello Doria, la fortezza che domina il borgo. È uno degli elementi principali del paesaggio culturale
+    riconosciuto dall'UNESCO.
+  assertions: &id007
+  - cd-fortezza
+  requires: &id008
+  - it.liguria:unesco-portovenere-cinque-terre
+- id: castello-doria-opening-en
+  anchor: castello-doria
+  unitType: opening
+  locale: en
+  durationS: 10
+  text: >-
+    This is Doria Castle, the fortress that dominates the village. It is one of the main elements of the cultural
+    landscape recognised by UNESCO.
+  assertions: *id007
+  requires: *id008
+- id: castello-doria-context-it
+  anchor: castello-doria
+  unitType: context
+  locale: it
+  durationS: 10
+  text: >-
+    L'UNESCO lo descrive come un palinsesto storico: un luogo in cui epoche diverse si sovrappongono, e dove restano
+    tracce di una fortificazione medievale precedente.
+  assertions: &id009
+  - cd-palinsesto
+- id: castello-doria-context-en
+  anchor: castello-doria
+  unitType: context
+  locale: en
+  durationS: 10
+  text: >-
+    UNESCO describes it as a historical palimpsest: a place where different eras overlap, and where traces of an
+    earlier medieval fortification remain.
+  assertions: *id009
+- id: grotta-byron-opening-it
+  anchor: grotta-byron
+  unitType: opening
+  locale: it
+  durationS: 9
+  text: >-
+    Questa è la cala tra Punta San Pietro e lo sperone roccioso del Castello Doria. Qui la chiamano Cala dell'Arpaia.
+  assertions: &id010
+  - gb-cala
+  - gb-arpaia
+- id: grotta-byron-opening-en
+  anchor: grotta-byron
+  unitType: opening
+  locale: en
+  durationS: 9
+  text: >-
+    This is the cove between Punta San Pietro and the rocky spur of Doria Castle. Locally it is called Cala dell'Arpaia.
+  assertions: *id010
+- id: grotta-byron-legend-it
+  anchor: grotta-byron
+  unitType: legend
+  locale: it
+  durationS: 15
+  text: >-
+    C'è una tradizione legata a questo luogo. Si racconta che il poeta George Byron sia arrivato fin qui a nuoto,
+    partendo da Lerici. È una tradizione letteraria e locale, non un fatto storico verificato.
+  assertions: &id011
+  - gb-byron
+- id: grotta-byron-legend-en
+  anchor: grotta-byron
+  unitType: legend
+  locale: en
+  durationS: 14
+  text: >-
+    There is a tradition attached to this place. It is said that the poet George Byron swam here from Lerici. It
+    is a literary and local tradition, not a verified historical fact.
+  assertions: *id011
+- id: palazzata-a-mare-opening-it
+  anchor: palazzata-a-mare
+  unitType: opening
+  locale: it
+  durationS: 18
+  text: >-
+    Guarda la fila di case affacciate sul mare: questa cortina compatta è uno dei tratti che definiscono la forma
+    del borgo. L'UNESCO indica proprio l'insediamento compatto lungo la costa, che culmina nel Castello Doria, come
+    parte del paesaggio culturale del sito.
+  assertions: &id012
+  - pz-tessuto
+  - pz-unesco
+  requires: &id013
+  - it.liguria:unesco-portovenere-cinque-terre
+- id: palazzata-a-mare-opening-en
+  anchor: palazzata-a-mare
+  unitType: opening
+  locale: en
+  durationS: 18
+  text: >-
+    Look at the row of houses facing the sea: this compact front is one of the defining features of the village's
+    form. UNESCO identifies precisely this compact settlement along the coast, culminating at Doria Castle, as part
+    of the site's cultural landscape.
+  assertions: *id012
+  requires: *id013
+- id: palmaria-opening-it
+  anchor: palmaria
+  unitType: opening
+  locale: it
+  durationS: 8
+  text: >-
+    Questa è la Palmaria, l'isola più grande dell'arcipelago di Porto Venere e parte del sito Patrimonio Mondiale
+    UNESCO.
+  assertions: &id014
+  - pa-maggiore
+  - pa-unesco
+  requires: &id015
+  - it.liguria:unesco-portovenere-cinque-terre
+- id: palmaria-opening-en
+  anchor: palmaria
+  unitType: opening
+  locale: en
+  durationS: 8
+  text: >-
+    This is Palmaria, the largest island of the Porto Venere archipelago and part of the UNESCO World Heritage property.
+  assertions: *id014
+  requires: *id015
+- id: palmaria-context-it
+  anchor: palmaria
+  unitType: context
+  locale: it
+  durationS: 7
+  text: >-
+    Sull'isola si trovano fortificazioni, antiche cave di Portoro, vegetazione mediterranea e resti archeologici
+    e monastici.
+  assertions: &id016
+  - pa-contenuti
+- id: palmaria-context-en
+  anchor: palmaria
+  unitType: context
+  locale: en
+  durationS: 7
+  text: >-
+    On the island there are fortifications, former Portoro quarries, Mediterranean vegetation and archaeological
+    and monastic remains.
+  assertions: *id016
+- id: palmaria-detail-it
+  anchor: palmaria
+  unitType: detail
+  locale: it
+  durationS: 16
+  text: >-
+    Se vuoi girarla a piedi: secondo il Parco, il periplo ufficiale richiede circa 3 ore e 30 minuti, ha difficoltà
+    media e 198 metri di dislivello complessivo. Prima di partire, controlla le condizioni di accesso aggiornate.
+  assertions: &id017
+  - pa-periplo
+- id: palmaria-detail-en
+  anchor: palmaria
+  unitType: detail
+  locale: en
+  durationS: 17
+  text: >-
+    If you want to walk around it: according to the Park, the official circuit takes about 3 hours 30 minutes, is
+    of medium difficulty and has 198 metres of total elevation gain. Before setting off, check the current access
+    conditions.
+  assertions: *id017
+- id: grotta-azzurra-opening-it
+  anchor: grotta-azzurra
+  unitType: opening
+  locale: it
+  durationS: 10
+  text: >-
+    La Grotta Azzurra è una grotta marina dell'isola Palmaria. Secondo una fonte turistica locale, vi si accede
+    con piccole barche o a remi.
+  assertions: &id018
+  - ga-grotta
+- id: grotta-azzurra-opening-en
+  anchor: grotta-azzurra
+  unitType: opening
+  locale: en
+  durationS: 10
+  text: >-
+    The Blue Grotto is a sea cave on Palmaria. According to a local tourism source, it is reached by small or rowing
+    boats.
+  assertions: *id018
+- id: tino-opening-it
+  anchor: tino
+  unitType: opening
+  locale: it
+  durationS: 12
+  text: >-
+    Questa è l'isola del Tino, una delle tre isole comprese nel sito UNESCO. Qui restano tracce legate a un antico
+    insediamento monastico e al culto di San Venerio.
+  assertions: &id019
+  - ti-unesco
+  - ti-monastero
+  requires: &id020
+  - it.liguria:unesco-portovenere-cinque-terre
+- id: tino-opening-en
+  anchor: tino
+  unitType: opening
+  locale: en
+  durationS: 12
+  text: >-
+    This is Tino, one of the three islands included in the UNESCO property. Remains associated with an early monastic
+    settlement and the cult of San Venerio survive here.
+  assertions: *id019
+  requires: *id020
+- id: tinetto-opening-it
+  anchor: tinetto
+  unitType: opening
+  locale: it
+  durationS: 14
+  text: >-
+    Il Tinetto è la più piccola delle tre isole dell'arcipelago e fa parte del sito UNESCO. Il Parco vi descrive
+    resti di un antico insediamento monastico e ne sottolinea l'importanza storica e biogeografica.
+  assertions: &id021
+  - tn-piccola
+  - tn-resti
+  requires: &id022
+  - it.liguria:unesco-portovenere-cinque-terre
+- id: tinetto-opening-en
+  anchor: tinetto
+  unitType: opening
+  locale: en
+  durationS: 13
+  text: >-
+    Tinetto is the smallest of the three islands in the archipelago and part of the UNESCO property. The Park describes
+    early monastic remains here and stresses its historical and biogeographical importance.
+  assertions: *id021
+  requires: *id022
+- id: le-grazie-opening-it
+  anchor: le-grazie
+  unitType: opening
+  locale: it
+  durationS: 13
+  text: >-
+    Benvenuto a Le Grazie, un paese con una forte identità marinara. Secondo una fonte locale, il paese è legato
+    ai maestri d'ascia, ai calafati e alla tradizione delle immersioni.
+  assertions: &id023
+  - lg-marittima
+  - lg-mestieri
+- id: le-grazie-opening-en
+  anchor: le-grazie
+  unitType: opening
+  locale: en
+  durationS: 11
+  text: >-
+    Welcome to Le Grazie, a village with a strong maritime identity. According to a local source, it is associated
+    with shipwrights, caulkers and diving traditions.
+  assertions: *id023
+- id: le-grazie-curiosity-it
+  anchor: le-grazie
+  unitType: curiosity
+  locale: it
+  durationS: 6
+  text: 'Una curiosità: per tradizione locale, Le Grazie viene chiamata «la Città dei palombari».'
+  assertions: &id024
+  - lg-palombari
+- id: le-grazie-curiosity-en
+  anchor: le-grazie
+  unitType: curiosity
+  locale: en
+  durationS: 7
+  text: 'A curiosity: by local tradition, Le Grazie is called ''the City of divers'', la Città dei palombari.'
+  assertions: *id024
+- id: santuario-le-grazie-opening-it
+  anchor: santuario-le-grazie
+  unitType: opening
+  locale: it
+  durationS: 13
+  text: >-
+    Il santuario di Nostra Signora delle Grazie, oggi chiesa parrocchiale, è legato alla presenza dei monaci benedettini
+    olivetani a Le Grazie. Custodisce opere d'arte documentate dalle fonti turistiche locali.
+  assertions: &id025
+  - sg-olivetani
+  - sg-opere
+- id: santuario-le-grazie-opening-en
+  anchor: santuario-le-grazie
+  unitType: opening
+  locale: en
+  durationS: 13
+  text: >-
+    The Sanctuary of Nostra Signora delle Grazie, today a parish church, is associated with the Benedictine Olivetan
+    monks at Le Grazie. It contains works of art documented by local tourism sources.
+  assertions: *id025
+- id: fezzano-opening-it
+  anchor: fezzano
+  unitType: opening
+  locale: it
+  durationS: 7
+  text: Fezzano è uno dei paesi del comune e fa parte della più ampia rete territoriale del Parco.
+  assertions: &id026
+  - fz-paese
+- id: fezzano-opening-en
+  anchor: fezzano
+  unitType: opening
+  locale: en
+  durationS: 7
+  text: >-
+    Fezzano is one of the villages of the municipality and part of the Park's broader territorial network.
+  assertions: *id026
+- id: muzzerone-opening-it
+  anchor: muzzerone
+  unitType: opening
+  locale: it
+  durationS: 8
+  text: >-
+    Secondo il Parco, il Muzzerone è una delle principali aree per l'arrampicata e le attività all'aperto, con viste
+    panoramiche.
+  assertions: &id027
+  - mz-arrampicata
+- id: muzzerone-opening-en
+  anchor: muzzerone
+  unitType: opening
+  locale: en
+  durationS: 7
+  text: According to the Park, Muzzerone is a major climbing and outdoor area, with panoramic views.
+  assertions: *id027
+- id: muzzerone-detail-it
+  anchor: muzzerone
+  unitType: detail
+  locale: it
+  durationS: 11
+  text: >-
+    Il Parco segnala anche il sentiero AV5T, che collega Porto Venere a Campiglia con viste su Palmaria, Tino, Tinetto
+    e sulla costa delle Cinque Terre.
+  assertions: &id028
+  - mz-av5t
+- id: muzzerone-detail-en
+  anchor: muzzerone
+  unitType: detail
+  locale: en
+  durationS: 11
+  text: >-
+    The Park also points to the AV5T trail, which links Porto Venere with Campiglia, with views over Palmaria, Tino,
+    Tinetto and the Cinque Terre coast.
+  assertions: *id028

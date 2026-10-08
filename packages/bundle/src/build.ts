@@ -59,9 +59,13 @@ const sha256 = (data: string | Uint8Array) =>
 const byteLength = (data: string | Uint8Array) => (typeof data === "string" ? Buffer.byteLength(data, "utf8") : data.byteLength);
 const byRef = <T extends { ref: string }>(a: T, b: T) => a.ref.localeCompare(b.ref);
 
-/** Un'affermazione è raccontabile se verificata e di un livello ammesso dal territorio di destinazione. */
-export function isNarratable(a: Assertion, pack: TerritoryPack, allowedTiers: readonly string[]): boolean {
-  return a.status === "verified" && allowedTiers.includes(a.qualityTier ?? pack.manifest.qualityTier);
+/**
+ * Un'affermazione è raccontabile se verificata e di un livello ammesso dal territorio di destinazione.
+ * In un bundle di anteprima lo è anche se in revisione (mai se bozza, respinta o bloccata).
+ */
+export function isNarratable(a: Assertion, pack: TerritoryPack, allowedTiers: readonly string[], preview = false): boolean {
+  const statusOk = a.status === "verified" || (preview && a.status === "in_review");
+  return statusOk && allowedTiers.includes(a.qualityTier ?? pack.manifest.qualityTier);
 }
 
 /**
@@ -94,6 +98,8 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   }
 
   const allowedTiers = dest.config.narration.allowedQualityTiers;
+  // Territorio non ancora in produzione → bundle di anteprima, dichiarato come tale.
+  const preview = dest.manifest.releaseStage !== "production";
   const pick = <T>(texts: Partial<Record<Locale, T>>, fallback: Locale): { value: T; locale: Locale } | null => {
     if (texts[locale] !== undefined) return { value: texts[locale] as T, locale };
     if (texts[fallback] !== undefined) return { value: texts[fallback] as T, locale: fallback };
@@ -132,6 +138,22 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
         ...(p.partOf ? { partOf: full(p.partOf) } : {}),
         ...(p.accessibility?.stepFree !== undefined ? { stepFree: p.accessibility.stepFree } : {}),
         ...(p.accessibility?.stairs !== undefined ? { stairs: p.accessibility.stairs } : {}),
+        ...(p.walkable === false ? { walkable: false as const } : {}),
+        coordinateStatus: p.coordinates.status,
+        ...(preview && p.curation
+          ? { curation: { ...(p.curation.storyStatus ? { storyStatus: p.curation.storyStatus } : {}), notes: [...p.curation.notes] } }
+          : {}),
+        practical: p.practical.flatMap((info) => {
+          const text = pick(info.text, fallback);
+          if (!text) return [];
+          return [{
+            kind: info.kind,
+            text: text.value,
+            checkedAt: info.checkedAt,
+            recheckAfterDays: info.recheckAfterDays,
+            ...(info.source ? { source: full(info.source) } : {}),
+          }];
+        }),
         geofences: p.geofences.map((g) => ({
           kind: g.kind,
           center: [...(g.center ?? p.location)] as [number, number],
@@ -168,11 +190,13 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
         ...(s.institution ? { institution: s.institution } : {}),
         ...(s.year !== undefined ? { year: s.year } : {}),
         reliability: s.reliability,
+        ...(s.url ? { url: s.url } : {}),
+        ...(s.priority ? { priority: s.priority } : {}),
       });
     }
 
     for (const a of pack.assertions) {
-      if (!isNarratable(a, pack, allowedTiers)) continue;
+      if (!isNarratable(a, pack, allowedTiers, preview)) continue;
       const text = pick(a.texts, fallback);
       if (!text) continue;
       assertions.push({
@@ -186,6 +210,7 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
         text: text.value,
         textLocale: text.locale,
         sources: a.evidence.map((e) => full(e.source)).sort(),
+        ...(a.status !== "verified" ? { inReview: true as const } : {}),
       });
     }
 
@@ -238,6 +263,10 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
         durationMin: r.durationMin,
         stops: r.stops.map((s) => ({ place: full(s.place), ...(s.dwellMin !== undefined ? { dwellMin: s.dwellMin } : {}), optional: s.optional })),
         ...(r.endAnchor ? { endAnchor: formatNodeRef({ packId, slug: r.endAnchor }) } : {}),
+        calibration: r.calibration,
+        ...(r.difficulty ? { difficulty: r.difficulty } : {}),
+        ...(r.elevationGainM !== undefined ? { elevationGainM: r.elevationGainM } : {}),
+        sources: r.sources.map(full).sort(),
       });
     }
   }
@@ -246,8 +275,12 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   // il validatore lo impedisce già, ma il bundle non deve mai contenere fatti non raccontabili).
   const included = new Set(assertions.map((a) => a.ref));
   const safeUnits = units.filter((u) => u.assertions.every((a) => included.has(a)));
-  // Fonti: solo quelle citate da affermazioni incluse.
-  const cited = new Set(assertions.flatMap((a) => a.sources));
+  // Fonti: solo quelle citate da affermazioni, percorsi e informazioni pratiche inclusi.
+  const cited = new Set([
+    ...assertions.flatMap((a) => a.sources),
+    ...routes.flatMap((r) => r.sources),
+    ...places.flatMap((p) => p.practical.flatMap((i) => (i.source ? [i.source] : []))),
+  ]);
   const sources = [...allSources.values()].filter((s) => cited.has(s.ref));
 
   const content: BundleContent = {
@@ -257,6 +290,9 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     locale,
     flavor,
     fictional: dest.manifest.fictional,
+    preview,
+    releaseStage: dest.manifest.releaseStage,
+    ...(dest.manifest.editorialStatus ? { editorialStatus: dest.manifest.editorialStatus } : {}),
     packVersions: Object.fromEntries(scope.map((p) => [p.manifest.id, p.manifest.version]).sort(([a], [b]) => a!.localeCompare(b!))),
     guide: { defaultMode: dest.config.guide.defaultMode, maxProposalsPer10Min: dest.config.guide.maxProposalsPer10Min },
     safetyNotes: dest.config.safetyNotes

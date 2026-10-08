@@ -1,0 +1,195 @@
+PORTOVENERE TERRITORY PACK v1
+=============================
+STATUS: RESEARCH READY — NOT YET PRODUCTION VERIFIED.
+
+PURPOSE
+Create the first production-oriented Territory Pack for the AI Tourist Guide. The app engine must remain independent from territorial content.
+
+CORE RULES
+- Separate FACT / TRADITION / LEGEND / HYPOTHESIS / UNVERIFIED.
+- Preliminary GPS is not production GPS.
+- Every factual claim retains a source.
+- Time-sensitive access/opening/transport data must be rechecked.
+- Never invent historical details.
+- Use only original or explicitly licensed images.
+
+POI: Porta del Borgo [porta_del_borgo]
+Categories: history, architecture, urban
+Preliminary GPS: 44.041, 9.8485
+Geofence: 50 m (NOT VERIFIED)
+Story status: FACTS_ONLY_UNTIL_PRIMARY_SOURCE_VERIFIED
+- Medieval access point to the historic settlement and part of the fortified urban system.
+
+POI: Torre Capitolare [torre_capitolare]
+Categories: history, architecture, fortifications
+Preliminary GPS: 44.0412, 9.8483
+Geofence: 40 m (NOT VERIFIED)
+Story status: VERIFY_DETAILED_DATING_BEFORE_AI_NARRATION
+- Tower associated with the entrance and defensive system of the historic village.
+
+POI: Chiesa di San Lorenzo [san_lorenzo]
+Categories: religion, history, architecture, art
+Preliminary GPS: 44.0418, 9.8488
+Geofence: 50 m (NOT VERIFIED)
+Story status: FACTS_PLUS_TRADITION_SEPARATION_REQUIRED
+- Romanesque church with three naves; local tourism source dates its consecration to 1130 by Pope Innocent II.
+- Facade has alternating black and white bands.
+- The church houses the venerated Madonna Bianca.
+- The cedar-trunk story is local devotional tradition and must not be presented as independently proven history.
+
+POI: Chiesa di San Pietro [san_pietro]
+Categories: religion, history, architecture, landscape
+Preliminary GPS: 44.0359, 9.8527
+Geofence: 50 m (NOT VERIFIED)
+Story status: FACTS_AND_HYPOTHESES_MUST_BE_SEPARATED
+- Church on the rocky promontory and one of Porto Venere's defining landmarks.
+- The Gothic Genoese phase is dated by local tourism material to 1256–1277.
+- Earlier Christian and possible Roman antecedents must be narrated as hypotheses where not independently verified.
+- The church suffered later military damage and was restored in 1929–1934.
+
+POI: Castello Doria [castello_doria]
+Categories: history, architecture, fortifications, landscape
+Preliminary GPS: 44.0365, 9.8535
+Geofence: 60 m (NOT VERIFIED)
+Story status: HIGH_VALUE_POI_PRIMARY_SOURCE_EXPANSION_REQUIRED
+- Dominant fortress above the settlement and major element of the UNESCO cultural landscape.
+- UNESCO describes it as a historical palimpsest with traces of a medieval predecessor.
+- Exact construction phases should be taken from municipal/heritage documentation before exact AI narration.
+
+POI: Grotta di Byron / Cala dell'Arpaia [grotta_byron]
+Categories: nature, literature, landscape, legend
+Preliminary GPS: 44.0358, 9.8522
+Geofence: 30 m (NOT VERIFIED)
+Story status: FACT_PLUS_TRADITION_LEGEND
+- Cove between Punta San Pietro and the rocky spur of Castello Doria.
+- Locally known as Cala dell'Arpaia.
+- Its association with George Byron is a local/touristic tradition; the claim that Byron swam from Lerici to Porto Venere must be labelled tradition/legend, not established fact.
+
+POI: Forte / sistema fortificato di San Pietro [forte_san_pietro]
+Categories: fortifications, history
+Preliminary GPS: 44.0365, 9.8529
+Geofence: 20 m (NOT VERIFIED)
+Story status: DETAILED_PRIMARY_SOURCE_VERIFICATION_REQUIRED
+- Military structures occupy and reinforce the San Pietro promontory.
+
+POI: Piazza Bastreri [piazza_bastreri]
+Categories: urban, landscape, local_life
+Preliminary GPS: 44.0402, 9.8479
+Geofence: 40 m (NOT VERIFIED)
+Story status: FIELD_CONTENT_REQUIRED
+- Urban transition point between the modern access area and the historic village.
+
+POI: Palazzata a mare [palazzata_a_mare]
+Categories: architecture, urban, landscape
+Preliminary GPS: 44.0396, 9.8475
+Geofence: 60 m (NOT VERIFIED)
+Story status: FACT
+- Compact waterfront building fabric is a defining feature of Porto Venere's settlement morphology.
+- UNESCO identifies the compact settlement aligned along the coast and culminating at Doria Castle as part of the outstanding cultural landscape.
+
+POI: Scalinata / salita verso San Pietro [scalinata_san_pietro]
+Categories: urban, landscape, walking
+Preliminary GPS: 44.036, 9.8528
+Geofence: 20 m (NOT VERIFIED)
+Story status: FIELD_VERIFICATION_REQUIRED
+- Steep circulation route toward the San Pietro promontory and fortifications.
+
+POI: Isola Palmaria [palmaria]
+Categories: nature, geology, history, hiking, UNESCO
+Preliminary GPS: 44.0431, 9.842
+Geofence: 200 m (NOT VERIFIED)
+Story status: FACT
+- Largest island of the Porto Venere archipelago.
+- Part of the UNESCO World Heritage property.
+- Official Parco route: about 3h30, medium difficulty, 198 m total elevation gain.
+- Contains fortifications, former Portoro quarries, Mediterranean vegetation and archaeological/monastic remains.
+
+POI: Grotta Azzurra [grotta_azzurra]
+Categories: nature, sea, geology
+Preliminary GPS: 44.0425, 9.842
+Geofence: 30 m (NOT VERIFIED)
+Story status: FACT_WITH_ACCESS_RULES_TO_BE_CURRENTLY_VERIFIED
+- Sea cave on Palmaria; local tourism source describes access by small/rowing boat.
+
+POI: Isola del Tino [tino]
+Categories: nature, history, religion, UNESCO
+Preliminary GPS: 44.0277, 9.8517
+Geofence: 150 m (NOT VERIFIED)
+Story status: FACT_PLUS_ACCESS_RULES_REQUIRED
+- One of the three islands included in the UNESCO property.
+- Contains remains associated with early monastic settlement and the cult of San Venerio.
+- Access and visitor rules are time-sensitive and require current verification.
+
+POI: Isola del Tinetto [tinetto]
+Categories: nature, history, religion, UNESCO
+Preliminary GPS: 44.0236, 9.85
+Geofence: 100 m (NOT VERIFIED)
+Story status: FACT
+- Smallest of the three islands in the archipelago and part of the UNESCO property.
+- Official Parco material describes early monastic remains and historical/biogeographical importance.
+
+POI: Le Grazie [le_grazie]
+Categories: village, maritime_history, diving, culture
+Preliminary GPS: 44.0298, 9.8772
+Geofence: 80 m (NOT VERIFIED)
+Story status: FACT_WITH_LOCAL_TRADITION
+- Village in the municipality with a strong maritime identity.
+- Local source associates the village with shipwrights, caulkers and diving traditions.
+- Local municipal tradition calls it 'La Città dei palombari'.
+
+POI: Santuario di Nostra Signora delle Grazie [santuario_le_grazie]
+Categories: religion, art, history
+Preliminary GPS: 44.0299, 9.8765
+Geofence: 30 m (NOT VERIFIED)
+Story status: PRIMARY_ART_HISTORY_SOURCE_EXPANSION_REQUIRED
+- Parish sanctuary associated with the Benedictine/Olivetani presence at Le Grazie.
+- Contains works of art documented by local tourism sources.
+
+POI: Fezzano [fezzano]
+Categories: village, maritime, walking
+Preliminary GPS: 44.049, 9.812
+Geofence: 80 m (NOT VERIFIED)
+Story status: FIELD_AND_MUNICIPAL_SOURCE_EXPANSION_REQUIRED
+- Village within the municipality and part of the broader territorial network of the Parco.
+
+POI: Muzzerone / palestra di roccia [muzzerone]
+Categories: nature, sport, landscape, hiking
+Preliminary GPS: 44.034, 9.85
+Geofence: 100 m (NOT VERIFIED)
+Story status: FACT
+- Parco identifies Muzzerone as a major climbing/outdoor area with panoramic views.
+- AV5T connects Porto Venere with Campiglia and provides views over Palmaria, Tino, Tinetto and the Cinque Terre coast.
+
+ROUTES
+- 60 min draft: Porta del Borgo → San Lorenzo → Palazzata a mare → San Pietro → Grotta Byron.
+- 90 min draft: Porta del Borgo → San Lorenzo → Palazzata → Castello Doria → San Pietro → Grotta Byron.
+- Palmaria official circuit: about 3h30, medium difficulty, 198 m total elevation gain; verify current access before publication.
+
+SOURCES
+- UNESCO | Portovenere, Cinque Terre, and the Islands | https://whc.unesco.org/en/list/826
+- UNESCO | Property maps and geographical data | https://whc.unesco.org/en/list/826/maps/
+- UNESCO | Property documents | https://whc.unesco.org/en/list/826/documents
+- Parco Naturale di Porto Venere | Official Park site | https://www.parconaturaleportovenere.it/
+- Parco Naturale di Porto Venere | I sentieri del Parco | https://www.parconaturaleportovenere.it/i-sentieri-del-parco/
+- Parco Naturale di Porto Venere | Periplo dell'isola Palmaria | https://www.parconaturaleportovenere.it/periplo-dellisola/
+- Parco Naturale di Porto Venere | L'Arcipelago: Palmaria – Tino – Tinetto | https://www.parconaturaleportovenere.it/larcipelago-palmaria-tino-tinetto/
+- Visit Portovenere | Le Chiese di Porto Venere | https://www.visitportovenere.com/it/cosa-fare-a-portovenere/chiese
+- Visit Portovenere | Grotta Azzurra e Grotta Byron | https://www.visitportovenere.com/it/cosa-fare-a-portovenere/grotte-marine
+- Visit Portovenere | Area marina protetta / Parco naturale regionale | https://www.visitportovenere.com/it/portovenere/area-marina-protetta
+- Visit Portovenere | Le Grazie | https://www.visitportovenere.com/it/portovenere/le-grazie
+
+FIELD VALIDATION CHECKLIST
+- Record exact GPS point at each POI.
+- Walk geofence boundary and calibrate trigger radius.
+- Test GPS stability in narrow streets and near cliffs.
+- Verify visual landmark used for each trigger.
+- Record stairs/accessibility.
+- Verify current opening/access restrictions.
+- Capture original photos with rights metadata.
+- Test audio transitions and interruption handling.
+
+DATABASE SCHEMA
+id, name_it, name_en, category[], lat, lon, geofence_radius_m, coordinate_status, description_short, description_long, claims[], sources[], story_status, accessibility, opening_hours, media[], audio[], related_pois[], routes[], tags[], last_verified_at, verified_by, field_notes
+
+CRITICAL TEST CASE: BYRON
+The location Cala dell'Arpaia/Grotta Byron is factual. The association with Byron and especially the claim that he swam from Lerici to Porto Venere are presented in local tourism material as tradition/what is said to have happened. AI narration must explicitly distinguish geography from literary tradition.

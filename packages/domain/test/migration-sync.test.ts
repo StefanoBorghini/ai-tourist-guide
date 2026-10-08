@@ -6,11 +6,15 @@ import { PREDICATES } from "../src/ontology.ts";
 import {
   ASSERTION_TYPES,
   CERTAINTY_LEVELS,
+  COORDINATE_STATUSES,
   LICENSE_RULES,
   MEDIA_LICENSES,
   MEDIA_SOURCES,
   NODE_KINDS,
   QUALITY_TIERS,
+  RELEASE_STAGES,
+  ROUTE_CALIBRATIONS,
+  ROUTE_DIFFICULTIES,
   UNIT_TYPES,
 } from "../src/vocabulary.ts";
 
@@ -26,10 +30,18 @@ const sql = readdirSync(migrationsDir)
   .map((f) => readFileSync(join(migrationsDir, f), "utf8"))
   .join("\n");
 
+/** Valori di un enum: la create type iniziale più gli "alter type … add value" successivi. */
 function sqlEnum(name: string): string[] {
   const match = new RegExp(`create type ${name} as enum \\(([^)]*)\\)`, "i").exec(sql);
   if (!match) throw new Error(`enum ${name} non trovato nelle migrazioni`);
-  return [...match[1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!);
+  const values = [...match[1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!);
+  const added = new RegExp(`alter type ${name} add value '([^']+)'(?: (before|after) '([^']+)')?`, "gi");
+  for (const m of sql.matchAll(added)) {
+    const [, value, where, other] = m;
+    const at = where ? values.indexOf(other!) + (where.toLowerCase() === "after" ? 1 : 0) : values.length;
+    values.splice(at, 0, value!);
+  }
+  return values;
 }
 
 describe("allineamento codice ↔ database", () => {
@@ -41,6 +53,10 @@ describe("allineamento codice ↔ database", () => {
     ["unit_type", UNIT_TYPES],
     ["media_source", MEDIA_SOURCES],
     ["media_license", MEDIA_LICENSES],
+    ["coordinate_status", COORDINATE_STATUSES],
+    ["release_stage", RELEASE_STAGES],
+    ["route_difficulty", ROUTE_DIFFICULTIES],
+    ["route_calibration", ROUTE_CALIBRATIONS],
   ])("enum %s", (name, values) => {
     expect(sqlEnum(name)).toEqual([...values]);
   });

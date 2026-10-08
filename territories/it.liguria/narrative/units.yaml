@@ -1,0 +1,26 @@
+# Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
+# Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+- id: unesco-intro-it
+  anchor: unesco-portovenere-cinque-terre
+  unitType: context
+  locale: it
+  durationS: 9
+  text: >-
+    Una cosa da sapere: Portovenere, le Cinque Terre e le isole Palmaria, Tino e Tinetto sono Patrimonio Mondiale
+    UNESCO dal 1997.
+  assertions:
+  - unesco-1997
+  introduces:
+  - unesco-portovenere-cinque-terre
+- id: unesco-intro-en
+  anchor: unesco-portovenere-cinque-terre
+  unitType: context
+  locale: en
+  durationS: 10
+  text: >-
+    Something worth knowing: Portovenere, the Cinque Terre and the islands of Palmaria, Tino and Tinetto have been
+    a UNESCO World Heritage property since 1997.
+  assertions:
+  - unesco-1997
+  introduces:
+  - unesco-portovenere-cinque-terre

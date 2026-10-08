@@ -1,0 +1,29 @@
+# Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
+# Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+- id: unesco-826
+  sourceKind: institution
+  title: Portovenere, Cinque Terre, and the Islands
+  institution: UNESCO
+  language: en
+  reliability: B
+  url: https://whc.unesco.org/en/list/826
+  priority: PRIMARY
+  originalId: unesco_826
+- id: unesco-maps
+  sourceKind: institution
+  title: Property maps and geographical data
+  institution: UNESCO
+  language: en
+  reliability: B
+  url: https://whc.unesco.org/en/list/826/maps/
+  priority: PRIMARY
+  originalId: unesco_maps
+- id: unesco-docs
+  sourceKind: institution
+  title: Property documents
+  institution: UNESCO
+  language: en
+  reliability: B
+  url: https://whc.unesco.org/en/list/826/documents
+  priority: PRIMARY
+  originalId: unesco_docs

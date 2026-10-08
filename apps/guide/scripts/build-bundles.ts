@@ -23,7 +23,7 @@ if (issues.length > 0) {
 }
 
 rmSync(OUT, { recursive: true, force: true });
-const index: { destination: string; name: string; locale: string; fictional: boolean; manifest: string }[] = [];
+const index: { destination: string; name: string; locale: string; fictional: boolean; preview: boolean; manifest: string }[] = [];
 
 for (const pack of packs.values()) {
   if (pack.manifest.kind !== "destination") continue;
@@ -43,11 +43,14 @@ for (const pack of packs.values()) {
       name: bundle.content.name,
       locale,
       fictional: bundle.content.fictional,
+      preview: bundle.content.preview,
       manifest: `/bundles/${pack.manifest.id}/${locale}-full/manifest.json`,
     });
-    console.log(`✓ bundle ${pack.manifest.id} ${locale} (${(bundle.manifest.totalBytes / 1024).toFixed(1)} KB)`);
+    console.log(`✓ bundle ${pack.manifest.id} ${locale} (${(bundle.manifest.totalBytes / 1024).toFixed(1)} KB)${bundle.content.preview ? " [anteprima]" : ""}`);
   }
 }
 
 mkdirSync(OUT, { recursive: true });
+// Prima i territori reali, poi quelli di prova.
+index.sort((a, b) => Number(a.fictional) - Number(b.fictional) || a.name.localeCompare(b.name) || a.locale.localeCompare(b.locale));
 writeFileSync(join(OUT, "index.json"), JSON.stringify({ bundles: index }, null, 2));

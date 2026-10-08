@@ -1,0 +1,10 @@
+# Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
+# Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+narration:
+  allowedQualityTiers:
+  - bronze
+  - silver
+  - gold
+guide:
+  defaultMode: ask
+  maxProposalsPer10Min: 2

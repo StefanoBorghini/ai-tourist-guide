@@ -15,6 +15,7 @@ import {
   shouldReplan,
   toblerEstimator,
   type AnchorTarget,
+  type Candidate,
   type EngineInputs,
   type GeofenceEvent,
 } from "../src/index.ts";
@@ -328,5 +329,26 @@ describe("istantanea del contesto", () => {
     expect(snapshot.anchor?.level).toBe("ok");
     // L'istantanea non contiene coordinate del visitatore.
     expect(JSON.stringify(snapshot)).not.toMatch(/location|lng|lat/);
+  });
+});
+
+describe("percorsi curati e luoghi non raggiungibili a piedi", () => {
+  const base = { now: 0, start: { location: [0, 0] as [number, number] }, budgetMin: 60 };
+  const c = (id: string, lng: number, extra: Partial<Candidate> = {}): Candidate => ({ id, location: [lng, 0], importance: 3, dwellMin: 5, ...extra });
+
+  it("non propone mai luoghi non raggiungibili a piedi", () => {
+    const plan = planTour({ ...base, candidates: [c("isola", 0.001, { walkable: false, importance: 5 }), c("chiesa", 0.002)] });
+    expect(plan.stops.map((s) => s.placeId)).toEqual(["chiesa"]);
+  });
+
+  it("con fixedOrder mantiene l'ordine del percorso", () => {
+    const plan = planTour({ ...base, fixedOrder: true, candidates: [c("lontano", 0.004), c("vicino", 0.001), c("medio", 0.002)] });
+    expect(plan.stops.map((s) => s.placeId)).toEqual(["lontano", "vicino", "medio"]);
+  });
+
+  it("con fixedOrder salta le tappe che non stanno nel tempo", () => {
+    const plan = planTour({ ...base, budgetMin: 12, fixedOrder: true, candidates: [c("a", 0.001), c("b", 0.0012), c("c", 0.0014)] });
+    expect(plan.stops.length).toBeLessThan(3);
+    expect(plan.stops.map((s) => s.placeId)).toEqual(["a", "b", "c"].slice(0, plan.stops.length));
   });
 });

@@ -141,7 +141,9 @@ export function AskBox(props: {
         <div className="ask-answer" aria-live="polite">
           <p className="muted small">{last.question}</p>
           <p>{last.answer.answer}</p>
-          {last.answer.citations.length > 0 && <p className="muted small">✓ {t.askVerified}</p>}
+          {last.answer.citations.length > 0 && (
+            <p className="muted small">{last.answer.inReview ? `⚠ ${t.askInReview}` : `✓ ${t.askVerified}`}</p>
+          )}
         </div>
       )}
     </section>

@@ -1,0 +1,74 @@
+# Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
+# Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+- id: parco-home
+  sourceKind: institution
+  title: Official Park site
+  institution: Parco Naturale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/
+  priority: PRIMARY
+  originalId: parco_home
+- id: parco-sentieri
+  sourceKind: institution
+  title: I sentieri del Parco
+  institution: Parco Naturale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/i-sentieri-del-parco/
+  priority: PRIMARY
+  originalId: parco_sentieri
+- id: parco-palmaria
+  sourceKind: institution
+  title: Periplo dell'isola Palmaria
+  institution: Parco Naturale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/periplo-dellisola/
+  priority: PRIMARY
+  originalId: parco_palmaria
+- id: parco-archipelago
+  sourceKind: institution
+  title: 'L''Arcipelago: Palmaria – Tino – Tinetto'
+  institution: Parco Naturale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/larcipelago-palmaria-tino-tinetto/
+  priority: PRIMARY
+  originalId: parco_archipelago
+- id: visit-churches
+  sourceKind: website
+  title: Le Chiese di Porto Venere
+  institution: Visit Portovenere
+  language: it
+  reliability: C
+  url: https://www.visitportovenere.com/it/cosa-fare-a-portovenere/chiese
+  priority: SECONDARY_LOCAL
+  originalId: visit_churches
+- id: visit-caves
+  sourceKind: website
+  title: Grotta Azzurra e Grotta Byron
+  institution: Visit Portovenere
+  language: it
+  reliability: C
+  url: https://www.visitportovenere.com/it/cosa-fare-a-portovenere/grotte-marine
+  priority: SECONDARY_LOCAL
+  originalId: visit_caves
+- id: visit-protected
+  sourceKind: website
+  title: Area marina protetta / Parco naturale regionale
+  institution: Visit Portovenere
+  language: it
+  reliability: C
+  url: https://www.visitportovenere.com/it/portovenere/area-marina-protetta
+  priority: SECONDARY_LOCAL
+  originalId: visit_protected
+- id: visit-le-grazie
+  sourceKind: website
+  title: Le Grazie
+  institution: Visit Portovenere
+  language: it
+  reliability: C
+  url: https://www.visitportovenere.com/it/portovenere/le-grazie
+  priority: SECONDARY_LOCAL
+  originalId: visit_le_grazie

@@ -1,0 +1,574 @@
+# Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
+# Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+- id: sl-romanica
+  subject: san-lorenzo
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: La chiesa di San Lorenzo è un edificio romanico a tre navate.
+    en: The church of San Lorenzo is a Romanesque building with three naves.
+  evidence:
+  - source: visit-churches
+    locator: fonte indicata nel claim
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: >-
+    Romanesque church with three naves; local tourism source dates its consecration to 1130 by Pope Innocent II.
+- id: sl-consacrazione
+  subject: san-lorenzo
+  predicate: dated
+  value:
+    yearFrom: 1130
+  type: fact
+  certainty: probable
+  status: in_review
+  texts:
+    it: Secondo il materiale turistico locale, la chiesa fu consacrata nel 1130 da papa Innocenzo II.
+    en: According to local tourism material, the church was consecrated in 1130 by Pope Innocent II.
+  evidence:
+  - source: visit-churches
+    locator: fonte indicata nel claim
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: >-
+    Romanesque church with three naves; local tourism source dates its consecration to 1130 by Pope Innocent II.
+- id: sl-facciata
+  subject: san-lorenzo
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: La facciata ha fasce alternate bianche e nere.
+    en: The façade has alternating black and white bands.
+  evidence:
+  - source: visit-churches
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Facade has alternating black and white bands.
+- id: sl-madonna-bianca
+  subject: san-lorenzo
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: La chiesa custodisce la venerata Madonna Bianca.
+    en: The church houses the venerated Madonna Bianca.
+  evidence:
+  - source: visit-churches
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: The church houses the venerated Madonna Bianca.
+- id: sp-promontorio
+  subject: san-pietro
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: La chiesa di San Pietro sorge sul promontorio roccioso ed è uno dei luoghi simbolo di Porto Venere.
+    en: >-
+      The church of San Pietro stands on the rocky promontory and is one of Porto Venere's defining landmarks.
+  evidence:
+  - source: visit-churches
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Church on the rocky promontory and one of Porto Venere's defining landmarks.
+- id: sp-fase-gotica
+  subject: san-pietro
+  predicate: dated
+  value:
+    yearFrom: 1256
+    yearTo: 1277
+  type: fact
+  certainty: probable
+  status: in_review
+  texts:
+    it: >-
+      Secondo il materiale turistico locale, la fase gotica genovese della chiesa risale agli anni tra il 1256 e
+      il 1277.
+    en: According to local tourism material, the church's Gothic Genoese phase dates from 1256 to 1277.
+  evidence:
+  - source: visit-churches
+    locator: fonte indicata nel claim
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: The Gothic Genoese phase is dated by local tourism material to 1256–1277.
+- id: sp-origini
+  subject: san-pietro
+  predicate: described_as
+  type: hypothesis
+  status: in_review
+  texts:
+    it: >-
+      Si ipotizza che prima della chiesa attuale esistessero edifici cristiani più antichi, e forse romani: è un'ipotesi,
+      non un fatto accertato.
+    en: >-
+      It is hypothesised that earlier Christian, and possibly Roman, buildings stood here before the present church:
+      a hypothesis, not an established fact.
+  evidence:
+  - source: visit-churches
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: >-
+    Earlier Christian and possible Roman antecedents must be narrated as hypotheses where not independently verified.
+- id: sp-restauro
+  subject: san-pietro
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: in_review
+  texts:
+    it: In seguito la chiesa subì danni di natura militare e fu restaurata tra il 1929 e il 1934.
+    en: The church later suffered military damage and was restored between 1929 and 1934.
+  evidence:
+  - source: visit-churches
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: The church suffered later military damage and was restored in 1929–1934.
+- id: cd-fortezza
+  subject: castello-doria
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: >-
+      Il Castello Doria è la fortezza che domina il borgo ed è uno degli elementi principali del paesaggio culturale
+      riconosciuto dall'UNESCO.
+    en: >-
+      Doria Castle is the fortress that dominates the village and a major element of the cultural landscape recognised
+      by UNESCO.
+  evidence:
+  - source: it.liguria:unesco-826
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Dominant fortress above the settlement and major element of the UNESCO cultural landscape.
+- id: cd-palinsesto
+  subject: castello-doria
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: >-
+      L'UNESCO descrive il castello come un palinsesto storico, con tracce di una fortificazione medievale precedente.
+    en: >-
+      UNESCO describes the castle as a historical palimpsest, with traces of an earlier medieval fortification.
+  evidence:
+  - source: it.liguria:unesco-826
+    locator: fonte indicata nel claim
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: UNESCO describes it as a historical palimpsest with traces of a medieval predecessor.
+- id: gb-cala
+  subject: grotta-byron
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: È una cala tra Punta San Pietro e lo sperone roccioso del Castello Doria.
+    en: It is a cove between Punta San Pietro and the rocky spur of Doria Castle.
+  evidence:
+  - source: visit-caves
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Cove between Punta San Pietro and the rocky spur of Castello Doria.
+- id: gb-arpaia
+  subject: grotta-byron
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: Il luogo è conosciuto localmente come Cala dell'Arpaia.
+    en: The place is known locally as Cala dell'Arpaia.
+  evidence:
+  - source: visit-caves
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Locally known as Cala dell'Arpaia.
+- id: gb-byron
+  subject: grotta-byron
+  predicate: described_as
+  type: tradition
+  status: in_review
+  texts:
+    it: >-
+      Per una tradizione locale e turistica il luogo è associato al poeta George Byron, e si racconta che Byron
+      arrivò a Porto Venere a nuoto partendo da Lerici. È una tradizione letteraria e locale, non un fatto storico
+      verificato.
+    en: >-
+      A local and touristic tradition associates this place with the poet George Byron, and it is said that Byron
+      swam here from Lerici. It is a literary and local tradition, not a verified historical fact.
+  evidence:
+  - source: visit-caves
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: >-
+    Its association with George Byron is a local/touristic tradition; the claim that Byron swam from Lerici to Porto
+    Venere must be labelled tradition/legend, not established fact.
+- id: pz-tessuto
+  subject: palazzata-a-mare
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: >-
+      La cortina compatta di edifici affacciati sul mare è uno dei tratti che definiscono la forma del borgo.
+    en: The compact row of buildings facing the sea is one of the defining features of the village's form.
+  evidence:
+  - source: it.liguria:unesco-826
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Compact waterfront building fabric is a defining feature of Porto Venere's settlement morphology.
+- id: pz-unesco
+  subject: palazzata-a-mare
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: >-
+      L'UNESCO indica l'insediamento compatto, allineato lungo la costa e culminante nel Castello Doria, come parte
+      dell'eccezionale paesaggio culturale del sito.
+    en: >-
+      UNESCO identifies the compact settlement aligned along the coast and culminating at Doria Castle as part of
+      the site's outstanding cultural landscape.
+  evidence:
+  - source: it.liguria:unesco-826
+    locator: fonte indicata nel claim
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: >-
+    UNESCO identifies the compact settlement aligned along the coast and culminating at Doria Castle as part of
+    the outstanding cultural landscape.
+- id: pa-maggiore
+  subject: palmaria
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: La Palmaria è l'isola più grande dell'arcipelago di Porto Venere.
+    en: Palmaria is the largest island of the Porto Venere archipelago.
+  evidence:
+  - source: parco-archipelago
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Largest island of the Porto Venere archipelago.
+- id: pa-unesco
+  subject: palmaria
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: La Palmaria fa parte del sito Patrimonio Mondiale UNESCO.
+    en: Palmaria is part of the UNESCO World Heritage property.
+  evidence:
+  - source: it.liguria:unesco-826
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Part of the UNESCO World Heritage property.
+- id: pa-periplo
+  subject: palmaria
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: >-
+      Secondo il Parco, il periplo ufficiale dell'isola richiede circa 3 ore e 30 minuti, ha difficoltà media e
+      198 metri di dislivello complessivo.
+    en: >-
+      According to the Park, the official circuit of the island takes about 3 hours 30 minutes, is of medium difficulty
+      and has 198 metres of total elevation gain.
+  evidence:
+  - source: parco-palmaria
+    locator: fonte indicata nel claim
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: 'Official Parco route: about 3h30, medium difficulty, 198 m total elevation gain.'
+- id: pa-contenuti
+  subject: palmaria
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: >-
+      Sull'isola si trovano fortificazioni, antiche cave di Portoro, vegetazione mediterranea e resti archeologici
+      e monastici.
+    en: >-
+      The island has fortifications, former Portoro quarries, Mediterranean vegetation and archaeological and monastic
+      remains.
+  evidence:
+  - source: parco-archipelago
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: >-
+    Contains fortifications, former Portoro quarries, Mediterranean vegetation and archaeological/monastic remains.
+- id: ga-grotta
+  subject: grotta-azzurra
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: >-
+      La Grotta Azzurra è una grotta marina dell'isola Palmaria; secondo una fonte turistica locale vi si accede
+      con piccole barche o a remi.
+    en: >-
+      The Blue Grotto is a sea cave on Palmaria; according to a local tourism source it is reached by small or rowing
+      boats.
+  evidence:
+  - source: visit-caves
+    locator: fonte indicata nel claim
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Sea cave on Palmaria; local tourism source describes access by small/rowing boat.
+- id: ti-unesco
+  subject: tino
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: L'isola del Tino è una delle tre isole comprese nel sito UNESCO.
+    en: Tino is one of the three islands included in the UNESCO property.
+  evidence:
+  - source: it.liguria:unesco-826
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: One of the three islands included in the UNESCO property.
+- id: ti-monastero
+  subject: tino
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: Sull'isola restano tracce legate a un antico insediamento monastico e al culto di San Venerio.
+    en: The island has remains associated with an early monastic settlement and the cult of San Venerio.
+  evidence:
+  - source: parco-archipelago
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Contains remains associated with early monastic settlement and the cult of San Venerio.
+- id: tn-piccola
+  subject: tinetto
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: Il Tinetto è la più piccola delle tre isole dell'arcipelago e fa parte del sito UNESCO.
+    en: Tinetto is the smallest of the three islands in the archipelago and part of the UNESCO property.
+  evidence:
+  - source: parco-archipelago
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  - source: it.liguria:unesco-826
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Smallest of the three islands in the archipelago and part of the UNESCO property.
+- id: tn-resti
+  subject: tinetto
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: >-
+      Il materiale ufficiale del Parco descrive sull'isola resti di un antico insediamento monastico e ne sottolinea
+      l'importanza storica e biogeografica.
+    en: >-
+      Official Park material describes early monastic remains on the island and its historical and biogeographical
+      importance.
+  evidence:
+  - source: parco-archipelago
+    locator: fonte indicata nel claim
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Official Parco material describes early monastic remains and historical/biogeographical importance.
+- id: lg-marittima
+  subject: le-grazie
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: Le Grazie è un paese del comune con una forte identità marinara.
+    en: Le Grazie is a village in the municipality with a strong maritime identity.
+  evidence:
+  - source: visit-le-grazie
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Village in the municipality with a strong maritime identity.
+- id: lg-mestieri
+  subject: le-grazie
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: in_review
+  texts:
+    it: >-
+      Secondo una fonte locale, il paese è legato ai maestri d'ascia, ai calafati e alla tradizione delle immersioni.
+    en: >-
+      According to a local source, the village is associated with shipwrights, caulkers and diving traditions.
+  evidence:
+  - source: visit-le-grazie
+    locator: fonte indicata nel claim
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Local source associates the village with shipwrights, caulkers and diving traditions.
+- id: lg-palombari
+  subject: le-grazie
+  predicate: described_as
+  type: tradition
+  status: in_review
+  texts:
+    it: Per tradizione locale Le Grazie è chiamata «la Città dei palombari».
+    en: Local tradition calls Le Grazie 'the City of divers' (la Città dei palombari).
+  evidence:
+  - source: visit-le-grazie
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Local municipal tradition calls it 'La Città dei palombari'.
+- id: sg-olivetani
+  subject: santuario-le-grazie
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: in_review
+  texts:
+    it: >-
+      Il santuario, oggi chiesa parrocchiale, è legato alla presenza dei monaci benedettini olivetani a Le Grazie.
+    en: >-
+      The sanctuary, today a parish church, is associated with the presence of the Benedictine Olivetan monks at
+      Le Grazie.
+  evidence:
+  - source: visit-le-grazie
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Parish sanctuary associated with the Benedictine/Olivetani presence at Le Grazie.
+- id: sg-opere
+  subject: santuario-le-grazie
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: Il santuario custodisce opere d'arte documentate dalle fonti turistiche locali.
+    en: The sanctuary contains works of art documented by local tourism sources.
+  evidence:
+  - source: visit-le-grazie
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Contains works of art documented by local tourism sources.
+- id: fz-paese
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: Fezzano è un paese del comune e fa parte della più ampia rete territoriale del Parco.
+    en: Fezzano is a village in the municipality and part of the Park's broader territorial network.
+  evidence:
+  - source: parco-home
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Village within the municipality and part of the broader territorial network of the Parco.
+- id: mz-arrampicata
+  subject: muzzerone
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: >-
+      Il Parco indica il Muzzerone come una delle principali aree per l'arrampicata e le attività all'aperto, con
+      viste panoramiche.
+    en: The Park identifies Muzzerone as a major climbing and outdoor area with panoramic views.
+  evidence:
+  - source: parco-sentieri
+    locator: fonte indicata nel claim
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Parco identifies Muzzerone as a major climbing/outdoor area with panoramic views.
+- id: mz-av5t
+  subject: muzzerone
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: >-
+      Il sentiero AV5T collega Porto Venere a Campiglia, con viste su Palmaria, Tino, Tinetto e sulla costa delle
+      Cinque Terre.
+    en: >-
+      The AV5T trail links Porto Venere with Campiglia, with views over Palmaria, Tino, Tinetto and the Cinque Terre
+      coast.
+  evidence:
+  - source: parco-sentieri
+    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: >-
+    AV5T connects Porto Venere with Campiglia and provides views over Palmaria, Tino, Tinetto and the Cinque Terre
+    coast.
+- id: pb-accesso
+  subject: porta-del-borgo
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Era un accesso medievale al borgo storico e faceva parte del sistema urbano fortificato.
+    en: It was a medieval access point to the historic settlement and part of the fortified urban system.
+  evidence: []
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Medieval access point to the historic settlement and part of the fortified urban system.
+- id: tc-difesa
+  subject: torre-capitolare
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: La torre è legata all'ingresso e al sistema difensivo del borgo storico.
+    en: The tower is associated with the entrance and defensive system of the historic village.
+  evidence: []
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Tower associated with the entrance and defensive system of the historic village.
+- id: fs-strutture
+  subject: forte-san-pietro
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Strutture militari occupano e rafforzano il promontorio di San Pietro.
+    en: Military structures occupy and reinforce the San Pietro promontory.
+  evidence: []
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Military structures occupy and reinforce the San Pietro promontory.
+- id: bs-passaggio
+  subject: piazza-bastreri
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: La piazza è il punto di passaggio tra la zona di accesso moderna e il borgo storico.
+    en: The square is the transition point between the modern access area and the historic village.
+  evidence: []
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Urban transition point between the modern access area and the historic village.
+- id: ss-salita
+  subject: scalinata-san-pietro
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: È un percorso ripido verso il promontorio di San Pietro e le fortificazioni.
+    en: It is a steep route up to the San Pietro promontory and fortifications.
+  evidence: []
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: Steep circulation route toward the San Pietro promontory and fortifications.

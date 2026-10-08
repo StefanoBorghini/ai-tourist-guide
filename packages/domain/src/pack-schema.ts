@@ -6,6 +6,7 @@ import {
   ASSERTION_TYPES,
   AUDIENCES,
   CERTAINTY_LEVELS,
+  COORDINATE_STATUSES,
   GEOFENCE_KINDS,
   LOCALES,
   MEDIA_LICENSES,
@@ -13,7 +14,11 @@ import {
   NODE_KINDS,
   PACK_KINDS,
   PLACE_KINDS,
+  PRACTICAL_KINDS,
   QUALITY_TIERS,
+  RELEASE_STAGES,
+  ROUTE_CALIBRATIONS,
+  ROUTE_DIFFICULTIES,
   SOURCE_KINDS,
   SOURCE_RELIABILITY,
   UNIT_TYPES,
@@ -47,6 +52,9 @@ const locale = z.enum(LOCALES);
 const localized = z.partialRecord(locale, z.string().trim().min(1));
 const lngLat = z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]);
 const year = z.number().int().min(-5000).max(2100);
+const isoDate = z.iso.date();
+/** Stato redazionale libero, in maiuscolo (es. FACTS_ONLY_UNTIL_PRIMARY_SOURCE_VERIFIED). */
+const editorialStatus = z.string().regex(/^[A-Z][A-Z0-9_]*$/, "stato in MAIUSCOLO_CON_TRATTINI_BASSI");
 
 export const labelsSchema = z.partialRecord(
   locale,
@@ -70,6 +78,10 @@ export const packManifestSchema = z.strictObject({
   qualityTier: z.enum(QUALITY_TIERS),
   dependsOn: z.array(z.string().regex(PACK_ID_PATTERN)).default([]),
   fictional: z.boolean().default(false),
+  /** Stadio del pack: research e field_test producono solo bundle di anteprima. */
+  releaseStage: z.enum(RELEASE_STAGES).default("production"),
+  /** Stato dichiarato dalla redazione (es. RESEARCH_READY_NOT_PRODUCTION_VERIFIED). */
+  editorialStatus: editorialStatus.optional(),
 });
 export type PackManifest = z.infer<typeof packManifestSchema>;
 
@@ -124,6 +136,41 @@ export const geofenceSchema = z
     message: "un geofence 'viewpoint' deve indicare il proprio center",
   });
 
+/** Affidabilità delle coordinate: preliminari finché qualcuno non le rileva sul posto. */
+export const coordinatesSchema = z
+  .strictObject({
+    status: z.enum(COORDINATE_STATUSES).default("preliminary"),
+    verifiedAt: isoDate.optional(),
+    verifiedBy: z.string().trim().min(1).optional(),
+    /** Come sono state ottenute (es. "rilievo GPS sul posto, precisione 4 m"). */
+    method: z.string().trim().min(1).optional(),
+  })
+  .refine((c) => c.status !== "field_verified" || (c.verifiedAt !== undefined && c.verifiedBy !== undefined), {
+    message: "coordinate field_verified richiedono verifiedAt e verifiedBy",
+  });
+
+/** Curatela del luogo: stato del racconto, note di campo, ultima verifica. */
+export const curationSchema = z.strictObject({
+  storyStatus: editorialStatus.optional(),
+  notes: z.array(z.string().trim().min(1)).default([]),
+  lastVerifiedAt: isoDate.optional(),
+  verifiedBy: z.string().trim().min(1).optional(),
+});
+
+/**
+ * Informazione pratica (orari, accessi, trasporti, permessi): non è un fatto storico,
+ * ha una data di controllo e va ricontrollata dopo recheckAfterDays.
+ */
+export const practicalInfoSchema = z.strictObject({
+  id: slug,
+  kind: z.enum(PRACTICAL_KINDS),
+  text: localized,
+  source: ref.optional(),
+  checkedAt: isoDate,
+  recheckAfterDays: z.number().int().min(1).max(730).default(90),
+});
+export type PracticalInfo = z.infer<typeof practicalInfoSchema>;
+
 export const placeSchema = z.strictObject({
   id: slug,
   placeKind: z.enum(PLACE_KINDS),
@@ -139,8 +186,14 @@ export const placeSchema = z.strictObject({
     .strictObject({
       stepFree: z.boolean().optional(),
       stairs: z.number().int().min(0).optional(),
+      notes: localized.optional(),
     })
     .optional(),
+  coordinates: coordinatesSchema.default({ status: "preliminary" }),
+  curation: curationSchema.optional(),
+  practical: z.array(practicalInfoSchema).default([]),
+  /** Raggiungibile a piedi dal resto della destinazione? Se no (es. un'isola), la guida non lo propone come tappa a piedi. */
+  walkable: z.boolean().default(true),
 });
 export type Place = z.infer<typeof placeSchema>;
 
@@ -177,6 +230,11 @@ export const sourceSchema = z.strictObject({
   reliability: z.enum(SOURCE_RELIABILITY),
   url: z.url().optional(),
   license: z.string().optional(),
+  /** Priorità dichiarata dalla ricerca (es. PRIMARY, SECONDARY_LOCAL), conservata com'è. */
+  priority: editorialStatus.optional(),
+  /** Id originale nel materiale importato, per la tracciabilità. */
+  originalId: z.string().trim().min(1).optional(),
+  accessedAt: isoDate.optional(),
   fictional: z.boolean().default(false),
 });
 export type Source = z.infer<typeof sourceSchema>;
@@ -212,6 +270,8 @@ export const assertionSchema = z.strictObject({
   evidence: z.array(evidenceSchema).default([]),
   authoredBy: z.string().trim().min(1),
   verifiedBy: z.string().trim().min(1).optional(),
+  /** Testo originale della ricerca da cui deriva, conservato per il controllo redazionale. */
+  originalClaim: z.string().trim().min(1).optional(),
 });
 export type Assertion = z.infer<typeof assertionSchema>;
 
@@ -241,6 +301,12 @@ export const routeSchema = z.strictObject({
   id: slug,
   labels: labelsSchema,
   durationMin: z.number().int().min(5).max(600),
+  calibration: z.enum(ROUTE_CALIBRATIONS).default("draft"),
+  difficulty: z.enum(ROUTE_DIFFICULTIES).optional(),
+  elevationGainM: z.number().int().min(0).max(5000).optional(),
+  /** Fonti di durata, difficoltà e dislivello. */
+  sources: z.array(ref).default([]),
+  notes: z.array(z.string().trim().min(1)).default([]),
   stops: z
     .array(
       z.strictObject({
@@ -249,7 +315,7 @@ export const routeSchema = z.strictObject({
         optional: z.boolean().default(false),
       }),
     )
-    .min(2),
+    .min(1),
   endAnchor: slug.optional(),
 });
 export type Route = z.infer<typeof routeSchema>;

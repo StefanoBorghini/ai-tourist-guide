@@ -14,6 +14,7 @@ import { join, resolve } from "node:path";
 import { argv, cwd, exit, stdout } from "node:process";
 import { hasErrors, type PackIssue } from "./issues.ts";
 import { loadPacks } from "./load.ts";
+import { metersBetween } from "./geo.ts";
 import { readPhotoLocation } from "./photo-location.ts";
 import { summarizePack } from "./summary.ts";
 import { validatePacks } from "./validate.ts";
@@ -24,16 +25,6 @@ function usage(): never {
       "  guide-pack photos <cartella-foto> [--territories <cartella-pack> --pack <id>]\n",
   );
   exit(2);
-}
-
-/** Distanza approssimata in metri (sufficiente per trovare il luogo più vicino a una foto). */
-function metersBetween(a: readonly [number, number], b: readonly [number, number]): number {
-  const R = 6371008.8;
-  const rad = Math.PI / 180;
-  const dLat = (b[1] - a[1]) * rad;
-  const dLng = (b[0] - a[0]) * rad;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
 }
 
 /** Legge la posizione GPS delle foto e, se indicato un pack, trova il luogo più vicino. */
@@ -100,9 +91,11 @@ function main(args: string[]): number {
       const errors = issues.filter((i) => i.packId === s.id && i.level === "error").length;
       const warnings = issues.filter((i) => i.packId === s.id && i.level === "warning").length;
       stdout.write(
-        `${errors ? "✗" : "✓"} ${s.id} ${s.version}${s.fictional ? " [fittizio]" : ""} · ${s.kind} · ` +
+        `${errors ? "✗" : "✓"} ${s.id} ${s.version}${s.fictional ? " [fittizio]" : ""}` +
+          `${s.releaseStage !== "production" ? ` [${s.releaseStage}]` : ""} · ${s.kind} · ` +
           `luoghi ${s.places} · nodi ${s.nodes} · fonti ${s.sources} · ` +
-          `affermazioni ${s.assertions.verified}/${s.assertions.total} verificate · unità ${units} · percorsi ${s.routes}` +
+          `affermazioni ${s.assertions.verified}/${s.assertions.total} verificate` +
+          `${s.assertions.inReview ? `, ${s.assertions.inReview} in revisione` : ""}${s.assertions.draft ? `, ${s.assertions.draft} bozze` : ""} · unità ${units} · percorsi ${s.routes}` +
           ` · ${errors} errori, ${warnings} avvisi\n`,
       );
     }

@@ -81,6 +81,7 @@ export function engineInputsFromBundle(content: BundleContent): EngineInputs {
       tags: p.categories,
       stepFree: p.stepFree,
       stairs: p.stairs,
+      walkable: p.walkable,
     })),
     fences: content.places.flatMap((p) =>
       p.geofences.map((g, i) => ({

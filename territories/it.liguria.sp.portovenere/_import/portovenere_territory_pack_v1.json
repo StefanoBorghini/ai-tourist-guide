@@ -1,0 +1,486 @@
+{
+  "pack_id": "portovenere",
+  "version": "0.1.0-research",
+  "status": "RESEARCH_READY_NOT_PRODUCTION_VERIFIED",
+  "languages": [
+    "it",
+    "en"
+  ],
+  "global_rules": [
+    "Never present legend, tradition or local belief as historical fact.",
+    "Never use preliminary GPS coordinates as production geofences without field verification.",
+    "Every factual claim must retain a source reference.",
+    "Opening hours, access restrictions, transport and permissions are time-sensitive.",
+    "Prefer institutional/primary sources over tourism aggregators.",
+    "Use only original or explicitly licensed media."
+  ],
+  "territory_context": {
+    "unesco": "Portovenere, Cinque Terre, and the Islands (Palmaria, Tino and Tinetto), World Heritage property since 1997.",
+    "narrative_principle": "Narrate Portovenere as an interconnected cultural landscape: settlement, sea, fortifications, religion, islands, maritime culture and protected nature."
+  },
+  "pois": [
+    {
+      "id": "porta_del_borgo",
+      "name_it": "Porta del Borgo",
+      "category": [
+        "history",
+        "architecture",
+        "urban"
+      ],
+      "lat": 44.041,
+      "lon": 9.8485,
+      "geofence_radius_m": 50,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Medieval access point to the historic settlement and part of the fortified urban system."
+      ],
+      "story_status": "FACTS_ONLY_UNTIL_PRIMARY_SOURCE_VERIFIED"
+    },
+    {
+      "id": "torre_capitolare",
+      "name_it": "Torre Capitolare",
+      "category": [
+        "history",
+        "architecture",
+        "fortifications"
+      ],
+      "lat": 44.0412,
+      "lon": 9.8483,
+      "geofence_radius_m": 40,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Tower associated with the entrance and defensive system of the historic village."
+      ],
+      "story_status": "VERIFY_DETAILED_DATING_BEFORE_AI_NARRATION"
+    },
+    {
+      "id": "san_lorenzo",
+      "name_it": "Chiesa di San Lorenzo",
+      "category": [
+        "religion",
+        "history",
+        "architecture",
+        "art"
+      ],
+      "lat": 44.0418,
+      "lon": 9.8488,
+      "geofence_radius_m": 50,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Romanesque church with three naves; local tourism source dates its consecration to 1130 by Pope Innocent II.",
+        "Facade has alternating black and white bands.",
+        "The church houses the venerated Madonna Bianca.",
+        "The cedar-trunk story is local devotional tradition and must not be presented as independently proven history."
+      ],
+      "story_status": "FACTS_PLUS_TRADITION_SEPARATION_REQUIRED"
+    },
+    {
+      "id": "san_pietro",
+      "name_it": "Chiesa di San Pietro",
+      "category": [
+        "religion",
+        "history",
+        "architecture",
+        "landscape"
+      ],
+      "lat": 44.0359,
+      "lon": 9.8527,
+      "geofence_radius_m": 50,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Church on the rocky promontory and one of Porto Venere's defining landmarks.",
+        "The Gothic Genoese phase is dated by local tourism material to 1256–1277.",
+        "Earlier Christian and possible Roman antecedents must be narrated as hypotheses where not independently verified.",
+        "The church suffered later military damage and was restored in 1929–1934."
+      ],
+      "story_status": "FACTS_AND_HYPOTHESES_MUST_BE_SEPARATED"
+    },
+    {
+      "id": "castello_doria",
+      "name_it": "Castello Doria",
+      "category": [
+        "history",
+        "architecture",
+        "fortifications",
+        "landscape"
+      ],
+      "lat": 44.0365,
+      "lon": 9.8535,
+      "geofence_radius_m": 60,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Dominant fortress above the settlement and major element of the UNESCO cultural landscape.",
+        "UNESCO describes it as a historical palimpsest with traces of a medieval predecessor.",
+        "Exact construction phases should be taken from municipal/heritage documentation before exact AI narration."
+      ],
+      "story_status": "HIGH_VALUE_POI_PRIMARY_SOURCE_EXPANSION_REQUIRED"
+    },
+    {
+      "id": "grotta_byron",
+      "name_it": "Grotta di Byron / Cala dell'Arpaia",
+      "category": [
+        "nature",
+        "literature",
+        "landscape",
+        "legend"
+      ],
+      "lat": 44.0358,
+      "lon": 9.8522,
+      "geofence_radius_m": 30,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Cove between Punta San Pietro and the rocky spur of Castello Doria.",
+        "Locally known as Cala dell'Arpaia.",
+        "Its association with George Byron is a local/touristic tradition; the claim that Byron swam from Lerici to Porto Venere must be labelled tradition/legend, not established fact."
+      ],
+      "story_status": "FACT_PLUS_TRADITION_LEGEND"
+    },
+    {
+      "id": "forte_san_pietro",
+      "name_it": "Forte / sistema fortificato di San Pietro",
+      "category": [
+        "fortifications",
+        "history"
+      ],
+      "lat": 44.0365,
+      "lon": 9.8529,
+      "geofence_radius_m": 20,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Military structures occupy and reinforce the San Pietro promontory."
+      ],
+      "story_status": "DETAILED_PRIMARY_SOURCE_VERIFICATION_REQUIRED"
+    },
+    {
+      "id": "piazza_bastreri",
+      "name_it": "Piazza Bastreri",
+      "category": [
+        "urban",
+        "landscape",
+        "local_life"
+      ],
+      "lat": 44.0402,
+      "lon": 9.8479,
+      "geofence_radius_m": 40,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Urban transition point between the modern access area and the historic village."
+      ],
+      "story_status": "FIELD_CONTENT_REQUIRED"
+    },
+    {
+      "id": "palazzata_a_mare",
+      "name_it": "Palazzata a mare",
+      "category": [
+        "architecture",
+        "urban",
+        "landscape"
+      ],
+      "lat": 44.0396,
+      "lon": 9.8475,
+      "geofence_radius_m": 60,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Compact waterfront building fabric is a defining feature of Porto Venere's settlement morphology.",
+        "UNESCO identifies the compact settlement aligned along the coast and culminating at Doria Castle as part of the outstanding cultural landscape."
+      ],
+      "story_status": "FACT"
+    },
+    {
+      "id": "scalinata_san_pietro",
+      "name_it": "Scalinata / salita verso San Pietro",
+      "category": [
+        "urban",
+        "landscape",
+        "walking"
+      ],
+      "lat": 44.036,
+      "lon": 9.8528,
+      "geofence_radius_m": 20,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Steep circulation route toward the San Pietro promontory and fortifications."
+      ],
+      "story_status": "FIELD_VERIFICATION_REQUIRED"
+    },
+    {
+      "id": "palmaria",
+      "name_it": "Isola Palmaria",
+      "category": [
+        "nature",
+        "geology",
+        "history",
+        "hiking",
+        "UNESCO"
+      ],
+      "lat": 44.0431,
+      "lon": 9.842,
+      "geofence_radius_m": 200,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Largest island of the Porto Venere archipelago.",
+        "Part of the UNESCO World Heritage property.",
+        "Official Parco route: about 3h30, medium difficulty, 198 m total elevation gain.",
+        "Contains fortifications, former Portoro quarries, Mediterranean vegetation and archaeological/monastic remains."
+      ],
+      "story_status": "FACT"
+    },
+    {
+      "id": "grotta_azzurra",
+      "name_it": "Grotta Azzurra",
+      "category": [
+        "nature",
+        "sea",
+        "geology"
+      ],
+      "lat": 44.0425,
+      "lon": 9.842,
+      "geofence_radius_m": 30,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Sea cave on Palmaria; local tourism source describes access by small/rowing boat."
+      ],
+      "story_status": "FACT_WITH_ACCESS_RULES_TO_BE_CURRENTLY_VERIFIED"
+    },
+    {
+      "id": "tino",
+      "name_it": "Isola del Tino",
+      "category": [
+        "nature",
+        "history",
+        "religion",
+        "UNESCO"
+      ],
+      "lat": 44.0277,
+      "lon": 9.8517,
+      "geofence_radius_m": 150,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "One of the three islands included in the UNESCO property.",
+        "Contains remains associated with early monastic settlement and the cult of San Venerio.",
+        "Access and visitor rules are time-sensitive and require current verification."
+      ],
+      "story_status": "FACT_PLUS_ACCESS_RULES_REQUIRED"
+    },
+    {
+      "id": "tinetto",
+      "name_it": "Isola del Tinetto",
+      "category": [
+        "nature",
+        "history",
+        "religion",
+        "UNESCO"
+      ],
+      "lat": 44.0236,
+      "lon": 9.85,
+      "geofence_radius_m": 100,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Smallest of the three islands in the archipelago and part of the UNESCO property.",
+        "Official Parco material describes early monastic remains and historical/biogeographical importance."
+      ],
+      "story_status": "FACT"
+    },
+    {
+      "id": "le_grazie",
+      "name_it": "Le Grazie",
+      "category": [
+        "village",
+        "maritime_history",
+        "diving",
+        "culture"
+      ],
+      "lat": 44.0298,
+      "lon": 9.8772,
+      "geofence_radius_m": 80,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Village in the municipality with a strong maritime identity.",
+        "Local source associates the village with shipwrights, caulkers and diving traditions.",
+        "Local municipal tradition calls it 'La Città dei palombari'."
+      ],
+      "story_status": "FACT_WITH_LOCAL_TRADITION"
+    },
+    {
+      "id": "santuario_le_grazie",
+      "name_it": "Santuario di Nostra Signora delle Grazie",
+      "category": [
+        "religion",
+        "art",
+        "history"
+      ],
+      "lat": 44.0299,
+      "lon": 9.8765,
+      "geofence_radius_m": 30,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Parish sanctuary associated with the Benedictine/Olivetani presence at Le Grazie.",
+        "Contains works of art documented by local tourism sources."
+      ],
+      "story_status": "PRIMARY_ART_HISTORY_SOURCE_EXPANSION_REQUIRED"
+    },
+    {
+      "id": "fezzano",
+      "name_it": "Fezzano",
+      "category": [
+        "village",
+        "maritime",
+        "walking"
+      ],
+      "lat": 44.049,
+      "lon": 9.812,
+      "geofence_radius_m": 80,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Village within the municipality and part of the broader territorial network of the Parco."
+      ],
+      "story_status": "FIELD_AND_MUNICIPAL_SOURCE_EXPANSION_REQUIRED"
+    },
+    {
+      "id": "muzzerone",
+      "name_it": "Muzzerone / palestra di roccia",
+      "category": [
+        "nature",
+        "sport",
+        "landscape",
+        "hiking"
+      ],
+      "lat": 44.034,
+      "lon": 9.85,
+      "geofence_radius_m": 100,
+      "coordinate_status": "PRELIMINARY_FIELD_VERIFICATION_REQUIRED",
+      "claims": [
+        "Parco identifies Muzzerone as a major climbing/outdoor area with panoramic views.",
+        "AV5T connects Porto Venere with Campiglia and provides views over Palmaria, Tino, Tinetto and the Cinque Terre coast."
+      ],
+      "story_status": "FACT"
+    }
+  ],
+  "routes": [
+    {
+      "id": "borgo_60",
+      "name_it": "Portovenere: borgo e San Pietro – circa 60 min",
+      "status": "DRAFT_FIELD_CALIBRATION_REQUIRED",
+      "stops": [
+        "porta_del_borgo",
+        "san_lorenzo",
+        "palazzata_a_mare",
+        "san_pietro",
+        "grotta_byron"
+      ]
+    },
+    {
+      "id": "borgo_90",
+      "name_it": "Portovenere storico – circa 90 min",
+      "status": "DRAFT_FIELD_CALIBRATION_REQUIRED",
+      "stops": [
+        "porta_del_borgo",
+        "san_lorenzo",
+        "palazzata_a_mare",
+        "castello_doria",
+        "san_pietro",
+        "grotta_byron"
+      ]
+    },
+    {
+      "id": "palmaria_210",
+      "name_it": "Periplo Palmaria – 3h30",
+      "status": "SOURCE_VERIFIED_TIME_DIFFICULTY_NEEDS_CURRENT_ACCESS_CHECK",
+      "stops": [
+        "palmaria"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "unesco_826",
+      "authority": "UNESCO",
+      "title": "Portovenere, Cinque Terre, and the Islands",
+      "url": "https://whc.unesco.org/en/list/826",
+      "priority": "PRIMARY"
+    },
+    {
+      "id": "unesco_maps",
+      "authority": "UNESCO",
+      "title": "Property maps and geographical data",
+      "url": "https://whc.unesco.org/en/list/826/maps/",
+      "priority": "PRIMARY"
+    },
+    {
+      "id": "unesco_docs",
+      "authority": "UNESCO",
+      "title": "Property documents",
+      "url": "https://whc.unesco.org/en/list/826/documents",
+      "priority": "PRIMARY"
+    },
+    {
+      "id": "parco_home",
+      "authority": "Parco Naturale di Porto Venere",
+      "title": "Official Park site",
+      "url": "https://www.parconaturaleportovenere.it/",
+      "priority": "PRIMARY"
+    },
+    {
+      "id": "parco_sentieri",
+      "authority": "Parco Naturale di Porto Venere",
+      "title": "I sentieri del Parco",
+      "url": "https://www.parconaturaleportovenere.it/i-sentieri-del-parco/",
+      "priority": "PRIMARY"
+    },
+    {
+      "id": "parco_palmaria",
+      "authority": "Parco Naturale di Porto Venere",
+      "title": "Periplo dell'isola Palmaria",
+      "url": "https://www.parconaturaleportovenere.it/periplo-dellisola/",
+      "priority": "PRIMARY"
+    },
+    {
+      "id": "parco_archipelago",
+      "authority": "Parco Naturale di Porto Venere",
+      "title": "L'Arcipelago: Palmaria – Tino – Tinetto",
+      "url": "https://www.parconaturaleportovenere.it/larcipelago-palmaria-tino-tinetto/",
+      "priority": "PRIMARY"
+    },
+    {
+      "id": "visit_churches",
+      "authority": "Visit Portovenere",
+      "title": "Le Chiese di Porto Venere",
+      "url": "https://www.visitportovenere.com/it/cosa-fare-a-portovenere/chiese",
+      "priority": "SECONDARY_LOCAL"
+    },
+    {
+      "id": "visit_caves",
+      "authority": "Visit Portovenere",
+      "title": "Grotta Azzurra e Grotta Byron",
+      "url": "https://www.visitportovenere.com/it/cosa-fare-a-portovenere/grotte-marine",
+      "priority": "SECONDARY_LOCAL"
+    },
+    {
+      "id": "visit_protected",
+      "authority": "Visit Portovenere",
+      "title": "Area marina protetta / Parco naturale regionale",
+      "url": "https://www.visitportovenere.com/it/portovenere/area-marina-protetta",
+      "priority": "SECONDARY_LOCAL"
+    },
+    {
+      "id": "visit_le_grazie",
+      "authority": "Visit Portovenere",
+      "title": "Le Grazie",
+      "url": "https://www.visitportovenere.com/it/portovenere/le-grazie",
+      "priority": "SECONDARY_LOCAL"
+    }
+  ],
+  "field_validation": {
+    "required": true,
+    "checklist": [
+      "Record exact GPS point at each POI.",
+      "Walk geofence boundary and calibrate trigger radius.",
+      "Test GPS stability in narrow streets and near cliffs.",
+      "Verify visual landmark used for each trigger.",
+      "Record stairs/accessibility.",
+      "Verify current opening/access restrictions.",
+      "Capture original photos with rights metadata.",
+      "Test audio transitions and interruption handling."
+    ]
+  }
+}

@@ -3,12 +3,17 @@ import type {
   AssertionType,
   Audience,
   Certainty,
+  CoordinateStatus,
   GeofenceKind,
   Locale,
   MediaLicense,
   NodeKind,
   PlaceKind,
+  PracticalKind,
   PredicateId,
+  ReleaseStage,
+  RouteCalibration,
+  RouteDifficulty,
   SourceKind,
   SourceReliability,
   UnitType,
@@ -57,7 +62,22 @@ export interface BundlePlace {
   partOf?: string;
   stepFree?: boolean;
   stairs?: number;
+  /** Presente solo se false: il luogo non si raggiunge a piedi (es. un'isola). */
+  walkable?: false;
   geofences: BundleGeofence[];
+  coordinateStatus: CoordinateStatus;
+  /** Solo nei bundle di anteprima: stato del racconto e note per il test sul campo. */
+  curation?: { storyStatus?: string; notes: string[] };
+  practical: BundlePractical[];
+}
+
+/** Informazione pratica datata: l'app la mostra con la data di controllo, mai come fatto storico. */
+export interface BundlePractical {
+  kind: PracticalKind;
+  text: string;
+  checkedAt: string;
+  recheckAfterDays: number;
+  source?: string;
 }
 
 export interface BundleAnchor {
@@ -83,6 +103,8 @@ export interface BundleSource {
   institution?: string;
   year?: number;
   reliability: SourceReliability;
+  url?: string;
+  priority?: string;
 }
 
 export interface BundleAssertion {
@@ -97,6 +119,8 @@ export interface BundleAssertion {
   /** Lingua effettiva del testo (diversa da quella del bundle se manca la traduzione). */
   textLocale: Locale;
   sources: string[];
+  /** Solo nei bundle di anteprima: affermazione ancora in revisione, non verificata. */
+  inReview?: true;
 }
 
 export interface BundleUnit {
@@ -119,6 +143,10 @@ export interface BundleRoute {
   durationMin: number;
   stops: { place: string; dwellMin?: number; optional: boolean }[];
   endAnchor?: string;
+  calibration: RouteCalibration;
+  difficulty?: RouteDifficulty;
+  elevationGainM?: number;
+  sources: string[];
 }
 
 export interface BundleMedia {
@@ -142,6 +170,13 @@ export interface BundleContent {
   locale: Locale;
   flavor: BundleFlavor;
   fictional: boolean;
+  /**
+   * Bundle di anteprima (territorio in ricerca o in prova sul campo): può contenere
+   * affermazioni in revisione, marcate inReview. L'app lo dichiara sempre all'utente.
+   */
+  preview: boolean;
+  releaseStage: ReleaseStage;
+  editorialStatus?: string;
   packVersions: Record<string, string>;
   guide: { defaultMode: "auto" | "ask" | "silent"; maxProposalsPer10Min: number };
   safetyNotes: { id: string; text: string }[];

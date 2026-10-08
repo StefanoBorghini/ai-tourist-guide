@@ -129,3 +129,43 @@ describe("runtime della guida", () => {
     expect(narrationBudgetS(10)).toBe(180); // 360 s → massimo 180
   });
 });
+
+describe("percorsi curati, invito alle domande, diagnostica", () => {
+  it("con un percorso curato segue le tappe nell'ordine della redazione", () => {
+    const route = content.routes[0]!;
+    const runtime = new GuideRuntime(content, "auto");
+    const plan = runtime.startTour({ now: T0, start: content.anchors[0]!.location, route: route.ref, budgetMin: 240 });
+    const order = route.stops.map((s) => s.place);
+    expect(plan.stops.map((s) => s.placeId)).toEqual(order.filter((p) => plan.stops.some((s) => s.placeId === p)));
+    expect(plan.stops.map((s) => s.placeId)).toEqual(order);
+  });
+
+  it("dopo il racconto invita a fare domande solo se richiesto", () => {
+    const runtime = new GuideRuntime(content, "auto");
+    runtime.startTour({ now: T0, start: content.anchors[0]!.location, budgetMin: 120 });
+    const place = runtime.plan!.stops[0]!.placeId;
+    const plain = runtime.narrate(place).find((e) => e.type === "narration");
+    expect(plain && plain.type === "narration" ? plain.segments.at(-1)!.kind : null).toBe("unit");
+
+    const inviting = new GuideRuntime(content, "auto");
+    inviting.inviteQuestions = true;
+    inviting.startTour({ now: T0, start: content.anchors[0]!.location, budgetMin: 120 });
+    const n = inviting.narrate(place).find((e) => e.type === "narration");
+    expect(n && n.type === "narration" ? n.segments.at(-1)!.text : "").toMatch(/domand/);
+  });
+
+  it("l'istantanea di debug ordina i luoghi per distanza e mostra lo stato dei geofence", () => {
+    const runtime = new GuideRuntime(content, "ask");
+    runtime.startTour({ now: T0, start: content.anchors[0]!.location, budgetMin: 120 });
+    const target = content.places[0]!;
+    for (let i = 0; i < 15; i++) runtime.onFix({ location: target.location, accuracyM: 5, timestamp: T0 + i * 1000 });
+    const snap = runtime.debugSnapshot();
+    expect(snap.places[0]!.ref).toBe(target.ref);
+    expect(snap.places[0]!.distanceM).toBe(0);
+    expect(snap.places[0]!.fences.some((f) => f.phase === "inside")).toBe(true);
+    expect(snap.places[0]!.coordinateStatus).toBe("field_verified");
+
+    runtime.onFix({ location: target.location, accuracyM: 500, timestamp: T0 + 20_000 });
+    expect(runtime.debugSnapshot().places[0]!.fences.every((f) => f.tooImprecise)).toBe(true);
+  });
+});

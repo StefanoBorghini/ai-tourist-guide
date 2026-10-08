@@ -2,7 +2,7 @@
  * Identificativi globali.
  *
  * - Pack id: gerarchico, separato da punti, dal generale al particolare
- *   (es. "it.liguria.sp.portovenere"). Coincide con il nome della cartella del pack.
+ *   (es. "it.regione.provincia.comune"). Coincide con il nome della cartella del pack.
  * - Slug: identificativo locale di un nodo dentro un pack (es. "chiesa-di-san-pietro").
  * - Node ref: riferimento globale "<packId>:<slug>". Dentro un pack si può usare
  *   lo slug da solo per riferirsi a un nodo dello stesso pack.

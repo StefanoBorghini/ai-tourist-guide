@@ -1,0 +1,20 @@
+# Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
+# Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+- id: unesco-1997
+  subject: unesco-portovenere-cinque-terre
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: >-
+      Portovenere, le Cinque Terre e le Isole (Palmaria, Tino e Tinetto) sono Patrimonio Mondiale UNESCO dal 1997.
+    en: >-
+      Portovenere, Cinque Terre, and the Islands (Palmaria, Tino and Tinetto) have been a UNESCO World Heritage
+      property since 1997.
+  evidence:
+  - source: unesco-826
+    locator: fonte indicata nel materiale di ricerca
+  authoredBy: ricerca-territory-pack-v1
+  originalClaim: >-
+    Portovenere, Cinque Terre, and the Islands (Palmaria, Tino and Tinetto), World Heritage property since 1997.

@@ -27,8 +27,13 @@ export type NodeKind = (typeof NODE_KINDS)[number];
 export const PLACE_KINDS = ["site", "poi", "feature"] as const;
 export type PlaceKind = (typeof PLACE_KINDS)[number];
 
-/** Che cosa afferma un'affermazione (distinto da quanto è certa). */
-export const ASSERTION_TYPES = ["fact", "interpretation", "tradition", "legend", "disputed"] as const;
+/**
+ * Che cosa afferma un'affermazione (distinto da quanto è certa).
+ * - interpretation: lettura di studiosi o fonti su un fatto;
+ * - hypothesis: ipotesi non dimostrata (es. origini antiche presunte), da raccontare come tale.
+ * "Non verificato" non è un tipo: è lo stato (draft, in_review).
+ */
+export const ASSERTION_TYPES = ["fact", "interpretation", "hypothesis", "tradition", "legend", "disputed"] as const;
 export type AssertionType = (typeof ASSERTION_TYPES)[number];
 
 /** Quanto è solida un'affermazione di tipo fact o interpretation. */
@@ -57,6 +62,31 @@ export const SOURCE_KINDS = [
   "other",
 ] as const;
 export type SourceKind = (typeof SOURCE_KINDS)[number];
+
+/** Affidabilità delle coordinate di un luogo. Solo field_verified è ammesso in produzione. */
+export const COORDINATE_STATUSES = ["preliminary", "field_verified", "needs_review"] as const;
+export type CoordinateStatus = (typeof COORDINATE_STATUSES)[number];
+
+/**
+ * Stadio di un pack:
+ * - research: contenuti di ricerca, non verificati sul campo né da un secondo redattore;
+ * - field_test: in prova sul campo (coordinate e percorsi in calibrazione);
+ * - production: pubblicabile. Solo qui valgono senza eccezioni le regole di verifica.
+ * Nei primi due stadi l'app usa un bundle di "anteprima", sempre dichiarato come tale.
+ */
+export const RELEASE_STAGES = ["research", "field_test", "production"] as const;
+export type ReleaseStage = (typeof RELEASE_STAGES)[number];
+
+/** Informazioni pratiche che cambiano nel tempo: non sono storia, vanno ricontrollate. */
+export const PRACTICAL_KINDS = ["opening_hours", "access", "tickets", "transport", "permission", "safety"] as const;
+export type PracticalKind = (typeof PRACTICAL_KINDS)[number];
+
+export const ROUTE_DIFFICULTIES = ["easy", "medium", "hard"] as const;
+export type RouteDifficulty = (typeof ROUTE_DIFFICULTIES)[number];
+
+/** Un percorso è "draft" finché tempi e tappe non sono stati percorsi e misurati sul posto. */
+export const ROUTE_CALIBRATIONS = ["draft", "field_calibrated"] as const;
+export type RouteCalibration = (typeof ROUTE_CALIBRATIONS)[number];
 
 export const GEOFENCE_KINDS = ["arrival", "viewpoint"] as const;
 export type GeofenceKind = (typeof GEOFENCE_KINDS)[number];

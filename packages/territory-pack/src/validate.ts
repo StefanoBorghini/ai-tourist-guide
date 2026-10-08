@@ -12,6 +12,7 @@ import {
   type NodeKind,
   type TerritoryPack,
 } from "@guide/domain";
+import { metersBetween } from "./geo.ts";
 import { IssueCollector, type PackIssue } from "./issues.ts";
 
 /** Parole al secondo di una narrazione a voce: sotto o sopra questi limiti la durata è sospetta. */
@@ -31,6 +32,8 @@ interface Context {
   /** Chiusura transitiva delle dipendenze, incluso il pack stesso. */
   reachable: Map<string, Set<string>>;
   out: IssueCollector;
+  /** Data di riferimento (AAAA-MM-GG) per le informazioni pratiche da ricontrollare. */
+  today: string;
 }
 
 /**
@@ -38,9 +41,10 @@ interface Context {
  * qui si controllano integrità referenziale, ontologia, regole di verifica
  * e coerenza narrativa, anche tra pack diversi.
  */
-export function validatePacks(packs: Map<string, TerritoryPack>): PackIssue[] {
+export function validatePacks(packs: Map<string, TerritoryPack>, options: { today?: string } = {}): PackIssue[] {
   const out = new IssueCollector();
-  const ctx: Context = { packs, nodes: new Map(), sources: new Map(), reachable: new Map(), out };
+  const today = options.today ?? new Date().toISOString().slice(0, 10);
+  const ctx: Context = { packs, nodes: new Map(), sources: new Map(), reachable: new Map(), out, today };
 
   for (const pack of packs.values()) indexPack(pack, ctx);
   for (const pack of packs.values()) ctx.reachable.set(pack.manifest.id, resolveDependencies(pack, ctx));
@@ -162,6 +166,24 @@ function lookupNode(
   return { ...entry, ref };
 }
 
+/** Risolve il riferimento a una fonte; segnala se non esiste o non è raggiungibile. */
+function lookupSource(raw: string, pack: TerritoryPack, ctx: Context, where: { file: string; item: string }): boolean {
+  const packId = pack.manifest.id;
+  const parsed = resolveRef(raw, packId);
+  const key = parsed ? formatNodeRef(parsed) : raw;
+  if (!parsed || !ctx.sources.has(key) || !ctx.reachable.get(packId)?.has(parsed.packId)) {
+    ctx.out.error({ code: "SOURCE_NOT_FOUND", packId, ...where, message: `fonte non trovata o non raggiungibile: ${key}` });
+    return false;
+  }
+  return true;
+}
+
+function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 function wordCount(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
 }
@@ -246,6 +268,69 @@ function checkPlaces(pack: TerritoryPack, ctx: Context): void {
     }
   }
   for (const anchor of pack.anchors) checkLabels(pack, ctx, PACK_FILES.anchors.path, anchor.id, anchor.labels);
+
+  // Coordinate: in produzione solo rilevate sul posto; prima, un promemoria riassuntivo.
+  const production = pack.manifest.releaseStage === "production";
+  const preliminary: string[] = [];
+  for (const place of pack.places) {
+    const status = place.coordinates.status;
+    if (status === "field_verified") continue;
+    if (production) {
+      ctx.out.error({
+        code: "COORDINATES_NOT_VERIFIED",
+        packId,
+        file,
+        item: place.id,
+        message: `coordinate ${status}: in produzione servono coordinate rilevate sul posto`,
+      });
+    } else if (status === "needs_review") {
+      ctx.out.warning({ code: "COORDINATES_NEED_REVIEW", packId, file, item: place.id, message: "coordinate da rivedere" });
+    } else {
+      preliminary.push(place.id);
+    }
+  }
+  if (preliminary.length > 0) {
+    ctx.out.warning({
+      code: "COORDINATES_PRELIMINARY",
+      packId,
+      file,
+      message: `${preliminary.length} luoghi con coordinate preliminari, da rilevare sul posto: ${preliminary.join(", ")}`,
+    });
+  }
+
+  // Geofence di arrivo sovrapposti: due luoghi possono scattare insieme.
+  const arrivals = pack.places.flatMap((p) =>
+    p.geofences.filter((g) => g.kind === "arrival").map((g) => ({ id: p.id, center: g.center ?? p.location, r: g.radiusM })),
+  );
+  for (let i = 0; i < arrivals.length; i++) {
+    for (let j = i + 1; j < arrivals.length; j++) {
+      const a = arrivals[i]!;
+      const b = arrivals[j]!;
+      if (a.id === b.id) continue;
+      const d = metersBetween(a.center, b.center);
+      if (d < a.r + b.r) {
+        ctx.out.warning({
+          code: "GEOFENCE_OVERLAP",
+          packId,
+          file,
+          item: `${a.id} ↔ ${b.id}`,
+          message: `geofence sovrapposti: centri a ${Math.round(d)} m, raggi ${a.r} + ${b.r} m`,
+        });
+      }
+    }
+  }
+
+  // Informazioni pratiche: hanno una scadenza.
+  for (const place of pack.places) {
+    for (const info of place.practical) {
+      const where = { file, item: `${place.id}/${info.id}` };
+      if (info.source) lookupSource(info.source, pack, ctx, where);
+      const due = addDays(info.checkedAt, info.recheckAfterDays);
+      if (due < ctx.today) {
+        ctx.out.warning({ code: "PRACTICAL_STALE", packId, ...where, message: `controllata il ${info.checkedAt}: da ricontrollare dal ${due}` });
+      }
+    }
+  }
 }
 
 function checkNodes(pack: TerritoryPack, ctx: Context): void {
@@ -416,6 +501,8 @@ function checkUnits(pack: TerritoryPack, ctx: Context): void {
         continue;
       }
       const tier = a.qualityTier ?? packTier;
+      // Prima della produzione un'unità può usare affermazioni in revisione: finiscono solo nei bundle di anteprima.
+      if (a.status === "in_review" && pack.manifest.releaseStage !== "production" && allowedTiers.has(tier)) continue;
       if (a.status !== "verified" || !allowedTiers.has(tier)) {
         ctx.out.error({
           code: "UNIT_ASSERTION_NOT_NARRATABLE",
@@ -475,6 +562,10 @@ function checkRoutes(pack: TerritoryPack, ctx: Context): void {
     }
     if (route.endAnchor && !anchors.has(route.endAnchor)) {
       ctx.out.error({ code: "ROUTE_ANCHOR_UNKNOWN", packId, ...where, message: `ancora inesistente: ${route.endAnchor}` });
+    }
+    for (const raw of route.sources) lookupSource(raw, pack, ctx, where);
+    if (route.calibration === "draft" && pack.manifest.releaseStage === "production") {
+      ctx.out.error({ code: "ROUTE_NOT_CALIBRATED", packId, ...where, message: "percorso non ancora calibrato sul posto" });
     }
   }
 }

@@ -36,7 +36,17 @@ npm install
 npm run ci               # typecheck, test, validazione dei pack, controllo territori
 npm run packs:validate   # valida i Territory Pack
 npm run dev              # app in locale
+npm run photos --workspace @guide/territory-pack -- <cartella-foto> --territories territories --pack <id>
+                         # coordinate, quota e data dalle foto JPEG, con il luogo più vicino
 ```
+
+### Immagini nei pack
+
+Le immagini stanno in `<pack>/media/files/` e sono descritte in `<pack>/media/media.yaml`: soggetti, testo
+alternativo, fonte (`own_photo`, `institution`, `archive`, `web`, `other`), autore, licenza, attribuzione,
+`originalUrl`. Il validatore pretende l'attribuzione quando la licenza la richiede e l'indirizzo originale per le
+immagini prese dal web. Nei bundle entrano solo immagini con licenza utilizzabile: mai "tutti i diritti riservati",
+le non commerciali solo se il territorio lo ammette (`config.media.allowNonCommercial`).
 
 ## Stato
 
@@ -50,4 +60,7 @@ Fase 0 (fondazioni) in corso:
 - [x] Narrative Planner (narrazione componibile, memoria del tour, raccordi a modello)
 - [x] compilazione dei bundle di runtime (solo fatti raccontabili, deterministici, verificati all'apertura)
 - [x] prima app: runtime della guida, voce (sintesi del dispositivo), walk mode, simulatore, GPS
+- [x] immagini con licenza nei pack e nei bundle; coordinate dei luoghi lette dalle foto (EXIF)
+- [ ] funzionamento offline
+- [ ] domande alla guida (AI, solo su affermazioni verificate)
 - [ ] Studio minimo con changeset

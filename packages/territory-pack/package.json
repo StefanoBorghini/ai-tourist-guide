@@ -12,7 +12,8 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "validate": "tsx src/cli.ts validate"
+    "validate": "tsx src/cli.ts validate",
+    "photos": "tsx src/cli.ts photos"
   },
   "dependencies": {
     "@guide/domain": "0.1.0",

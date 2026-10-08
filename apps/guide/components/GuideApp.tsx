@@ -30,6 +30,7 @@ export function GuideApp() {
   const [error, setError] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>("home");
   const [content, setContent] = useState<BundleContent | null>(null);
+  const [bundleBase, setBundleBase] = useState("");
   const [budget, setBudget] = useState(45);
   const [returnToAnchor, setReturnToAnchor] = useState(true);
   const [mode, setMode] = useState<GuideMode>("ask");
@@ -68,6 +69,7 @@ export function GuideApp() {
       const base = entry.manifest.replace(/manifest\.json$/, "");
       const json = await (await fetch(base + manifest.content)).text();
       setContent(await verifyBundle(manifest, json));
+      setBundleBase(base);
       setScreen("setup");
     } catch (e) {
       setError((e as Error).message);
@@ -275,6 +277,7 @@ export function GuideApp() {
 
       <section className="card now-playing" aria-live="polite">
         <p className="eyebrow">{speech.state === "idle" ? (runtime.currentPlaceRef ? `${t.here}: ${runtime.name(runtime.currentPlaceRef)}` : " ") : t.listening}</p>
+        {runtime.currentPlaceRef && <PlacePhoto content={content} placeRef={runtime.currentPlaceRef} base={bundleBase} label={t.photo} />}
         <p className="now-text">{currentSegment?.text ?? (transcript.length === 0 ? t.nothing : transcript.at(-1)!.text)}</p>
         {!voiceRef.current && <p className="muted small">{t.noVoice}</p>}
         <div className="controls">
@@ -346,5 +349,28 @@ export function GuideApp() {
         </details>
       )}
     </main>
+  );
+}
+
+/** Prima immagine del luogo, con il credito richiesto dalla licenza. */
+function PlacePhoto({ content, placeRef, base, label }: { content: BundleContent; placeRef: string; base: string; label: string }) {
+  const media = content.media.find((m) => m.subjects.includes(placeRef));
+  if (!media) return null;
+  const credit = media.attribution ?? (media.author ? `${label}: ${media.author}` : null);
+  return (
+    <figure className="place-photo">
+      {/* eslint-disable-next-line @next/next/no-img-element -- file statico del bundle, già ottimizzato */}
+      <img src={base + media.path} alt={media.alt} loading="lazy" />
+      {(media.caption || credit) && (
+        <figcaption>
+          {media.caption && <span>{media.caption}</span>}
+          {credit && (
+            <span className="credit">
+              {media.originalUrl ? <a href={media.originalUrl} target="_blank" rel="noreferrer">{credit}</a> : credit}
+            </span>
+          )}
+        </figcaption>
+      )}
+    </figure>
   );
 }

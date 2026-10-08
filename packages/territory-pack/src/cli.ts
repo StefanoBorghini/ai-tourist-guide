@@ -3,25 +3,73 @@
  * guide-pack — strumento a riga di comando per i Territory Pack.
  *
  *   guide-pack validate <cartella> [--pack <id>] [--strict] [--json]
+ *   guide-pack photos <cartella-foto> [--territories <cartella-pack> --pack <id>]
  *
  * Carica tutti i pack sotto <cartella> (per risolvere le dipendenze),
  * li valida e stampa errori e avvisi. Esce con codice 1 se ci sono errori
  * (o avvisi, con --strict).
  */
-import { resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { argv, cwd, exit, stdout } from "node:process";
 import { hasErrors, type PackIssue } from "./issues.ts";
 import { loadPacks } from "./load.ts";
+import { readPhotoLocation } from "./photo-location.ts";
 import { summarizePack } from "./summary.ts";
 import { validatePacks } from "./validate.ts";
 
 function usage(): never {
-  stdout.write("Uso: guide-pack validate <cartella> [--pack <id>] [--strict] [--json]\n");
+  stdout.write(
+    "Uso:\n  guide-pack validate <cartella> [--pack <id>] [--strict] [--json]\n" +
+      "  guide-pack photos <cartella-foto> [--territories <cartella-pack> --pack <id>]\n",
+  );
   exit(2);
+}
+
+/** Distanza approssimata in metri (sufficiente per trovare il luogo più vicino a una foto). */
+function metersBetween(a: readonly [number, number], b: readonly [number, number]): number {
+  const R = 6371008.8;
+  const rad = Math.PI / 180;
+  const dLat = (b[1] - a[1]) * rad;
+  const dLng = (b[0] - a[0]) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Legge la posizione GPS delle foto e, se indicato un pack, trova il luogo più vicino. */
+function photos(dirArg: string, rest: string[]): number {
+  const base = process.env.INIT_CWD ?? cwd();
+  const dir = resolve(base, dirArg);
+  const territoriesIndex = rest.indexOf("--territories");
+  const packIndex = rest.indexOf("--pack");
+  const places =
+    territoriesIndex >= 0 && packIndex >= 0
+      ? (loadPacks(resolve(base, rest[territoriesIndex + 1]!)).packs.get(rest[packIndex + 1]!)?.places ?? [])
+      : [];
+  const files = readdirSync(dir).filter((f) => /\.jpe?g$/i.test(f)).sort();
+  if (files.length === 0) stdout.write(`Nessuna foto JPEG in ${dir}\n`);
+  for (const f of files) {
+    const info = readPhotoLocation(new Uint8Array(readFileSync(join(dir, f))));
+    if (!info) {
+      stdout.write(`✗ ${f}: nessuna posizione GPS (localizzazione disattivata o foto modificata)\n`);
+      continue;
+    }
+    const [lng, lat] = info.location;
+    const nearest = places
+      .map((p) => ({ id: p.id, d: metersBetween(info.location, p.location) }))
+      .sort((a, b) => a.d - b.d)[0];
+    stdout.write(
+      `✓ ${f}: [${lng}, ${lat}]${info.altitudeM !== undefined ? ` · ${info.altitudeM} m` : ""}` +
+        `${info.takenAt ? ` · ${info.takenAt}` : ""}` +
+        `${nearest ? ` · luogo più vicino: ${nearest.id} (${Math.round(nearest.d)} m)` : ""}\n`,
+    );
+  }
+  return 0;
 }
 
 function main(args: string[]): number {
   const [command, rootArg, ...rest] = args;
+  if (command === "photos" && rootArg) return photos(rootArg, rest);
   if (command !== "validate" || !rootArg) usage();
 
   const strict = rest.includes("--strict");

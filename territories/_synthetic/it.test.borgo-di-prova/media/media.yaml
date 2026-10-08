@@ -1,0 +1,23 @@
+- id: porta-del-borgo-foto
+  kind: image
+  file: porta-del-borgo-fittizia.jpg
+  subjects: [porta-del-borgo]
+  alt:
+    it: Immagine segnaposto della Porta del Borgo (fittizia)
+    en: Placeholder image of the Village Gate (fictional)
+  source: own_photo
+  author: Redazione di test
+  license: own
+  takenAt: "2026-05-15"
+  location: [0.00102, 0.00101]
+- id: torre-foto-nc
+  kind: image
+  file: torre-fittizia.jpg
+  subjects: [torre-di-prova]
+  alt:
+    it: Immagine segnaposto della Torre di Prova (fittizia)
+  source: web
+  author: Autore Inventato
+  license: cc-by-nc-4.0
+  attribution: "Foto di Autore Inventato, CC BY-NC 4.0"
+  originalUrl: https://example.org/torre-fittizia

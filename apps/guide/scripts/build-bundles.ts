@@ -5,7 +5,7 @@
  * I territori fittizi (di test) sono inclusi solo se GUIDE_INCLUDE_FICTIONAL non è "false":
  * finché non esiste un territorio reale, l'app mostra quello di prova, dichiarandolo.
  */
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildBundle } from "@guide/bundle";
@@ -29,10 +29,15 @@ for (const pack of packs.values()) {
   if (pack.manifest.kind !== "destination") continue;
   if (pack.manifest.fictional && !includeFictional) continue;
   for (const locale of pack.manifest.locales) {
-    const bundle = buildBundle(packs, { destination: pack.manifest.id, locale, allowFictional: includeFictional });
+    const bundle = buildBundle(packs, { destination: pack.manifest.id, locale, allowFictional: includeFictional,
+      readAsset: (packDir, relativePath) => readFileSync(join(packDir, relativePath)),
+    });
     const dir = join(OUT, pack.manifest.id, `${locale}-full`);
     mkdirSync(dir, { recursive: true });
-    for (const [path, data] of bundle.files) writeFileSync(join(dir, path), data);
+    for (const [path, data] of bundle.files) {
+      mkdirSync(dirname(join(dir, path)), { recursive: true });
+      writeFileSync(join(dir, path), data);
+    }
     index.push({
       destination: pack.manifest.id,
       name: bundle.content.name,

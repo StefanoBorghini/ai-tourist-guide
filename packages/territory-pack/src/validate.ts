@@ -1,8 +1,11 @@
-import { basename } from "node:path";
+import { existsSync } from "node:fs";
+import { basename, join } from "node:path";
 import {
   formatNodeRef,
   getPredicate,
   kindAllowed,
+  LICENSE_RULES,
+  MEDIA_FILES_DIR,
   PACK_FILES,
   resolveRef,
   type Assertion,
@@ -49,6 +52,7 @@ export function validatePacks(packs: Map<string, TerritoryPack>): PackIssue[] {
     checkAssertions(pack, ctx);
     checkUnits(pack, ctx);
     checkRoutes(pack, ctx);
+    checkMedia(pack, ctx);
   }
   return out.issues;
 }
@@ -92,6 +96,7 @@ function indexPack(pack: TerritoryPack, ctx: Context): void {
   checkUnique(PACK_FILES.units.path, pack.units.map((u) => u.id));
   checkUnique(PACK_FILES.routes.path, pack.routes.map((r) => r.id));
   checkUnique(PACK_FILES.anchors.path, pack.anchors.map((a) => a.id));
+  checkUnique(PACK_FILES.media.path, pack.media.map((m) => m.id));
 }
 
 function resolveDependencies(pack: TerritoryPack, ctx: Context): Set<string> {
@@ -470,6 +475,46 @@ function checkRoutes(pack: TerritoryPack, ctx: Context): void {
     }
     if (route.endAnchor && !anchors.has(route.endAnchor)) {
       ctx.out.error({ code: "ROUTE_ANCHOR_UNKNOWN", packId, ...where, message: `ancora inesistente: ${route.endAnchor}` });
+    }
+  }
+}
+
+// -------------------------------------------------------------------- media
+
+function checkMedia(pack: TerritoryPack, ctx: Context): void {
+  const file = PACK_FILES.media.path;
+  const { id: packId, defaultLocale } = pack.manifest;
+  const allowNonCommercial = pack.config.media.allowNonCommercial;
+  const usedFiles = new Map<string, string>();
+
+  for (const m of pack.media) {
+    const where = { file, item: m.id };
+    for (const raw of m.subjects) lookupNode(raw, pack, ctx, where);
+
+    if (!existsSync(join(pack.dir, MEDIA_FILES_DIR, m.file))) {
+      ctx.out.error({ code: "MEDIA_FILE_MISSING", packId, ...where, message: `file non trovato: ${MEDIA_FILES_DIR}/${m.file}` });
+    }
+    const other = usedFiles.get(m.file);
+    if (other) ctx.out.warning({ code: "MEDIA_FILE_REUSED", packId, ...where, message: `stesso file di ${other}` });
+    usedFiles.set(m.file, m.id);
+
+    const rules = LICENSE_RULES[m.license];
+    if (rules.attributionRequired && !m.attribution) {
+      ctx.out.error({ code: "MEDIA_ATTRIBUTION", packId, ...where, message: `la licenza ${m.license} richiede l'attribuzione` });
+    }
+    if (m.source === "web" && !m.originalUrl) {
+      ctx.out.error({ code: "MEDIA_ORIGIN", packId, ...where, message: "un'immagine presa dal web richiede originalUrl" });
+    }
+    if ((m.source === "institution" || m.source === "archive") && !m.originalUrl && !m.licenseNote) {
+      ctx.out.warning({ code: "MEDIA_ORIGIN", packId, ...where, message: "indicare originalUrl o un riferimento all'accordo (licenseNote)" });
+    }
+    if (m.license === "all-rights-reserved") {
+      ctx.out.warning({ code: "MEDIA_NOT_USABLE", packId, ...where, message: "tutti i diritti riservati: l'immagine resta in archivio ma non viene pubblicata" });
+    } else if (!rules.commercialUse && !allowNonCommercial) {
+      ctx.out.warning({ code: "MEDIA_NON_COMMERCIAL", packId, ...where, message: `licenza ${m.license} non commerciale: esclusa dal pacchetto pubblicato` });
+    }
+    if (!m.alt[defaultLocale]) {
+      ctx.out.error({ code: "MEDIA_ALT", packId, ...where, message: `manca il testo alternativo in ${defaultLocale}` });
     }
   }
 }

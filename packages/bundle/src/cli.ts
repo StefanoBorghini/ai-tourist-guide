@@ -7,8 +7,8 @@
  *
  * Scrive <out>/<destinazione>/<lingua>-<variante>/manifest.json e il file dei contenuti.
  */
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { argv, cwd, env, exit, stdout } from "node:process";
 import type { Locale } from "@guide/domain";
 import { loadPacks } from "@guide/territory-pack";
@@ -42,15 +42,24 @@ function main(args: string[]): number {
     return 1;
   }
   try {
-    const bundle = buildBundle(loaded.packs, { destination, locale, flavor, allowFictional: rest.includes("--allow-fictional") });
+    const bundle = buildBundle(loaded.packs, {
+      destination,
+      locale,
+      flavor,
+      allowFictional: rest.includes("--allow-fictional"),
+      readAsset: (packDir, rel) => new Uint8Array(readFileSync(join(packDir, rel))),
+    });
     const dir = join(out, destination, `${locale}-${flavor}`);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
-    for (const [path, data] of bundle.files) writeFileSync(join(dir, path), data);
+    for (const [path, data] of bundle.files) {
+      mkdirSync(dirname(join(dir, path)), { recursive: true });
+      writeFileSync(join(dir, path), data);
+    }
     const c = bundle.content;
     stdout.write(
       `✓ ${destination} · ${locale}-${flavor} · ${(bundle.manifest.totalBytes / 1024).toFixed(1)} KB · ` +
-        `luoghi ${c.places.length} · affermazioni ${c.assertions.length} · unità ${c.units.length} · percorsi ${c.routes.length}\n` +
+        `luoghi ${c.places.length} · affermazioni ${c.assertions.length} · unità ${c.units.length} · percorsi ${c.routes.length} · immagini ${c.media.length}\n` +
         `  ${dir}\n`,
     );
     return 0;

@@ -69,3 +69,36 @@ export type UnitType = (typeof UNIT_TYPES)[number];
 
 export const AUDIENCES = ["general", "family", "kids", "expert"] as const;
 export type Audience = (typeof AUDIENCES)[number];
+
+/** Provenienza di un'immagine o di un altro media. */
+export const MEDIA_SOURCES = ["own_photo", "institution", "archive", "web", "other"] as const;
+export type MediaSource = (typeof MEDIA_SOURCES)[number];
+
+/**
+ * Licenze ammesse per i media. Da ogni licenza derivano due regole:
+ * se l'uso commerciale è permesso e se l'attribuzione è obbligatoria.
+ */
+export const MEDIA_LICENSES = [
+  "own", // foto di proprietà del progetto (es. scattate dalla redazione)
+  "public-domain",
+  "cc0",
+  "cc-by-4.0",
+  "cc-by-sa-4.0",
+  "cc-by-nc-4.0",
+  "cc-by-nc-sa-4.0",
+  "licensed", // licenza concessa per iscritto dal titolare dei diritti
+  "all-rights-reserved",
+] as const;
+export type MediaLicense = (typeof MEDIA_LICENSES)[number];
+
+export const LICENSE_RULES: Record<MediaLicense, { commercialUse: boolean; attributionRequired: boolean }> = {
+  own: { commercialUse: true, attributionRequired: false },
+  "public-domain": { commercialUse: true, attributionRequired: false },
+  cc0: { commercialUse: true, attributionRequired: false },
+  "cc-by-4.0": { commercialUse: true, attributionRequired: true },
+  "cc-by-sa-4.0": { commercialUse: true, attributionRequired: true },
+  "cc-by-nc-4.0": { commercialUse: false, attributionRequired: true },
+  "cc-by-nc-sa-4.0": { commercialUse: false, attributionRequired: true },
+  licensed: { commercialUse: true, attributionRequired: true },
+  "all-rights-reserved": { commercialUse: false, attributionRequired: true },
+};

@@ -87,6 +87,7 @@ export function loadPack(dir: string, collector: IssueCollector): TerritoryPack 
     assertions: (loaded.assertions ?? []) as TerritoryPack["assertions"],
     units: (loaded.units ?? []) as TerritoryPack["units"],
     routes: (loaded.routes ?? []) as TerritoryPack["routes"],
+    media: (loaded.media ?? []) as TerritoryPack["media"],
   };
 }
 

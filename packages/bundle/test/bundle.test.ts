@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TerritoryPack } from "@guide/domain";
@@ -23,7 +24,7 @@ const ref = (slug: string) => `${D}:${slug}`;
 let packs: Map<string, TerritoryPack>;
 const build = (overrides: Partial<Parameters<typeof buildBundle>[1]> = {}) =>
   buildBundle(packs, { destination: D, locale: "it", allowFictional: true, ...overrides });
-const contentJson = (b: BuiltBundle) => b.files.get(b.manifest.content)!;
+const contentJson = (b: BuiltBundle) => b.files.get(b.manifest.content) as string;
 
 beforeAll(() => {
   const loaded = loadPacks(SYNTHETIC_ROOT);
@@ -167,5 +168,38 @@ describe("l'app funziona con il solo bundle", () => {
     const pp = planTour({ now, start, candidates: fromPack.places, budgetMin: 40 });
     expect(pb.stops.map((s) => s.placeId)).toEqual(pp.stops.map((s) => ref(s.placeId)));
     expect(pb.endAt).toBe(pp.endAt);
+  });
+});
+
+describe("media", () => {
+  const readAsset = (packDir: string, relativePath: string) => new Uint8Array(readFileSync(resolve(packDir, relativePath)));
+
+  it("senza readAsset non include immagini", () => {
+    const b = build();
+    expect(b.content.media).toEqual([]);
+    expect(b.manifest.files).toHaveLength(1);
+  });
+
+  it("include solo le immagini con licenza commerciale, indirizzate per contenuto", () => {
+    const b = build({ readAsset });
+    expect(b.content.media.map((m) => m.ref)).toEqual([ref("porta-del-borgo-foto")]);
+    const [m] = b.content.media;
+    expect(m!.path).toMatch(/^media\/[0-9a-f]{16}\.jpg$/);
+    expect(m!.subjects).toEqual([ref("porta-del-borgo")]);
+    expect(b.files.get(m!.path)).toBeInstanceOf(Uint8Array);
+    expect(b.manifest.files.map((f) => f.path)).toContain(m!.path);
+  });
+
+  it("include le immagini non commerciali se il territorio le ammette", () => {
+    const copy = structuredClone(packs);
+    copy.get(D)!.config.media.allowNonCommercial = true;
+    const b = buildBundle(copy, { destination: D, locale: "it", allowFictional: true, readAsset });
+    const nc = b.content.media.find((m) => m.ref === ref("torre-foto-nc"))!;
+    expect(nc.attribution).toContain("CC BY-NC");
+    expect(nc.originalUrl).toBe("https://example.org/torre-fittizia");
+  });
+
+  it("è deterministico anche con le immagini", () => {
+    expect(build({ readAsset }).manifest).toEqual(build({ readAsset }).manifest);
   });
 });

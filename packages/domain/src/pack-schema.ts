@@ -8,6 +8,8 @@ import {
   CERTAINTY_LEVELS,
   GEOFENCE_KINDS,
   LOCALES,
+  MEDIA_LICENSES,
+  MEDIA_SOURCES,
   NODE_KINDS,
   PACK_KINDS,
   PLACE_KINDS,
@@ -32,6 +34,7 @@ import {
  *     knowledge/assertions.yaml  affermazioni con prove
  *     narrative/units.yaml       unità narrative
  *     narrative/routes.yaml      percorsi curati
+ *     media/media.yaml           immagini con provenienza e licenza (file in media/files/)
  *
  * Tutti i file tranne pack.yaml sono facoltativi.
  */
@@ -90,6 +93,12 @@ export const territoryConfigSchema = z.strictObject({
       partnerSuggestions: z.boolean().default(false),
     })
     .default({ partnerSuggestions: false }),
+  media: z
+    .strictObject({
+      /** Ammette nel pacchetto pubblicato media con licenza non commerciale (es. progetto non profit). */
+      allowNonCommercial: z.boolean().default(false),
+    })
+    .default({ allowNonCommercial: false }),
   safetyNotes: z.array(z.strictObject({ id: slug, text: localized })).default([]),
 });
 export type TerritoryConfig = z.infer<typeof territoryConfigSchema>;
@@ -245,6 +254,40 @@ export const routeSchema = z.strictObject({
 });
 export type Route = z.infer<typeof routeSchema>;
 
+// ------------------------------------------------------------------ media/media.yaml
+
+export const mediaSchema = z
+  .strictObject({
+    id: slug,
+    kind: z.enum(["image"]),
+    /** File nella cartella del pack, relativo a media/files/. */
+    file: z.string().regex(/^[\w.-]+\.(jpe?g|png|webp)$/i, "nome file non valido (jpg, png, webp)"),
+    /** Luoghi o nodi raffigurati. */
+    subjects: z.array(ref).min(1),
+    caption: localized.optional(),
+    /** Testo alternativo per l'accessibilità. */
+    alt: localized,
+    source: z.enum(MEDIA_SOURCES),
+    author: z.string().trim().min(1).optional(),
+    license: z.enum(MEDIA_LICENSES),
+    attribution: z.string().trim().min(1).optional(),
+    originalUrl: z.url().optional(),
+    /** Per le licenze concesse per iscritto: riferimento all'accordo. */
+    licenseNote: z.string().trim().min(1).optional(),
+    takenAt: z.iso.date().optional(),
+    /** Posizione di scatto (es. dai dati EXIF della foto). */
+    location: lngLat.optional(),
+  })
+  .refine((m) => m.license === "public-domain" || m.author !== undefined, {
+    message: "autore obbligatorio (salvo pubblico dominio)",
+    path: ["author"],
+  })
+  .refine((m) => m.license !== "licensed" || m.licenseNote !== undefined, {
+    message: "una licenza concessa per iscritto richiede licenseNote",
+    path: ["licenseNote"],
+  });
+export type Media = z.infer<typeof mediaSchema>;
+
 // ------------------------------------------------------------------ files
 
 export const PACK_FILES = {
@@ -257,7 +300,11 @@ export const PACK_FILES = {
   assertions: { path: "knowledge/assertions.yaml", schema: z.array(assertionSchema) },
   units: { path: "narrative/units.yaml", schema: z.array(unitSchema) },
   routes: { path: "narrative/routes.yaml", schema: z.array(routeSchema) },
+  media: { path: "media/media.yaml", schema: z.array(mediaSchema) },
 } as const;
+
+/** Cartella dei file media dentro un pack. */
+export const MEDIA_FILES_DIR = "media/files";
 
 export interface TerritoryPack {
   /** Cartella da cui è stato caricato (solo informativo). */
@@ -271,4 +318,5 @@ export interface TerritoryPack {
   assertions: Assertion[];
   units: NarrativeUnit[];
   routes: Route[];
+  media: Media[];
 }

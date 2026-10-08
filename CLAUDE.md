@@ -11,7 +11,8 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 3. **L'AI non inventa fatti.** Racconta solo affermazioni `verified` di livello ammesso dalla configurazione del
    territorio, e le cita. Nessun accesso al web per la guida.
 4. **Il Territory Pack è l'unica porta d'ingresso dei contenuti.** Il formato è definito in
-   `packages/domain/src/pack-schema.ts` e validato da `guide-pack validate`.
+   `packages/domain/src/pack-schema.ts` e validato da `guide-pack validate`. Le immagini entrano solo con fonte,
+   autore e licenza dichiarati; non si raccolgono immagini dal web senza licenza.
 5. **Codice e database condividono il vocabolario.** Modifiche a `packages/domain/src/vocabulary.ts` o
    `ontology.ts` vanno riflesse in una migrazione in `supabase/migrations/` (un test lo verifica).
 
@@ -20,7 +21,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 - `apps/guide` — app Next.js (PWA, poi Capacitor). `lib/runtime.ts` collega motore di contesto e narrazione (logica
   pura, testata); al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati)
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack
-- `packages/territory-pack` — caricamento, validazione e CLI `guide-pack`
+- `packages/territory-pack` — caricamento, validazione e CLI `guide-pack` (`validate`, `photos`: coordinate dall'EXIF)
 - `packages/context-engine` — motore di contesto sul dispositivo: geofence, movimento, pianificatore con ancora,
   monitor del tempo, istantanea per la narrazione. TypeScript puro, senza rete né AI; testato con tracce GPS simulate
 - `packages/narrative-planner` — decide cosa raccontare in ogni tappa (unità, prerequisiti, richiami, ganci) e

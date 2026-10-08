@@ -5,6 +5,7 @@ import type {
   Certainty,
   GeofenceKind,
   Locale,
+  MediaLicense,
   NodeKind,
   PlaceKind,
   PredicateId,
@@ -120,6 +121,20 @@ export interface BundleRoute {
   endAnchor?: string;
 }
 
+export interface BundleMedia {
+  ref: string;
+  /** Percorso del file nel bundle (indirizzato per contenuto). */
+  path: string;
+  subjects: string[];
+  alt: string;
+  caption?: string;
+  license: MediaLicense;
+  author?: string;
+  /** Testo da mostrare accanto all'immagine, quando la licenza lo richiede. */
+  attribution?: string;
+  originalUrl?: string;
+}
+
 export interface BundleContent {
   bundleSchemaVersion: typeof BUNDLE_SCHEMA_VERSION;
   destination: string;
@@ -137,6 +152,7 @@ export interface BundleContent {
   assertions: BundleAssertion[];
   units: BundleUnit[];
   routes: BundleRoute[];
+  media: BundleMedia[];
 }
 
 export interface BundleFile {

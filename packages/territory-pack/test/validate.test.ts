@@ -192,3 +192,53 @@ describe("percorsi", () => {
     expect(errorCodes(packs)).toContain("ROUTE_ANCHOR_UNKNOWN");
   });
 });
+
+describe("media", () => {
+  const media = (packs: Map<string, TerritoryPack>, id: string) => village(packs).media.find((m) => m.id === id)!;
+
+  it("accetta le immagini sintetiche e avvisa per la licenza non commerciale", () => {
+    const packs = loadSynthetic();
+    expect(village(packs).media).toHaveLength(2);
+    expect(warningCodes(packs)).toContain("MEDIA_NON_COMMERCIAL");
+  });
+
+  it("non avvisa per la licenza non commerciale se il territorio la ammette", () => {
+    const packs = loadSynthetic();
+    village(packs).config.media.allowNonCommercial = true;
+    expect(warningCodes(packs)).not.toContain("MEDIA_NON_COMMERCIAL");
+  });
+
+  it("rifiuta un file mancante", () => {
+    const packs = loadSynthetic();
+    media(packs, "porta-del-borgo-foto").file = "non-esiste.jpg";
+    expect(errorCodes(packs)).toContain("MEDIA_FILE_MISSING");
+  });
+
+  it("rifiuta una licenza CC BY senza attribuzione", () => {
+    const packs = loadSynthetic();
+    delete media(packs, "torre-foto-nc").attribution;
+    expect(errorCodes(packs)).toContain("MEDIA_ATTRIBUTION");
+  });
+
+  it("rifiuta un'immagine dal web senza indirizzo originale", () => {
+    const packs = loadSynthetic();
+    delete media(packs, "torre-foto-nc").originalUrl;
+    expect(errorCodes(packs)).toContain("MEDIA_ORIGIN");
+  });
+
+  it("segnala un'immagine con tutti i diritti riservati come non pubblicabile", () => {
+    const packs = loadSynthetic();
+    const m = media(packs, "porta-del-borgo-foto");
+    m.license = "all-rights-reserved";
+    m.attribution = "© Redazione di test";
+    expect(warningCodes(packs)).toContain("MEDIA_NOT_USABLE");
+  });
+
+  it("rifiuta un soggetto inesistente e il testo alternativo mancante", () => {
+    const packs = loadSynthetic();
+    const m = media(packs, "porta-del-borgo-foto");
+    m.subjects = ["luogo-che-non-esiste"];
+    m.alt = { en: "only english" };
+    expect(errorCodes(packs)).toEqual(expect.arrayContaining(["UNRESOLVED_REF", "MEDIA_ALT"]));
+  });
+});

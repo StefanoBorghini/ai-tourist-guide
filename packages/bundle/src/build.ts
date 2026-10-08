@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import {
   formatNodeRef,
+  LICENSE_RULES,
   resolveRef,
   type Assertion,
   type Locale,
+  MEDIA_FILES_DIR,
   type TerritoryPack,
 } from "@guide/domain";
 import { reachablePacks } from "@guide/narrative-planner";
@@ -15,6 +17,7 @@ import {
   type BundleContent,
   type BundleFlavor,
   type BundleManifest,
+  type BundleMedia,
   type BundleNode,
   type BundlePlace,
   type BundleSource,
@@ -37,16 +40,23 @@ export interface BuildOptions {
   flavor?: BundleFlavor;
   /** Solo per i test: permette di compilare territori fittizi. */
   allowFictional?: boolean;
+  /**
+   * Legge un file media del pack (cartella del pack, percorso relativo).
+   * Senza questa funzione i media non vengono inclusi (la compilazione resta pura).
+   */
+  readAsset?: (packDir: string, relativePath: string) => Uint8Array;
 }
 
 export interface BuiltBundle {
   manifest: BundleManifest;
   content: BundleContent;
   /** File da scrivere, per percorso relativo alla cartella del bundle. */
-  files: Map<string, string>;
+  files: Map<string, string | Uint8Array>;
 }
 
-const sha256 = (data: string) => createHash("sha256").update(data, "utf8").digest("hex");
+const sha256 = (data: string | Uint8Array) =>
+  typeof data === "string" ? createHash("sha256").update(data, "utf8").digest("hex") : createHash("sha256").update(data).digest("hex");
+const byteLength = (data: string | Uint8Array) => (typeof data === "string" ? Buffer.byteLength(data, "utf8") : data.byteLength);
 const byRef = <T extends { ref: string }>(a: T, b: T) => a.ref.localeCompare(b.ref);
 
 /** Un'affermazione è raccontabile se verificata e di un livello ammesso dal territorio di destinazione. */
@@ -97,6 +107,9 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   const units: BundleUnit[] = [];
   const routes: BundleContent["routes"] = [];
   const allSources = new Map<string, BundleSource>();
+  const media: BundleMedia[] = [];
+  const assetFiles = new Map<string, Uint8Array>();
+  const allowNonCommercial = dest.config.media.allowNonCommercial;
 
   for (const pack of scope) {
     const packId = pack.manifest.id;
@@ -194,6 +207,30 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
       });
     }
 
+    // Media: solo con licenza utilizzabile; mai "tutti i diritti riservati".
+    for (const m of options.readAsset ? pack.media : []) {
+      const rules = LICENSE_RULES[m.license];
+      if (m.license === "all-rights-reserved" || (!rules.commercialUse && !allowNonCommercial)) continue;
+      const alt = pick(m.alt, fallback);
+      if (!alt) continue;
+      const data = options.readAsset!(pack.dir, `${MEDIA_FILES_DIR}/${m.file}`);
+      const ext = m.file.split(".").pop()!.toLowerCase();
+      const path = `media/${sha256(data).slice(0, 16)}.${ext}`;
+      assetFiles.set(path, data);
+      const caption = m.caption ? pick(m.caption, fallback)?.value : undefined;
+      media.push({
+        ref: formatNodeRef({ packId, slug: m.id }),
+        path,
+        subjects: m.subjects.map(full).sort(),
+        alt: alt.value,
+        ...(caption ? { caption } : {}),
+        license: m.license,
+        ...(m.author ? { author: m.author } : {}),
+        ...(m.attribution ? { attribution: m.attribution } : {}),
+        ...(m.originalUrl ? { originalUrl: m.originalUrl } : {}),
+      });
+    }
+
     for (const r of pack.routes) {
       routes.push({
         ref: formatNodeRef({ packId, slug: r.id }),
@@ -232,6 +269,7 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     assertions: assertions.sort(byRef),
     units: safeUnits.sort(byRef),
     routes: routes.sort(byRef),
+    media: media.sort(byRef),
   };
 
   const contentJson = JSON.stringify(content);
@@ -239,8 +277,8 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   const contentPath = `content.${contentHash.slice(0, 16)}.json`;
   const kbHash = sha256(JSON.stringify(content.assertions.map((a) => [a.ref, a.text, a.type, a.certainty ?? null, a.value ?? null])));
 
-  const files = new Map<string, string>([[contentPath, contentJson]]);
-  const fileEntries = [...files].map(([path, data]) => ({ path, sha256: sha256(data), bytes: Buffer.byteLength(data, "utf8") }));
+  const files = new Map<string, string | Uint8Array>([[contentPath, contentJson], ...[...assetFiles].sort(([a], [b]) => a.localeCompare(b))]);
+  const fileEntries = [...files].map(([path, data]) => ({ path, sha256: sha256(data), bytes: byteLength(data) }));
   const manifest: BundleManifest = {
     bundleSchemaVersion: BUNDLE_SCHEMA_VERSION,
     minAppVersion: MIN_APP_VERSION,

@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url";
 import { buildBundle, type BundleContent } from "@guide/bundle";
 import { loadPacks } from "@guide/territory-pack";
 import { beforeAll, describe, expect, it } from "vitest";
-import { askRequestSchema, buildKnowledge, buildQuestionMessage, checkModelAnswer, type AskRequest } from "../lib/ask.ts";
+import { destination } from "@guide/context-engine";
+import { POSITION_CITATION, askRequestSchema, buildKnowledge, buildQuestionMessage, checkModelAnswer, positionContext, type AskRequest } from "../lib/ask.ts";
 
 /** Prove sul bundle del territorio di test, senza nomi di territorio scritti qui. */
 const here = dirname(fileURLToPath(import.meta.url));
@@ -70,5 +71,53 @@ describe("controllo della risposta", () => {
   it("scarta un formato non valido", () => {
     expect(checkModelAnswer("non json", content, req).ok).toBe(false);
     expect(checkModelAnswer(json({ status: "boh", answer: "x", citations: [] }), content, req).ok).toBe(false);
+  });
+});
+
+describe("contesto della posizione (esplorazione)", () => {
+  /** Il visitatore è 120 m a sud del primo luogo. */
+  const at = (overrides: Partial<AskRequest> = {}) => {
+    const target = content.places[0]!;
+    const [lon, lat] = destination(target.location, 180, 120);
+    return askRequestSchema.parse({
+      destination: content.destination,
+      locale: "it",
+      question: `Come arrivo a ${target.name}?`,
+      position: { lon, lat, accuracyM: 8 },
+      ...overrides,
+    });
+  };
+
+  it("calcola distanze arrotondate e direzioni, il più vicino per primo", () => {
+    const pos = positionContext(content, at())!;
+    expect(pos.places[0]).toMatchObject({ ref: content.places[0]!.ref, meters: 120, direction: "nord" });
+    expect(pos.places.map((p) => p.meters)).toEqual([...pos.places.map((p) => p.meters)].sort((a, b) => a - b));
+    expect(pos.accuracy).toBe("good");
+    expect(positionContext(content, req)).toBeNull();
+  });
+
+  it("il messaggio contiene luogo selezionato e distanze; senza posizione lo dichiara", () => {
+    const selected = content.places[1]!;
+    const msg = buildQuestionMessage(content, at({ selectedPlace: selected.ref }));
+    expect(msg).toContain(`Luogo selezionato`);
+    expect(msg).toContain(`${content.places[0]!.name} (${content.places[0]!.ref}): circa 120 m verso nord`);
+    expect(buildQuestionMessage(content, req)).toContain("Posizione del visitatore: non disponibile");
+  });
+
+  it("accetta una risposta di orientamento che usa solo le distanze calcolate", () => {
+    const answer = `${content.places[0]!.name} è a circa 120 metri in linea d'aria verso nord. Segui la mappa dell'app.`;
+    const r = checkModelAnswer(json({ status: "answered", answer, citations: [POSITION_CITATION] }), content, at());
+    expect(r).toMatchObject({ ok: true, answer: { usedPosition: true, citations: [] } });
+  });
+
+  it("scarta distanze o tempi inventati", () => {
+    const answer = `${content.places[0]!.name} è a circa 300 metri, 5 minuti a piedi.`;
+    const r = checkModelAnswer(json({ status: "answered", answer, citations: [POSITION_CITATION] }), content, at());
+    expect(r).toMatchObject({ ok: false, reason: expect.stringContaining("300") });
+  });
+
+  it("senza posizione non si possono citare distanze", () => {
+    const r = checkModelAnswer(json({ status: "answered", answer: "È lì vicino.", citations: [POSITION_CITATION] }), content, req);
+    expect(r).toMatchObject({ ok: false, reason: expect.stringContaining(POSITION_CITATION) });
   });
 });

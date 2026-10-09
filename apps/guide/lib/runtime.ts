@@ -1,5 +1,6 @@
 import {
   anchorStatus,
+  bearingDeg,
   distanceM,
   GeofenceTracker,
   MotionDetector,
@@ -28,7 +29,14 @@ import type { Audience } from "@guide/domain";
  * Riceve posizioni (GPS reale o simulato) e restituisce eventi: arrivo in un luogo,
  * proposta di racconto, racconto da riprodurre, avvisi di tempo, fine del tour.
  * Non sa nulla di interfaccia né di audio: è logica pura, testata senza browser.
+ *
+ * Due modi d'uso:
+ * - "explore": esplorazione libera. Nessun piano né tappe: ogni luogo del territorio può essere
+ *   proposto quando ci si arriva, nell'ordine in cui il visitatore cammina;
+ * - "tour": itinerario (percorso curato o giro su misura) con tappe ordinate.
  */
+
+export type RuntimeKind = "explore" | "tour";
 
 export type GuideMode = "auto" | "ask" | "silent";
 
@@ -70,6 +78,9 @@ const INVITE = {
   en: "If you have any questions about this place, just ask.",
 } as const;
 
+/** Un luogo rifiutato non viene riproposto prima di questo intervallo (rientri dovuti al GPS che oscilla). */
+export const DECLINE_COOLDOWN_MS = 15 * 60_000;
+
 /** Stato serializzabile del giro (per riprenderlo dopo la sospensione dell'app). */
 export interface RuntimeState {
   memory: TourMemory;
@@ -77,6 +88,18 @@ export interface RuntimeState {
   skipped: string[];
   manualArrivals: string[];
   currentPlaceRef: string | null;
+  /** Luoghi rifiutati e quando (ms). Assente negli stati salvati dalle versioni precedenti. */
+  declined?: [string, number][];
+}
+
+/** Luogo vicino alla posizione: distanza e direzione in linea d'aria, calcolate dal sistema. */
+export interface NearbyPlace {
+  ref: string;
+  name: string;
+  distanceM: number;
+  bearingDeg: number;
+  coordinateStatus: string;
+  narrated: boolean;
 }
 
 /** Istantanea per la modalità debug del test sul campo. */
@@ -111,6 +134,8 @@ export class GuideRuntime {
   private readonly names: Map<string, string>;
 
   memory: TourMemory = emptyMemory();
+  /** Modo d'uso corrente; null finché non si avvia né un'esplorazione né un itinerario. */
+  kind: RuntimeKind | null = null;
   plan: TourPlan | null = null;
   anchor: AnchorTarget | null = null;
   motion: Motion = "unknown";
@@ -126,7 +151,15 @@ export class GuideRuntime {
   skipped: string[] = [];
   /** Arrivi confermati a mano (GPS impreciso o coordinate sbagliate). */
   manualArrivals: string[] = [];
+  /**
+   * Vero mentre la guida sta parlando (lo imposta l'interfaccia): i luoghi raggiunti intanto
+   * aspettano, così un luogo vicino non interrompe il racconto in corso.
+   */
+  narrating = false;
   private narratedHere = new Set<string>();
+  /** Luoghi in cui il visitatore è entrato e che aspettano di essere proposti, in ordine di ingresso. */
+  private waiting: string[] = [];
+  private declined = new Map<string, number>();
   private segmentCounter = 0;
 
   constructor(
@@ -167,14 +200,39 @@ export class GuideRuntime {
     return this.plan?.stops.find((s) => !this.memory.visitedPlaces.includes(s.placeId))?.placeId ?? null;
   }
 
-  startTour(options: TourOptions): TourPlan {
+  /** Riparte da zero: nessun luogo visitato né raccontato. */
+  private resetMemory(): void {
     this.memory = emptyMemory();
     this.narratedHere.clear();
     this.skipped = [];
     this.manualArrivals = [];
+    this.declined.clear();
     this.currentPlaceRef = null;
+  }
+
+  private resetPlan(): void {
     this.pendingProposal = null;
+    this.waiting = [];
     this.anchor = null;
+    this.lastAnchorStatus = null;
+  }
+
+  /**
+   * Esplorazione libera: nessun piano, nessuna tappa obbligata, tutti i luoghi attivi.
+   * Con keepMemory (passaggio da un itinerario) ciò che è già stato raccontato non si ripete.
+   */
+  startExplore(options: { keepMemory?: boolean } = {}): void {
+    if (!options.keepMemory) this.resetMemory();
+    this.resetPlan();
+    this.kind = "explore";
+    this.plan = null;
+    this.routeStops = null;
+  }
+
+  startTour(options: TourOptions & { keepMemory?: boolean }): TourPlan {
+    if (!options.keepMemory) this.resetMemory();
+    this.resetPlan();
+    this.kind = "tour";
     if (options.anchor) {
       const a = this.anchors.find((x) => x.id === options.anchor!.ref);
       if (!a) throw new Error(`ancora sconosciuta: ${options.anchor.ref}`);
@@ -214,14 +272,14 @@ export class GuideRuntime {
       if (e.type === "exit") {
         if (this.currentPlaceRef === e.placeId) this.currentPlaceRef = null;
         if (this.pendingProposal === e.placeId) this.pendingProposal = null;
+        this.waiting = this.waiting.filter((p) => p !== e.placeId);
         continue;
       }
-      // Su un mezzo (battello, auto) non si propone nulla.
-      if (this.motion === "vehicle") continue;
       // In un percorso curato i luoghi fuori percorso non interrompono: il debug li mostra comunque.
       if (this.routeStops && !this.routeStops.includes(e.placeId)) continue;
-      events.push(...this.handleArrival(e.placeId, fix.timestamp));
+      if (!this.waiting.includes(e.placeId)) this.waiting.push(e.placeId);
     }
+    events.push(...this.processWaiting(fix));
 
     if (this.anchor) {
       const status = anchorStatus({ now: fix.timestamp, position: { location: fix.location }, anchor: this.anchor });
@@ -231,6 +289,25 @@ export class GuideRuntime {
     return events;
   }
 
+  /**
+   * Propone (o racconta) al più un luogo raggiunto per posizione. I luoghi restano in attesa finché
+   * il visitatore è dentro il loro geofence e:
+   * - non è su un mezzo (battello, auto): chi scende dal battello riceve la proposta appena cammina;
+   * - la guida non sta parlando e non c'è una proposta aperta: niente interruzioni;
+   * tra più luoghi in attesa (geofence sovrapposti) vince il più vicino al visitatore.
+   */
+  private processWaiting(fix: Fix): RuntimeEvent[] {
+    if (this.waiting.length === 0 || this.motion === "vehicle" || this.narrating || this.pendingProposal) return [];
+    const location = (ref: string) => this.places.find((p) => p.id === ref)?.location;
+    const [ref] = [...this.waiting].sort((a, b) => {
+      const la = location(a);
+      const lb = location(b);
+      return (la ? distanceM(fix.location, la) : Infinity) - (lb ? distanceM(fix.location, lb) : Infinity);
+    });
+    this.waiting = this.waiting.filter((p) => p !== ref);
+    return this.handleArrival(ref!, fix.timestamp);
+  }
+
   /** Arrivo in un luogo (da geofence o confermato a mano): proposta o racconto secondo la modalità. */
   private handleArrival(placeRef: string, now: number, manual = false): RuntimeEvent[] {
     const events: RuntimeEvent[] = [];
@@ -238,6 +315,9 @@ export class GuideRuntime {
     const name = this.name(placeRef);
     events.push({ type: "arrived", placeRef, name });
     if (this.narratedHere.has(placeRef)) return events;
+    // Rifiutato da poco: si segna dove si è, senza chiedere di nuovo.
+    const declinedAt = this.declined.get(placeRef);
+    if (!manual && declinedAt !== undefined && now - declinedAt < DECLINE_COOLDOWN_MS) return events;
     // Niente da raccontare (o già raccontato tutto): si segna la visita e non si disturba.
     if (this.mode !== "silent" && this.planFor(placeRef).items.length === 0) {
       this.narratedHere.add(placeRef);
@@ -263,6 +343,7 @@ export class GuideRuntime {
     if (!this.places.some((p) => p.id === placeRef)) return [];
     if (!this.manualArrivals.includes(placeRef)) this.manualArrivals.push(placeRef);
     this.pendingProposal = null;
+    this.waiting = this.waiting.filter((p) => p !== placeRef);
     return this.handleArrival(placeRef, now, true);
   }
 
@@ -283,6 +364,7 @@ export class GuideRuntime {
       skipped: [...this.skipped],
       manualArrivals: [...this.manualArrivals],
       currentPlaceRef: this.currentPlaceRef,
+      declined: [...this.declined],
     };
   }
 
@@ -293,6 +375,7 @@ export class GuideRuntime {
     this.skipped = [...state.skipped];
     this.manualArrivals = [...state.manualArrivals];
     this.currentPlaceRef = state.currentPlaceRef;
+    this.declined = new Map(state.declined ?? []);
   }
 
   /** Il visitatore accetta la proposta di racconto. */
@@ -302,8 +385,35 @@ export class GuideRuntime {
     return place ? this.narrate(place, now) : [];
   }
 
-  declineProposal(): void {
+  declineProposal(now = Date.now()): void {
+    if (this.pendingProposal) this.declined.set(this.pendingProposal, now);
     this.pendingProposal = null;
+  }
+
+  /** Il racconto di questo luogo è già stato ascoltato in questa visita? */
+  wasNarrated(placeRef: string): boolean {
+    return this.narratedHere.has(placeRef);
+  }
+
+  /**
+   * Luoghi ordinati per distanza dall'ultima posizione (in linea d'aria, dalle coordinate del pack:
+   * finché non sono verificate sul campo sono indicative). Vuoto senza posizione.
+   */
+  nearby(limit = 5, maxM = Infinity): NearbyPlace[] {
+    const fix = this.lastFix;
+    if (!fix) return [];
+    return this.content.places
+      .map((p) => ({
+        ref: p.ref,
+        name: p.name,
+        distanceM: Math.round(distanceM(fix.location, p.location)),
+        bearingDeg: Math.round(bearingDeg(fix.location, p.location)),
+        coordinateStatus: p.coordinateStatus,
+        narrated: this.narratedHere.has(p.ref),
+      }))
+      .filter((p) => p.distanceM <= maxM)
+      .sort((a, b) => a.distanceM - b.distanceM || a.name.localeCompare(b.name))
+      .slice(0, limit);
   }
 
   /** Racconta il luogo indicato (o quello corrente), anche su richiesta esplicita. */

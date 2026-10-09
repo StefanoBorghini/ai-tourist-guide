@@ -4,7 +4,7 @@ import { buildBundle, type BundleContent } from "@guide/bundle";
 import { destination } from "@guide/context-engine";
 import { loadPacks } from "@guide/territory-pack";
 import { beforeAll, describe, expect, it } from "vitest";
-import { GuideRuntime, narrationBudgetS, type RuntimeEvent } from "../lib/runtime.ts";
+import { DECLINE_COOLDOWN_MS, GuideRuntime, narrationBudgetS, type RuntimeEvent } from "../lib/runtime.ts";
 import { simulateWalk } from "../lib/simulator.ts";
 
 /**
@@ -229,5 +229,150 @@ describe("percorso rigoroso e avanzamento manuale", () => {
     expect(reopened.memory).toEqual(runtime.memory);
     // Ciò che è già stato raccontato non si ripete.
     expect(reopened.arriveManually(route().stops[0]!.place, T0).some((e) => e.type === "narration")).toBe(false);
+  });
+});
+
+describe("esplorazione libera", () => {
+  const stay = (runtime: GuideRuntime, location: readonly [number, number], from: number, seconds = 15) => {
+    const events: RuntimeEvent[] = [];
+    for (let i = 0; i < seconds; i++) events.push(...runtime.onFix({ location, accuracyM: 5, timestamp: from + i * 1000 }));
+    return events;
+  };
+  const far = (place: { location: readonly [number, number] }) => destination(place.location, 180, 400);
+  const explore = (mode: "auto" | "ask" = "ask") => {
+    const runtime = new GuideRuntime(content, mode);
+    runtime.startExplore();
+    return runtime;
+  };
+  /** Luogo con geofence di arrivo in cui c'è qualcosa da raccontare. */
+  const narratable = () => content.places.find((p) => explore().planFor(p.ref).items.length > 0)!;
+
+  it("non c'è un piano: ogni luogo del territorio può essere proposto, anche fuori dai percorsi", () => {
+    const route = content.routes[0]!;
+    // Nel percorso questo luogo è ignorato (vedi "percorso rigoroso"); qui viene riconosciuto.
+    const off = content.places.find((p) => !route.stops.some((s) => s.place === p.ref))!;
+    const runtime = explore();
+    expect(runtime.kind).toBe("explore");
+    expect(runtime.plan).toBeNull();
+    expect(runtime.nextStop).toBeNull();
+    const events = stay(runtime, off.location, T0);
+    expect(events.some((e) => e.type === "arrived" && e.placeRef === off.ref)).toBe(true);
+    expect(runtime.currentPlaceRef).toBe(off.ref);
+    // E ogni luogo con un racconto viene proposto.
+    for (const place of content.places.filter((p) => runtime.planFor(p.ref).items.length > 0)) {
+      const r = explore();
+      expect(stay(r, place.location, T0).some((e) => e.type === "proposal" && e.placeRef === place.ref)).toBe(true);
+    }
+  });
+
+  it("in automatico racconta il luogo raggiunto e non dichiara mai concluso il giro", () => {
+    const place = narratable();
+    const runtime = explore("auto");
+    const events = stay(runtime, place.location, T0);
+    expect(events.some((e) => e.type === "narration" && e.placeRef === place.ref)).toBe(true);
+    expect(events.some((e) => e.type === "tour_complete")).toBe(false);
+  });
+
+  it("lo stesso racconto non riparte uscendo e rientrando", () => {
+    const place = narratable();
+    const runtime = explore("auto");
+    const first = stay(runtime, place.location, T0);
+    expect(first.filter((e) => e.type === "narration")).toHaveLength(1);
+    stay(runtime, far(place), T0 + 20_000, 40);
+    const again = stay(runtime, place.location, T0 + 70_000);
+    expect(again.some((e) => e.type === "arrived")).toBe(true);
+    expect(again.some((e) => e.type === "narration" || e.type === "proposal")).toBe(false);
+  });
+
+  it("un luogo rifiutato non viene riproposto per un po', poi sì", () => {
+    const place = narratable();
+    const runtime = explore("ask");
+    expect(stay(runtime, place.location, T0).some((e) => e.type === "proposal")).toBe(true);
+    runtime.declineProposal(T0 + 15_000);
+    stay(runtime, far(place), T0 + 20_000, 40);
+    expect(stay(runtime, place.location, T0 + 70_000).some((e) => e.type === "proposal")).toBe(false);
+    stay(runtime, far(place), T0 + 90_000, 40);
+    const later = T0 + 15_000 + DECLINE_COOLDOWN_MS + 60_000;
+    expect(stay(runtime, place.location, later).some((e) => e.type === "proposal")).toBe(true);
+  });
+
+  it("un luogo raggiunto mentre la guida parla aspetta la fine del racconto", () => {
+    const place = narratable();
+    const runtime = explore("ask");
+    runtime.narrating = true;
+    expect(stay(runtime, place.location, T0).some((e) => e.type === "proposal" || e.type === "arrived")).toBe(false);
+    runtime.narrating = false;
+    const events = stay(runtime, place.location, T0 + 15_000, 2);
+    expect(events.some((e) => e.type === "proposal" && e.placeRef === place.ref)).toBe(true);
+  });
+
+  it("se nel frattempo si è allontanato, il luogo non viene più proposto", () => {
+    const place = narratable();
+    const runtime = explore("ask");
+    runtime.narrating = true;
+    stay(runtime, place.location, T0);
+    stay(runtime, far(place), T0 + 15_000, 40);
+    runtime.narrating = false;
+    expect(stay(runtime, far(place), T0 + 55_000, 3).some((e) => e.type === "proposal")).toBe(false);
+  });
+
+  it("chi scende dal battello riceve la proposta appena è a piedi", () => {
+    const place = narratable();
+    const runtime = explore("ask");
+    const from = destination(place.location, 270, 600);
+    // Arrivo veloce (9 m/s) fin dentro il luogo, poi sosta.
+    const boat = simulateWalk(from, [{ location: place.location, dwellS: 90 }], { startTime: T0, speedMs: 9 });
+    const events = run(runtime, boat);
+    const proposal = events.find((e) => e.type === "proposal" && e.placeRef === place.ref);
+    expect(proposal).toBeDefined();
+  });
+
+  it("con geofence sovrapposti propone prima il luogo più vicino, poi l'altro", () => {
+    const [a, b] = content.places.filter((p) => explore().planFor(p.ref).items.length > 0);
+    // Copia del territorio con il secondo luogo spostato a 12 m dal primo (senza geofence propri).
+    const moved = destination(a!.location, 90, 12);
+    const near: BundleContent = {
+      ...content,
+      places: content.places.map((p) => (p.ref === b!.ref ? { ...p, location: [moved[0], moved[1]] as [number, number], geofences: [] } : p)),
+    };
+    const runtime = new GuideRuntime(near, "ask");
+    runtime.startExplore();
+    const standAt = destination(a!.location, 90, 3); // più vicino ad a
+    const events = stay(runtime, standAt, T0);
+    expect(events.filter((e) => e.type === "proposal").map((e) => (e as { placeRef: string }).placeRef)).toEqual([a!.ref]);
+    runtime.declineProposal(T0 + 15_000);
+    const next = stay(runtime, standAt, T0 + 16_000, 2);
+    expect(next.filter((e) => e.type === "proposal").map((e) => (e as { placeRef: string }).placeRef)).toEqual([b!.ref]);
+  });
+
+  it("dal percorso si passa all'esplorazione senza perdere ciò che è stato raccontato", () => {
+    const route = content.routes[0]!;
+    const runtime = new GuideRuntime(content, "ask");
+    runtime.startTour({ now: T0, start: content.anchors[0]!.location, route: route.ref });
+    const first = route.stops[0]!.place;
+    runtime.arriveManually(first, T0);
+    const memory = runtime.memory;
+    runtime.startExplore({ keepMemory: true });
+    expect(runtime.kind).toBe("explore");
+    expect(runtime.routeStops).toBeNull();
+    expect(runtime.anchor).toBeNull();
+    expect(runtime.memory).toEqual(memory);
+    expect(runtime.wasNarrated(first)).toBe(true);
+    // E un luogo fuori percorso ora viene riconosciuto.
+    const off = content.places.find((p) => !route.stops.some((s) => s.place === p.ref))!;
+    expect(stay(runtime, off.location, T0 + MIN).some((e) => e.type === "arrived" && e.placeRef === off.ref)).toBe(true);
+  });
+
+  it("i luoghi vicini sono ordinati per distanza, con direzione", () => {
+    const runtime = explore();
+    expect(runtime.nearby()).toEqual([]);
+    const target = content.places[0]!;
+    runtime.onFix({ location: destination(target.location, 0, 10), accuracyM: 5, timestamp: T0 });
+    const list = runtime.nearby(3);
+    expect(list).toHaveLength(3);
+    expect(list[0]!.ref).toBe(target.ref);
+    expect(list[0]!.distanceM).toBe(10);
+    expect(list[0]!.bearingDeg).toBe(180); // il luogo è a sud di chi sta 10 m più a nord
+    expect(list.map((p) => p.distanceM)).toEqual([...list.map((p) => p.distanceM)].sort((x, y) => x - y));
   });
 });

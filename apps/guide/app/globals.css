@@ -10,6 +10,8 @@
   --danger: #a02a2a;
   --ok: #2f6b3a;
   --route: #0e5a74;
+  --pin: #c2410c;
+  --me: #1a73e8;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -24,6 +26,8 @@
     --danger: #ff8a80;
     --ok: #8fd19e;
     --route: #6fc3df;
+    --pin: #fb923c;
+    --me: #5aa2ff;
   }
 }
 * { box-sizing: border-box; }
@@ -452,3 +456,120 @@ h2 { font-size: 17px; margin: 10px 0 0; }
   width: 44px;
   height: 44px;
 }
+
+/* Esplora: spilli dei luoghi e posizione del visitatore, inconfondibili tra loro */
+.map-pin { cursor: pointer; }
+.map-hit { fill: transparent; }
+.map-pin-body {
+  fill: var(--pin);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+.map-pin-dot { fill: var(--surface); }
+.map-pin.heard .map-pin-body { fill: color-mix(in srgb, var(--pin) 45%, var(--muted)); }
+.map-pin.here .map-pin-body { fill: var(--ok); }
+.map-pin.selected .map-pin-body { stroke: var(--ink); stroke-width: 2; }
+.map-pin.provisional .map-pin-body { stroke-dasharray: 3 2; stroke: var(--ink); }
+.map-me-dot {
+  fill: var(--me);
+  stroke: #fff;
+  stroke-width: 3;
+}
+.map-accuracy {
+  fill: color-mix(in srgb, var(--me) 16%, transparent);
+  stroke: color-mix(in srgb, var(--me) 55%, transparent);
+}
+.map-me-pulse {
+  fill: none;
+  stroke: var(--me);
+  stroke-width: 2;
+  opacity: 0.6;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: map-me-pulse 2s ease-out infinite;
+}
+@keyframes map-me-pulse {
+  from { transform: scale(0.7); opacity: 0.7; }
+  to { transform: scale(1.6); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .map-me-pulse { animation: none; } }
+.map-me-label {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--me);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3px;
+}
+.map-me.simulated .map-me-pulse { stroke: var(--warn); }
+.map-me.simulated .map-me-label { fill: var(--warn); }
+.map-btn.on { background: var(--me); border-color: var(--me); color: #fff; }
+.map-recenter {
+  /* In alto a sinistra: al centro coprirebbe i luoghi che si vogliono toccare. */
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  min-height: 44px;
+  font: inherit;
+  font-weight: 700;
+  background: var(--me);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* Stato del GPS: una riga sempre visibile in cima */
+.gps-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--muted);
+  background: var(--surface);
+}
+.gps-bar p { margin: 0; flex: 1 1 60%; }
+.gps-bar.ok { border-left-color: var(--ok); }
+.gps-bar.imprecise, .gps-bar.waiting, .gps-bar.simulated { border-left-color: var(--warn); }
+.gps-bar.stale, .gps-bar.no_signal, .gps-bar.denied, .gps-bar.unavailable { border-left-color: var(--danger); }
+.gps-bar .button { min-height: 40px; padding: 8px 12px; }
+
+/* Hub della destinazione */
+.mode-card { border-width: 2px; }
+.mode-card.primary { border-color: var(--accent); }
+.mode-card h2 { margin: 0; }
+details.itineraries > summary { cursor: pointer; font-weight: 700; font-size: 1.1rem; }
+details.itineraries[open] > summary { margin-bottom: 10px; }
+
+/* Scheda del luogo e luoghi vicini */
+.place-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.place-head h2 { margin: 2px 0 0; }
+.place-short { margin: 0; font-size: 17px; }
+.place-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.place-actions .button.big { flex: 1 1 45%; }
+.nearby { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.nearby li + li { border-top: 1px solid var(--line); }
+.nearby button {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.nearby button:focus-visible { outline: 2px solid var(--accent); }
+.nearby .dist { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.nearby li.on button { font-weight: 700; }
+.ask-suggest { display: flex; flex-wrap: wrap; gap: 6px; }
+.ask-context { margin: 0; }
+.map-label.tappable { cursor: pointer; pointer-events: auto; }
+/* La posizione del visitatore non deve rubare i tocchi agli spilli sotto di lei. */
+.map-me { pointer-events: none; }

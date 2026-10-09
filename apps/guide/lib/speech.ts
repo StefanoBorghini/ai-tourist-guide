@@ -21,6 +21,8 @@ export class GuideVoice {
   private queue: SpeechItem[] = [];
   private current: SpeechItem | null = null;
   private watchdog: ReturnType<typeof setTimeout> | null = null;
+  /** Cresce a ogni stop: la fine di un segmento annullato non deve far partire la coda nuova. */
+  private generation = 0;
   state: SpeechState = "idle";
   rate = 1;
 
@@ -64,6 +66,7 @@ export class GuideVoice {
   }
 
   stop(): void {
+    this.generation++;
     if (this.watchdog) clearTimeout(this.watchdog);
     this.watchdog = null;
     this.queue = [];
@@ -91,8 +94,9 @@ export class GuideVoice {
     const voice = window.speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith(this.lang.slice(0, 2)));
     if (voice) utterance.voice = voice;
     let finished = false;
+    const generation = this.generation;
     const done = () => {
-      if (finished) return;
+      if (finished || generation !== this.generation) return;
       finished = true;
       this.next();
     };

@@ -25,8 +25,18 @@ import type { GuideRuntime } from "../lib/runtime";
  * Mappa del giro: proiezione Web Mercator, sfondo OpenStreetMap quando c'è rete (senza rete resta
  * la mappa schematica), tappe numerate nell'ordine del piano, posizione con la sua precisione,
  * geofence in modalità debug. Le posizioni provvisorie sono tratteggiate: non vanno prese per buone.
+ *
+ * In esplorazione non ci sono tappe: tutti i luoghi sono spilli, la mappa segue il visitatore
+ * (punto blu, inconfondibile con gli spilli) finché non la sposta, e «Centra su di me» la riaggancia.
  */
 const HEIGHT = 260;
+/** Altezza della mappa in esplorazione: è lo strumento principale. */
+const TALL_HEIGHT = "min(58vh, 520px)";
+/** Zoom quando la mappa segue il visitatore: si vedono i luoghi nel raggio di qualche centinaio di metri. */
+const FOLLOW_ZOOM = 17;
+/** Spillo con la punta nel punto (0,0): alto 20 px. */
+const PIN_PATH = "M0,0 C-1.5,-5 -7,-8 -7,-13 A7,7 0 1,1 7,-13 C7,-8 1.5,-5 0,0 Z";
+const PIN_HEAD_Y = -13;
 /** Spostamento minimo (px) perché un tocco diventi un trascinamento. */
 const DRAG_THRESHOLD = 6;
 /** Oltre questa distanza dalle tappe la posizione non entra nell'inquadratura del percorso (es. prove da casa). */
@@ -42,15 +52,23 @@ export function MapView(props: {
   online: boolean;
   simulated: boolean;
   t: UiText;
+  /** Luogo selezionato, gestito dal genitore (scheda del luogo). Senza, la mappa mostra una riga di info. */
+  selected?: string | null;
+  onSelect?: (ref: string | null) => void;
+  tall?: boolean;
 }) {
   const { content, runtime, debug, online, simulated, t } = props;
+  const explore = runtime.kind === "explore";
   const boxRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(320);
   const [measuredHeight, setMeasuredHeight] = useState(HEIGHT);
   const [fullscreen, setFullscreen] = useState(false);
-  const [mode, setMode] = useState<Mode>("route");
+  const [mode, setMode] = useState<Mode>(explore ? "me" : "route");
   const [manual, setManual] = useState<MapViewState | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [ownSelected, setOwnSelected] = useState<string | null>(null);
+  const controlled = props.onSelect !== undefined;
+  const selected = controlled ? (props.selected ?? null) : ownSelected;
+  const setSelected = (ref: string | null) => (controlled ? props.onSelect!(ref) : setOwnSelected(ref));
   const [basemap, setBasemap] = useState(true);
   const [failedTiles, setFailedTiles] = useState<Set<string>>(new Set());
   const [loadedTiles, setLoadedTiles] = useState(0);
@@ -69,6 +87,12 @@ export function MapView(props: {
     ro.observe(el);
     return () => ro.disconnect();
   }, [fullscreen]);
+
+  // Passando da un itinerario all'esplorazione la mappa torna a seguire il visitatore.
+  useEffect(() => {
+    setMode(explore ? "me" : "route");
+    setManual(null);
+  }, [explore]);
 
   // A schermo intero: niente scorrimento della pagina sotto, Esc o «indietro» del telefono chiudono.
   useEffect(() => {
@@ -89,7 +113,7 @@ export function MapView(props: {
   }, [fullscreen]);
 
   const fix = runtime.lastFix;
-  const mapHeight = fullscreen ? measuredHeight : HEIGHT;
+  const mapHeight = fullscreen || props.tall ? measuredHeight : HEIGHT;
   const placeByRef = useMemo(() => new Map(content.places.map((p) => [p.ref, p])), [content]);
   const stops = (runtime.plan?.stops ?? []).map((s) => placeByRef.get(s.placeId)).filter((p): p is NonNullable<typeof p> => !!p);
   const stopIndex = new Map(stops.map((p, i) => [p.ref, i]));
@@ -97,7 +121,7 @@ export function MapView(props: {
 
   // Inquadratura automatica, finché l'utente non sposta o ingrandisce la mappa.
   const auto = (): MapViewState => {
-    if (mode === "me" && fix) return { center: fix.location, zoom: 18 };
+    if (mode === "me" && fix) return { center: fix.location, zoom: explore ? FOLLOW_ZOOM : 18 };
     if (mode === "all") return fitView([...content.places.map((p) => p.location), ...content.anchors.map((a) => a.location)], width, mapHeight);
     const pts: LngLat[] = stops.length > 0 ? stops.map((p) => p.location) : content.places.map((p) => p.location);
     if (fix && pts.some((p) => distanceM(p, fix.location) < NEAR_ROUTE_M)) pts.push(fix.location);
@@ -119,8 +143,12 @@ export function MapView(props: {
     ...content.places.map((p) => {
       const s = screen(p.location);
       const i = stopIndex.get(p.ref);
-      const priority = p.ref === next ? 100 : p.ref === runtime.currentPlaceRef ? 95 : i !== undefined ? 80 - i : p.importance * 5;
-      return { id: p.ref, x: s.x, y: s.y, text: p.name, priority, offset: i !== undefined ? 11 : 6 };
+      const priority =
+        p.ref === selected ? 110 : p.ref === next ? 100 : p.ref === runtime.currentPlaceRef ? 95 : i !== undefined ? 80 - i : p.importance * 5;
+      // Gli spilli stanno sopra il punto: l'etichetta si allinea alla testa dello spillo.
+      return i !== undefined
+        ? { id: p.ref, x: s.x, y: s.y, text: p.name, priority, offset: 11 }
+        : { id: p.ref, x: s.x, y: s.y + PIN_HEAD_Y, text: p.name, priority, offset: 8 };
     }),
     ...content.anchors.map((a) => ({ id: a.ref, ...screen(a.location), text: a.name, priority: 40, offset: 7 })),
   ];
@@ -189,6 +217,8 @@ export function MapView(props: {
     if (drag.current && drag.current.moved > DRAG_THRESHOLD) return;
     setSelected(selected === ref ? null : ref);
   };
+  const modes: Mode[] = explore ? ["me", "all"] : ["route", "me", "all"];
+  const following = mode === "me" && !manual && !!fix;
 
   const sel = selected ? placeByRef.get(selected) : undefined;
   const me = fix ? screen(fix.location) : null;
@@ -196,7 +226,7 @@ export function MapView(props: {
   return (
     <section className={fullscreen ? "mapview fullscreen" : "card mapview"}>
       <div className="row wrap map-modes">
-        {(["route", "me", "all"] as const).map((m) => (
+        {modes.map((m) => (
           <button key={m} className={`chip small ${mode === m && !manual ? "on" : ""}`} onClick={() => choose(m)} disabled={m === "me" && !fix}>
             {t.map[m]}
           </button>
@@ -205,7 +235,7 @@ export function MapView(props: {
       <div
         ref={boxRef}
         className="map-box"
-        style={fullscreen ? undefined : { height: HEIGHT }}
+        style={fullscreen ? undefined : { height: props.tall ? TALL_HEIGHT : HEIGHT }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -250,15 +280,26 @@ export function MapView(props: {
             .filter((p) => !stopIndex.has(p.ref))
             .map((p) => {
               const s = screen(p.location);
+              const state = [
+                unverified(p.coordinateStatus) ? "provisional" : "",
+                p.ref === selected ? "selected" : "",
+                p.ref === runtime.currentPlaceRef ? "here" : "",
+                runtime.wasNarrated(p.ref) ? "heard" : "",
+              ].join(" ");
               return (
-                <circle
+                <g
                   key={p.ref}
-                  cx={s.x}
-                  cy={s.y}
-                  r={5}
-                  className={`map-poi ${unverified(p.coordinateStatus) ? "provisional" : ""} ${p.ref === selected ? "selected" : ""}`}
+                  className={`map-pin ${state}`}
+                  transform={`translate(${s.x},${s.y})${p.ref === selected ? " scale(1.35)" : ""}`}
                   onClick={() => select(p.ref)}
-                />
+                  role="button"
+                  aria-label={p.name}
+                >
+                  {/* Area di tocco più grande dello spillo: si usa camminando, col pollice. */}
+                  <circle cx={0} cy={PIN_HEAD_Y + 2} r={16} className="map-hit" />
+                  <path d={PIN_PATH} className="map-pin-body" />
+                  <circle cx={0} cy={PIN_HEAD_Y} r={2.6} className="map-pin-dot" />
+                </g>
               );
             })}
           {stops.map((p, i) => {
@@ -282,14 +323,26 @@ export function MapView(props: {
             );
           })}
           {labels.map((l) => (
-            <text key={l.id} x={l.x} y={l.y} textAnchor={l.anchor} className={`map-label ${showTiles ? "halo" : ""}`}>
+            // Anche il nome si può toccare: è più grande dello spillo e a volte lo copre.
+            <text
+              key={l.id}
+              x={l.x}
+              y={l.y}
+              textAnchor={l.anchor}
+              className={`map-label ${showTiles ? "halo" : ""} ${placeByRef.has(l.id) ? "tappable" : ""}`}
+              onClick={placeByRef.has(l.id) ? () => select(l.id) : undefined}
+            >
               {l.text}
             </text>
           ))}
           {me && fix && (
-            <g className={simulated ? "map-me simulated" : "map-me"}>
-              <circle cx={me.x} cy={me.y} r={Math.max(fix.accuracyM / mpp, 8)} className="map-accuracy" />
-              <circle cx={me.x} cy={me.y} r={7} className="map-me-dot" />
+            <g className={simulated ? "map-me simulated" : "map-me"} aria-label={t.map.you}>
+              <circle cx={me.x} cy={me.y} r={Math.max(fix.accuracyM / mpp, 10)} className="map-accuracy" />
+              <circle cx={me.x} cy={me.y} r={14} className="map-me-pulse" />
+              <circle cx={me.x} cy={me.y} r={9} className="map-me-dot" />
+              <text x={me.x} y={me.y + 24} textAnchor="middle" className="map-me-label">
+                {t.map.you}
+              </text>
             </g>
           )}
         </svg>
@@ -297,7 +350,7 @@ export function MapView(props: {
           <button className="map-btn" onClick={() => zoomBy(1)} aria-label={t.map.zoomIn}>+</button>
           <button className="map-btn" onClick={() => zoomBy(-1)} aria-label={t.map.zoomOut}>−</button>
           {fix && (
-            <button className="map-btn" onClick={() => choose("me")} aria-label={t.map.center}>⌖</button>
+            <button className={`map-btn ${following ? "on" : ""}`} onClick={() => choose("me")} aria-label={t.map.center} aria-pressed={following}>⌖</button>
           )}
           <button
             className="map-btn"
@@ -308,6 +361,11 @@ export function MapView(props: {
             {fullscreen ? "✕" : "⛶"}
           </button>
         </div>
+        {fix && !following && (
+          <button className="map-recenter" onPointerDown={(e) => e.stopPropagation()} onClick={() => choose("me")}>
+            ⌖ {t.map.center}
+          </button>
+        )}
         <div className="map-scale" aria-hidden="true">
           <span style={{ width: scale.px }} />
           {scale.label}
@@ -318,7 +376,7 @@ export function MapView(props: {
           </a>
         )}
       </div>
-      {sel && (
+      {sel && !controlled && (
         <p className="map-info">
           <strong>{sel.name}</strong>
           {stopIndex.has(sel.ref) && <> · {t.map.stop(stopIndex.get(sel.ref)! + 1, stops.length)}</>}
@@ -334,6 +392,7 @@ export function MapView(props: {
         </p>
       )}
       <div className="row wrap map-foot">
+        <span className="muted small">{simulated ? t.map.legendSimulated : t.map.legendYou}</span>
         {preliminary && <span className="muted small">{t.map.legendProvisional}</span>}
         {notFieldVerified && <span className="muted small">{t.map.legendMapVerified}</span>}
         {showTiles && loadedTiles === 0 && failedTiles.size > 0 && <span className="muted small">{t.map.noBasemap}</span>}

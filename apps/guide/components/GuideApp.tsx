@@ -2,16 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { verifyBundle, type BundleContent, type BundleManifest } from "@guide/bundle/client";
-import type { Fix, LngLat } from "@guide/context-engine";
-import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeState, type TourOptions } from "../lib/runtime";
+import { distanceM, type Fix, type LngLat } from "@guide/context-engine";
+import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeKind, type RuntimeState, type TourOptions } from "../lib/runtime";
 import type { PositionSource } from "../lib/field-points";
+import { gpsStatus, type GpsErrorCode, type GpsStatus } from "../lib/gps-status";
+import { compass, formatDistance } from "../lib/format";
 import { simulateWalk, type SimStop } from "../lib/simulator";
 import { GuideVoice, type SpeechState } from "../lib/speech";
-import { uiFor } from "../lib/i18n";
+import { uiFor, type UiText } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
 import { AskBox } from "./AskBox";
 import { DebugPanel } from "./DebugPanel";
 import { MapView } from "./MapView";
+import { PlaceCard, PlacePhoto } from "./PlaceCard";
 
 interface BundleEntry {
   destination: string;
@@ -31,7 +34,10 @@ const SAVED_TOUR_MAX_AGE_MS = 12 * 3_600_000;
 interface SavedTour {
   entry: BundleEntry;
   mode: GuideMode;
-  options: TourOptions;
+  /** Esplorazione libera o itinerario; assente nei salvataggi precedenti (erano tutti itinerari). */
+  kind?: RuntimeKind;
+  /** Opzioni dell'itinerario; null in esplorazione. */
+  options: TourOptions | null;
   start: [number, number];
   state: RuntimeState;
   savedAt: number;
@@ -53,6 +59,10 @@ function clearSavedTour(): void {
   }
 }
 const SIM_TICK_MS = 60;
+/** Assenza dal primo piano oltre la quale si avvisa che la guida era in pausa. */
+const BACKGROUND_NOTICE_MS = 30_000;
+/** Luoghi mostrati nell'elenco «Vicino a te». */
+const NEARBY_COUNT = 5;
 
 function clock(ms: number, locale: string): string {
   return new Date(ms).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
@@ -72,7 +82,13 @@ export function GuideApp() {
   const [budget, setBudget] = useState(45);
   const [routeRef, setRouteRef] = useState<string | null>(null);
   const [debug, setDebug] = useState(false);
-  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [gpsError, setGpsError] = useState<GpsErrorCode | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [askFocus, setAskFocus] = useState(0);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [pausedNotice, setPausedNotice] = useState(false);
+  const [itinerariesOpen, setItinerariesOpen] = useState(false);
+  const hiddenAtRef = useRef<number | null>(null);
   const [fixSource, setFixSource] = useState<PositionSource | null>(null);
   const [savedTour, setSavedTour] = useState<SavedTour | null>(null);
   const openedEntryRef = useRef<BundleEntry | null>(null);
@@ -184,9 +200,18 @@ export function GuideApp() {
     const runtime = runtimeRef.current;
     const entry = openedEntryRef.current;
     const options = tourOptionsRef.current;
-    if (!runtime || !entry || !options || !tourStartRef.current) return;
+    if (!runtime || !runtime.kind || !entry || !tourStartRef.current) return;
+    if (runtime.kind === "tour" && !options) return;
     try {
-      const saved: SavedTour = { entry, mode: runtime.mode, options, start: [tourStartRef.current[0], tourStartRef.current[1]], state: runtime.exportState(), savedAt: Date.now() };
+      const saved: SavedTour = {
+        entry,
+        mode: runtime.mode,
+        kind: runtime.kind,
+        options: runtime.kind === "tour" ? options : null,
+        start: [tourStartRef.current[0], tourStartRef.current[1]],
+        state: runtime.exportState(),
+        savedAt: Date.now(),
+      };
       localStorage.setItem(SAVED_TOUR_KEY, JSON.stringify(saved));
     } catch {
       // memoria non disponibile: il giro non sarà ripristinabile
@@ -204,13 +229,14 @@ export function GuideApp() {
           voiceRef.current?.enqueue(e.segments.map((s) => ({ id: s.id, text: s.text, title: e.name })));
         }
         if (e.type === "tour_complete") setComplete(true);
+        if (e.type === "nothing_new") setFlash(t.alreadyTold);
       }
       // Un giro finito non va riproposto alla riapertura.
       if (events.some((e) => e.type === "tour_complete")) clearSavedTour();
       else if (events.length > 0) saveTour();
       rerender();
     },
-    [rerender, saveTour],
+    [rerender, saveTour, t],
   );
 
   const stopSimulation = useCallback(() => {
@@ -219,11 +245,12 @@ export function GuideApp() {
     setSimulating(false);
   }, []);
 
-  /** Avvia un giro (nuovo o ripreso da uno stato salvato). */
-  const beginTour = (tourContent: BundleContent, tourMode: GuideMode, options: TourOptions, start: LngLat, state?: RuntimeState) => {
+  /** Avvia un'esplorazione o un itinerario (nuovo o ripreso da uno stato salvato). */
+  const beginSession = (tourContent: BundleContent, tourMode: GuideMode, options: TourOptions | null, start: LngLat, state?: RuntimeState) => {
     const runtime = new GuideRuntime(tourContent, tourMode);
     runtime.inviteQuestions = online && askAvailable;
-    runtime.startTour(options);
+    if (options) runtime.startTour(options);
+    else runtime.startExplore();
     if (state) runtime.restoreState(state);
     runtimeRef.current = runtime;
     tourOptionsRef.current = options;
@@ -232,15 +259,41 @@ export function GuideApp() {
     voiceRef.current = GuideVoice.available()
       ? new GuideVoice(tourContent.locale === "it" ? "it-IT" : "en-GB", (state, current) => {
           speechStateRef.current = state;
+          // Mentre la guida parla, i luoghi raggiunti aspettano: niente interruzioni.
+          if (runtimeRef.current) runtimeRef.current.narrating = state === "speaking";
           setSpeech({ state, currentId: current?.id ?? null });
         })
       : null;
     setTranscript([]);
     setProposal(null);
     setComplete(false);
-    setFixSource(null);
+    setSelected(null);
+    setFlash(null);
     setScreen("walk");
     saveTour();
+  };
+
+  /** Punto di partenza della simulazione quando non c'è ancora una posizione. */
+  const defaultStart = (c: BundleContent): LngLat => c.anchors[0]?.location ?? c.places[0]!.location;
+
+  const startExploring = () => {
+    if (!content) return;
+    beginSession(content, mode, null, defaultStart(content));
+    // Il tocco su «Inizia a esplorare» è anche il gesto che autorizza la richiesta della posizione.
+    startGps();
+  };
+
+  /** Dall'itinerario all'esplorazione, senza perdere ciò che è già stato raccontato. */
+  const switchToExplore = () => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    runtime.startExplore({ keepMemory: true });
+    tourOptionsRef.current = null;
+    setProposal(null);
+    setComplete(false);
+    stopSimulation();
+    saveTour();
+    rerender();
   };
 
   const startTour = () => {
@@ -251,7 +304,7 @@ export function GuideApp() {
     // Con un percorso curato si parte dalla sua prima tappa; altrimenti dall'ancora (o dal primo luogo).
     const firstStop = route ? content.places.find((p) => p.ref === route.stops[0]?.place) : undefined;
     const start = firstStop?.location ?? anchor?.location ?? content.places[0]!.location;
-    beginTour(content, mode, {
+    beginSession(content, mode, {
       now,
       start,
       ...(route
@@ -267,8 +320,9 @@ export function GuideApp() {
     try {
       const loaded = await loadBundle(saved.entry);
       setMode(saved.mode);
-      if (saved.options.route) setRouteRef(saved.options.route);
-      beginTour(loaded, saved.mode, saved.options, saved.start, saved.state);
+      const options = saved.kind === "explore" ? null : saved.options;
+      if (options?.route) setRouteRef(options.route);
+      beginSession(loaded, saved.mode, options, saved.start, saved.state);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -279,7 +333,28 @@ export function GuideApp() {
     const runtime = runtimeRef.current;
     if (!runtime) return;
     setProposal(null);
+    setSelected(null);
+    voiceRef.current?.stop();
     handleEvents(runtime.arriveManually(placeRef, Date.now()));
+  };
+
+  /** «Ascolta la storia» di un luogo qualsiasi, anche lontano (scelto sulla mappa o nell'elenco). */
+  const listenTo = (placeRef: string) => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    setFlash(null);
+    if (runtime.wasNarrated(placeRef)) {
+      // Già raccontato: si riascolta lo stesso testo (la memoria del giro non lo ripete come nuovo).
+      const told = transcript.filter((s) => s.placeRef === placeRef);
+      if (told.length === 0) return setFlash(t.alreadyTold);
+      voiceRef.current?.stop();
+      voiceRef.current?.enqueue(told.map((s) => ({ id: s.id, text: s.text, title: runtime.name(placeRef) })));
+      return;
+    }
+    if (![...runtime.library.units.values()].some((u) => u.anchor === placeRef)) return setFlash(t.noStory);
+    if (proposalRef.current?.placeRef === placeRef) setProposal(null);
+    voiceRef.current?.stop();
+    handleEvents(runtime.narrate(placeRef, Date.now()));
   };
   const skipStop = (placeRef: string) => {
     const runtime = runtimeRef.current;
@@ -291,11 +366,29 @@ export function GuideApp() {
 
   const startSimulation = () => {
     const runtime = runtimeRef.current;
-    if (!runtime?.plan || !content) return;
+    if (!runtime || !content) return;
     const from: LngLat = runtime.lastFix?.location ?? tourStartRef.current ?? content.places[0]!.location;
-    const remaining = runtime.plan.stops.filter((s) => !runtime.visited.includes(s.placeId));
-    const stops: SimStop[] = remaining.map((s) => ({ location: content.places.find((p) => p.ref === s.placeId)!.location, dwellS: 25 }));
-    if (runtime.anchor) stops.push({ location: runtime.anchor.location, dwellS: 5 });
+    const at = (ref: string) => content.places.find((p) => p.ref === ref)!.location;
+    let stops: SimStop[];
+    if (runtime.plan) {
+      const remaining = runtime.plan.stops.filter((s) => !runtime.visited.includes(s.placeId));
+      stops = remaining.map((s) => ({ location: at(s.placeId), dwellS: 25 }));
+      if (runtime.anchor) stops.push({ location: runtime.anchor.location, dwellS: 5 });
+    } else if (selected) {
+      // Esplorazione: si cammina verso il luogo selezionato...
+      stops = [{ location: at(selected), dwellS: 40 }];
+    } else {
+      // ...oppure verso i luoghi più vicini non ancora ascoltati, uno dopo l'altro.
+      const unheard = content.places.filter((p) => !runtime.wasNarrated(p.ref));
+      stops = [];
+      let here = from;
+      for (let i = 0; i < 4 && unheard.length > 0; i++) {
+        unheard.sort((a, b) => distanceM(here, a.location) - distanceM(here, b.location));
+        const p = unheard.shift()!;
+        stops.push({ location: p.location, dwellS: 30 });
+        here = p.location;
+      }
+    }
     simRef.current = { fixes: simulateWalk(from, stops, { startTime: runtime.lastFix?.timestamp ?? Date.now() }), index: 0, timer: null };
     setSimulating(true);
     simRef.current.timer = setInterval(() => {
@@ -329,10 +422,10 @@ export function GuideApp() {
     releaseWakeLock();
   }, [releaseWakeLock]);
 
-  const toggleGps = () => {
-    if (gps) return stopGps();
+  const startGps = () => {
+    if (gpsWatchRef.current !== null) return;
     if (!("geolocation" in navigator)) {
-      setGpsError(t.gpsUnavailable);
+      setGpsError("unavailable");
       return;
     }
     stopSimulation();
@@ -353,10 +446,10 @@ export function GuideApp() {
       (err) => {
         // 1 = permesso negato: inutile insistere. 2-3 = segnale assente o lento: si continua ad ascoltare.
         if (err.code === 1) {
-          setGpsError(t.gpsDenied);
+          setGpsError("denied");
           stopGps();
         } else {
-          setGpsError(err.code === 3 ? t.gpsTimeout : t.gpsNoSignal);
+          setGpsError(err.code === 3 ? "timeout" : "no_signal");
         }
       },
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 20_000 },
@@ -364,18 +457,39 @@ export function GuideApp() {
     setGps(true);
     void requestWakeLock();
   };
+  const toggleGps = () => (gps ? stopGps() : startGps());
 
   // Lo schermo acceso va richiesto di nuovo quando l'app torna in primo piano.
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible" && gpsWatchRef.current !== null) {
+      if (document.visibilityState === "hidden") {
+        hiddenAtRef.current = Date.now();
+        return;
+      }
+      if (gpsWatchRef.current !== null) {
         wakeLockRef.current = null;
         void requestWakeLock();
+        // In secondo piano il browser non dà posizioni: lo si dice, invece di fingere un tracciamento continuo.
+        if (hiddenAtRef.current !== null && Date.now() - hiddenAtRef.current > BACKGROUND_NOTICE_MS) setPausedNotice(true);
       }
+      hiddenAtRef.current = null;
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [requestWakeLock]);
+
+  // Con il GPS acceso si ricontrolla ogni pochi secondi l'età dell'ultima posizione (segnale perso).
+  useEffect(() => {
+    if (!gps) return;
+    const id = setInterval(rerender, 5000);
+    return () => clearInterval(id);
+  }, [gps, rerender]);
+
+  useEffect(() => {
+    if (!flash) return;
+    const id = setTimeout(() => setFlash(null), 6000);
+    return () => clearTimeout(id);
+  }, [flash]);
 
   useEffect(() => () => {
     stopSimulation();
@@ -412,7 +526,7 @@ export function GuideApp() {
         {error && <p className="error">{online ? error : t.offlineNoBundle}</p>}
         {savedTour && (
           <div className="card resume">
-            <strong>{t.resumeTitle}: {savedTour.entry.name}</strong>
+            <strong>{savedTour.kind === "explore" ? t.resumeExplore : t.resumeTitle}: {savedTour.entry.name}</strong>
             <span className="muted small">
               {t.resumeSaved} {clock(savedTour.savedAt, locale)} · {savedTour.state.memory.visitedPlaces.length} {t.resumeVisited}
             </span>
@@ -450,45 +564,14 @@ export function GuideApp() {
         <h1>{content.name}</h1>
         {content.fictional && <p className="notice">{t.fictionalNote}</p>}
         {content.preview && <p className="notice preview">{t.previewNote}</p>}
-        {content.routes.length > 0 && (
-          <>
-            <h2>{t.routeTitle}</h2>
-            <div className="stack">
-              <button className={`chip ${routeRef === null ? "on" : ""}`} onClick={() => setRouteRef(null)}>
-                {t.routeFree}
-              </button>
-              {content.routes.map((r) => (
-                <button key={r.ref} className={`chip route ${routeRef === r.ref ? "on" : ""}`} onClick={() => setRouteRef(r.ref)}>
-                  <span>{r.name}</span>
-                  <span className="muted small">
-                    {r.durationMin} {t.minutes}
-                    {r.difficulty && <> · {t.difficulty[r.difficulty]}</>}
-                    {r.elevationGainM !== undefined && <> · +{r.elevationGainM} m</>}
-                    {r.calibration === "draft" && <> · {t.routeDraft}</>}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-        {routeRef === null && <h2>{t.howLong}</h2>}
-        {routeRef === null && <div className="row wrap">
-          {BUDGETS.map((b) => (
-            <button key={b} className={`chip ${budget === b ? "on" : ""}`} onClick={() => setBudget(b)}>
-              {b} {t.minutes}
-            </button>
-          ))}
-        </div>}
-        {anchor && routeRef === null && (
-          <label className="check">
-            <input type="checkbox" checked={returnToAnchor} onChange={(e) => setReturnToAnchor(e.target.checked)} />
-            {t.returnTo} {anchor.name} {t.by} {clock(Date.now() + budget * 60_000, locale)}
-          </label>
-        )}
-        <label className="check">
-          <input type="checkbox" checked={avoidStairs} onChange={(e) => setAvoidStairs(e.target.checked)} />
-          {t.avoidStairs}
-        </label>
+
+        <section className="card mode-card primary">
+          <h2>🧭 {t.exploreTitle}</h2>
+          <p>{t.exploreHint}</p>
+          <p className="muted small">{t.backgroundNote}</p>
+          <button className="button primary big" onClick={startExploring}>{t.exploreStart}</button>
+        </section>
+
         <h2>{t.mode}</h2>
         <div className="row wrap">
           {(["ask", "auto", "silent"] as const).map((m) => (
@@ -497,6 +580,49 @@ export function GuideApp() {
             </button>
           ))}
         </div>
+
+        <details className="card itineraries" open={itinerariesOpen} onToggle={(e) => setItinerariesOpen((e.target as HTMLDetailsElement).open)}>
+          <summary>🗺 {t.itinerariesTitle}</summary>
+          <p className="muted small">{t.itinerariesHint}</p>
+          <div className="stack">
+            {content.routes.map((r) => (
+              <button key={r.ref} className={`chip route ${routeRef === r.ref ? "on" : ""}`} onClick={() => setRouteRef(r.ref)}>
+                <span>{r.name}</span>
+                <span className="muted small">
+                  {r.durationMin} {t.minutes}
+                  {r.difficulty && <> · {t.difficulty[r.difficulty]}</>}
+                  {r.elevationGainM !== undefined && <> · +{r.elevationGainM} m</>}
+                  {r.calibration === "draft" && <> · {t.routeDraft}</>}
+                </span>
+              </button>
+            ))}
+            <button className={`chip ${routeRef === null ? "on" : ""}`} onClick={() => setRouteRef(null)}>
+              {t.routeFree}
+            </button>
+          </div>
+          {routeRef === null && <h3>{t.howLong}</h3>}
+          {routeRef === null && (
+            <div className="row wrap">
+              {BUDGETS.map((b) => (
+                <button key={b} className={`chip ${budget === b ? "on" : ""}`} onClick={() => setBudget(b)}>
+                  {b} {t.minutes}
+                </button>
+              ))}
+            </div>
+          )}
+          {anchor && routeRef === null && (
+            <label className="check">
+              <input type="checkbox" checked={returnToAnchor} onChange={(e) => setReturnToAnchor(e.target.checked)} />
+              {t.returnTo} {anchor.name} {t.by} {clock(Date.now() + budget * 60_000, locale)}
+            </label>
+          )}
+          <label className="check">
+            <input type="checkbox" checked={avoidStairs} onChange={(e) => setAvoidStairs(e.target.checked)} />
+            {t.avoidStairs}
+          </label>
+          <button className="button big" onClick={startTour}>{t.startItinerary}</button>
+        </details>
+
         {content.safetyNotes.map((n) => (
           <p key={n.id} className="notice">⚠ {n.text}</p>
         ))}
@@ -516,22 +642,139 @@ export function GuideApp() {
             )}
           </div>
         )}
-        <button className="button primary big" onClick={startTour}>{t.start}</button>
       </main>
     );
   }
 
   if (!runtime || !content) return null;
+  const exploring = runtime.kind === "explore";
   // La prossima tappa non si mostra se è il luogo in cui ci si trova già.
   const nextStop = runtime.nextStop !== runtime.currentPlaceRef ? runtime.nextStop : null;
   const nextPlace = nextStop ? content.places.find((p) => p.ref === nextStop) : null;
   const anchorStatus = runtime.lastAnchorStatus;
   const anchorName = runtime.anchor ? runtime.name(runtime.anchor.id) : "";
+  const status = gpsStatus({ watching: gps, simulating, error: gpsError, fix: runtime.lastFix, source: fixSource, now: Date.now() });
+  const cardRef = selected ?? runtime.currentPlaceRef;
+  const canAsk = askAvailable && online;
+  const nearby = runtime.nearby(NEARBY_COUNT);
+  const leave = () => {
+    stopSimulation();
+    stopGps();
+    voiceRef.current?.stop();
+    // Da un itinerario si torna con gli itinerari aperti: è lì che si era.
+    if (!exploring) setItinerariesOpen(true);
+    setScreen("setup");
+  };
+  const openItineraries = () => {
+    setItinerariesOpen(true);
+    leave();
+  };
+
+  const proposalCard = proposal && (
+    <section className="card proposal" role="alert">
+      <p>{t.arrivedAsk(proposal.name)}</p>
+      <div className="row">
+        <button className="button primary" onClick={() => { setProposal(null); handleEvents(runtime.acceptProposal(Date.now())); }}>{t.yes}</button>
+        <button className="button" onClick={() => { runtime.declineProposal(Date.now()); setProposal(null); saveTour(); rerender(); }}>{t.no}</button>
+      </div>
+    </section>
+  );
+
+  const placeCard = cardRef ? (
+    <PlaceCard
+      content={content}
+      placeRef={cardRef}
+      base={bundleBase}
+      fix={runtime.lastFix}
+      isHere={cardRef === runtime.currentPlaceRef}
+      heard={runtime.wasNarrated(cardRef)}
+      canAsk={canAsk}
+      t={t}
+      onListen={() => listenTo(cardRef)}
+      onAsk={() => { setSelected(cardRef); setAskFocus((n) => n + 1); }}
+      onHere={() => arriveHere(cardRef)}
+      {...(selected ? { onClose: () => setSelected(null) } : {})}
+    />
+  ) : exploring ? (
+    <p className="muted small">{t.selectHint}</p>
+  ) : null;
+
+  const speaking = speech.state !== "idle";
+  const nowPlaying = (
+    <section className="card now-playing" aria-live="polite">
+      <p className="eyebrow">{speaking ? t.listening : runtime.currentPlaceRef ? `${t.here}: ${runtime.name(runtime.currentPlaceRef)}` : " "}</p>
+      {!exploring && runtime.currentPlaceRef && <PlacePhoto content={content} placeRef={runtime.currentPlaceRef} base={bundleBase} label={t.photo} />}
+      <p className="now-text">{currentSegment?.text ?? (transcript.length === 0 ? (exploring ? t.nothingExplore : t.nothing) : transcript.at(-1)!.text)}</p>
+      {!voiceRef.current && <p className="muted small">{t.noVoice}</p>}
+      <div className="controls">
+        <button className="button big" disabled={!speaking} onClick={() => voiceRef.current?.toggle()}>
+          {speech.state === "paused" ? `▶ ${t.play}` : `❚❚ ${t.pause}`}
+        </button>
+        <button className="button" disabled={!speaking} onClick={() => voiceRef.current?.skip()}>⏭ {t.skip}</button>
+        <button
+          className="button"
+          onClick={() => {
+            const next = rate >= 1.5 ? 0.75 : rate + 0.25;
+            setRate(next);
+            voiceRef.current?.setRate(next);
+          }}
+        >
+          {t.speed} {rate}×
+        </button>
+      </div>
+      {!exploring && runtime.currentPlaceRef && !speaking && !proposal && (
+        <button className="button" onClick={() => handleEvents(runtime.narrate(runtime.currentPlaceRef))}>{t.tellMe}</button>
+      )}
+    </section>
+  );
+
+  const map = (
+    <MapView
+      content={content}
+      runtime={runtime}
+      debug={debug}
+      online={online}
+      simulated={fixSource === "simulated"}
+      t={t}
+      selected={selected}
+      onSelect={setSelected}
+      tall={exploring}
+    />
+  );
+
+  const ask = askAvailable && (
+    <AskBox
+      content={content}
+      runtime={runtime}
+      voice={voiceRef.current}
+      online={online}
+      t={t}
+      selectedPlace={selected}
+      fixSource={fixSource}
+      focusKey={askFocus}
+    />
+  );
+
+  const controls = (
+    <section className="card row wrap">
+      {!simulating ? (
+        <button className="button" onClick={startSimulation} disabled={gps}>🚶 {t.simulate}</button>
+      ) : (
+        <button className="button" onClick={stopSimulation}>■ {t.stopSim}</button>
+      )}
+      {simulating && <span className="muted small">{t.simulating}</span>}
+      {exploring ? (
+        <button className="button" onClick={openItineraries}>🗺 {t.openItineraries}</button>
+      ) : (
+        <button className="button" onClick={switchToExplore}>🧭 {t.switchToExplore}</button>
+      )}
+    </section>
+  );
 
   return (
-    <main className="screen walk">
+    <main className={`screen walk ${exploring ? "explore" : "tour"}`}>
       <header className="walk-header">
-        <button className="link" onClick={() => { stopSimulation(); stopGps(); voiceRef.current?.stop(); setScreen("setup"); }}>← {t.back}</button>
+        <button className="link" onClick={leave}>← {t.back}</button>
         <strong>{content.name}</strong>
         {content.fictional && <span className="badge">{t.fictional}</span>}
         {!online && <span className="badge offline">{t.offlineBadge}</span>}
@@ -545,112 +788,105 @@ export function GuideApp() {
         </button>
       </header>
 
+      <GpsBar status={status} gps={gps} simulating={simulating} onToggle={toggleGps} t={t} />
+      {pausedNotice && (
+        <p className="notice" role="status">
+          {t.pausedNotice}{" "}
+          <button className="link" onClick={() => setPausedNotice(false)}>✕</button>
+        </p>
+      )}
+      {flash && <p className="notice" role="status">{flash}</p>}
       {complete && <p className="notice success">{t.complete}</p>}
+      {proposalCard}
 
-      {proposal && (
-        <section className="card proposal" role="alert">
-          <p>{t.arrivedAsk(proposal.name)}</p>
-          <div className="row">
-            <button className="button primary" onClick={() => { setProposal(null); handleEvents(runtime.acceptProposal(Date.now())); }}>{t.yes}</button>
-            <button className="button" onClick={() => { runtime.declineProposal(); setProposal(null); }}>{t.no}</button>
-          </div>
-        </section>
+      {exploring ? (
+        <>
+          {map}
+          {placeCard}
+          {(speaking || transcript.length > 0) && nowPlaying}
+          <section className="card">
+            <h2>{t.nearbyTitle}</h2>
+            {nearby.length === 0 ? (
+              <p className="muted small">{t.nearbyNoFix}</p>
+            ) : (
+              <ul className="nearby">
+                {nearby.map((p) => (
+                  <li key={p.ref} className={p.ref === cardRef ? "on" : ""}>
+                    <button onClick={() => setSelected(p.ref)}>
+                      <span>
+                        {p.ref === runtime.currentPlaceRef ? "📍 " : ""}
+                        {p.name}
+                        {p.narrated && <span className="muted small"> · ✓ {t.heard}</span>}
+                      </span>
+                      <span className="dist">
+                        {formatDistance(p.distanceM, content.locale)} {compass(p.bearingDeg, t.dirs)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          {ask}
+        </>
+      ) : (
+        <>
+          {nowPlaying}
+          <section className="card status">
+            {nextPlace && (
+              <p>
+                <span className="muted">{t.next}:</span> <strong>{nextPlace.name}</strong>
+              </p>
+            )}
+            {runtime.nextStop && (
+              <div className="manual">
+                <p className="muted small">{t.manualHint}</p>
+                <div className="row wrap">
+                  <button className="button" onClick={() => arriveHere(runtime.nextStop!)}>📍 {t.imHere}: {runtime.name(runtime.nextStop)}</button>
+                  {runtime.routeStops && (
+                    <button className="button" onClick={() => skipStop(runtime.nextStop!)}>⏭ {t.skipStop}</button>
+                  )}
+                </div>
+              </div>
+            )}
+            {anchorStatus && (
+              <p className={`anchor ${anchorStatus.level}`}>
+                {anchorStatus.level === "ok" || anchorStatus.level === "soon"
+                  ? t.anchor[anchorStatus.level](anchorName, clock(anchorStatus.leaveBy, locale))
+                  : t.anchor[anchorStatus.level](anchorName)}
+              </p>
+            )}
+            {runtime.plan?.status === "no_time" && <p className="anchor late">{t.noPlan}</p>}
+          </section>
+          {map}
+          {selected && placeCard}
+          {ask}
+          <section className="card">
+            <h2>{t.plan}</h2>
+            <ol className="plan">
+              {runtime.plan?.stops.map((s) => (
+                <li key={s.placeId} className={runtime.visited.includes(s.placeId) ? "done" : ""}>
+                  {runtime.name(s.placeId)} {runtime.visited.includes(s.placeId) && <span className="muted">· {t.visited}</span>}
+                </li>
+              ))}
+            </ol>
+          </section>
+        </>
       )}
 
-      <section className="card now-playing" aria-live="polite">
-        <p className="eyebrow">{speech.state === "idle" ? (runtime.currentPlaceRef ? `${t.here}: ${runtime.name(runtime.currentPlaceRef)}` : " ") : t.listening}</p>
-        {runtime.currentPlaceRef && <PlacePhoto content={content} placeRef={runtime.currentPlaceRef} base={bundleBase} label={t.photo} />}
-        <p className="now-text">{currentSegment?.text ?? (transcript.length === 0 ? t.nothing : transcript.at(-1)!.text)}</p>
-        {!voiceRef.current && <p className="muted small">{t.noVoice}</p>}
-        <div className="controls">
-          <button className="button big" disabled={speech.state === "idle"} onClick={() => voiceRef.current?.toggle()}>
-            {speech.state === "paused" ? `▶ ${t.play}` : `❚❚ ${t.pause}`}
-          </button>
-          <button className="button" disabled={speech.state === "idle"} onClick={() => voiceRef.current?.skip()}>⏭ {t.skip}</button>
-          <button
-            className="button"
-            onClick={() => {
-              const next = rate >= 1.5 ? 0.75 : rate + 0.25;
-              setRate(next);
-              voiceRef.current?.setRate(next);
-            }}
-          >
-            {t.speed} {rate}×
-          </button>
-        </div>
-        {runtime.currentPlaceRef && speech.state === "idle" && !proposal && (
-          <button className="button" onClick={() => handleEvents(runtime.narrate(runtime.currentPlaceRef))}>{t.tellMe}</button>
-        )}
-      </section>
-
-      {gpsError && <p className="notice gps-error" role="alert">📍 {gpsError}</p>}
-      {gps && fixSource === "gps" && runtime.lastFix && runtime.lastFix.accuracyM > 35 && (
-        <p className="notice" role="status">{t.gpsImprecise(Math.round(runtime.lastFix.accuracyM))}</p>
-      )}
-
-      <section className="card status">
-        {nextPlace && (
-          <p>
-            <span className="muted">{t.next}:</span> <strong>{nextPlace.name}</strong>
-          </p>
-        )}
-        {runtime.nextStop && (
-          <div className="manual">
-            <p className="muted small">{t.manualHint}</p>
-            <div className="row wrap">
-              <button className="button" onClick={() => arriveHere(runtime.nextStop!)}>📍 {t.imHere}: {runtime.name(runtime.nextStop)}</button>
-              {runtime.routeStops && (
-                <button className="button" onClick={() => skipStop(runtime.nextStop!)}>⏭ {t.skipStop}</button>
-              )}
-            </div>
-          </div>
-        )}
-        {anchorStatus && (
-          <p className={`anchor ${anchorStatus.level}`}>
-            {anchorStatus.level === "ok" || anchorStatus.level === "soon"
-              ? t.anchor[anchorStatus.level](anchorName, clock(anchorStatus.leaveBy, locale))
-              : t.anchor[anchorStatus.level](anchorName)}
-          </p>
-        )}
-        {runtime.plan?.status === "no_time" && <p className="anchor late">{t.noPlan}</p>}
-      </section>
+      {controls}
 
       {debug && (
         <DebugPanel
           content={content}
           runtime={runtime}
-          gpsError={gpsError}
+          gpsError={gpsError ? gpsErrorText(gpsError, t) : null}
           fixSource={fixSource}
           online={online}
           offlineReady={offlineSupported() ? offline === "yes" : null}
           bundleHash={opened?.manifest.kbHash ?? null}
         />
       )}
-
-      {askAvailable && <AskBox content={content} runtime={runtime} voice={voiceRef.current} online={online} t={t} />}
-
-      <MapView content={content} runtime={runtime} debug={debug} online={online} simulated={fixSource === "simulated"} t={t} />
-
-      <section className="card">
-        <h2>{t.plan}</h2>
-        <ol className="plan">
-          {runtime.plan?.stops.map((s) => (
-            <li key={s.placeId} className={runtime.visited.includes(s.placeId) ? "done" : ""}>
-              {runtime.name(s.placeId)} {runtime.visited.includes(s.placeId) && <span className="muted">· {t.visited}</span>}
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section className="card row wrap">
-        {!simulating ? (
-          <button className="button" onClick={startSimulation} disabled={gps}>🚶 {t.simulate}</button>
-        ) : (
-          <button className="button" onClick={stopSimulation}>■ {t.stopSim}</button>
-        )}
-        <button className={`button ${gps ? "on" : ""}`} onClick={toggleGps}>📍 {gps ? t.gpsOn : t.useGps}</button>
-        {simulating && <span className="muted small">{t.simulating}</span>}
-      </section>
 
       {transcript.length > 0 && (
         <details className="card">
@@ -664,25 +900,43 @@ export function GuideApp() {
   );
 }
 
-/** Prima immagine del luogo, con il credito richiesto dalla licenza. */
-function PlacePhoto({ content, placeRef, base, label }: { content: BundleContent; placeRef: string; base: string; label: string }) {
-  const media = content.media.find((m) => m.subjects.includes(placeRef));
-  if (!media) return null;
-  const credit = media.attribution ?? (media.author ? `${label}: ${media.author}` : null);
+function gpsErrorText(code: GpsErrorCode, t: UiText): string {
+  return { denied: t.gpsDenied, unavailable: t.gpsUnavailable, timeout: t.gpsTimeout, no_signal: t.gpsNoSignal }[code];
+}
+
+/** Stato del segnale di posizione: una riga sempre visibile, con il pulsante per accendere o spegnere il GPS. */
+function GpsBar({ status, gps, simulating, onToggle, t }: { status: GpsStatus; gps: boolean; simulating: boolean; onToggle: () => void; t: UiText }) {
+  const text = (() => {
+    switch (status.level) {
+      case "ok":
+        return t.gps.ok(status.accuracyM ?? 0);
+      case "imprecise":
+        return t.gps.imprecise(status.accuracyM ?? 0);
+      case "stale":
+        return t.gps.stale(status.ageS ?? 0);
+      case "waiting":
+        return t.gps.waiting;
+      case "simulated":
+        return t.gps.simulated;
+      case "denied":
+        return t.gpsDenied;
+      case "unavailable":
+        return t.gpsUnavailable;
+      case "no_signal":
+        return t.gpsNoSignal;
+      default:
+        return `${t.gps.off}. ${t.backgroundNote}`;
+    }
+  })();
+  const alert = ["stale", "no_signal", "denied", "unavailable", "imprecise"].includes(status.level);
   return (
-    <figure className="place-photo">
-      {/* eslint-disable-next-line @next/next/no-img-element -- file statico del bundle, già ottimizzato */}
-      <img src={base + media.path} alt={media.alt} loading="lazy" />
-      {(media.caption || credit) && (
-        <figcaption>
-          {media.caption && <span>{media.caption}</span>}
-          {credit && (
-            <span className="credit">
-              {media.originalUrl ? <a href={media.originalUrl} target="_blank" rel="noreferrer">{credit}</a> : credit}
-            </span>
-          )}
-        </figcaption>
+    <div className={`gps-bar ${status.level}`} role={alert ? "alert" : "status"}>
+      <p>📍 {text}</p>
+      {status.level !== "unavailable" && !simulating && (
+        <button className={`button ${gps ? "" : "primary"}`} onClick={onToggle}>
+          {gps ? t.gps.stop : t.gps.start}
+        </button>
       )}
-    </figure>
+    </div>
   );
 }

@@ -56,7 +56,9 @@ export function AskBox(props: {
       : [];
     let answer: AskAnswer;
     try {
+      // Con rete debole meglio un "non riesco" dopo 20 secondi che un'attesa senza fine.
       const res = await fetch("/api/guide/ask", {
+        signal: AbortSignal.timeout(20_000),
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

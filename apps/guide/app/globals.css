@@ -223,3 +223,22 @@ h2 { font-size: 17px; margin: 10px 0 0; }
   color: inherit;
   opacity: 0.85;
 }
+.manual {
+  margin-top: 8px;
+}
+.manual .row {
+  gap: 8px;
+}
+.notice.gps-error {
+  border-left: 4px solid var(--danger);
+}
+.card.resume {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-left: 4px solid var(--accent);
+}
+.debug .source {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { verifyBundle, type BundleContent, type BundleManifest } from "@guide/bundle/client";
 import type { Fix, LngLat } from "@guide/context-engine";
-import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent } from "../lib/runtime";
+import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeState, type TourOptions } from "../lib/runtime";
+import type { PositionSource } from "../lib/field-points";
 import { simulateWalk, type SimStop } from "../lib/simulator";
 import { GuideVoice, type SpeechState } from "../lib/speech";
 import { uiFor } from "../lib/i18n";
@@ -24,6 +25,33 @@ interface BundleEntry {
 
 type Screen = "home" | "setup" | "walk";
 const BUDGETS = [20, 30, 45, 60, 90];
+/** Giro salvato per riprenderlo se il telefono chiude o ricarica la pagina (es. dopo aver usato la fotocamera). */
+const SAVED_TOUR_KEY = "guide-tour/1";
+const SAVED_TOUR_MAX_AGE_MS = 12 * 3_600_000;
+interface SavedTour {
+  entry: BundleEntry;
+  mode: GuideMode;
+  options: TourOptions;
+  start: [number, number];
+  state: RuntimeState;
+  savedAt: number;
+}
+function readSavedTour(): SavedTour | null {
+  try {
+    const raw = localStorage.getItem(SAVED_TOUR_KEY);
+    const saved = raw ? (JSON.parse(raw) as SavedTour) : null;
+    return saved && Date.now() - saved.savedAt < SAVED_TOUR_MAX_AGE_MS ? saved : null;
+  } catch {
+    return null;
+  }
+}
+function clearSavedTour(): void {
+  try {
+    localStorage.removeItem(SAVED_TOUR_KEY);
+  } catch {
+    // memoria non disponibile
+  }
+}
 const SIM_TICK_MS = 60;
 
 function clock(ms: number, locale: string): string {
@@ -45,6 +73,11 @@ export function GuideApp() {
   const [routeRef, setRouteRef] = useState<string | null>(null);
   const [debug, setDebug] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [fixSource, setFixSource] = useState<PositionSource | null>(null);
+  const [savedTour, setSavedTour] = useState<SavedTour | null>(null);
+  const openedEntryRef = useRef<BundleEntry | null>(null);
+  const tourOptionsRef = useRef<TourOptions | null>(null);
+  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
   const [returnToAnchor, setReturnToAnchor] = useState(true);
   const [mode, setMode] = useState<GuideMode>("ask");
   const [avoidStairs, setAvoidStairs] = useState(false);
@@ -87,6 +120,11 @@ export function GuideApp() {
   }, []);
 
   useEffect(() => {
+    // Senza rete le domande non sono possibili: inutile chiederlo al server.
+    if (!navigator.onLine) {
+      setAskAvailable(false);
+      return;
+    }
     fetch("/api/guide/ask", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { available: false }))
       .then((d: { available?: boolean }) => setAskAvailable(d.available === true))
@@ -117,20 +155,43 @@ export function GuideApp() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
+  useEffect(() => setSavedTour(readSavedTour()), []);
+
+  /** Scarica (o legge dalla cache) e verifica il bundle di una destinazione. */
+  const loadBundle = async (entry: BundleEntry): Promise<BundleContent> => {
+    const manifest = (await (await fetch(entry.manifest)).json()) as BundleManifest;
+    const base = entry.manifest.replace(/manifest\.json$/, "");
+    const json = await (await fetch(base + manifest.content)).text();
+    const verified = await verifyBundle(manifest, json);
+    setContent(verified);
+    setBundleBase(base);
+    setOpened({ url: entry.manifest, manifest });
+    openedEntryRef.current = entry;
+    setOffline((await isBundleCached(entry.manifest, manifest).catch(() => false)) ? "yes" : "no");
+    return verified;
+  };
+
   const openBundle = async (entry: BundleEntry) => {
     try {
-      const manifest = (await (await fetch(entry.manifest)).json()) as BundleManifest;
-      const base = entry.manifest.replace(/manifest\.json$/, "");
-      const json = await (await fetch(base + manifest.content)).text();
-      setContent(await verifyBundle(manifest, json));
-      setBundleBase(base);
-      setOpened({ url: entry.manifest, manifest });
-      setOffline((await isBundleCached(entry.manifest, manifest).catch(() => false)) ? "yes" : "no");
+      await loadBundle(entry);
       setScreen("setup");
     } catch (e) {
       setError((e as Error).message);
     }
   };
+
+  const saveTour = useCallback(() => {
+    const runtime = runtimeRef.current;
+    const entry = openedEntryRef.current;
+    const options = tourOptionsRef.current;
+    if (!runtime || !entry || !options || !tourStartRef.current) return;
+    try {
+      const saved: SavedTour = { entry, mode: runtime.mode, options, start: [tourStartRef.current[0], tourStartRef.current[1]], state: runtime.exportState(), savedAt: Date.now() };
+      localStorage.setItem(SAVED_TOUR_KEY, JSON.stringify(saved));
+    } catch {
+      // memoria non disponibile: il giro non sarà ripristinabile
+    }
+  }, []);
 
   const handleEvents = useCallback(
     (events: RuntimeEvent[]) => {
@@ -144,9 +205,12 @@ export function GuideApp() {
         }
         if (e.type === "tour_complete") setComplete(true);
       }
+      // Un giro finito non va riproposto alla riapertura.
+      if (events.some((e) => e.type === "tour_complete")) clearSavedTour();
+      else if (events.length > 0) saveTour();
       rerender();
     },
-    [rerender],
+    [rerender, saveTour],
   );
 
   const stopSimulation = useCallback(() => {
@@ -155,17 +219,39 @@ export function GuideApp() {
     setSimulating(false);
   }, []);
 
+  /** Avvia un giro (nuovo o ripreso da uno stato salvato). */
+  const beginTour = (tourContent: BundleContent, tourMode: GuideMode, options: TourOptions, start: LngLat, state?: RuntimeState) => {
+    const runtime = new GuideRuntime(tourContent, tourMode);
+    runtime.inviteQuestions = online && askAvailable;
+    runtime.startTour(options);
+    if (state) runtime.restoreState(state);
+    runtimeRef.current = runtime;
+    tourOptionsRef.current = options;
+    tourStartRef.current = start;
+    voiceRef.current?.stop();
+    voiceRef.current = GuideVoice.available()
+      ? new GuideVoice(tourContent.locale === "it" ? "it-IT" : "en-GB", (state, current) => {
+          speechStateRef.current = state;
+          setSpeech({ state, currentId: current?.id ?? null });
+        })
+      : null;
+    setTranscript([]);
+    setProposal(null);
+    setComplete(false);
+    setFixSource(null);
+    setScreen("walk");
+    saveTour();
+  };
+
   const startTour = () => {
     if (!content) return;
     const now = Date.now();
-    const runtime = new GuideRuntime(content, mode);
-    runtime.inviteQuestions = online && askAvailable;
     const anchor = content.anchors[0];
     const route = routeRef ? content.routes.find((r) => r.ref === routeRef) : undefined;
     // Con un percorso curato si parte dalla sua prima tappa; altrimenti dall'ancora (o dal primo luogo).
     const firstStop = route ? content.places.find((p) => p.ref === route.stops[0]?.place) : undefined;
     const start = firstStop?.location ?? anchor?.location ?? content.places[0]!.location;
-    runtime.startTour({
+    beginTour(content, mode, {
       now,
       start,
       ...(route
@@ -174,20 +260,33 @@ export function GuideApp() {
           ? { anchor: { ref: anchor.ref, deadline: now + budget * 60_000 } }
           : { budgetMin: budget }),
       avoidStairs,
-    });
-    runtimeRef.current = runtime;
-    tourStartRef.current = start;
-    voiceRef.current?.stop();
-    voiceRef.current = GuideVoice.available()
-      ? new GuideVoice(content.locale === "it" ? "it-IT" : "en-GB", (state, current) => {
-          speechStateRef.current = state;
-          setSpeech({ state, currentId: current?.id ?? null });
-        })
-      : null;
-    setTranscript([]);
+    }, start);
+  };
+
+  const resumeTour = async (saved: SavedTour) => {
+    try {
+      const loaded = await loadBundle(saved.entry);
+      setMode(saved.mode);
+      if (saved.options.route) setRouteRef(saved.options.route);
+      beginTour(loaded, saved.mode, saved.options, saved.start, saved.state);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  /** Avanzamento manuale: quando il GPS è impreciso o le coordinate del luogo sono sbagliate. */
+  const arriveHere = (placeRef: string) => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
     setProposal(null);
-    setComplete(false);
-    setScreen("walk");
+    handleEvents(runtime.arriveManually(placeRef, Date.now()));
+  };
+  const skipStop = (placeRef: string) => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    const events = runtime.skipStop(placeRef);
+    saveTour();
+    handleEvents(events);
   };
 
   const startSimulation = () => {
@@ -204,22 +303,44 @@ export function GuideApp() {
       if (speechStateRef.current === "speaking" || proposalRef.current) return;
       const fix = simRef.current.fixes[simRef.current.index++];
       if (!fix) return stopSimulation();
+      setFixSource("simulated");
       handleEvents(runtimeRef.current!.onFix(fix));
     }, SIM_TICK_MS);
   };
 
+  /** Tiene lo schermo acceso mentre il GPS è attivo: a schermo spento il browser sospende la posizione. */
+  const requestWakeLock = useCallback(async () => {
+    try {
+      const wl = (navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
+      if (wl && !wakeLockRef.current) wakeLockRef.current = await wl.request("screen");
+    } catch {
+      // non supportato o rifiutato (es. batteria scarica): si continua senza
+    }
+  }, []);
+  const releaseWakeLock = useCallback(() => {
+    void wakeLockRef.current?.release().catch(() => undefined);
+    wakeLockRef.current = null;
+  }, []);
+
+  const stopGps = useCallback(() => {
+    if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
+    gpsWatchRef.current = null;
+    setGps(false);
+    releaseWakeLock();
+  }, [releaseWakeLock]);
+
   const toggleGps = () => {
-    if (gps) {
-      if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
-      gpsWatchRef.current = null;
-      setGps(false);
+    if (gps) return stopGps();
+    if (!("geolocation" in navigator)) {
+      setGpsError(t.gpsUnavailable);
       return;
     }
-    if (!("geolocation" in navigator)) return;
     stopSimulation();
     setGpsError(null);
     gpsWatchRef.current = navigator.geolocation.watchPosition(
-      (p) =>
+      (p) => {
+        setFixSource("gps");
+        setGpsError(null);
         handleEvents(
           runtimeRef.current!.onFix({
             location: [p.coords.longitude, p.coords.latitude],
@@ -227,15 +348,34 @@ export function GuideApp() {
             timestamp: p.timestamp,
             speedMs: p.coords.speed ?? undefined,
           }),
-        ),
-      (err) => {
-        setGpsError(err.message || `errore ${err.code}`);
-        setGps(false);
+        );
       },
-      { enableHighAccuracy: true, maximumAge: 2000 },
+      (err) => {
+        // 1 = permesso negato: inutile insistere. 2-3 = segnale assente o lento: si continua ad ascoltare.
+        if (err.code === 1) {
+          setGpsError(t.gpsDenied);
+          stopGps();
+        } else {
+          setGpsError(err.code === 3 ? t.gpsTimeout : t.gpsNoSignal);
+        }
+      },
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 20_000 },
     );
     setGps(true);
+    void requestWakeLock();
   };
+
+  // Lo schermo acceso va richiesto di nuovo quando l'app torna in primo piano.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && gpsWatchRef.current !== null) {
+        wakeLockRef.current = null;
+        void requestWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [requestWakeLock]);
 
   useEffect(() => () => {
     stopSimulation();
@@ -270,6 +410,18 @@ export function GuideApp() {
         <h2>{t.chooseDestination}</h2>
         {!online && <p className="notice">{t.offlineNow}</p>}
         {error && <p className="error">{online ? error : t.offlineNoBundle}</p>}
+        {savedTour && (
+          <div className="card resume">
+            <strong>{t.resumeTitle}: {savedTour.entry.name}</strong>
+            <span className="muted small">
+              {t.resumeSaved} {clock(savedTour.savedAt, locale)} · {savedTour.state.memory.visitedPlaces.length} {t.resumeVisited}
+            </span>
+            <div className="row">
+              <button className="button primary" onClick={() => void resumeTour(savedTour)}>{t.resume}</button>
+              <button className="button" onClick={() => { clearSavedTour(); setSavedTour(null); }}>{t.resumeDiscard}</button>
+            </div>
+          </div>
+        )}
         <div className="stack">
           {[...byDestination.values()].map((group) => (
             <div key={group[0]!.destination} className="card">
@@ -379,7 +531,7 @@ export function GuideApp() {
   return (
     <main className="screen walk">
       <header className="walk-header">
-        <button className="link" onClick={() => { stopSimulation(); voiceRef.current?.stop(); setScreen("setup"); }}>← {t.back}</button>
+        <button className="link" onClick={() => { stopSimulation(); stopGps(); voiceRef.current?.stop(); setScreen("setup"); }}>← {t.back}</button>
         <strong>{content.name}</strong>
         {content.fictional && <span className="badge">{t.fictional}</span>}
         {!online && <span className="badge offline">{t.offlineBadge}</span>}
@@ -431,11 +583,27 @@ export function GuideApp() {
         )}
       </section>
 
+      {gpsError && <p className="notice gps-error" role="alert">📍 {gpsError}</p>}
+      {gps && fixSource === "gps" && runtime.lastFix && runtime.lastFix.accuracyM > 35 && (
+        <p className="notice" role="status">{t.gpsImprecise(Math.round(runtime.lastFix.accuracyM))}</p>
+      )}
+
       <section className="card status">
         {nextPlace && (
           <p>
             <span className="muted">{t.next}:</span> <strong>{nextPlace.name}</strong>
           </p>
+        )}
+        {runtime.nextStop && (
+          <div className="manual">
+            <p className="muted small">{t.manualHint}</p>
+            <div className="row wrap">
+              <button className="button" onClick={() => arriveHere(runtime.nextStop!)}>📍 {t.imHere}: {runtime.name(runtime.nextStop)}</button>
+              {runtime.routeStops && (
+                <button className="button" onClick={() => skipStop(runtime.nextStop!)}>⏭ {t.skipStop}</button>
+              )}
+            </div>
+          </div>
         )}
         {anchorStatus && (
           <p className={`anchor ${anchorStatus.level}`}>
@@ -447,7 +615,17 @@ export function GuideApp() {
         {runtime.plan?.status === "no_time" && <p className="anchor late">{t.noPlan}</p>}
       </section>
 
-      {debug && <DebugPanel content={content} runtime={runtime} gpsError={gpsError} />}
+      {debug && (
+        <DebugPanel
+          content={content}
+          runtime={runtime}
+          gpsError={gpsError}
+          fixSource={fixSource}
+          online={online}
+          offlineReady={offlineSupported() ? offline === "yes" : null}
+          bundleHash={opened?.manifest.kbHash ?? null}
+        />
+      )}
 
       {askAvailable && <AskBox content={content} runtime={runtime} voice={voiceRef.current} online={online} t={t} />}
 

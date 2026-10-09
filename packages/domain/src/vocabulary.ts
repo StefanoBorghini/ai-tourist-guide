@@ -88,6 +88,15 @@ export type RouteDifficulty = (typeof ROUTE_DIFFICULTIES)[number];
 export const ROUTE_CALIBRATIONS = ["draft", "field_calibrated"] as const;
 export type RouteCalibration = (typeof ROUTE_CALIBRATIONS)[number];
 
+/**
+ * Come è stato stabilito il legame tra un'affermazione e la sua fonte:
+ * - explicit: la fonte sostiene esplicitamente l'affermazione (verificato da chi l'ha collegata);
+ * - inferred: il collegamento è stato dedotto (es. in un'importazione) e va confermato.
+ * Un'affermazione non può essere verificata solo su fonti "inferred".
+ */
+export const EVIDENCE_ATTRIBUTIONS = ["explicit", "inferred"] as const;
+export type EvidenceAttribution = (typeof EVIDENCE_ATTRIBUTIONS)[number];
+
 export const GEOFENCE_KINDS = ["arrival", "viewpoint"] as const;
 export type GeofenceKind = (typeof GEOFENCE_KINDS)[number];
 

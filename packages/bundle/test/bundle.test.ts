@@ -230,9 +230,18 @@ describe("anteprima per i territori non ancora in produzione", () => {
     expect(content.preview).toBe(true);
     expect(content.releaseStage).toBe("research");
     expect(content.assertions.find((a) => a.ref === r)?.inReview).toBe(true);
+    expect(content.assertions.find((a) => a.ref === r)?.sourceUnconfirmed).toBeUndefined();
     // Le bozze restano fuori anche in anteprima.
     const drafts = copy.get(D)!.assertions.filter((a) => a.status === "draft").map((a) => ref(a.id));
     expect(content.assertions.some((a) => drafts.includes(a.ref))).toBe(false);
+  });
+
+  it("marca le affermazioni con fonte solo dedotta", () => {
+    const { copy, ref: r } = withStage("research");
+    const a = copy.get(D)!.assertions.find((x) => ref(x.id) === r)!;
+    a.evidence = a.evidence.map((e) => ({ ...e, attribution: "inferred" as const }));
+    const { content } = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+    expect(content.assertions.find((x) => x.ref === r)?.sourceUnconfirmed).toBe(true);
   });
 
   it("porta nei luoghi lo stato delle coordinate", () => {

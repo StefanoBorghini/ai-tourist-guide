@@ -4,6 +4,9 @@
  *
  *   guide-pack validate <cartella> [--pack <id>] [--strict] [--json]
  *   guide-pack photos <cartella-foto> [--territories <cartella-pack> --pack <id>]
+ *   guide-pack field <rilievi.json> --territories <cartella-pack>
+ *
+ * "field" legge i rilievi esportati dall'app e stampa proposte per luogo: non modifica il pack.
  *
  * Carica tutti i pack sotto <cartella> (per risolvere le dipendenze),
  * li valida e stampa errori e avvisi. Esce con codice 1 se ci sono errori
@@ -14,6 +17,7 @@ import { join, resolve } from "node:path";
 import { argv, cwd, exit, stdout } from "node:process";
 import { hasErrors, type PackIssue } from "./issues.ts";
 import { loadPacks } from "./load.ts";
+import { fieldReport } from "./field-report.ts";
 import { metersBetween } from "./geo.ts";
 import { readPhotoLocation } from "./photo-location.ts";
 import { summarizePack } from "./summary.ts";
@@ -22,7 +26,8 @@ import { validatePacks } from "./validate.ts";
 function usage(): never {
   stdout.write(
     "Uso:\n  guide-pack validate <cartella> [--pack <id>] [--strict] [--json]\n" +
-      "  guide-pack photos <cartella-foto> [--territories <cartella-pack> --pack <id>]\n",
+      "  guide-pack photos <cartella-foto> [--territories <cartella-pack> --pack <id>]\n" +
+      "  guide-pack field <rilievi.json> --territories <cartella-pack>\n",
   );
   exit(2);
 }
@@ -58,9 +63,38 @@ function photos(dirArg: string, rest: string[]): number {
   return 0;
 }
 
+/** Rivede un file di rilievi: proposte per luogo, mai scritte nel pack. */
+function field(fileArg: string, rest: string[]): number {
+  const base = process.env.INIT_CWD ?? cwd();
+  const territoriesIndex = rest.indexOf("--territories");
+  if (territoriesIndex < 0) usage();
+  const raw = JSON.parse(readFileSync(resolve(base, fileArg), "utf8")) as { destination?: string };
+  const pack = loadPacks(resolve(base, rest[territoriesIndex + 1]!)).packs.get(raw.destination ?? "");
+  if (!pack) {
+    stdout.write(`✗ destinazione del file non trovata tra i pack: ${raw.destination}\n`);
+    return 1;
+  }
+  const r = fieldReport(raw, pack);
+  stdout.write(`Rilievi per ${r.destination}: ${r.totalPoints} punti, ${r.simulatedIgnored} simulati ignorati\n`);
+  stdout.write("PROPOSTE da rivedere: il pack NON viene modificato.\n\n");
+  for (const p of r.places) {
+    stdout.write(`■ ${p.name} (${p.poiId}) · pack [${p.packLocation.join(", ")}], raggio ${p.packRadiusM ?? "–"} m\n`);
+    if (p.proposedLocation) {
+      stdout.write(`  proposta: location [${p.proposedLocation.join(", ")}] · scostamento ${p.offsetM} m · ${p.positions} rilievi, migliore ±${p.bestAccuracyM} m\n`);
+    }
+    if (p.proposedRadiusM !== null) stdout.write(`  raggio proposto: ${p.proposedRadiusM} m\n`);
+    for (const w of p.warnings) stdout.write(`  ⚠ ${w}\n`);
+    for (const n of p.notes) stdout.write(`  · ${n}\n`);
+  }
+  if (r.unknownPlaces.length) stdout.write(`\n⚠ luoghi sconosciuti nel file: ${r.unknownPlaces.join(", ")}\n`);
+  for (const n of r.freeNotes) stdout.write(`\nnota libera [${n.lon}, ${n.lat}]: ${n.note ?? ""}\n`);
+  return 0;
+}
+
 function main(args: string[]): number {
   const [command, rootArg, ...rest] = args;
   if (command === "photos" && rootArg) return photos(rootArg, rest);
+  if (command === "field" && rootArg) return field(rootArg, rest);
   if (command !== "validate" || !rootArg) usage();
 
   const strict = rest.includes("--strict");

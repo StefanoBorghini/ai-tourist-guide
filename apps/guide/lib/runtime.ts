@@ -70,6 +70,15 @@ const INVITE = {
   en: "If you have any questions about this place, just ask.",
 } as const;
 
+/** Stato serializzabile del giro (per riprenderlo dopo la sospensione dell'app). */
+export interface RuntimeState {
+  memory: TourMemory;
+  narratedHere: string[];
+  skipped: string[];
+  manualArrivals: string[];
+  currentPlaceRef: string | null;
+}
+
 /** Istantanea per la modalità debug del test sul campo. */
 export interface DebugSnapshot {
   fix: Fix | null;
@@ -111,6 +120,12 @@ export class GuideRuntime {
   lastFix: Fix | null = null;
   /** Se vero, dopo il racconto di un luogo la guida invita a fare domande. */
   inviteQuestions = false;
+  /** Tappe del percorso curato scelto (riferimenti completi), oppure null nel giro libero. */
+  routeStops: string[] | null = null;
+  /** Tappe saltate a mano dal visitatore. */
+  skipped: string[] = [];
+  /** Arrivi confermati a mano (GPS impreciso o coordinate sbagliate). */
+  manualArrivals: string[] = [];
   private narratedHere = new Set<string>();
   private segmentCounter = 0;
 
@@ -155,6 +170,10 @@ export class GuideRuntime {
   startTour(options: TourOptions): TourPlan {
     this.memory = emptyMemory();
     this.narratedHere.clear();
+    this.skipped = [];
+    this.manualArrivals = [];
+    this.currentPlaceRef = null;
+    this.pendingProposal = null;
     this.anchor = null;
     if (options.anchor) {
       const a = this.anchors.find((x) => x.id === options.anchor!.ref);
@@ -170,6 +189,7 @@ export class GuideRuntime {
         })
       : this.places;
     const budgetMin = options.budgetMin ?? route?.durationMin;
+    this.routeStops = route ? candidates.map((c) => c.id) : null;
     this.plan = planTour({
       now: options.now,
       start: { location: options.start },
@@ -198,22 +218,9 @@ export class GuideRuntime {
       }
       // Su un mezzo (battello, auto) non si propone nulla.
       if (this.motion === "vehicle") continue;
-      this.currentPlaceRef = e.placeId;
-      const name = this.name(e.placeId);
-      events.push({ type: "arrived", placeRef: e.placeId, name });
-      if (this.narratedHere.has(e.placeId)) continue;
-      // Niente da raccontare (o già raccontato tutto): si segna la visita e non si disturba.
-      if (this.mode !== "silent" && this.planFor(e.placeId).items.length === 0) {
-        this.narratedHere.add(e.placeId);
-        this.markVisited(e.placeId);
-        if (this.isTourComplete()) events.push({ type: "tour_complete" });
-        continue;
-      }
-      if (this.mode === "auto") events.push(...this.narrate(e.placeId, fix.timestamp));
-      else if (this.mode === "ask") {
-        this.pendingProposal = e.placeId;
-        events.push({ type: "proposal", placeRef: e.placeId, name });
-      }
+      // In un percorso curato i luoghi fuori percorso non interrompono: il debug li mostra comunque.
+      if (this.routeStops && !this.routeStops.includes(e.placeId)) continue;
+      events.push(...this.handleArrival(e.placeId, fix.timestamp));
     }
 
     if (this.anchor) {
@@ -222,6 +229,70 @@ export class GuideRuntime {
       this.lastAnchorStatus = status;
     }
     return events;
+  }
+
+  /** Arrivo in un luogo (da geofence o confermato a mano): proposta o racconto secondo la modalità. */
+  private handleArrival(placeRef: string, now: number, manual = false): RuntimeEvent[] {
+    const events: RuntimeEvent[] = [];
+    this.currentPlaceRef = placeRef;
+    const name = this.name(placeRef);
+    events.push({ type: "arrived", placeRef, name });
+    if (this.narratedHere.has(placeRef)) return events;
+    // Niente da raccontare (o già raccontato tutto): si segna la visita e non si disturba.
+    if (this.mode !== "silent" && this.planFor(placeRef).items.length === 0) {
+      this.narratedHere.add(placeRef);
+      this.markVisited(placeRef);
+      if (this.isTourComplete()) events.push({ type: "tour_complete" });
+      return events;
+    }
+    // Nel percorso, il racconto parte da solo solo per la tappa attesa; per le altre si chiede.
+    const expected = !this.routeStops || this.nextStop === placeRef;
+    if (manual || (this.mode === "auto" && expected)) events.push(...this.narrate(placeRef, now));
+    else if (this.mode !== "silent") {
+      this.pendingProposal = placeRef;
+      events.push({ type: "proposal", placeRef, name });
+    }
+    return events;
+  }
+
+  /**
+   * Il visitatore dichiara di essere arrivato (pulsante "Sono qui"): serve quando il GPS è impreciso
+   * o le coordinate del luogo non sono ancora verificate. Racconta subito.
+   */
+  arriveManually(placeRef: string, now: number): RuntimeEvent[] {
+    if (!this.places.some((p) => p.id === placeRef)) return [];
+    if (!this.manualArrivals.includes(placeRef)) this.manualArrivals.push(placeRef);
+    this.pendingProposal = null;
+    return this.handleArrival(placeRef, now, true);
+  }
+
+  /** Il visitatore salta una tappa: si passa alla successiva senza raccontarla. */
+  skipStop(placeRef: string): RuntimeEvent[] {
+    if (!this.skipped.includes(placeRef)) this.skipped.push(placeRef);
+    if (this.pendingProposal === placeRef) this.pendingProposal = null;
+    this.narratedHere.add(placeRef);
+    this.markVisited(placeRef);
+    return this.isTourComplete() ? [{ type: "tour_complete" }] : [];
+  }
+
+  /** Stato da salvare per riprendere il giro dopo una sospensione dell'app. */
+  exportState(): RuntimeState {
+    return {
+      memory: this.memory,
+      narratedHere: [...this.narratedHere],
+      skipped: [...this.skipped],
+      manualArrivals: [...this.manualArrivals],
+      currentPlaceRef: this.currentPlaceRef,
+    };
+  }
+
+  /** Ripristina uno stato salvato (dopo startTour con le stesse opzioni). */
+  restoreState(state: RuntimeState): void {
+    this.memory = state.memory;
+    this.narratedHere = new Set(state.narratedHere);
+    this.skipped = [...state.skipped];
+    this.manualArrivals = [...state.manualArrivals];
+    this.currentPlaceRef = state.currentPlaceRef;
   }
 
   /** Il visitatore accetta la proposta di racconto. */

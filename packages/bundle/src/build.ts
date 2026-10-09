@@ -211,6 +211,7 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
         textLocale: text.locale,
         sources: a.evidence.map((e) => full(e.source)).sort(),
         ...(a.status !== "verified" ? { inReview: true as const } : {}),
+        ...(a.evidence.length > 0 && a.evidence.every((e) => e.attribution === "inferred") ? { sourceUnconfirmed: true as const } : {}),
       });
     }
 

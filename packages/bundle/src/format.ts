@@ -121,6 +121,8 @@ export interface BundleAssertion {
   sources: string[];
   /** Solo nei bundle di anteprima: affermazione ancora in revisione, non verificata. */
   inReview?: true;
+  /** Il collegamento alla fonte è solo dedotto, non ancora confermato sulla fonte. */
+  sourceUnconfirmed?: true;
 }
 
 export interface BundleUnit {

@@ -1,22 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { BundleContent } from "@guide/bundle/client";
-import type { GuideRuntime } from "../lib/runtime";
+import type { FieldPointKind, FieldPointRecord } from "@guide/domain";
+import { fenceOverlaps, placeKnowledge } from "../lib/diagnostics";
 import {
   addFieldPoint,
-  exportFieldPoints,
+  buildFieldPoint,
+  downloadFieldPoints,
+  fieldPointsExport,
   loadFieldPoints,
   removeFieldPoint,
-  type FieldPoint,
+  shareFieldPoints,
+  type PositionSource,
 } from "../lib/field-points";
+import type { GuideRuntime } from "../lib/runtime";
 
 /**
  * Modalità debug per il test sul campo (strumento di redazione, solo in italiano).
  *
- * Mostra ciò che il motore "vede": posizione e precisione, luoghi più vicini con distanza,
- * stato dei geofence, stato redazionale. Permette di rilevare la posizione reale di un luogo
- * e di esportare i rilievi, che diventano le coordinate verificate del Territory Pack.
+ * Mostra ciò che il motore "vede": posizione e precisione (reale o simulata), luoghi più vicini,
+ * stato dei geofence e loro sovrapposizioni, stato redazionale, rete e cache offline.
+ * Permette di registrare rilievi associati a un luogo e di esportarli per la revisione.
  */
 const PHASE: Record<string, string> = {
   outside: "fuori",
@@ -26,38 +31,68 @@ const PHASE: Record<string, string> = {
 };
 const COORD: Record<string, string> = {
   preliminary: "preliminari",
-  field_verified: "rilevate",
+  field_verified: "verificate sul campo",
   needs_review: "da rivedere",
 };
+const KIND: Record<FieldPointKind, string> = {
+  poi_position: "Posizione del luogo",
+  geofence_edge: "Bordo del geofence (qui deve iniziare il racconto)",
+  note: "Nota con posizione",
+};
 
-export function DebugPanel(props: { content: BundleContent; runtime: GuideRuntime; gpsError: string | null }) {
-  const { content, runtime, gpsError } = props;
+export interface DebugPanelProps {
+  content: BundleContent;
+  runtime: GuideRuntime;
+  gpsError: string | null;
+  /** Provenienza dell'ultima posizione: GPS reale o camminata simulata. */
+  fixSource: PositionSource | null;
+  online: boolean;
+  /** true / false se noto, null se non verificabile (cache non disponibile). */
+  offlineReady: boolean | null;
+  bundleHash: string | null;
+}
+
+export function DebugPanel(props: DebugPanelProps) {
+  const { content, runtime, gpsError, fixSource, online, offlineReady, bundleHash } = props;
   const snap = runtime.debugSnapshot();
   const fix = snap.fix;
-  const [points, setPoints] = useState<FieldPoint[]>([]);
+  const overlaps = useMemo(() => fenceOverlaps(content), [content]);
+  const [points, setPoints] = useState<FieldPointRecord[]>([]);
   const [target, setTarget] = useState<string>("");
+  const [kind, setKind] = useState<FieldPointKind>("poi_position");
   const [note, setNote] = useState("");
+  const [radius, setRadius] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => setPoints(loadFieldPoints(content.destination)), [content.destination]);
   const nearest = snap.places[0]?.ref ?? "";
-  const selected = target || nearest;
+  const selected = kind === "note" && target === "" ? "" : target || nearest;
+  const device = typeof navigator !== "undefined" ? navigator.userAgent : null;
+  const name = (ref: string | null) => (ref ? (content.places.find((p) => p.ref === ref)?.name ?? ref) : "— nessun luogo —");
+  const age = fix ? Math.round((Date.now() - fix.timestamp) / 1000) : null;
+  const overlapsOf = (ref: string) => overlaps.filter((o) => o.a === ref || o.b === ref);
 
-  const record = (placeRef: string | null) => {
-    if (!fix) return;
-    const point: FieldPoint = {
+  const record = () => {
+    if (!fix || !fixSource) return;
+    const placeRef = selected || null;
+    const point = buildFieldPoint({
+      content,
       placeRef,
-      location: [round(fix.location[0]), round(fix.location[1])],
-      accuracyM: Math.round(fix.accuracyM),
-      timestamp: fix.timestamp,
-      ...(note.trim() ? { note: note.trim() } : {}),
-    };
+      kind,
+      fix,
+      source: fixSource,
+      note,
+      suggestedRadiusM: radius ? Number(radius) : null,
+      device,
+    });
     setPoints(addFieldPoint(content.destination, point));
     setNote("");
+    setRadius("");
+    setMessage(`Registrato: ${KIND[kind]} · ${name(placeRef)}${fixSource === "simulated" ? " (posizione SIMULATA)" : ""}`);
   };
 
-  const name = (ref: string | null) => (ref ? (content.places.find((p) => p.ref === ref)?.name ?? ref) : "— nota libera —");
-  const age = fix ? Math.round((Date.now() - fix.timestamp) / 1000) : null;
+  const exportData = () => fieldPointsExport(content.destination, bundleHash, points, device);
 
   return (
     <section className="card debug" aria-label="Debug">
@@ -68,19 +103,22 @@ export function DebugPanel(props: { content: BundleContent; runtime: GuideRuntim
           {content.name} <code>{content.destination}</code>
           <br />
           stadio <b>{content.releaseStage}</b>
-          {content.editorialStatus && <> · {content.editorialStatus}</>}
-          {content.preview && <> · bundle di anteprima</>}
+          {content.preview && <> · anteprima (contenuti in revisione)</>}
         </dd>
         <dt>Posizione</dt>
         <dd>
           {fix ? (
             <>
+              <span className={`source ${fixSource === "gps" ? "good" : "warn"}`}>{fixSource === "gps" ? "GPS REALE" : "SIMULATA"}</span>
+              <br />
               <code>
                 {fix.location[1].toFixed(6)}, {fix.location[0].toFixed(6)}
               </code>
               <br />
               precisione <b className={fix.accuracyM > 35 ? "bad" : fix.accuracyM > 15 ? "warn" : "good"}>±{Math.round(fix.accuracyM)} m</b>
-              {fix.speedMs !== undefined && <> · {(fix.speedMs * 3.6).toFixed(1)} km/h</>} · {snap.motion} · {age !== null && age >= 0 ? `${age} s fa` : "simulata"}
+              {fix.speedMs !== undefined && <> · {(fix.speedMs * 3.6).toFixed(1)} km/h</>} · {snap.motion}
+              {fixSource === "gps" && age !== null && age >= 0 && <> · {age} s fa</>}
+              {fix.accuracyM > 35 && <div className="bad">Precisione insufficiente: i geofence la ignorano. Usa «Sono qui».</div>}
             </>
           ) : (
             "nessuna posizione: avvia il GPS o la simulazione"
@@ -90,7 +128,21 @@ export function DebugPanel(props: { content: BundleContent; runtime: GuideRuntim
         <dt>Luogo attivo</dt>
         <dd>
           {snap.currentPlaceRef ? name(snap.currentPlaceRef) : "nessuno"}
+          {snap.currentPlaceRef && runtime.manualArrivals.includes(snap.currentPlaceRef) && <span className="warn"> (confermato a mano)</span>}
           {snap.pendingProposal && <> · proposta in attesa: {name(snap.pendingProposal)}</>}
+          {runtime.routeStops && (
+            <>
+              <br />
+              percorso: prossima tappa <b>{runtime.nextStop ? name(runtime.nextStop) : "—"}</b>
+              {runtime.manualArrivals.length > 0 && <> · arrivi a mano: {runtime.manualArrivals.length}</>}
+              {runtime.skipped.length > 0 && <> · saltate: {runtime.skipped.map(name).join(", ")}</>}
+            </>
+          )}
+        </dd>
+        <dt>Rete</dt>
+        <dd>
+          <span className={online ? "good" : "bad"}>{online ? "online" : "offline"}</span> · cache offline{" "}
+          {offlineReady === null ? "non verificabile" : offlineReady ? <span className="good">completa</span> : <span className="warn">non scaricata</span>}
         </dd>
       </dl>
 
@@ -107,15 +159,26 @@ export function DebugPanel(props: { content: BundleContent; runtime: GuideRuntim
         <tbody>
           {snap.places.slice(0, 8).map((p) => {
             const fence = p.fences[0];
+            const k = placeKnowledge(content, p.ref);
+            const ov = overlapsOf(p.ref);
             return (
               <tr key={p.ref} className={p.ref === snap.currentPlaceRef ? "active" : ""} onClick={() => setOpen(open === p.ref ? null : p.ref)}>
                 <td>
                   {p.name}
                   {p.narratable === 0 && <span className="muted"> · muto</span>}
+                  {ov.length > 0 && <span className="warn"> · ⚠ sovrapposto</span>}
                   {open === p.ref && (
                     <div className="debug-notes">
-                      {p.storyStatus && <div>racconto: {p.storyStatus}</div>}
-                      <div>unità raccontabili: {p.narratable}</div>
+                      <div>racconto: {p.storyStatus ?? "—"}</div>
+                      <div>
+                        informazioni: {k.verified} verificate, {k.inReview} in revisione, {k.sourceUnconfirmed} con fonte da confermare (
+                        {k.types.join(", ") || "nessuna"}) · {k.units} unità
+                      </div>
+                      {ov.map((o) => (
+                        <div key={`${o.a}-${o.b}`}>
+                          ⚠ si sovrappone con {name(o.a === p.ref ? o.b : o.a)}: centri a {o.distanceM} m, raggi {o.radiusA}+{o.radiusB} m
+                        </div>
+                      ))}
                       {p.notes.map((n) => (
                         <div key={n}>· {n}</div>
                       ))}
@@ -126,7 +189,7 @@ export function DebugPanel(props: { content: BundleContent; runtime: GuideRuntim
                 <td>
                   {fence ? (
                     <>
-                      {fence.tooImprecise ? "ignorato (precisione)" : PHASE[fence.phase] ?? fence.phase}
+                      {fence.tooImprecise ? "ignorato (precisione)" : (PHASE[fence.phase] ?? fence.phase)}
                       <br />
                       <span className="muted">r {fence.radiusM} m</span>
                     </>
@@ -140,14 +203,23 @@ export function DebugPanel(props: { content: BundleContent; runtime: GuideRuntim
           })}
         </tbody>
       </table>
+      <p className="muted small">Tocca un luogo per stato delle informazioni, sovrapposizioni e note. Geofence sovrapposti nel territorio: {overlaps.length}.</p>
 
-      <h3>Rileva la posizione reale</h3>
+      <h3>Registra un rilievo</h3>
       <p className="muted small">
-        Mettiti nel punto in cui il luogo va riconosciuto (es. davanti all'ingresso), aspetta che la precisione scenda sotto i 10–15 m e
-        registra. I rilievi restano su questo telefono finché non li esporti.
+        Mettiti nel punto giusto, aspetta una precisione sotto i 10–15 m e registra. I rilievi restano su questo telefono finché non li esporti;
+        non modificano il territorio finché non vengono rivisti.
       </p>
       <div className="debug-form">
-        <select value={selected} onChange={(e) => setTarget(e.target.value)} aria-label="Luogo da rilevare">
+        <select value={kind} onChange={(e) => setKind(e.target.value as FieldPointKind)} aria-label="Tipo di rilievo">
+          {(Object.keys(KIND) as FieldPointKind[]).map((k) => (
+            <option key={k} value={k}>
+              {KIND[k]}
+            </option>
+          ))}
+        </select>
+        <select value={selected} onChange={(e) => setTarget(e.target.value)} aria-label="Luogo">
+          {kind === "note" && <option value="">— nessun luogo —</option>}
           {[...content.places]
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((p) => (
@@ -156,16 +228,25 @@ export function DebugPanel(props: { content: BundleContent; runtime: GuideRuntim
               </option>
             ))}
         </select>
-        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (facoltativa): riferimento visivo, problemi…" />
-        <div className="row wrap">
-          <button className="button primary" disabled={!fix} onClick={() => record(selected)}>
-            📍 Registra qui: {name(selected)}
-          </button>
-          <button className="button" disabled={!fix} onClick={() => record(null)}>
-            ✎ Solo nota con posizione
-          </button>
-        </div>
+        {kind !== "note" && (
+          <input
+            type="number"
+            inputMode="numeric"
+            min={5}
+            max={500}
+            value={radius}
+            onChange={(e) => setRadius(e.target.value)}
+            placeholder="Raggio suggerito in metri (facoltativo)"
+            aria-label="Raggio suggerito"
+          />
+        )}
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota: riferimento visivo, problemi…" aria-label="Nota" />
+        <button className="button primary" disabled={!fix || !fixSource} onClick={record}>
+          📍 Registra qui
+        </button>
         {fix && fix.accuracyM > 15 && <p className="warn small">Precisione bassa (±{Math.round(fix.accuracyM)} m): meglio aspettare.</p>}
+        {fixSource === "simulated" && <p className="warn small">Posizione simulata: il rilievo sarà marcato come simulato e non vale per le coordinate.</p>}
+        {message && <p className="good small">{message}</p>}
       </div>
 
       {points.length > 0 && (
@@ -173,8 +254,15 @@ export function DebugPanel(props: { content: BundleContent; runtime: GuideRuntim
           <h3>Rilievi ({points.length})</h3>
           <ol className="debug-points">
             {points.map((p, i) => (
-              <li key={`${p.timestamp}-${i}`}>
-                <b>{name(p.placeRef)}</b> · <code>{p.location[1]}, {p.location[0]}</code> · ±{p.accuracyM} m
+              <li key={`${p.recorded_at}-${i}`}>
+                <b>{name(p.poi_ref)}</b> · {KIND[p.kind]}
+                {p.position_source === "simulated" && <span className="warn"> · SIMULATO</span>}
+                <br />
+                <code>
+                  {p.lat}, {p.lon}
+                </code>{" "}
+                · ±{p.accuracy_m} m · {p.recorded_at.slice(11, 16)}{p.distance_from_pack_m !== null && <> · {p.distance_from_pack_m} m dal punto del pack</>}
+                {p.geofence_radius_suggested_m && <> · raggio suggerito {p.geofence_radius_suggested_m} m</>}
                 {p.note && <div className="muted">{p.note}</div>}
                 <button className="link" onClick={() => setPoints(removeFieldPoint(content.destination, i))}>
                   elimina
@@ -182,13 +270,21 @@ export function DebugPanel(props: { content: BundleContent; runtime: GuideRuntim
               </li>
             ))}
           </ol>
-          <button className="button" onClick={() => exportFieldPoints(content.destination, points)}>
-            ⬇ Esporta i rilievi (JSON)
-          </button>
+          <div className="row wrap">
+            <button
+              className="button primary"
+              onClick={async () => {
+                if (!(await shareFieldPoints(exportData()))) downloadFieldPoints(exportData());
+              }}
+            >
+              ⤴ Condividi i rilievi
+            </button>
+            <button className="button" onClick={() => downloadFieldPoints(exportData())}>
+              ⬇ Scarica JSON
+            </button>
+          </div>
         </>
       )}
     </section>
   );
 }
-
-const round = (n: number) => Math.round(n * 1e7) / 1e7;

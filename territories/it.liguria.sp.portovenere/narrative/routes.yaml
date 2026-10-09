@@ -1,5 +1,25 @@
 # Generato dal materiale di ricerca "Portovenere Territory Pack v1" (RESEARCH_READY_NOT_PRODUCTION_VERIFIED).
 # Da qui in poi è la fonte di verità: le modifiche si fanno in questi file.
+- id: test-campo-1
+  labels:
+    it:
+      name: 'Test sul campo 1: Porta del Borgo → San Pietro'
+    en:
+      name: 'Field test 1: Porta del Borgo → San Pietro'
+  durationMin: 45
+  calibration: draft
+  notes:
+  - 'Percorso per il primo sopralluogo: ordine fisso, nessuna tappa saltata in automatico.'
+  - 'Durata e tempi di sosta provvisori: da misurare sul posto.'
+  stops:
+  - place: porta-del-borgo
+    dwellMin: 5
+  - place: san-lorenzo
+    dwellMin: 10
+  - place: palazzata-a-mare
+    dwellMin: 8
+  - place: san-pietro
+    dwellMin: 12
 - id: borgo-60
   labels:
     it:

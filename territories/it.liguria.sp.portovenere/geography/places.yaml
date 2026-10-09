@@ -27,6 +27,10 @@
     notes:
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.041, lon 9.8485, raggio 50 m (NOT VERIFIED).
+    - >-
+      Possibile spostamento delle coordinate: 1593 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
+      C) e 1629 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
+      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
 - id: torre-capitolare
   placeKind: poi
   categories:
@@ -54,6 +58,10 @@
     notes:
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0412, lon 9.8483, raggio 40 m (NOT VERIFIED).
+    - >-
+      Possibile spostamento delle coordinate: 1566 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
+      C) e 1601 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
+      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
 - id: san-lorenzo
   placeKind: poi
   categories:
@@ -88,6 +96,10 @@
     - >-
       Il contenuto della tradizione del tronco di cedro non è nel materiale di ricerca: serve la fonte con il racconto
       prima di poterlo narrare.
+    - >-
+      Possibile spostamento delle coordinate: 1558 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
+      C) e 1566 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
+      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
 - id: san-pietro
   placeKind: poi
   categories:
@@ -119,6 +131,10 @@
     - >-
       Nota della ricerca: Earlier Christian and possible Roman antecedents must be narrated as hypotheses where
       not independently verified.
+    - >-
+      Possibile spostamento delle coordinate: 2222 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
+      C) e 2288 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
+      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
 - id: castello-doria
   placeKind: poi
   categories:
@@ -150,6 +166,10 @@
     - >-
       Nota della ricerca: Exact construction phases should be taken from municipal/heritage documentation before
       exact AI narration.
+    - >-
+      Possibile spostamento delle coordinate: 2222 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
+      C) e 2265 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
+      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
 - id: grotta-byron
   placeKind: feature
   categories:
@@ -178,6 +198,10 @@
     notes:
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0358, lon 9.8522, raggio 30 m (NOT VERIFIED).
+    - >-
+      Possibile spostamento delle coordinate: 2202 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
+      C) e 2277 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
+      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
 - id: forte-san-pietro
   placeKind: poi
   categories:
@@ -204,6 +228,10 @@
     notes:
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0365, lon 9.8529, raggio 20 m (NOT VERIFIED).
+    - >-
+      Possibile spostamento delle coordinate: 2187 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
+      C) e 2239 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
+      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
 - id: piazza-bastreri
   placeKind: poi
   categories:
@@ -231,6 +259,10 @@
     notes:
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0402, lon 9.8479, raggio 40 m (NOT VERIFIED).
+    - >-
+      Possibile spostamento delle coordinate: 1614 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
+      C) e 1683 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
+      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
 - id: palazzata-a-mare
   placeKind: poi
   categories:
@@ -258,6 +290,10 @@
     notes:
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0396, lon 9.8475, raggio 60 m (NOT VERIFIED).
+    - >-
+      Possibile spostamento delle coordinate: 1637 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
+      C) e 1728 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
+      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
 - id: scalinata-san-pietro
   placeKind: feature
   categories:
@@ -289,6 +325,10 @@
     notes:
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.036, lon 9.8528, raggio 20 m (NOT VERIFIED).
+    - >-
+      Possibile spostamento delle coordinate: 2220 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
+      C) e 2282 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
+      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
 - id: palmaria
   placeKind: site
   categories:
@@ -321,6 +361,9 @@
     - Accesso e condizioni del periplo da verificare prima della pubblicazione.
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+    - >-
+      Posizione relativa sospetta: nel pack è a ovest-nord-ovest della Porta del Borgo; da conoscenza generale (non
+      verificata) l'isola è a sud del borgo, oltre lo stretto.
   walkable: false
 - id: grotta-azzurra
   placeKind: feature
@@ -353,6 +396,7 @@
     - Regole di accesso attuali da verificare (informazione pratica, non storica).
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+    - Segue la posizione sospetta della Palmaria (a 67 m dal suo centro nel pack).
   walkable: false
 - id: tino
   placeKind: site
@@ -385,6 +429,9 @@
     - 'Nota della ricerca: Access and visitor rules are time-sensitive and require current verification.'
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+    - >-
+      Verificare la posizione relativa a Palmaria e Tinetto: nel pack Tino è 1,5 km a sud della Porta del Borgo,
+      anch'essa sospetta.
   walkable: false
 - id: tinetto
   placeKind: site
@@ -416,6 +463,7 @@
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0236, lon 9.85, raggio 100 m (NOT VERIFIED).
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+    - 'Verificare insieme a Tino: dipende dallo stesso riferimento sospetto.'
   walkable: false
 - id: le-grazie
   placeKind: site
@@ -447,6 +495,9 @@
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0298, lon 9.8772, raggio 80 m (NOT VERIFIED).
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+    - >-
+      Posizione relativa sospetta: nel pack è a est-sud-est del borgo; da conoscenza generale (non verificata) Le
+      Grazie è a nord del borgo, lungo il golfo.
   walkable: false
 - id: santuario-le-grazie
   placeKind: poi
@@ -478,6 +529,7 @@
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0299, lon 9.8765, raggio 30 m (NOT VERIFIED).
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+    - Segue la posizione sospetta di Le Grazie.
   walkable: false
 - id: fezzano
   placeKind: site
@@ -508,6 +560,9 @@
       Coordinate preliminari dal materiale di ricerca v1: lat 44.049, lon 9.812, raggio 80 m (NOT VERIFIED).
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
+    - >-
+      Posizione relativa sospetta: nel pack è a ovest del borgo (in mare, rispetto ai riferimenti); da conoscenza
+      generale (non verificata) Fezzano è a nord, lungo il golfo.
   walkable: false
 - id: muzzerone
   placeKind: feature
@@ -537,3 +592,6 @@
     notes:
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.034, lon 9.85, raggio 100 m (NOT VERIFIED).
+    - >-
+      Posizione relativa sospetta: nel pack è a sud del borgo; da conoscenza generale (non verificata) il Muzzerone
+      è a nord-ovest, sopra la costa verso Campiglia.

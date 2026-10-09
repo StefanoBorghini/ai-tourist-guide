@@ -39,6 +39,8 @@ npm run packs:validate   # valida i Territory Pack
 npm run dev              # app in locale
 npm run photos --workspace @guide/territory-pack -- <cartella-foto> --territories territories --pack <id>
                          # coordinate, quota e data dalle foto JPEG, con il luogo più vicino
+npm run field --workspace @guide/territory-pack -- <rilievi.json> --territories territories
+                         # revisione dei rilievi esportati dall'app (debug): proposte, nessuna modifica al pack
 ```
 
 ### Immagini nei pack

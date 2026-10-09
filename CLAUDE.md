@@ -27,7 +27,9 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato) e `app/api/guide/ask` per le domande all'AI;
   `components/DebugPanel.tsx` e `lib/field-points.ts` per il test sul campo (`?debug=1`)
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack
-- `packages/territory-pack` — caricamento, validazione e CLI `guide-pack` (`validate`, `photos`: coordinate dall'EXIF)
+- `packages/territory-pack` — caricamento, validazione e CLI `guide-pack` (`validate`, `photos`: coordinate dall'EXIF,
+  `field`: revisione dei rilievi sul campo, formato `guide-field-points/2` in `packages/domain/src/field-points.ts`;
+  propone, non scrive mai nel pack)
 - `packages/context-engine` — motore di contesto sul dispositivo: geofence, movimento, pianificatore con ancora,
   monitor del tempo, istantanea per la narrazione. TypeScript puro, senza rete né AI; testato con tracce GPS simulate
 - `packages/narrative-planner` — decide cosa raccontare in ogni tappa (unità, prerequisiti, richiami, ganci) e

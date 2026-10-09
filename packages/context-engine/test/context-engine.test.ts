@@ -346,9 +346,9 @@ describe("percorsi curati e luoghi non raggiungibili a piedi", () => {
     expect(plan.stops.map((s) => s.placeId)).toEqual(["lontano", "vicino", "medio"]);
   });
 
-  it("con fixedOrder salta le tappe che non stanno nel tempo", () => {
+  it("con fixedOrder non salta tappe anche se il tempo non basta: lo segnala con slackS negativo", () => {
     const plan = planTour({ ...base, budgetMin: 12, fixedOrder: true, candidates: [c("a", 0.001), c("b", 0.0012), c("c", 0.0014)] });
-    expect(plan.stops.length).toBeLessThan(3);
-    expect(plan.stops.map((s) => s.placeId)).toEqual(["a", "b", "c"].slice(0, plan.stops.length));
+    expect(plan.stops.map((s) => s.placeId)).toEqual(["a", "b", "c"]);
+    expect(plan.slackS).toBeLessThan(0);
   });
 });

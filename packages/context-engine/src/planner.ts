@@ -49,8 +49,8 @@ export interface PlanRequest {
   avoidStairs?: boolean;
   estimator?: WalkEstimator;
   /**
-   * Percorso curato: i candidati sono le tappe nell'ordine dato. L'ordine non cambia;
-   * una tappa che non sta nel tempo disponibile viene saltata.
+   * Percorso curato: i candidati sono le tappe nell'ordine dato. L'ordine non cambia e nessuna
+   * tappa viene tolta; se il tempo non basta, slackS è negativo.
    */
   fixedOrder?: boolean;
 }
@@ -147,19 +147,17 @@ export function planTour(request: PlanRequest): TourPlan {
   const values = new Map(pool.map((c) => [c.id, candidateValue(c, request.interests)]));
 
   if (request.fixedOrder) {
-    const seq: Candidate[] = [];
-    for (const c of eligible) {
-      if (simulate([...seq, c]).end <= availableUntil) seq.push(c);
-    }
-    const result = simulate(seq);
+    // Percorso curato: tutte le tappe, nell'ordine dato. Nessuna viene saltata in automatico:
+    // se il tempo non basta lo dice slackS (negativo), e decide il visitatore.
+    const result = simulate(eligible);
     return {
-      status: seq.length > 0 ? "ok" : eligible.length > 0 ? "no_time" : "no_candidates",
+      status: eligible.length > 0 ? "ok" : "no_candidates",
       stops: result.stops,
       availableUntil,
       endAt: result.end,
       returnWalkS: result.returnWalkS,
       slackS: (availableUntil - result.end) / 1000,
-      value: seq.reduce((sum, c) => sum + values.get(c.id)!, 0),
+      value: eligible.reduce((sum, c) => sum + values.get(c.id)!, 0),
     };
   }
 

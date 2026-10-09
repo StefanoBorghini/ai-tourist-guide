@@ -169,3 +169,65 @@ describe("percorsi curati, invito alle domande, diagnostica", () => {
     expect(runtime.debugSnapshot().places[0]!.fences.every((f) => f.tooImprecise)).toBe(true);
   });
 });
+
+describe("percorso rigoroso e avanzamento manuale", () => {
+  const route = () => content.routes[0]!;
+  const offRoute = () => content.places.find((p) => !route().stops.some((s) => s.place === p.ref))!;
+  const stay = (runtime: GuideRuntime, location: [number, number], from: number) => {
+    const events: RuntimeEvent[] = [];
+    for (let i = 0; i < 15; i++) events.push(...runtime.onFix({ location, accuracyM: 5, timestamp: from + i * 1000 }));
+    return events;
+  };
+  const start = (mode: "auto" | "ask") => {
+    const runtime = new GuideRuntime(content, mode);
+    runtime.startTour({ now: T0, start: content.anchors[0]!.location, route: route().ref });
+    return runtime;
+  };
+
+  it("nel percorso, un luogo fuori percorso non propone né racconta nulla", () => {
+    const runtime = start("auto");
+    const events = stay(runtime, offRoute().location, T0);
+    expect(events.filter((e) => e.type === "narration" || e.type === "proposal")).toEqual([]);
+    expect(runtime.currentPlaceRef).toBeNull();
+  });
+
+  it("in automatico racconta solo la tappa attesa; per una tappa successiva chiede", () => {
+    const runtime = start("auto");
+    const second = route().stops[1]!.place;
+    const events = stay(runtime, content.places.find((p) => p.ref === second)!.location, T0);
+    expect(events.some((e) => e.type === "narration")).toBe(false);
+    expect(events.some((e) => e.type === "proposal" && e.placeRef === second)).toBe(true);
+    expect(runtime.nextStop).toBe(route().stops[0]!.place); // nessuna tappa saltata in automatico
+  });
+
+  it("con 'Sono qui' racconta subito, anche senza GPS", () => {
+    const runtime = start("ask");
+    const first = route().stops[0]!.place;
+    const events = runtime.arriveManually(first, T0);
+    expect(events.some((e) => e.type === "narration" && e.placeRef === first)).toBe(true);
+    expect(runtime.manualArrivals).toEqual([first]);
+    expect(runtime.nextStop).toBe(route().stops[1]!.place);
+  });
+
+  it("'Salta' passa alla tappa successiva senza raccontare", () => {
+    const runtime = start("ask");
+    const first = route().stops[0]!.place;
+    expect(runtime.skipStop(first).some((e) => e.type === "narration")).toBe(false);
+    expect(runtime.skipped).toEqual([first]);
+    expect(runtime.nextStop).toBe(route().stops[1]!.place);
+  });
+
+  it("lo stato salvato si ripristina dopo la riapertura", () => {
+    const runtime = start("ask");
+    runtime.arriveManually(route().stops[0]!.place, T0);
+    runtime.skipStop(route().stops[1]!.place);
+    const saved = JSON.parse(JSON.stringify(runtime.exportState()));
+
+    const reopened = start("ask");
+    reopened.restoreState(saved);
+    expect(reopened.nextStop).toBe(runtime.nextStop);
+    expect(reopened.memory).toEqual(runtime.memory);
+    // Ciò che è già stato raccontato non si ripete.
+    expect(reopened.arriveManually(route().stops[0]!.place, T0).some((e) => e.type === "narration")).toBe(false);
+  });
+});

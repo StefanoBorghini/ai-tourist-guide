@@ -11,6 +11,7 @@
     en: The church of San Lorenzo is a Romanesque building with three naves.
   evidence:
   - source: visit-churches
+    attribution: explicit
     locator: fonte indicata nel claim
   authoredBy: ricerca-territory-pack-v1
   originalClaim: >-
@@ -28,6 +29,7 @@
     en: According to local tourism material, the church was consecrated in 1130 by Pope Innocent II.
   evidence:
   - source: visit-churches
+    attribution: explicit
     locator: fonte indicata nel claim
   authoredBy: ricerca-territory-pack-v1
   originalClaim: >-
@@ -43,7 +45,7 @@
     en: The façade has alternating black and white bands.
   evidence:
   - source: visit-churches
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Facade has alternating black and white bands.
 - id: sl-madonna-bianca
@@ -57,7 +59,7 @@
     en: The church houses the venerated Madonna Bianca.
   evidence:
   - source: visit-churches
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: The church houses the venerated Madonna Bianca.
 - id: sp-promontorio
@@ -72,7 +74,7 @@
       The church of San Pietro stands on the rocky promontory and is one of Porto Venere's defining landmarks.
   evidence:
   - source: visit-churches
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Church on the rocky promontory and one of Porto Venere's defining landmarks.
 - id: sp-fase-gotica
@@ -91,6 +93,7 @@
     en: According to local tourism material, the church's Gothic Genoese phase dates from 1256 to 1277.
   evidence:
   - source: visit-churches
+    attribution: explicit
     locator: fonte indicata nel claim
   authoredBy: ricerca-territory-pack-v1
   originalClaim: The Gothic Genoese phase is dated by local tourism material to 1256–1277.
@@ -108,7 +111,7 @@
       a hypothesis, not an established fact.
   evidence:
   - source: visit-churches
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: >-
     Earlier Christian and possible Roman antecedents must be narrated as hypotheses where not independently verified.
@@ -123,7 +126,7 @@
     en: The church later suffered military damage and was restored between 1929 and 1934.
   evidence:
   - source: visit-churches
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: The church suffered later military damage and was restored in 1929–1934.
 - id: cd-fortezza
@@ -141,7 +144,7 @@
       by UNESCO.
   evidence:
   - source: it.liguria:unesco-826
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Dominant fortress above the settlement and major element of the UNESCO cultural landscape.
 - id: cd-palinsesto
@@ -157,6 +160,7 @@
       UNESCO describes the castle as a historical palimpsest, with traces of an earlier medieval fortification.
   evidence:
   - source: it.liguria:unesco-826
+    attribution: explicit
     locator: fonte indicata nel claim
   authoredBy: ricerca-territory-pack-v1
   originalClaim: UNESCO describes it as a historical palimpsest with traces of a medieval predecessor.
@@ -171,7 +175,7 @@
     en: It is a cove between Punta San Pietro and the rocky spur of Doria Castle.
   evidence:
   - source: visit-caves
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Cove between Punta San Pietro and the rocky spur of Castello Doria.
 - id: gb-arpaia
@@ -185,7 +189,7 @@
     en: The place is known locally as Cala dell'Arpaia.
   evidence:
   - source: visit-caves
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Locally known as Cala dell'Arpaia.
 - id: gb-byron
@@ -203,7 +207,7 @@
       swam here from Lerici. It is a literary and local tradition, not a verified historical fact.
   evidence:
   - source: visit-caves
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: >-
     Its association with George Byron is a local/touristic tradition; the claim that Byron swam from Lerici to Porto
@@ -220,7 +224,7 @@
     en: The compact row of buildings facing the sea is one of the defining features of the village's form.
   evidence:
   - source: it.liguria:unesco-826
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Compact waterfront building fabric is a defining feature of Porto Venere's settlement morphology.
 - id: pz-unesco
@@ -238,6 +242,7 @@
       the site's outstanding cultural landscape.
   evidence:
   - source: it.liguria:unesco-826
+    attribution: explicit
     locator: fonte indicata nel claim
   authoredBy: ricerca-territory-pack-v1
   originalClaim: >-
@@ -254,7 +259,7 @@
     en: Palmaria is the largest island of the Porto Venere archipelago.
   evidence:
   - source: parco-archipelago
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Largest island of the Porto Venere archipelago.
 - id: pa-unesco
@@ -268,7 +273,7 @@
     en: Palmaria is part of the UNESCO World Heritage property.
   evidence:
   - source: it.liguria:unesco-826
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Part of the UNESCO World Heritage property.
 - id: pa-periplo
@@ -286,6 +291,7 @@
       and has 198 metres of total elevation gain.
   evidence:
   - source: parco-palmaria
+    attribution: explicit
     locator: fonte indicata nel claim
   authoredBy: ricerca-territory-pack-v1
   originalClaim: 'Official Parco route: about 3h30, medium difficulty, 198 m total elevation gain.'
@@ -304,7 +310,7 @@
       remains.
   evidence:
   - source: parco-archipelago
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: >-
     Contains fortifications, former Portoro quarries, Mediterranean vegetation and archaeological/monastic remains.
@@ -323,6 +329,7 @@
       boats.
   evidence:
   - source: visit-caves
+    attribution: explicit
     locator: fonte indicata nel claim
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Sea cave on Palmaria; local tourism source describes access by small/rowing boat.
@@ -337,7 +344,7 @@
     en: Tino is one of the three islands included in the UNESCO property.
   evidence:
   - source: it.liguria:unesco-826
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: One of the three islands included in the UNESCO property.
 - id: ti-monastero
@@ -351,7 +358,7 @@
     en: The island has remains associated with an early monastic settlement and the cult of San Venerio.
   evidence:
   - source: parco-archipelago
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Contains remains associated with early monastic settlement and the cult of San Venerio.
 - id: tn-piccola
@@ -365,9 +372,9 @@
     en: Tinetto is the smallest of the three islands in the archipelago and part of the UNESCO property.
   evidence:
   - source: parco-archipelago
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   - source: it.liguria:unesco-826
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Smallest of the three islands in the archipelago and part of the UNESCO property.
 - id: tn-resti
@@ -385,6 +392,7 @@
       importance.
   evidence:
   - source: parco-archipelago
+    attribution: explicit
     locator: fonte indicata nel claim
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Official Parco material describes early monastic remains and historical/biogeographical importance.
@@ -399,7 +407,7 @@
     en: Le Grazie is a village in the municipality with a strong maritime identity.
   evidence:
   - source: visit-le-grazie
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Village in the municipality with a strong maritime identity.
 - id: lg-mestieri
@@ -415,6 +423,7 @@
       According to a local source, the village is associated with shipwrights, caulkers and diving traditions.
   evidence:
   - source: visit-le-grazie
+    attribution: explicit
     locator: fonte indicata nel claim
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Local source associates the village with shipwrights, caulkers and diving traditions.
@@ -428,7 +437,7 @@
     en: Local tradition calls Le Grazie 'the City of divers' (la Città dei palombari).
   evidence:
   - source: visit-le-grazie
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Local municipal tradition calls it 'La Città dei palombari'.
 - id: sg-olivetani
@@ -445,7 +454,7 @@
       Le Grazie.
   evidence:
   - source: visit-le-grazie
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Parish sanctuary associated with the Benedictine/Olivetani presence at Le Grazie.
 - id: sg-opere
@@ -459,7 +468,7 @@
     en: The sanctuary contains works of art documented by local tourism sources.
   evidence:
   - source: visit-le-grazie
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Contains works of art documented by local tourism sources.
 - id: fz-paese
@@ -473,7 +482,7 @@
     en: Fezzano is a village in the municipality and part of the Park's broader territorial network.
   evidence:
   - source: parco-home
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Village within the municipality and part of the broader territorial network of the Parco.
 - id: mz-arrampicata
@@ -489,6 +498,7 @@
     en: The Park identifies Muzzerone as a major climbing and outdoor area with panoramic views.
   evidence:
   - source: parco-sentieri
+    attribution: explicit
     locator: fonte indicata nel claim
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Parco identifies Muzzerone as a major climbing/outdoor area with panoramic views.
@@ -507,7 +517,7 @@
       coast.
   evidence:
   - source: parco-sentieri
-    locator: 'attribuzione della fonte dedotta in importazione: da confermare'
+    attribution: inferred
   authoredBy: ricerca-territory-pack-v1
   originalClaim: >-
     AV5T connects Porto Venere with Campiglia and provides views over Palmaria, Tino, Tinetto and the Cinque Terre

@@ -302,3 +302,23 @@ describe("verifica sul campo e stadi di rilascio", () => {
     expect(validatePacks(packs, { today: "2026-01-15" }).map((i) => i.code)).not.toContain("PRACTICAL_STALE");
   });
 });
+
+describe("collegamento alla fonte", () => {
+  it("non si verifica un'affermazione su fonti solo dedotte", () => {
+    const packs = loadSynthetic();
+    const a = village(packs).assertions.find((x) => x.status === "verified" && x.evidence.length > 0)!;
+    a.evidence = a.evidence.map((e) => ({ ...e, attribution: "inferred" as const }));
+    expect(errorCodes(packs)).toContain("EVIDENCE_INFERRED");
+  });
+
+  it("in revisione, le fonti solo dedotte sono un avviso", () => {
+    const packs = loadSynthetic();
+    village(packs).manifest.releaseStage = "research";
+    const a = village(packs).assertions.find((x) => x.status === "verified" && x.evidence.length > 0)!;
+    a.status = "in_review";
+    delete a.verifiedBy;
+    a.evidence = a.evidence.map((e) => ({ ...e, attribution: "inferred" as const }));
+    expect(errorCodes(packs)).not.toContain("EVIDENCE_INFERRED");
+    expect(warningCodes(packs)).toContain("EVIDENCE_INFERRED");
+  });
+});

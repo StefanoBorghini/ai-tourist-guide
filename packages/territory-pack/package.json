@@ -13,7 +13,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "validate": "tsx src/cli.ts validate",
-    "photos": "tsx src/cli.ts photos"
+    "photos": "tsx src/cli.ts photos",
+    "field": "tsx src/cli.ts field"
   },
   "dependencies": {
     "@guide/domain": "0.1.0",

@@ -7,6 +7,7 @@ import {
   AUDIENCES,
   CERTAINTY_LEVELS,
   COORDINATE_STATUSES,
+  EVIDENCE_ATTRIBUTIONS,
   GEOFENCE_KINDS,
   LOCALES,
   MEDIA_LICENSES,
@@ -250,6 +251,8 @@ export const assertionValueSchema = z.union([
 
 export const evidenceSchema = z.strictObject({
   source: ref,
+  /** "inferred" se il collegamento alla fonte è dedotto e non ancora controllato sulla fonte stessa. */
+  attribution: z.enum(EVIDENCE_ATTRIBUTIONS).default("explicit"),
   locator: z.string().trim().min(1).optional(),
   excerpt: z.string().trim().min(1).optional(),
 });

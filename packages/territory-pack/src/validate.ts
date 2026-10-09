@@ -343,6 +343,7 @@ function checkAssertions(pack: TerritoryPack, ctx: Context): void {
   const file = PACK_FILES.assertions.path;
   const { id: packId, locales, defaultLocale, fictional } = pack.manifest;
   const disputes = new Map<string, Assertion[]>();
+  const inferredOnly: string[] = [];
 
   for (const a of pack.assertions) {
     const where = { file, item: a.id };
@@ -431,6 +432,16 @@ function checkAssertions(pack: TerritoryPack, ctx: Context): void {
       }
     }
 
+    // Una verifica non può poggiare solo su collegamenti dedotti.
+    const explicit = a.evidence.filter((e) => e.attribution === "explicit").length;
+    if (a.evidence.length > 0 && explicit === 0) {
+      if (a.status === "verified") {
+        ctx.out.error({ code: "EVIDENCE_INFERRED", packId, ...where, message: "verificata solo su fonti dedotte: confermare il collegamento sulla fonte" });
+      } else {
+        inferredOnly.push(a.id);
+      }
+    }
+
     // Regola dei quattro occhi.
     if (a.status === "verified") {
       if (!a.verifiedBy) {
@@ -461,6 +472,14 @@ function checkAssertions(pack: TerritoryPack, ctx: Context): void {
         message: "una controversia deve raggruppare almeno due affermazioni alternative",
       });
     }
+  }
+  if (inferredOnly.length > 0) {
+    ctx.out.warning({
+      code: "EVIDENCE_INFERRED",
+      packId,
+      file,
+      message: `${inferredOnly.length} affermazioni con fonte solo dedotta, da confermare prima della verifica: ${inferredOnly.join(", ")}`,
+    });
   }
 }
 

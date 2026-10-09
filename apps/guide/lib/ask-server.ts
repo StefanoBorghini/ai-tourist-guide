@@ -31,6 +31,37 @@ function bundlesDir(): string {
 interface Loaded {
   content: BundleContent;
   knowledge: string;
+  /** Impronta della base di conoscenza del bundle: dice quale versione dei contenuti risponde. */
+  kbHash: string;
+}
+
+export interface BundleVersion {
+  destination: string;
+  locale: string;
+  kbHash: string;
+}
+
+interface BundleIndex {
+  bundles: { destination: string; locale: string; manifest: string }[];
+}
+const readIndex = async (dir: string) => JSON.parse(await readFile(join(dir, "index.json"), "utf8")) as BundleIndex;
+const readManifest = async (dir: string, url: string) =>
+  JSON.parse(await readFile(join(dir, url.replace(/^\/bundles\//, "")), "utf8")) as BundleManifest;
+
+let versions: Promise<BundleVersion[]> | null = null;
+/** Versioni dei bundle che il server usa per rispondere (per verificare che la pubblicazione sia aggiornata). */
+export function bundleVersions(): Promise<BundleVersion[]> {
+  versions ??= (async () => {
+    const dir = bundlesDir();
+    const index = await readIndex(dir);
+    return Promise.all(
+      index.bundles.map(async (b) => ({ destination: b.destination, locale: b.locale, kbHash: (await readManifest(dir, b.manifest)).kbHash })),
+    );
+  })().catch((e: unknown) => {
+    versions = null;
+    throw e;
+  });
+  return versions;
 }
 const cache = new Map<string, Promise<Loaded | null>>();
 
@@ -41,16 +72,14 @@ export function loadKnowledge(destination: string, locale: string): Promise<Load
   if (!hit) {
     hit = (async () => {
       const dir = bundlesDir();
-      const index = JSON.parse(await readFile(join(dir, "index.json"), "utf8")) as {
-        bundles: { destination: string; locale: string; manifest: string }[];
-      };
+      const index = await readIndex(dir);
       const entry = index.bundles.find((b) => b.destination === destination && b.locale === locale);
       if (!entry) return null;
       const rel = entry.manifest.replace(/^\/bundles\//, "");
-      const manifest = JSON.parse(await readFile(join(dir, rel), "utf8")) as BundleManifest;
+      const manifest = await readManifest(dir, entry.manifest);
       const json = await readFile(join(dir, rel.replace(/manifest\.json$/, ""), manifest.content), "utf8");
       const content = await verifyBundle(manifest, json);
-      return { content, knowledge: buildKnowledge(content) };
+      return { content, knowledge: buildKnowledge(content), kbHash: manifest.kbHash };
     })().catch((e: unknown) => {
       cache.delete(key);
       throw e;
@@ -89,10 +118,11 @@ export async function askGuide(client: Anthropic, loaded: Loaded, req: AskReques
   };
 
   if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") {
-    return { answer: fallbackAnswer(req.locale, "not_in_knowledge"), rejected: `stop_reason ${response.stop_reason}`, usage };
+    const reason = response.stop_reason === "refusal" ? "il modello ha rifiutato la richiesta" : "risposta troncata (limite di lunghezza)";
+    return { answer: fallbackAnswer(req.locale, "rejected", reason), rejected: reason, usage };
   }
   const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
   const checked = checkModelAnswer(text, loaded.content, req);
-  if (!checked.ok) return { answer: fallbackAnswer(req.locale, "not_in_knowledge"), rejected: checked.reason, usage };
+  if (!checked.ok) return { answer: fallbackAnswer(req.locale, "rejected", checked.reason), rejected: checked.reason, usage };
   return { answer: checked.answer, usage };
 }

@@ -4,7 +4,7 @@ import { buildBundle, type BundleContent } from "@guide/bundle";
 import { loadPacks } from "@guide/territory-pack";
 import { beforeAll, describe, expect, it } from "vitest";
 import { destination } from "@guide/context-engine";
-import { POSITION_CITATION, askRequestSchema, buildKnowledge, buildQuestionMessage, checkModelAnswer, positionContext, type AskRequest } from "../lib/ask.ts";
+import { POSITION_CITATION, askRequestSchema, buildKnowledge, buildQuestionMessage, checkModelAnswer, fallbackAnswer, positionContext, type AskRequest } from "../lib/ask.ts";
 
 /** Prove sul bundle del territorio di test, senza nomi di territorio scritti qui. */
 const here = dirname(fileURLToPath(import.meta.url));
@@ -119,5 +119,30 @@ describe("contesto della posizione (esplorazione)", () => {
   it("senza posizione non si possono citare distanze", () => {
     const r = checkModelAnswer(json({ status: "answered", answer: "È lì vicino.", citations: [POSITION_CITATION] }), content, req);
     expect(r).toMatchObject({ ok: false, reason: expect.stringContaining(POSITION_CITATION) });
+  });
+});
+
+describe("diagnostica delle risposte", () => {
+  it("una risposta scartata dai controlli si distingue dall'informazione mancante", () => {
+    const rejected = fallbackAnswer("it", "rejected", "numeri non presenti nelle fonti citate: 1997");
+    const missing = fallbackAnswer("it", "not_in_knowledge");
+    expect(rejected.status).toBe("rejected");
+    expect(rejected.checkReason).toContain("1997");
+    expect(missing.status).toBe("not_in_knowledge");
+    expect(rejected.answer).not.toBe(missing.answer);
+  });
+
+  it("sul posto non si dà «0 m verso nord» e quella distanza non vale come numero citabile", () => {
+    const target = content.places[0]!;
+    const here = askRequestSchema.parse({
+      destination: content.destination,
+      locale: "it",
+      question: "Dove sono?",
+      position: { lon: target.location[0], lat: target.location[1], accuracyM: 5 },
+    });
+    expect(positionContext(content, here)!.places[0]).toMatchObject({ ref: target.ref, here: true });
+    expect(buildQuestionMessage(content, here)).toContain(`${target.name} (${target.ref}): è qui, a pochi metri`);
+    const r = checkModelAnswer(json({ status: "answered", answer: "Sei a 0 metri dal luogo.", citations: [POSITION_CITATION] }), content, here);
+    expect(r).toMatchObject({ ok: false });
   });
 });

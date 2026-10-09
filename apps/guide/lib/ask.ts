@@ -42,7 +42,11 @@ export const askRequestSchema = z.object({
 export type AskRequest = z.infer<typeof askRequestSchema>;
 
 export const ASK_STATUSES = ["answered", "partial", "not_in_knowledge", "off_topic"] as const;
-export type AskStatus = (typeof ASK_STATUSES)[number] | "unavailable";
+/**
+ * "rejected": il modello ha risposto, ma la risposta non ha superato i controlli (citazioni, numeri,
+ * formato, troncamento). Va distinto da "not_in_knowledge": lì l'informazione manca nella base.
+ */
+export type AskStatus = (typeof ASK_STATUSES)[number] | "unavailable" | "rejected";
 
 export interface AskAnswer {
   status: AskStatus;
@@ -53,6 +57,8 @@ export interface AskAnswer {
   inReview?: boolean;
   /** Vero se la risposta riferisce distanze o direzioni calcolate dal sistema. */
   usedPosition?: boolean;
+  /** Solo per "rejected": quale controllo non è stato superato (diagnostica, nessun segreto). */
+  checkReason?: string;
 }
 
 /** Citazione delle distanze calcolate dal sistema (non è un'affermazione della base). */
@@ -165,6 +171,8 @@ const POSITION_LIMITS = { places: 8, maxM: 3000 } as const;
 export interface PlaceDistance {
   ref: string;
   name: string;
+  /** Il visitatore è praticamente sul posto: distanza e direzione non hanno senso. */
+  here: boolean;
   /** Metri in linea d'aria, arrotondati (5 m sotto i 100 m, poi 10 m). */
   meters: number;
   direction: string;
@@ -179,6 +187,8 @@ export interface PositionContext {
 }
 
 const roundM = (m: number) => (m < 100 ? Math.round(m / 5) * 5 : Math.round(m / 10) * 10);
+/** Sotto questa distanza il luogo è «qui»: niente «0 m verso nord». */
+const HERE_M = 15;
 
 /**
  * Distanze e direzioni dalla posizione del visitatore ai luoghi più vicini (più il luogo corrente e
@@ -202,6 +212,7 @@ export function positionContext(content: BundleContent, req: AskRequest): Positi
       .map((x) => ({
         ref: x.p.ref,
         name: x.p.name,
+        here: x.d < HERE_M,
         meters: roundM(x.d),
         direction: words[Math.round(bearingDeg(here, x.p.location) / 45) % 8]!,
       })),
@@ -226,7 +237,7 @@ export function buildQuestionMessage(content: BundleContent, req: AskRequest): s
     lines.push(
       `Posizione del visitatore: nota${pos.simulated ? " (simulata, per prova)" : ""}, precisione ${quality}.`,
       `Distanze in linea d'aria calcolate dal sistema${pos.indicative ? " (posizioni dei luoghi non ancora verificate sul campo: indicative)" : ""}:`,
-      ...pos.places.map((p) => `- ${p.name} (${p.ref}): circa ${p.meters} m verso ${p.direction}`),
+      ...pos.places.map((p) => `- ${p.name} (${p.ref}): ${p.here ? "è qui, a pochi metri" : `circa ${p.meters} m verso ${p.direction}`}`),
     );
   }
   if (req.nearby.length > 0) lines.push(`Luoghi vicini: ${req.nearby.map((r) => `${name(r)} (${r})`).join(", ")}`);
@@ -270,7 +281,7 @@ export function checkModelAnswer(raw: string, content: BundleContent, req: AskRe
 
   // Numeri: devono venire dalle affermazioni citate (testo o valore), dalla domanda o dalle distanze citate.
   const allowed = numbersIn(req.question);
-  if (usedPosition) for (const p of pos.places) allowed.add(String(p.meters));
+  if (usedPosition) for (const p of pos.places) if (!p.here) allowed.add(String(p.meters));
   for (const ref of citations) {
     const a = byRef.get(ref)!;
     for (const n of numbersIn(a.text)) allowed.add(n);
@@ -293,18 +304,21 @@ const FALLBACK = {
     not_in_knowledge: "Su questo non ho informazioni verificate, quindi preferisco non risponderti a caso.",
     unavailable: "In questo momento non riesco a rispondere alle domande. Il racconto della visita continua a funzionare.",
     offline: "Per le domande serve la rete. Il racconto dei luoghi invece funziona anche offline.",
+    rejected: "Ho provato a risponderti, ma la risposta non ha superato il controllo sulle fonti, quindi preferisco non leggertela. Prova a chiedere in un altro modo.",
   },
   en: {
     not_in_knowledge: "I have no verified information about that, so I'd rather not guess.",
     unavailable: "I can't answer questions right now. The tour narration still works.",
     offline: "Questions need a connection. The narration of the places works offline too.",
+    rejected: "I tried to answer, but the answer did not pass the source check, so I'd rather not read it to you. Try asking in another way.",
   },
 } as const;
 
-export function fallbackAnswer(locale: "it" | "en", kind: keyof (typeof FALLBACK)["it"]): AskAnswer {
+export function fallbackAnswer(locale: "it" | "en", kind: keyof (typeof FALLBACK)["it"], checkReason?: string): AskAnswer {
   return {
-    status: kind === "not_in_knowledge" ? "not_in_knowledge" : "unavailable",
+    status: kind === "not_in_knowledge" || kind === "rejected" ? kind : "unavailable",
     answer: FALLBACK[locale][kind],
     citations: [],
+    ...(kind === "rejected" && checkReason ? { checkReason } : {}),
   };
 }

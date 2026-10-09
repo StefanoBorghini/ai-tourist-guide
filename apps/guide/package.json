@@ -9,7 +9,8 @@
     "start": "next start",
     "bundles": "tsx scripts/build-bundles.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "ask:context": "tsx scripts/ask-context.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.127.0",

@@ -6,7 +6,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { askRequestSchema, fallbackAnswer } from "../../../../lib/ask";
-import { askGuide, loadKnowledge } from "../../../../lib/ask-server";
+import { askGuide, bundleVersions, loadKnowledge } from "../../../../lib/ask-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,9 +26,14 @@ function rateLimited(key: string, now = Date.now()): boolean {
 
 let client: Anthropic | null = null;
 
-/** Le domande sono disponibili? (L'app lo chiede per decidere se invitare a farle.) */
-export function GET(): Response {
-  return Response.json({ available: Boolean(process.env.ANTHROPIC_API_KEY) }, { headers: { "cache-control": "no-store" } });
+/**
+ * Le domande sono disponibili? (L'app lo chiede per decidere se invitare a farle.)
+ * Riporta anche le impronte dei bundle con cui il server risponde, per verificare che la versione
+ * pubblicata usi i contenuti aggiornati. Nessun segreto: solo presenza della chiave e impronte.
+ */
+export async function GET(): Promise<Response> {
+  const bundles = await bundleVersions().catch(() => []);
+  return Response.json({ available: Boolean(process.env.ANTHROPIC_API_KEY), bundles }, { headers: { "cache-control": "no-store" } });
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -55,11 +60,13 @@ export async function POST(request: Request): Promise<Response> {
         destination: req.destination,
         locale: req.locale,
         place: req.currentPlace ?? null,
+        selected: req.selectedPlace ?? null,
+        kbHash: loaded.kbHash,
         question: req.question,
         rejected: outcome.rejected ?? null,
       }));
     }
-    console.info(JSON.stringify({ event: "ask", status: outcome.answer.status, usage: outcome.usage }));
+    console.info(JSON.stringify({ event: "ask", status: outcome.answer.status, kbHash: loaded.kbHash, usage: outcome.usage }));
     return Response.json(outcome.answer);
   } catch (error) {
     if (error instanceof Anthropic.RateLimitError) {

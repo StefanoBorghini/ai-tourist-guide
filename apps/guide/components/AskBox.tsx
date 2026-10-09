@@ -39,8 +39,10 @@ export function AskBox(props: {
   fixSource?: PositionSource | null;
   /** Cambia quando si preme «Fai una domanda»: il campo prende il fuoco. */
   focusKey?: number;
+  /** In modalità debug si mostra quale controllo ha scartato una risposta. */
+  debug?: boolean;
 }) {
-  const { content, runtime, voice, online, t, selectedPlace, fixSource, focusKey } = props;
+  const { content, runtime, voice, online, t, selectedPlace, fixSource, focusKey, debug } = props;
   const locale = content.locale === "it" ? "it" : "en";
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
@@ -177,6 +179,13 @@ export function AskBox(props: {
             <p className="muted small">{last.answer.inReview ? `⚠ ${t.askInReview}` : `✓ ${t.askVerified}`}</p>
           )}
           {last.answer.usedPosition && <p className="muted small">📍 {t.askPosition}</p>}
+          {debug && (
+            <p className="muted small">
+              debug · esito <code>{last.answer.status}</code>
+              {last.answer.checkReason && <> · scartata: {last.answer.checkReason}</>}
+              {last.answer.citations.length > 0 && <> · citazioni: {last.answer.citations.map((c) => c.split(":").pop()).join(", ")}</>}
+            </p>
+          )}
         </div>
       )}
     </section>

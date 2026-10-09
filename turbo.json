@@ -2,14 +2,34 @@
   "$schema": "https://turborepo.com/schema.json",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "typecheck": {},
-    "test": {}
+    "test": {},
+    "@guide/app#build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/territories/**"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "public/bundles/**"
+      ]
+    }
   }
 }

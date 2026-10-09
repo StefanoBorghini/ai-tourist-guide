@@ -79,6 +79,8 @@ export function GuideApp() {
   const [progress, setProgress] = useState(0);
   const [online, setOnline] = useState(true);
   const [askAvailable, setAskAvailable] = useState(false);
+  /** Impronte dei bundle con cui risponde il server delle domande (per il debug). */
+  const [serverBundles, setServerBundles] = useState<{ destination: string; locale: string; kbHash: string }[] | null>(null);
   const [budget, setBudget] = useState(45);
   const [routeRef, setRouteRef] = useState<string | null>(null);
   const [debug, setDebug] = useState(false);
@@ -143,7 +145,10 @@ export function GuideApp() {
     }
     fetch("/api/guide/ask", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { available: false }))
-      .then((d: { available?: boolean }) => setAskAvailable(d.available === true))
+      .then((d: { available?: boolean; bundles?: { destination: string; locale: string; kbHash: string }[] }) => {
+        setAskAvailable(d.available === true);
+        setServerBundles(Array.isArray(d.bundles) ? d.bundles : null);
+      })
       .catch(() => setAskAvailable(false));
   }, [online]);
 
@@ -795,6 +800,7 @@ export function GuideApp() {
       selectedPlace={selected}
       fixSource={fixSource}
       focusKey={askFocus}
+      debug={debug}
     />
   );
 
@@ -948,6 +954,8 @@ export function GuideApp() {
           online={online}
           offlineReady={offlineSupported() ? offline === "yes" : null}
           bundleHash={opened?.manifest.kbHash ?? null}
+          serverKbHash={serverBundles?.find((b) => b.destination === content.destination && b.locale === content.locale)?.kbHash ?? null}
+          askAvailable={askAvailable}
         />
       )}
 

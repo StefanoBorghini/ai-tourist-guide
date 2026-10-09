@@ -51,10 +51,13 @@ export interface DebugPanelProps {
   /** true / false se noto, null se non verificabile (cache non disponibile). */
   offlineReady: boolean | null;
   bundleHash: string | null;
+  /** Impronta della base con cui risponde il server delle domande (null se non nota). */
+  serverKbHash?: string | null;
+  askAvailable?: boolean;
 }
 
 export function DebugPanel(props: DebugPanelProps) {
-  const { content, runtime, gpsError, fixSource, online, offlineReady, bundleHash } = props;
+  const { content, runtime, gpsError, fixSource, online, offlineReady, bundleHash, serverKbHash, askAvailable } = props;
   const snap = runtime.debugSnapshot();
   const fix = snap.fix;
   const overlaps = useMemo(() => fenceOverlaps(content), [content]);
@@ -144,6 +147,16 @@ export function DebugPanel(props: DebugPanelProps) {
         <dd>
           <span className={online ? "good" : "bad"}>{online ? "online" : "offline"}</span> · cache offline{" "}
           {offlineReady === null ? "non verificabile" : offlineReady ? <span className="good">completa</span> : <span className="warn">non scaricata</span>}
+        </dd>
+        <dt>Contenuti</dt>
+        <dd>
+          telefono <code>{bundleHash ? bundleHash.slice(0, 12) : "—"}</code> · domande (server){" "}
+          <code>{serverKbHash ? serverKbHash.slice(0, 12) : "—"}</code>
+          {bundleHash && serverKbHash && (
+            serverKbHash === bundleHash ? <span className="good"> uguali</span> : <span className="bad"> DIVERSI: ricarica l'app o la pubblicazione non è aggiornata</span>
+          )}
+          <br />
+          domande AI: {askAvailable ? <span className="good">disponibili</span> : <span className="warn">non disponibili (chiave assente o offline)</span>}
         </dd>
       </dl>
 

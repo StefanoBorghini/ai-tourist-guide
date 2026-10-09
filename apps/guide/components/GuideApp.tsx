@@ -11,7 +11,7 @@ import { uiFor } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
 import { AskBox } from "./AskBox";
 import { DebugPanel } from "./DebugPanel";
-import { MiniMap } from "./MiniMap";
+import { MapView } from "./MapView";
 
 interface BundleEntry {
   destination: string;
@@ -629,7 +629,7 @@ export function GuideApp() {
 
       {askAvailable && <AskBox content={content} runtime={runtime} voice={voiceRef.current} online={online} t={t} />}
 
-      <MiniMap content={content} runtime={runtime} />
+      <MapView content={content} runtime={runtime} debug={debug} online={online} simulated={fixSource === "simulated"} t={t} />
 
       <section className="card">
         <h2>{t.plan}</h2>

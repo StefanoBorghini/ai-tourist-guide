@@ -25,7 +25,9 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   pura, testata); al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato) e `app/api/guide/ask` per le domande all'AI;
-  `components/DebugPanel.tsx` e `lib/field-points.ts` per il test sul campo (`?debug=1`)
+  `components/DebugPanel.tsx` e `lib/field-points.ts` per il test sul campo (`?debug=1`);
+  `components/MapView.tsx` e `lib/map-view.ts` per la mappa (Web Mercator, sfondo OpenStreetMap solo online e
+  solo per le prove: in produzione serve un fornitore di tile con licenza adeguata)
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack
 - `packages/territory-pack` — caricamento, validazione e CLI `guide-pack` (`validate`, `photos`: coordinate dall'EXIF,
   `field`: revisione dei rilievi sul campo, formato `guide-field-points/2` in `packages/domain/src/field-points.ts`;

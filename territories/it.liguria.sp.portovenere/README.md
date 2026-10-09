@@ -10,7 +10,7 @@ Dipende da `it.liguria` (sito UNESCO e fonti UNESCO, condivisi con i futuri terr
 
 | Materiale di ricerca | Nel pack |
 |---|---|
-| 18 POI, `lat`/`lon`, `geofence_radius_m` | `geography/places.yaml`: valori copiati **senza correzioni**, `coordinates.status: preliminary`, un geofence di arrivo col raggio indicato |
+| 18 POI, `lat`/`lon`, `geofence_radius_m` | `geography/places.yaml`: valori copiati senza correzioni all'importazione (`preliminary`), poi corretti con la verifica cartografica descritta sotto (`map_verified`), un geofence di arrivo col raggio indicato |
 | `story_status` | `curation.storyStatus` del luogo |
 | `coordinate_status: PRELIMINARY_FIELD_VERIFICATION_REQUIRED` | `coordinates.status: preliminary` (in produzione serve `field_verified`, il validatore lo impone) |
 | claim fattuali | `knowledge/assertions.yaml`, stato `in_review`, testo originale in `originalClaim` |
@@ -36,42 +36,75 @@ Dipende da `it.liguria` (sito UNESCO e fonti UNESCO, condivisi con i futuri terr
 - I nomi inglesi dei luoghi sono traduzioni mie dei nomi italiani.
 - La versione `0.1.0-research` è diventata `0.1.0` + `releaseStage: research` (il formato vuole semver puro).
 
-## Coordinate: anomalie (nessuna corretta)
+## Coordinate
 
-Tutte le coordinate restano **preliminari** e invariate. Riferimenti consultati (solo per segnalare, non per
-correggere; accesso diretto a OpenStreetMap e ai siti istituzionali non disponibile dall'ambiente di lavoro):
+### Verifica cartografica (9 ottobre 2026)
 
-| Riferimento | Coordinate | Fonte | Affidabilità |
-|---|---|---|---|
-| Comune di Porto Venere | 44.050, 9.833 | Wikipedia (voce "Porto Venere") | C |
-| Porto di Portovenere | 44.0536, 9.83811 | portale nautico (marinelink / nauticalflock) | C |
+Il primo uso sul telefono ha confermato l'anomalia segnalata: i pin del borgo cadevano sulla Palmaria. Le coordinate
+sono state **verificate su mappa** con le fonti indicate e corrette; **nessuna è verificata sul campo**. Stato nel pack:
+`coordinates.status: map_verified` (etichetta redazionale **MAP_VERIFIED_FIELD_PENDING**), con `mapSources` (la prima
+è la fonte adottata, le altre sono conferme), `mapVerifiedAt` e `previousLocation` (coordinate di ricerca originali).
 
-**Anomalia principale.** Tutti i 10 luoghi del borgo distano **1,5–2,3 km** da entrambi i riferimenti, mentre il
-borgo è lungo poche centinaia di metri: le coordinate del borgo sono probabilmente spostate in blocco. Sul posto
-i geofence potrebbero non scattare mai: per questo l'app ha «Sono qui» e il rilievo delle posizioni.
+Limiti della verifica: OpenStreetMap (Nominatim/Overpass), Wikidata, Wikipedia e il sito del Parco non erano
+raggiungibili direttamente dall'ambiente di lavoro; le fonti sono state consultate **tramite motore di ricerca**,
+accettando solo coordinate riportate esplicitamente da una fonte identificabile e, dove possibile, confermate da
+altre fonti. Affidabilità: B = catasto istituzionale, C = Wikipedia/Wikidata/guide e mappe commerciali.
 
-| Luogo | Coordinate (lat, lon) | Problema | Come verificarlo |
-|---|---|---|---|
-| Porta del Borgo | 44.0410, 9.8485 | 1593 m dal riferimento del comune; geofence sovrapposto a Torre (27 m) e San Lorenzo (92 m) | rilievo «Posizione del luogo» davanti alla porta; controllare la distanza mostrata dal debug |
-| Torre Capitolare | 44.0412, 9.8483 | 1566 m; a 27 m dalla Porta | rilievo davanti alla torre |
-| Chiesa di San Lorenzo | 44.0418, 9.8488 | 1558 m; sovrapposta a Porta e Torre | rilievo davanti alla facciata |
-| Chiesa di San Pietro | 44.0359, 9.8527 | 2222 m; sovrapposta a Castello, Grotta di Byron, Forte, Scalinata (a 14 m) | rilievo sul sagrato; raggio suggerito |
-| Castello Doria | 44.0365, 9.8535 | 2222 m; sovrapposto a San Pietro, Forte, Scalinata | rilievo all'ingresso |
-| Grotta di Byron / Cala dell'Arpaia | 44.0358, 9.8522 | 2202 m; a 41 m da San Pietro | rilievo dal punto panoramico sulla cala |
-| Forte di San Pietro | 44.0365, 9.8529 | 2187 m; raggio 20 m dentro i geofence di Castello e San Pietro | rilievo e nota sul punto di riconoscimento |
-| Piazza Bastreri | 44.0402, 9.8479 | 1614 m; sovrapposta alla Palazzata | rilievo al centro della piazza |
-| Palazzata a mare | 44.0396, 9.8475 | 1637 m; sovrapposta a Bastreri | rilievo sul lungomare, raggio suggerito |
-| Scalinata verso San Pietro | 44.0360, 9.8528 | 2220 m; a 14 m dal centro di San Pietro | rilievo all'inizio della salita |
-| Isola Palmaria | 44.0431, 9.8420 | nel pack a ovest-nord-ovest della Porta; da conoscenza generale (non verificata) è a sud, oltre lo stretto; geofence 200 m | rilievo dal battello o sull'isola |
-| Grotta Azzurra | 44.0425, 9.8420 | segue la Palmaria (67 m dal suo centro) | solo dal mare |
-| Isola del Tino | 44.0277, 9.8517 | dipende dallo stesso riferimento sospetto | dal battello |
-| Isola del Tinetto | 44.0236, 9.8500 | come il Tino | dal battello |
-| Le Grazie | 44.0298, 9.8772 | nel pack a est-sud-est del borgo; da conoscenza generale è a nord, lungo il golfo | rilievo in paese |
-| Santuario delle Grazie | 44.0299, 9.8765 | segue Le Grazie | rilievo all'ingresso |
-| Fezzano | 44.0490, 9.8120 | nel pack a ovest del borgo; da conoscenza generale è a nord, lungo il golfo | rilievo in paese |
-| Muzzerone | 44.0340, 9.8500 | nel pack a sud del borgo; da conoscenza generale è a nord-ovest | rilievo all'accesso della falesia |
+| Luogo | Coordinate precedenti | Coordinate nuove | Fonte adottata | Affid. | Scostamento | Stato |
+|---|---|---|---|---|---|---|
+| Porta del Borgo | 44.0410, 9.8485 | 44.051700, 9.834500 | [Nomads Travel Guide (punto Google Maps)](https://www.nomads-travel-guide.com/places/porta-del-borgo-porto-venere/) | C | 1633 m | MAP_VERIFIED_FIELD_PENDING |
+| Torre Capitolare | 44.0412, 9.8483 | 44.051522, 9.834653 | [Wikidata Q91088598](https://www.wikidata.org/wiki/Q91088598) | C | 1583 m | MAP_VERIFIED_FIELD_PENDING |
+| Chiesa di San Lorenzo | 44.0418, 9.8488 | 44.050750, 9.833639 | [Wikidata Q3949671](https://www.wikidata.org/wiki/Q3949671) | C | 1568 m | MAP_VERIFIED_FIELD_PENDING |
+| Chiesa di San Pietro | 44.0359, 9.8527 | 44.048344, 9.832381 | [Wikipedia it, Chiesa di San Pietro (Porto Venere)](https://it.wikipedia.org/wiki/Chiesa_di_San_Pietro_(Porto_Venere)) | C | 2134 m | MAP_VERIFIED_FIELD_PENDING |
+| Castello Doria | 44.0365, 9.8535 | 44.051097, 9.832764 | [Wikimedia Commons, Category:Castello Doria (Porto Venere)](https://commons.wikimedia.org/wiki/Category:Castello_Doria_(Porto_Venere)) | C | 2320 m | MAP_VERIFIED_FIELD_PENDING |
+| Grotta di Byron / Cala dell'Arpaia | 44.0358, 9.8522 | 44.049100, 9.833100 | [Apple Maps (Grotta di Byron)](https://maps.apple.com/place?place-id=I40587B1B06DA6DF1) | C | 2126 m | MAP_VERIFIED_FIELD_PENDING |
+| Forte / sistema fortificato di San Pietro | 44.0365, 9.8529 | invariate | — | — | — | preliminare: da identificare |
+| Piazza Bastreri | 44.0402, 9.8479 | 44.051890, 9.835290 | [Tuttocittà, Piazza Giacomo Bastreri](https://www.tuttocitta.it/mappa/portovenere/piazza-giacomo-bastreri) | C | 1645 m | MAP_VERIFIED_FIELD_PENDING |
+| Palazzata a mare | 44.0396, 9.8475 | 44.050900, 9.834600 | [Nomads Travel Guide (Palazzata a Mare)](https://www.nomads-travel-guide.com/places/palazzata-a-mare-portovenere/) | C | 1625 m | MAP_VERIFIED_FIELD_PENDING |
+| Scalinata / salita verso San Pietro | 44.0360, 9.8528 | invariate | — | — | — | preliminare: da identificare |
+| Isola Palmaria | 44.0431, 9.8420 | 44.042836, 9.843867 | [Wikidata Q757114 (Palmaria)](https://www.wikidata.org/wiki/Q757114) | C | 152 m | MAP_VERIFIED_FIELD_PENDING |
+| Grotta Azzurra | 44.0425, 9.8420 | 44.044007, 9.835808 | [Catasto speleologico ligure LI84 (Gauss-Boaga fuso Ovest E 1566989, N 4877117, convertito in WGS84)](https://www.catastogrotte.net/liguria/it/caves/view/86/) | B | 523 m | MAP_VERIFIED_FIELD_PENDING |
+| Isola del Tino | 44.0277, 9.8517 | 44.027222, 9.850556 | [Wikipedia it/en, Isola del Tino](https://it.wikipedia.org/wiki/Isola_del_Tino) | C | 106 m | MAP_VERIFIED_FIELD_PENDING |
+| Isola del Tinetto | 44.0236, 9.8500 | 44.023722, 9.851083 | [Wikipedia it, Isola del Tinetto](https://it.wikipedia.org/wiki/Isola_del_Tinetto) | C | 88 m | MAP_VERIFIED_FIELD_PENDING |
+| Le Grazie | 44.0298, 9.8772 | 44.064083, 9.837956 | [Wikipedia it, Le Grazie (Porto Venere)](https://it.wikipedia.org/wiki/Le_Grazie_(Porto_Venere)) | C | 4937 m | MAP_VERIFIED_FIELD_PENDING |
+| Santuario di Nostra Signora delle Grazie | 44.0299, 9.8765 | 44.065822, 9.840017 | [Wikipedia it, Santuario della Madonna delle Grazie (Portovenere)](https://it.wikipedia.org/wiki/Santuario_della_Madonna_delle_Grazie_(Portovenere)) | C | 4945 m | MAP_VERIFIED_FIELD_PENDING |
+| Fezzano | 44.0490, 9.8120 | 44.080022, 9.826514 | [Wikipedia it, Fezzano](https://it.wikipedia.org/wiki/Fezzano) | C | 3639 m | MAP_VERIFIED_FIELD_PENDING |
+| Muzzerone / palestra di roccia | 44.0340, 9.8500 | invariate | — | — | — | preliminare: da identificare |
 
-Le stesse note sono nella curatela di ogni luogo (`geography/places.yaml`) e si vedono nel debug toccando il luogo.
+Conferme e note per ogni luogo sono in `geography/places.yaml` (`coordinates.mapSources`, `curation.notes`) e nel debug.
+
+**Non identificati con sufficiente certezza (invariati, preliminari):**
+
+- **Forte / sistema fortificato di San Pietro**: Non identificabile come punto unico: il pack descrive le strutture militari del promontorio di San Pietro, non un edificio; nessuna fonte con coordinate proprie.
+- **Scalinata / salita verso San Pietro**: Non identificabile con certezza: non è chiaro quale scalinata o salita si intenda; nessuna fonte con coordinate.
+- **Muzzerone**: Area estesa (falesia e sentieri), non un punto: le fonti danno punti distanti fino a ~700 m tra loro (falesia.it 44.0589, 9.8255 e 44.0599, 9.8288; TheCrag 44.056156, 9.824003; Rifugio Muzzerone 44.055016, 9.830210; presso il Forte del Muzzerone ~44.0532, 9.8284 da Gulliver). Serve scegliere quale punto deve far partire il racconto.
+
+Restano nella posizione di ricerca (circa 1 km a sud della Palmaria, quindi sicuramente sbagliata): vanno identificati
+e rilevati sul campo, oppure va indicato quale punto usare.
+
+**Da chiarire sul campo:** Grotta di Byron (punto delle mappe 44.0491, 9.8331 contro ingresso del catasto speleologico
+LI2083 44.0500, 9.8326, ~105 m più a nord); Castello Doria e Palazzata a mare sono estesi (punto indicativo);
+San Lorenzo ha una sola fonte con coordinate proprie; Palmaria, Tino e Tinetto sono punti centrali delle isole, non
+approdi.
+
+### Geofence sovrapposti (raggi invariati)
+
+Ricalcolate le distanze con le nuove coordinate. I raggi **non sono stati cambiati**: vanno calibrati sul campo.
+
+| Coppia | Distanza tra i centri | Somma dei raggi |
+|---|---|---|
+| Porta del Borgo ↔ Torre Capitolare | 23 m | 90 m |
+| Porta del Borgo ↔ Piazza Bastreri | 67 m | 90 m |
+| Porta del Borgo ↔ Palazzata a mare | 89 m | 110 m |
+| Torre Capitolare ↔ Piazza Bastreri | 65 m | 80 m |
+| Torre Capitolare ↔ Palazzata a mare | 69 m | 100 m |
+| San Lorenzo ↔ Castello Doria | 80 m | 110 m |
+| San Lorenzo ↔ Palazzata a mare | 79 m | 110 m |
+
+Nel percorso «Test sul campo 1» i luoghi fuori percorso non interrompono e parte da sola solo la tappa attesa, ma
+Palazzata a mare (tappa 3) si sovrappone a Porta del Borgo (tappa 1) e San Lorenzo (tappa 2): da osservare sul campo.
+Distanze in linea d'aria del percorso: Porta del Borgo → San Lorenzo 126 m, → Palazzata a mare 79 m, → San Pietro
+335 m (totale 540 m).
 
 ## Fonti delle affermazioni (audit)
 

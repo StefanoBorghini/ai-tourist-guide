@@ -63,8 +63,15 @@ export const SOURCE_KINDS = [
 ] as const;
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 
-/** Affidabilità delle coordinate di un luogo. Solo field_verified è ammesso in produzione. */
-export const COORDINATE_STATUSES = ["preliminary", "field_verified", "needs_review"] as const;
+/**
+ * Affidabilità delle coordinate di un luogo. Solo field_verified è ammesso in produzione.
+ * - preliminary: da materiale di ricerca, non controllate;
+ * - map_verified: controllate su cartografia con fonti dichiarate, calibrazione GPS sul campo ancora da fare
+ *   (etichetta redazionale: MAP_VERIFIED_FIELD_PENDING);
+ * - field_verified: rilevate sul posto;
+ * - needs_review: in dubbio, da ricontrollare.
+ */
+export const COORDINATE_STATUSES = ["preliminary", "map_verified", "field_verified", "needs_review"] as const;
 export type CoordinateStatus = (typeof COORDINATE_STATUSES)[number];
 
 /**

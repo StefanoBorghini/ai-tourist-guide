@@ -84,3 +84,20 @@ describe("pizzico", () => {
     expect(pinchStep(0, 50)).toBe(0);
   });
 });
+
+describe("etichette e simboli", () => {
+  it("un'etichetta non copre il simbolo di un altro luogo", async () => {
+    const { placeLabels } = await import("../lib/map-view.ts");
+    // B sta subito a destra di A: l'etichetta di A deve andare a sinistra (o sparire), non sopra B.
+    const placed = placeLabels(
+      [
+        { id: "A", x: 100, y: 100, text: "Luogo A", priority: 50, offset: 10 },
+        { id: "B", x: 125, y: 100, text: "Luogo B", priority: 10, offset: 10 },
+      ],
+      400,
+      300,
+    );
+    const a = placed.find((p) => p.id === "A");
+    expect(a?.anchor).toBe("end");
+  });
+});

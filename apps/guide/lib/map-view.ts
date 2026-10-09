@@ -135,11 +135,21 @@ export interface PlacedLabel {
  * a sinistra; se non c'è posto da nessuna parte l'etichetta non si disegna (il punto resta).
  */
 export function placeLabels(candidates: LabelCandidate[], width: number, height: number, charW = 5.6, lineH = 12): PlacedLabel[] {
+  // I simboli di tutti i punti sono ostacoli: un'etichetta sopra il simbolo di un altro luogo inganna.
+  const markers = candidates.map((c) => ({ id: c.id, x0: c.x - c.offset, y0: c.y - c.offset, x1: c.x + c.offset, y1: c.y + c.offset }));
   const boxes: { x0: number; y0: number; x1: number; y1: number }[] = [];
   const placed: PlacedLabel[] = [];
+  const hit = (b: (typeof boxes)[number], o: (typeof boxes)[number]) => b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0;
+  let current = "";
   const overlaps = (b: (typeof boxes)[number]) =>
-    b.x0 < 0 || b.x1 > width || b.y0 < 0 || b.y1 > height || boxes.some((o) => b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0);
+    b.x0 < 0 ||
+    b.x1 > width ||
+    b.y0 < 0 ||
+    b.y1 > height ||
+    boxes.some((o) => hit(b, o)) ||
+    markers.some((m) => m.id !== current && hit(b, m));
   for (const c of [...candidates].sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id))) {
+    current = c.id;
     const w = c.text.length * charW;
     const y0 = c.y - lineH / 2;
     const right = { x0: c.x + c.offset + 3, y0, x1: c.x + c.offset + 3 + w, y1: y0 + lineH };

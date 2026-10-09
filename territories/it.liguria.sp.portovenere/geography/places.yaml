@@ -7,11 +7,25 @@
   - architecture
   - urban
   location:
-  - 9.8485
-  - 44.041
+  - 9.8345
+  - 44.0517
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Nomads Travel Guide (punto Google Maps)
+      url: https://www.nomads-travel-guide.com/places/porta-del-borgo-porto-venere/
+      reliability: C
+    - title: 'planetofhotels: struttura ''La Porta del Borgo'' 44.05172, 9.83446 (stessa via)'
+      reliability: C
+    - title: coerente con Torre Capitolare (Wikidata, ~25 m) e Piazza Bastreri (Tuttocittà, ~45 m)
+      reliability: C
+    previousLocation:
+    - 9.8485
+    - 44.041
   importance: 4
   dwellMin: 5
   labels:
@@ -28,9 +42,8 @@
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.041, lon 9.8485, raggio 50 m (NOT VERIFIED).
     - >-
-      Possibile spostamento delle coordinate: 1593 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
-      C) e 1629 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
-      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
 - id: torre-capitolare
   placeKind: poi
   categories:
@@ -38,11 +51,25 @@
   - architecture
   - fortifications
   location:
-  - 9.8483
-  - 44.0412
+  - 9.834653
+  - 44.051522
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Wikidata Q91088598
+      url: https://www.wikidata.org/wiki/Q91088598
+      reliability: C
+    - title: 'capitolare.com: 44.0522, 9.8346'
+      reliability: C
+    - title: 'Booking (Capitolare Suite Tower): 44.0517, 9.8347'
+      reliability: C
+    previousLocation:
+    - 9.8483
+    - 44.0412
   importance: 3
   dwellMin: 3
   labels:
@@ -59,9 +86,8 @@
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0412, lon 9.8483, raggio 40 m (NOT VERIFIED).
     - >-
-      Possibile spostamento delle coordinate: 1566 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
-      C) e 1601 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
-      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
 - id: san-lorenzo
   placeKind: poi
   categories:
@@ -70,11 +96,24 @@
   - architecture
   - art
   location:
-  - 9.8488
-  - 44.0418
+  - 9.833639
+  - 44.05075
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Wikidata Q3949671
+      url: https://www.wikidata.org/wiki/Q3949671
+      reliability: C
+    - title: >-
+        una sola fonte con coordinate proprie; coerente con Piazza San Lorenzo tra Porta del Borgo e Castello
+      reliability: C
+    previousLocation:
+    - 9.8488
+    - 44.0418
   importance: 5
   dwellMin: 10
   labels:
@@ -97,9 +136,9 @@
       Il contenuto della tradizione del tronco di cedro non è nel materiale di ricerca: serve la fonte con il racconto
       prima di poterlo narrare.
     - >-
-      Possibile spostamento delle coordinate: 1558 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
-      C) e 1566 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
-      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
+    - 'Una sola fonte con coordinate proprie: priorità alta nel rilievo sul campo.'
 - id: san-pietro
   placeKind: poi
   categories:
@@ -108,11 +147,27 @@
   - architecture
   - landscape
   location:
-  - 9.8527
-  - 44.0359
+  - 9.832381
+  - 44.048344
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Wikipedia it, Chiesa di San Pietro (Porto Venere)
+      url: https://it.wikipedia.org/wiki/Chiesa_di_San_Pietro_(Porto_Venere)
+      reliability: C
+    - title: Tripadvisor 44.048283, 9.832335
+      reliability: C
+    - title: Nomads Travel Guide 44.048249, 9.832392
+      reliability: C
+    - title: Italyscapes 44.048254, 9.832398
+      reliability: C
+    previousLocation:
+    - 9.8527
+    - 44.0359
   importance: 5
   dwellMin: 12
   labels:
@@ -132,9 +187,8 @@
       Nota della ricerca: Earlier Christian and possible Roman antecedents must be narrated as hypotheses where
       not independently verified.
     - >-
-      Possibile spostamento delle coordinate: 2222 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
-      C) e 2288 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
-      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
 - id: castello-doria
   placeKind: poi
   categories:
@@ -143,11 +197,27 @@
   - fortifications
   - landscape
   location:
-  - 9.8535
-  - 44.0365
+  - 9.832764
+  - 44.051097
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Wikimedia Commons, Category:Castello Doria (Porto Venere)
+      url: https://commons.wikimedia.org/wiki/Category:Castello_Doria_(Porto_Venere)
+      reliability: C
+    - title: Italyscapes 44.051188, 9.832583
+      reliability: C
+    - title: Tripadvisor 44.05111, 9.83362
+      reliability: C
+    - title: Nomads 44.0503, 9.83339
+      reliability: C
+    previousLocation:
+    - 9.8535
+    - 44.0365
   importance: 5
   dwellMin: 25
   labels:
@@ -167,9 +237,10 @@
       Nota della ricerca: Exact construction phases should be taken from municipal/heritage documentation before
       exact AI narration.
     - >-
-      Possibile spostamento delle coordinate: 2222 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
-      C) e 2265 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
-      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
+    - >-
+      Il castello è esteso: il punto è indicativo, il punto di riconoscimento (ingresso) va scelto sul campo.
 - id: grotta-byron
   placeKind: feature
   categories:
@@ -178,11 +249,27 @@
   - landscape
   - legend
   location:
-  - 9.8522
-  - 44.0358
+  - 9.8331
+  - 44.0491
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Apple Maps (Grotta di Byron)
+      url: https://maps.apple.com/place?place-id=I40587B1B06DA6DF1
+      reliability: C
+    - title: Tripadvisor 44.04905, 9.832992
+      reliability: C
+    - title: Evendo 44.0490649, 9.832875
+      reliability: C
+    - title: Nomads 44.0494126, 9.833019
+      reliability: C
+    previousLocation:
+    - 9.8522
+    - 44.0358
   importance: 4
   dwellMin: 8
   labels:
@@ -199,9 +286,12 @@
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0358, lon 9.8522, raggio 30 m (NOT VERIFIED).
     - >-
-      Possibile spostamento delle coordinate: 2202 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
-      C) e 2277 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
-      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
+    - >-
+      Il Catasto speleologico ligure (LI2083 'Grotta II Byron', affidabilità B) dà l'ingresso a 44.0500, 9.8326,
+      circa 105 m più a nord, e annota che la grotta storica sarebbe la vicina Grotta Arpaja: da chiarire sul campo
+      quale punto deve far partire il racconto.
 - id: forte-san-pietro
   placeKind: poi
   categories:
@@ -229,9 +319,9 @@
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0365, lon 9.8529, raggio 20 m (NOT VERIFIED).
     - >-
-      Possibile spostamento delle coordinate: 2187 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
-      C) e 2239 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
-      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
+      Coordinate di ricerca INVARIATE e probabilmente errate (il gruppo del borgo era spostato di 1,6–2,3 km): Non
+      identificabile come punto unico: il pack descrive le strutture militari del promontorio di San Pietro, non
+      un edificio; nessuna fonte con coordinate proprie. Da rilevare sul campo.
 - id: piazza-bastreri
   placeKind: poi
   categories:
@@ -239,11 +329,25 @@
   - landscape
   - local-life
   location:
-  - 9.8479
-  - 44.0402
+  - 9.83529
+  - 44.05189
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Tuttocittà, Piazza Giacomo Bastreri
+      url: https://www.tuttocitta.it/mappa/portovenere/piazza-giacomo-bastreri
+      reliability: C
+    - title: Wikimapia 44°3'6"N 9°50'6"E
+      reliability: C
+    - title: Waze (civico 17) 44.05199, 9.83491
+      reliability: C
+    previousLocation:
+    - 9.8479
+    - 44.0402
   importance: 2
   dwellMin: 3
   labels:
@@ -260,9 +364,8 @@
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0402, lon 9.8479, raggio 40 m (NOT VERIFIED).
     - >-
-      Possibile spostamento delle coordinate: 1614 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
-      C) e 1683 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
-      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
 - id: palazzata-a-mare
   placeKind: poi
   categories:
@@ -270,11 +373,23 @@
   - urban
   - landscape
   location:
-  - 9.8475
-  - 44.0396
+  - 9.8346
+  - 44.0509
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Nomads Travel Guide (Palazzata a Mare)
+      url: https://www.nomads-travel-guide.com/places/palazzata-a-mare-portovenere/
+      reliability: C
+    - title: Minube (Calata Doria) 44.049978, 9.834365
+      reliability: C
+    previousLocation:
+    - 9.8475
+    - 44.0396
   importance: 4
   dwellMin: 8
   labels:
@@ -291,9 +406,10 @@
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0396, lon 9.8475, raggio 60 m (NOT VERIFIED).
     - >-
-      Possibile spostamento delle coordinate: 1637 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
-      C) e 1728 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
-      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
+    - >-
+      Elemento lineare (fronte di case sul porto): il punto è rappresentativo; scegliere sul campo il punto di riconoscimento.
 - id: scalinata-san-pietro
   placeKind: feature
   categories:
@@ -326,9 +442,9 @@
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.036, lon 9.8528, raggio 20 m (NOT VERIFIED).
     - >-
-      Possibile spostamento delle coordinate: 2220 m dal riferimento del comune (44.050, 9.833 – Wikipedia, affidabilità
-      C) e 2282 m dal porto (44.0536, 9.83811 – portale nautico, affidabilità C), mentre il borgo è lungo poche
-      centinaia di metri. Coordinate lasciate invariate: da rilevare sul posto.
+      Coordinate di ricerca INVARIATE e probabilmente errate (il gruppo del borgo era spostato di 1,6–2,3 km): Non
+      identificabile con certezza: non è chiaro quale scalinata o salita si intenda; nessuna fonte con coordinate.
+      Da rilevare sul campo.
 - id: palmaria
   placeKind: site
   categories:
@@ -338,11 +454,23 @@
   - hiking
   - unesco
   location:
-  - 9.842
-  - 44.0431
+  - 9.843867
+  - 44.042836
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Wikidata Q757114 (Palmaria)
+      url: https://www.wikidata.org/wiki/Q757114
+      reliability: C
+    - title: 'Wikipedia it: 44°02′34″N 9°50′37″E'
+      reliability: C
+    previousLocation:
+    - 9.842
+    - 44.0431
   importance: 5
   dwellMin: 60
   labels:
@@ -362,8 +490,9 @@
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
     - >-
-      Posizione relativa sospetta: nel pack è a ovest-nord-ovest della Porta del Borgo; da conoscenza generale (non
-      verificata) l'isola è a sud del borgo, oltre lo stretto.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
+    - 'Punto centrale dell''isola, non un approdo: per la guida servirà il punto di sbarco.'
   walkable: false
 - id: grotta-azzurra
   placeKind: feature
@@ -372,11 +501,23 @@
   - sea
   - geology
   location:
-  - 9.842
-  - 44.0425
+  - 9.835808
+  - 44.044007
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Catasto speleologico ligure LI84 (Gauss-Boaga fuso Ovest E 1566989, N 4877117, convertito in WGS84)
+      url: https://www.catastogrotte.net/liguria/it/caves/view/86/
+      reliability: B
+    - title: 'Wikimapia: 44°2''38"N 9°50''10"E (~30 m)'
+      reliability: C
+    previousLocation:
+    - 9.842
+    - 44.0425
   importance: 3
   dwellMin: 20
   partOf: palmaria
@@ -396,7 +537,10 @@
     - Regole di accesso attuali da verificare (informazione pratica, non storica).
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
-    - Segue la posizione sospetta della Palmaria (a 67 m dal suo centro nel pack).
+    - >-
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
+    - Conversione EPSG:3003 → WGS84 con pyproj 3.7.1 (parametri EPSG, errore atteso di pochi metri).
   walkable: false
 - id: tino
   placeKind: site
@@ -406,11 +550,23 @@
   - religion
   - unesco
   location:
-  - 9.8517
-  - 44.0277
+  - 9.850556
+  - 44.027222
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Wikipedia it/en, Isola del Tino
+      url: https://it.wikipedia.org/wiki/Isola_del_Tino
+      reliability: C
+    - title: 'Wikipedia en: 44.02722, 9.85056'
+      reliability: C
+    previousLocation:
+    - 9.8517
+    - 44.0277
   importance: 4
   dwellMin: 30
   labels:
@@ -430,8 +586,9 @@
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
     - >-
-      Verificare la posizione relativa a Palmaria e Tinetto: nel pack Tino è 1,5 km a sud della Porta del Borgo,
-      anch'essa sospetta.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
+    - Punto centrale dell'isola.
   walkable: false
 - id: tinetto
   placeKind: site
@@ -441,11 +598,23 @@
   - religion
   - unesco
   location:
-  - 9.85
-  - 44.0236
+  - 9.851083
+  - 44.023722
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Wikipedia it, Isola del Tinetto
+      url: https://it.wikipedia.org/wiki/Isola_del_Tinetto
+      reliability: C
+    - title: 'Wikipedia en / Wikidata: 44°01′24.63″N 9°51′04.55″E (~30 m)'
+      reliability: C
+    previousLocation:
+    - 9.85
+    - 44.0236
   importance: 3
   dwellMin: 20
   labels:
@@ -463,7 +632,10 @@
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0236, lon 9.85, raggio 100 m (NOT VERIFIED).
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
-    - 'Verificare insieme a Tino: dipende dallo stesso riferimento sospetto.'
+    - >-
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
+    - Punto centrale dell'isolotto.
   walkable: false
 - id: le-grazie
   placeKind: site
@@ -473,11 +645,23 @@
   - diving
   - culture
   location:
-  - 9.8772
-  - 44.0298
+  - 9.837956
+  - 44.064083
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Wikipedia it, Le Grazie (Porto Venere)
+      url: https://it.wikipedia.org/wiki/Le_Grazie_(Porto_Venere)
+      reliability: C
+    - title: fonti turistiche meno precise entro poche centinaia di metri
+      reliability: C
+    previousLocation:
+    - 9.8772
+    - 44.0298
   importance: 3
   dwellMin: 30
   labels:
@@ -496,8 +680,9 @@
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
     - >-
-      Posizione relativa sospetta: nel pack è a est-sud-est del borgo; da conoscenza generale (non verificata) Le
-      Grazie è a nord del borgo, lungo il golfo.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
+    - Punto rappresentativo del paese.
   walkable: false
 - id: santuario-le-grazie
   placeKind: poi
@@ -506,11 +691,25 @@
   - art
   - history
   location:
-  - 9.8765
-  - 44.0299
+  - 9.840017
+  - 44.065822
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Wikipedia it, Santuario della Madonna delle Grazie (Portovenere)
+      url: https://it.wikipedia.org/wiki/Santuario_della_Madonna_delle_Grazie_(Portovenere)
+      reliability: C
+    - title: 'Wikidata Q3949965: 44°3''56.79"N 9°50''24.26"E'
+      reliability: C
+    - title: Tripadvisor 44.06596, 9.83962
+      reliability: C
+    previousLocation:
+    - 9.8765
+    - 44.0299
   importance: 3
   dwellMin: 15
   partOf: le-grazie
@@ -529,7 +728,9 @@
       Coordinate preliminari dal materiale di ricerca v1: lat 44.0299, lon 9.8765, raggio 30 m (NOT VERIFIED).
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
-    - Segue la posizione sospetta di Le Grazie.
+    - >-
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
   walkable: false
 - id: fezzano
   placeKind: site
@@ -538,11 +739,27 @@
   - maritime
   - walking
   location:
-  - 9.812
-  - 44.049
+  - 9.826514
+  - 44.080022
   coordinates:
-    status: preliminary
-    method: coordinate di ricerca (Territory Pack v1), non rilevate sul posto
+    status: map_verified
+    method: >-
+      verifica cartografica a distanza su fonti web (pagine consultate tramite motore di ricerca: OpenStreetMap,
+      Wikidata e sito del Parco non raggiungibili dall'ambiente di lavoro); calibrazione GPS sul campo da fare
+    mapVerifiedAt: '2026-10-09'
+    mapSources:
+    - title: Wikipedia it, Fezzano
+      url: https://it.wikipedia.org/wiki/Fezzano
+      reliability: C
+    - title: Wikidata Q952395 (stesse coordinate)
+      reliability: C
+    - title: Mindat 44.08062, 9.82608
+      reliability: C
+    - title: Apple Maps 44.07744, 9.82986
+      reliability: C
+    previousLocation:
+    - 9.812
+    - 44.049
   importance: 2
   dwellMin: 20
   labels:
@@ -561,8 +778,9 @@
     - >-
       Non proposto nei giri a piedi del borgo (isola o frazione separata): valutazione redazionale da confermare.
     - >-
-      Posizione relativa sospetta: nel pack è a ovest del borgo (in mare, rispetto ai riferimenti); da conoscenza
-      generale (non verificata) Fezzano è a nord, lungo il golfo.
+      Coordinate verificate su mappa (MAP_VERIFIED_FIELD_PENDING): non rilevate sul posto; il punto di riconoscimento
+      e il raggio vanno calibrati sul campo.
+    - Punto rappresentativo del paese.
   walkable: false
 - id: muzzerone
   placeKind: feature
@@ -593,5 +811,8 @@
     - >-
       Coordinate preliminari dal materiale di ricerca v1: lat 44.034, lon 9.85, raggio 100 m (NOT VERIFIED).
     - >-
-      Posizione relativa sospetta: nel pack è a sud del borgo; da conoscenza generale (non verificata) il Muzzerone
-      è a nord-ovest, sopra la costa verso Campiglia.
+      Coordinate di ricerca INVARIATE e probabilmente errate (il gruppo del borgo era spostato di 1,6–2,3 km): Area
+      estesa (falesia e sentieri), non un punto: le fonti danno punti distanti fino a ~700 m tra loro (falesia.it
+      44.0589, 9.8255 e 44.0599, 9.8288; TheCrag 44.056156, 9.824003; Rifugio Muzzerone 44.055016, 9.830210; presso
+      il Forte del Muzzerone ~44.0532, 9.8284 da Gulliver). Serve scegliere quale punto deve far partire il racconto.
+      Da rilevare sul campo.

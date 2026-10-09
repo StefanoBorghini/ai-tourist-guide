@@ -272,6 +272,7 @@ function checkPlaces(pack: TerritoryPack, ctx: Context): void {
   // Coordinate: in produzione solo rilevate sul posto; prima, un promemoria riassuntivo.
   const production = pack.manifest.releaseStage === "production";
   const preliminary: string[] = [];
+  const mapOnly: string[] = [];
   for (const place of pack.places) {
     const status = place.coordinates.status;
     if (status === "field_verified") continue;
@@ -283,11 +284,21 @@ function checkPlaces(pack: TerritoryPack, ctx: Context): void {
         item: place.id,
         message: `coordinate ${status}: in produzione servono coordinate rilevate sul posto`,
       });
+    } else if (status === "map_verified") {
+      mapOnly.push(place.id);
     } else if (status === "needs_review") {
       ctx.out.warning({ code: "COORDINATES_NEED_REVIEW", packId, file, item: place.id, message: "coordinate da rivedere" });
     } else {
       preliminary.push(place.id);
     }
+  }
+  if (mapOnly.length > 0) {
+    ctx.out.warning({
+      code: "COORDINATES_MAP_ONLY",
+      packId,
+      file,
+      message: `${mapOnly.length} luoghi verificati su mappa, calibrazione GPS sul campo da fare: ${mapOnly.join(", ")}`,
+    });
   }
   if (preliminary.length > 0) {
     ctx.out.warning({

@@ -110,7 +110,10 @@ export function MapView(props: {
   const tiles = showTiles ? visibleTiles(view, width, mapHeight) : [];
   const scale = scaleBar(view.center[1], view.zoom);
   const fences = runtime.debugSnapshot().places;
-  const preliminary = content.places.some((p) => p.coordinateStatus !== "field_verified");
+  // Tratteggiate solo le posizioni non verificate nemmeno su mappa (preliminari o da rivedere).
+  const unverified = (status: string) => status === "preliminary" || status === "needs_review";
+  const preliminary = content.places.some((p) => unverified(p.coordinateStatus));
+  const notFieldVerified = content.places.some((p) => p.coordinateStatus === "map_verified");
 
   const labelCandidates: LabelCandidate[] = [
     ...content.places.map((p) => {
@@ -253,7 +256,7 @@ export function MapView(props: {
                   cx={s.x}
                   cy={s.y}
                   r={5}
-                  className={`map-poi ${p.coordinateStatus !== "field_verified" ? "provisional" : ""} ${p.ref === selected ? "selected" : ""}`}
+                  className={`map-poi ${unverified(p.coordinateStatus) ? "provisional" : ""} ${p.ref === selected ? "selected" : ""}`}
                   onClick={() => select(p.ref)}
                 />
               );
@@ -270,7 +273,7 @@ export function MapView(props: {
                   cx={s.x}
                   cy={s.y}
                   r={10}
-                  className={`map-stop ${visited ? (skipped ? "skipped" : "visited") : ""} ${isNext ? "next" : ""} ${p.coordinateStatus !== "field_verified" ? "provisional" : ""} ${p.ref === selected ? "selected" : ""}`}
+                  className={`map-stop ${visited ? (skipped ? "skipped" : "visited") : ""} ${isNext ? "next" : ""} ${unverified(p.coordinateStatus) ? "provisional" : ""} ${p.ref === selected ? "selected" : ""}`}
                 />
                 <text x={s.x} y={s.y + 4} textAnchor="middle" className="map-stop-n">
                   {visited && !skipped ? "✓" : i + 1}
@@ -322,12 +325,17 @@ export function MapView(props: {
           {fix && <> · {Math.round(distanceM(fix.location, sel.location))} m</>}
           <br />
           <span className={sel.coordinateStatus === "field_verified" ? "good small" : "warn small"}>
-            {sel.coordinateStatus === "field_verified" ? t.map.verified : t.map.provisional}
+            {sel.coordinateStatus === "field_verified"
+              ? t.map.verified
+              : sel.coordinateStatus === "map_verified"
+                ? t.map.mapVerified
+                : t.map.provisional}
           </span>
         </p>
       )}
       <div className="row wrap map-foot">
         {preliminary && <span className="muted small">{t.map.legendProvisional}</span>}
+        {notFieldVerified && <span className="muted small">{t.map.legendMapVerified}</span>}
         {showTiles && loadedTiles === 0 && failedTiles.size > 0 && <span className="muted small">{t.map.noBasemap}</span>}
         {online ? (
           <label className="check small">

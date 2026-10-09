@@ -137,7 +137,17 @@ export const geofenceSchema = z
     message: "un geofence 'viewpoint' deve indicare il proprio center",
   });
 
-/** Affidabilità delle coordinate: preliminari finché qualcuno non le rileva sul posto. */
+/** Fonte cartografica usata per controllare una coordinata (verifica su mappa, distinta dal rilievo sul campo). */
+export const mapSourceSchema = z.strictObject({
+  title: z.string().trim().min(1),
+  url: z.url().optional(),
+  reliability: z.enum(SOURCE_RELIABILITY),
+  /** Coordinate riportate dalla fonte [lng, lat], se diverse da quelle adottate. */
+  value: lngLat.optional(),
+  note: z.string().trim().min(1).optional(),
+});
+
+/** Affidabilità delle coordinate: preliminari finché qualcuno non le controlla su mappa e poi le rileva sul posto. */
 export const coordinatesSchema = z
   .strictObject({
     status: z.enum(COORDINATE_STATUSES).default("preliminary"),
@@ -145,9 +155,16 @@ export const coordinatesSchema = z
     verifiedBy: z.string().trim().min(1).optional(),
     /** Come sono state ottenute (es. "rilievo GPS sul posto, precisione 4 m"). */
     method: z.string().trim().min(1).optional(),
+    /** Verifica cartografica: data, fonti (la prima è quella adottata), coordinate precedenti. */
+    mapVerifiedAt: isoDate.optional(),
+    mapSources: z.array(mapSourceSchema).default([]),
+    previousLocation: lngLat.optional(),
   })
   .refine((c) => c.status !== "field_verified" || (c.verifiedAt !== undefined && c.verifiedBy !== undefined), {
     message: "coordinate field_verified richiedono verifiedAt e verifiedBy",
+  })
+  .refine((c) => c.status !== "map_verified" || (c.mapVerifiedAt !== undefined && c.mapSources.length > 0), {
+    message: "coordinate map_verified richiedono mapVerifiedAt e almeno una fonte in mapSources",
   });
 
 /** Curatela del luogo: stato del racconto, note di campo, ultima verifica. */
@@ -190,7 +207,7 @@ export const placeSchema = z.strictObject({
       notes: localized.optional(),
     })
     .optional(),
-  coordinates: coordinatesSchema.default({ status: "preliminary" }),
+  coordinates: coordinatesSchema.default({ status: "preliminary", mapSources: [] }),
   curation: curationSchema.optional(),
   practical: z.array(practicalInfoSchema).default([]),
   /** Raggiungibile a piedi dal resto della destinazione? Se no (es. un'isola), la guida non lo propone come tappa a piedi. */

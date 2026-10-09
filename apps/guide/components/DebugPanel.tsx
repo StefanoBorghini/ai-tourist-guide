@@ -31,6 +31,7 @@ const PHASE: Record<string, string> = {
 };
 const COORD: Record<string, string> = {
   preliminary: "preliminari",
+  map_verified: "su mappa (campo da fare)",
   field_verified: "verificate sul campo",
   needs_review: "da rivedere",
 };

@@ -251,14 +251,14 @@ describe("verifica sul campo e stadi di rilascio", () => {
 
   it("in produzione pretende coordinate rilevate sul posto", () => {
     const packs = loadSynthetic();
-    village(packs).places[0]!.coordinates = { status: "preliminary" };
+    village(packs).places[0]!.coordinates = { status: "preliminary", mapSources: [] };
     expect(errorCodes(packs)).toContain("COORDINATES_NOT_VERIFIED");
   });
 
   it("in fase di ricerca le coordinate preliminari sono solo un avviso", () => {
     const packs = loadSynthetic();
     village(packs).manifest.releaseStage = "research";
-    village(packs).places[0]!.coordinates = { status: "preliminary" };
+    village(packs).places[0]!.coordinates = { status: "preliminary", mapSources: [] };
     expect(errorCodes(packs)).not.toContain("COORDINATES_NOT_VERIFIED");
     expect(warningCodes(packs)).toContain("COORDINATES_PRELIMINARY");
   });
@@ -320,5 +320,24 @@ describe("collegamento alla fonte", () => {
     a.evidence = a.evidence.map((e) => ({ ...e, attribution: "inferred" as const }));
     expect(errorCodes(packs)).not.toContain("EVIDENCE_INFERRED");
     expect(warningCodes(packs)).toContain("EVIDENCE_INFERRED");
+  });
+});
+
+describe("verifica cartografica delle coordinate", () => {
+  it("map_verified richiede data e fonti, e resta distinta dal campo", () => {
+    const packs = loadSynthetic();
+    village(packs).manifest.releaseStage = "research";
+    const place = village(packs).places[0]!;
+    place.coordinates = {
+      status: "map_verified",
+      mapVerifiedAt: "2026-10-09",
+      mapSources: [{ title: "Cartografia di prova", reliability: "C" }],
+      previousLocation: [0, 0],
+    };
+    expect(errorCodes(packs)).toEqual([]);
+    expect(warningCodes(packs)).toContain("COORDINATES_MAP_ONLY");
+    // In produzione la verifica su mappa non basta.
+    village(packs).manifest.releaseStage = "production";
+    expect(errorCodes(packs)).toContain("COORDINATES_NOT_VERIFIED");
   });
 });

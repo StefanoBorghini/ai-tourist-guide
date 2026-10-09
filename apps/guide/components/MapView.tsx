@@ -10,6 +10,7 @@ import {
   fitView,
   metersPerPixel,
   panBy,
+  pinchStep,
   placeLabels,
   scaleBar,
   toScreen,
@@ -26,6 +27,8 @@ import type { GuideRuntime } from "../lib/runtime";
  * geofence in modalità debug. Le posizioni provvisorie sono tratteggiate: non vanno prese per buone.
  */
 const HEIGHT = 260;
+/** Spostamento minimo (px) perché un tocco diventi un trascinamento. */
+const DRAG_THRESHOLD = 6;
 /** Oltre questa distanza dalle tappe la posizione non entra nell'inquadratura del percorso (es. prove da casa). */
 const NEAR_ROUTE_M = 2000;
 const TILE_URL = (z: number, x: number, y: number) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
@@ -43,6 +46,8 @@ export function MapView(props: {
   const { content, runtime, debug, online, simulated, t } = props;
   const boxRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(320);
+  const [measuredHeight, setMeasuredHeight] = useState(HEIGHT);
+  const [fullscreen, setFullscreen] = useState(false);
   const [mode, setMode] = useState<Mode>("route");
   const [manual, setManual] = useState<MapViewState | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -50,16 +55,41 @@ export function MapView(props: {
   const [failedTiles, setFailedTiles] = useState<Set<string>>(new Set());
   const [loadedTiles, setLoadedTiles] = useState(0);
   const drag = useRef<{ x: number; y: number; moved: number } | null>(null);
+  /** Dita appoggiate sulla mappa, per distinguere trascinamento (una) e pizzico (due). */
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchBase = useRef<number | null>(null);
 
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([entry]) => setWidth(Math.max(200, Math.round(entry!.contentRect.width))));
+    const ro = new ResizeObserver(([entry]) => {
+      setWidth(Math.max(200, Math.round(entry!.contentRect.width)));
+      setMeasuredHeight(Math.max(200, Math.round(entry!.contentRect.height)));
+    });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [fullscreen]);
+
+  // A schermo intero: niente scorrimento della pagina sotto, Esc o «indietro» del telefono chiudono.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFullscreen(false);
+    const onPop = () => setFullscreen(false);
+    window.addEventListener("keydown", onKey);
+    window.history.pushState({ mapFullscreen: true }, "");
+    window.addEventListener("popstate", onPop);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("popstate", onPop);
+      if (window.history.state?.mapFullscreen) window.history.back();
+    };
+  }, [fullscreen]);
 
   const fix = runtime.lastFix;
+  const mapHeight = fullscreen ? measuredHeight : HEIGHT;
   const placeByRef = useMemo(() => new Map(content.places.map((p) => [p.ref, p])), [content]);
   const stops = (runtime.plan?.stops ?? []).map((s) => placeByRef.get(s.placeId)).filter((p): p is NonNullable<typeof p> => !!p);
   const stopIndex = new Map(stops.map((p, i) => [p.ref, i]));
@@ -68,16 +98,16 @@ export function MapView(props: {
   // Inquadratura automatica, finché l'utente non sposta o ingrandisce la mappa.
   const auto = (): MapViewState => {
     if (mode === "me" && fix) return { center: fix.location, zoom: 18 };
-    if (mode === "all") return fitView([...content.places.map((p) => p.location), ...content.anchors.map((a) => a.location)], width, HEIGHT);
+    if (mode === "all") return fitView([...content.places.map((p) => p.location), ...content.anchors.map((a) => a.location)], width, mapHeight);
     const pts: LngLat[] = stops.length > 0 ? stops.map((p) => p.location) : content.places.map((p) => p.location);
     if (fix && pts.some((p) => distanceM(p, fix.location) < NEAR_ROUTE_M)) pts.push(fix.location);
-    return fitView(pts, width, HEIGHT);
+    return fitView(pts, width, mapHeight);
   };
   const view = manual ?? auto();
-  const screen = toScreen(view, width, HEIGHT);
+  const screen = toScreen(view, width, mapHeight);
   const mpp = metersPerPixel(view.center[1], view.zoom);
   const showTiles = online && basemap;
-  const tiles = showTiles ? visibleTiles(view, width, HEIGHT) : [];
+  const tiles = showTiles ? visibleTiles(view, width, mapHeight) : [];
   const scale = scaleBar(view.center[1], view.zoom);
   const fences = runtime.debugSnapshot().places;
   const preliminary = content.places.some((p) => p.coordinateStatus !== "field_verified");
@@ -91,7 +121,7 @@ export function MapView(props: {
     }),
     ...content.anchors.map((a) => ({ id: a.ref, ...screen(a.location), text: a.name, priority: 40, offset: 7 })),
   ];
-  const labels = placeLabels(labelCandidates, width, HEIGHT);
+  const labels = placeLabels(labelCandidates, width, mapHeight);
 
   const zoomBy = (d: number) => setManual({ ...view, zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, view.zoom + d)) });
   const choose = (m: Mode) => {
@@ -99,10 +129,34 @@ export function MapView(props: {
     setManual(null);
   };
 
+  const pinchDistance = () => {
+    const [a, b] = [...pointers.current.values()];
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  };
   const onPointerDown = (e: ReactPointerEvent) => {
-    drag.current = { x: e.clientX, y: e.clientY, moved: 0 };
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2) {
+      // Inizia un pizzico: niente trascinamento finché ci sono due dita.
+      pinchBase.current = pinchDistance();
+      drag.current = { x: e.clientX, y: e.clientY, moved: DRAG_THRESHOLD + 1 };
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } else if (pointers.current.size === 1) {
+      drag.current = { x: e.clientX, y: e.clientY, moved: 0 };
+    }
   };
   const onPointerMove = (e: ReactPointerEvent) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size >= 2) {
+      const base = pinchBase.current;
+      if (base === null) return;
+      const step = pinchStep(base, pinchDistance());
+      if (step !== 0) {
+        setManual({ ...view, zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, view.zoom + step)) });
+        pinchBase.current = pinchDistance();
+      }
+      return;
+    }
     const d = drag.current;
     if (!d) return;
     const dx = e.clientX - d.x;
@@ -110,18 +164,26 @@ export function MapView(props: {
     d.moved += Math.abs(dx) + Math.abs(dy);
     d.x = e.clientX;
     d.y = e.clientY;
-    if (d.moved > 4) {
+    if (d.moved > DRAG_THRESHOLD) {
       // La cattura parte solo quando è davvero un trascinamento: un tocco deve arrivare al simbolo.
       const el = e.currentTarget as HTMLElement;
       if (!el.hasPointerCapture(e.pointerId)) el.setPointerCapture(e.pointerId);
       setManual(panBy(view, dx, dy));
     }
   };
-  const onPointerUp = () => {
-    setTimeout(() => (drag.current = null), 0);
+  const onPointerUp = (e: ReactPointerEvent) => {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinchBase.current = null;
+    const [rest] = [...pointers.current.values()];
+    if (rest) {
+      // Si è sollevato un dito del pizzico: il dito rimasto riparte da qui, senza salti.
+      drag.current = { x: rest.x, y: rest.y, moved: DRAG_THRESHOLD + 1 };
+    } else {
+      setTimeout(() => (drag.current = null), 0);
+    }
   };
   const select = (ref: string) => {
-    if (drag.current && drag.current.moved > 4) return;
+    if (drag.current && drag.current.moved > DRAG_THRESHOLD) return;
     setSelected(selected === ref ? null : ref);
   };
 
@@ -129,7 +191,7 @@ export function MapView(props: {
   const me = fix ? screen(fix.location) : null;
 
   return (
-    <section className="card mapview">
+    <section className={fullscreen ? "mapview fullscreen" : "card mapview"}>
       <div className="row wrap map-modes">
         {(["route", "me", "all"] as const).map((m) => (
           <button key={m} className={`chip small ${mode === m && !manual ? "on" : ""}`} onClick={() => choose(m)} disabled={m === "me" && !fix}>
@@ -140,7 +202,7 @@ export function MapView(props: {
       <div
         ref={boxRef}
         className="map-box"
-        style={{ height: HEIGHT }}
+        style={fullscreen ? undefined : { height: HEIGHT }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -161,7 +223,7 @@ export function MapView(props: {
             />
           ),
         )}
-        <svg width={width} height={HEIGHT} className="map-svg" role="img" aria-label={t.map.aria}>
+        <svg width={width} height={mapHeight} className="map-svg" role="img" aria-label={t.map.aria}>
           {debug &&
             fences.map((p) => {
               const place = placeByRef.get(p.ref);
@@ -234,6 +296,14 @@ export function MapView(props: {
           {fix && (
             <button className="map-btn" onClick={() => choose("me")} aria-label={t.map.center}>⌖</button>
           )}
+          <button
+            className="map-btn"
+            onClick={() => setFullscreen(!fullscreen)}
+            aria-label={fullscreen ? t.map.exitFullscreen : t.map.fullscreen}
+            aria-pressed={fullscreen}
+          >
+            {fullscreen ? "✕" : "⛶"}
+          </button>
         </div>
         <div className="map-scale" aria-hidden="true">
           <span style={{ width: scale.px }} />

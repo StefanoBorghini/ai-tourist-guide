@@ -435,3 +435,20 @@ h2 { font-size: 17px; margin: 10px 0 0; }
   gap: 10px;
   justify-content: space-between;
 }
+.mapview.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  background: var(--bg);
+}
+.mapview.fullscreen .map-box {
+  flex: 1;
+  min-height: 0;
+}
+.mapview.fullscreen .map-btn {
+  width: 44px;
+  height: 44px;
+}

@@ -154,3 +154,16 @@ export function placeLabels(candidates: LabelCandidate[], width: number, height:
   }
   return placed;
 }
+
+/**
+ * Pizzico con due dita, volutamente "duro": uno scatto di zoom solo quando la distanza tra le dita
+ * cresce o cala di almeno il 60% rispetto all'ultimo scatto. Evita gli zoom involontari.
+ */
+export const PINCH_STEP_RATIO = 1.6;
+export function pinchStep(baseDistance: number, distance: number): -1 | 0 | 1 {
+  if (baseDistance <= 0) return 0;
+  const ratio = distance / baseDistance;
+  if (ratio >= PINCH_STEP_RATIO) return 1;
+  if (ratio <= 1 / PINCH_STEP_RATIO) return -1;
+  return 0;
+}

@@ -72,3 +72,15 @@ describe("geometria della mappa", () => {
       }
   });
 });
+
+describe("pizzico", () => {
+  it("ignora i piccoli movimenti delle dita e fa uno scatto solo oltre la soglia", async () => {
+    const { pinchStep } = await import("../lib/map-view.ts");
+    expect(pinchStep(100, 120)).toBe(0);
+    expect(pinchStep(100, 150)).toBe(0);
+    expect(pinchStep(100, 160)).toBe(1);
+    expect(pinchStep(100, 70)).toBe(0);
+    expect(pinchStep(100, 62)).toBe(-1);
+    expect(pinchStep(0, 50)).toBe(0);
+  });
+});

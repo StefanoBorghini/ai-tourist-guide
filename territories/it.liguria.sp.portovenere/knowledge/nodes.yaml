@@ -1,0 +1,10 @@
+# Persone, eventi, leggende e temi del territorio (base di conoscenza 2026-10).
+- id: simonetta-cattaneo-vespucci
+  kind: person
+  labels:
+    it:
+      name: Simonetta Cattaneo Vespucci
+      short: Nobildonna genovese del Quattrocento, sposa di Marco Vespucci
+    en:
+      name: Simonetta Cattaneo Vespucci
+      short: 15th-century Genoese noblewoman, wife of Marco Vespucci

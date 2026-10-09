@@ -441,3 +441,115 @@
     The Park also points to the AV5T trail, which links Porto Venere with Campiglia, with views over Palmaria, Tino,
     Tinetto and the Cinque Terre coast.
   assertions: *id028
+
+# --- Base di conoscenza 2026-10: Fezzano ---
+- id: fezzano-context-romano-it
+  anchor: fezzano
+  unitType: context
+  locale: it
+  durationS: 21
+  text: Fezzano ha radici antiche. Durante i lavori per il nuovo campo sportivo sono emersi resti di epoca romana, che il
+    Ministero della Cultura presenta come il complesso del «fundus Alphidianus»; nel 2023 gli scavi sono stati aperti a visite
+    guidate. Si ipotizza che il nome stesso del paese derivi da lì.
+  assertions: &id001
+  - fz-scavi-romani
+  - fz-fundus
+  - fz-toponimo
+- id: fezzano-context-romano-en
+  anchor: fezzano
+  unitType: context
+  locale: en
+  durationS: 20
+  text: Fezzano has ancient roots. During work on the new sports ground, Roman-era remains came to light, which the Ministry
+    of Culture presents as the complex of the 'fundus Alphidianus'; in 2023 the excavation was opened to guided visits. It
+    is suggested that the village's very name derives from it.
+  assertions: *id001
+- id: fezzano-context-storia-it
+  anchor: fezzano
+  unitType: context
+  locale: it
+  durationS: 30
+  text: 'Della sua storia medievale e moderna si sa ancora poco con certezza. Secondo una guida turistica locale il paese
+    si chiamava Mezzano fino al IX secolo, il 6 gennaio 1052 Guidone Malaspina lo donò al monastero di San Venerio e nel 1805,
+    in età napoleonica, divenne comune autonomo: notizie che attendono conferma dai documenti. Più solido è che la strada
+    costiera verso la Spezia, che passa da qui, fu costruita nel 1812.'
+  assertions: &id002
+  - fz-mezzano
+  - fz-donazione
+  - fz-napoleone
+  - fz-strada-1812
+- id: fezzano-context-storia-en
+  anchor: fezzano
+  unitType: context
+  locale: en
+  durationS: 32
+  text: 'Little of its medieval and modern history is known for certain. According to a local tourist guide the village was
+    called Mezzano until the 9th century, on 6 January 1052 Guidone Malaspina gave it to the monastery of San Venerio, and
+    in 1805, in the Napoleonic period, it became an independent municipality: reports still awaiting confirmation from documents.
+    More solid is that the coastal road to La Spezia, which runs through here, was built in 1812.'
+  assertions: *id002
+- id: fezzano-detail-chiese-it
+  anchor: fezzano
+  unitType: detail
+  locale: it
+  durationS: 29
+  text: 'Tra i carruggi c''è la chiesa parrocchiale di San Giovanni Battista, a navata unica con altari barocchi. Le guide
+    locali la datano al 1740, mentre il catalogo nazionale dei beni culturali registra una chiesa di San Giovanni Battista
+    anteriore al 1739: le date non coincidono del tutto. Poco lontano, secondo il FAI, l''oratorio di San Nicola fu eretto
+    nel 1543 per volontà del capitano Nicolino Porretta e della moglie Bianchetta.'
+  assertions: &id003
+  - fz-chiesa-1740
+  - fz-chiesa-catalogo
+  - fz-san-nicola
+- id: fezzano-detail-chiese-en
+  anchor: fezzano
+  unitType: detail
+  locale: en
+  durationS: 29
+  text: 'Among the alleys stands the parish church of San Giovanni Battista, with a single nave and Baroque altars. Local
+    guides date it to 1740, while the national heritage catalogue records a church of San Giovanni Battista from before 1739:
+    the dates do not quite match. Nearby, according to the FAI, the oratory of San Nicola was built in 1543 at the wish of
+    Captain Nicolino Porretta and his wife Bianchetta.'
+  assertions: *id003
+- id: fezzano-curiosity-simonetta-it
+  anchor: fezzano
+  unitType: curiosity
+  locale: it
+  durationS: 29
+  text: 'Le guide locali legano Fezzano a Simonetta Cattaneo, sposa di Marco Vespucci, e indicano qui Villa Cattaneo come
+    dimora della sua famiglia. Dove sia nata, però, è discusso: secondo il catasto fiorentino del 1469, come riporta Finestre
+    sull''Arte, a Genova; secondo una proposta più recente, a Porto Venere o proprio a Fezzano. Si racconta anche che abbia
+    ispirato la «Nascita di Venere» di Botticelli, ma gli storici dell''arte ne discutono.'
+  assertions: &id004
+  - fz-villa-cattaneo
+  - sim-nascita-genova
+  - sim-nascita-golfo
+  - sim-venere
+- id: fezzano-curiosity-simonetta-en
+  anchor: fezzano
+  unitType: curiosity
+  locale: en
+  durationS: 30
+  text: 'Local guides link Fezzano to Simonetta Cattaneo, wife of Marco Vespucci, and point to Villa Cattaneo here as her
+    family''s home. Where she was born, though, is debated: according to the Florentine land register of 1469, as reported
+    by Finestre sull''Arte, in Genoa; according to a more recent proposal, in Porto Venere or in Fezzano itself. It is also
+    said that she inspired Botticelli''s ''Birth of Venus'', but art historians debate it.'
+  assertions: *id004
+- id: fezzano-closing-palio-it
+  anchor: fezzano
+  unitType: closing
+  locale: it
+  durationS: 13
+  text: 'Qui il mare è anche sfida: Fezzano gareggia con la sua borgata, gli «Squali», al Palio del Golfo della Spezia, e
+    nel 2022 ha conquistato la decima vittoria della sua storia.'
+  assertions: &id005
+  - fz-palio
+  - fz-palio-2022
+- id: fezzano-closing-palio-en
+  anchor: fezzano
+  unitType: closing
+  locale: en
+  durationS: 14
+  text: 'Here the sea is also a contest: Fezzano races with its own crew, the ''Squali'', in the Palio del Golfo of La Spezia,
+    and in 2022 it won the tenth victory in its history.'
+  assertions: *id005

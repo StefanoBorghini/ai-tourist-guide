@@ -72,3 +72,95 @@
   url: https://www.visitportovenere.com/it/portovenere/le-grazie
   priority: SECONDARY_LOCAL
   originalId: visit_le_grazie
+
+# --- Base di conoscenza 2026-10: Fezzano (fonti consultate tramite motore di ricerca, da verificare) ---
+- id: mic-fundus-alphidianus
+  sourceKind: institution
+  title: 'Scoperte archeologiche a Fezzano di Porto Venere (SP): visita guidata agli scavi del complesso romano del fundus
+    Alphidianus'
+  institution: Ministero della Cultura
+  year: 2023
+  language: it
+  reliability: B
+  url: https://cultura.gov.it/evento/scoperte-archeologiche-a-fezzano-di-porto-venere-sp-visita-guidata-agli-scavi-del-complesso-romano-del-fundus-alphidianus
+  accessedAt: '2026-10-09'
+- id: lecinqueterre-fezzano
+  sourceKind: website
+  title: Fezzano
+  institution: lecinqueterre.org
+  language: it
+  reliability: C
+  url: https://www.lecinqueterre.org/fezzano.php
+  accessedAt: '2026-10-09'
+- id: terredilunigiana-fezzano
+  sourceKind: website
+  title: Fezzano
+  institution: Terre di Lunigiana
+  language: en
+  reliability: C
+  url: https://www.terredilunigiana.com/eng/golfodeipoeti/fezzano.php
+  accessedAt: '2026-10-09'
+- id: catalogo-0700208306
+  sourceKind: catalogue_record
+  title: Chiesa di San Giovanni Battista (scheda 0700208306)
+  institution: Ministero della Cultura - Catalogo generale dei Beni Culturali
+  language: it
+  reliability: A
+  url: https://catalogo.cultura.gov.it/detail/ArchitecturalOrLandscapeHeritage/0700208306
+  accessedAt: '2026-10-09'
+- id: finestresullarte-simonetta
+  sourceKind: website
+  title: 'Simonetta Vespucci: era davvero musa e amante di Sandro Botticelli?'
+  institution: Finestre sull'Arte
+  language: it
+  reliability: C
+  url: https://www.finestresullarte.info/647n_simonetta-vespucci-e-sandro-botticelli.php
+  accessedAt: '2026-10-09'
+- id: wikipedia-en-simonetta
+  sourceKind: website
+  title: Simonetta Vespucci
+  institution: Wikipedia (en)
+  language: en
+  reliability: C
+  url: https://en.wikipedia.org/wiki/Simonetta_Vespucci
+  accessedAt: '2026-10-09'
+- id: wikipedia-en-porto-venere
+  sourceKind: website
+  title: Porto Venere
+  institution: Wikipedia (en)
+  language: en
+  reliability: C
+  url: https://en.wikipedia.org/wiki/Porto_Venere
+  accessedAt: '2026-10-09'
+- id: parco-borghi
+  sourceKind: institution
+  title: 'I borghi: Porto Venere, Le Grazie, Fezzano'
+  institution: Parco Naturale Regionale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/i-paesi-porto-venere-le-grazie-fezzano/
+  accessedAt: '2026-10-09'
+- id: fai-oratorio-san-nicola
+  sourceKind: website
+  title: Oratorio di San Nicola al Fezzano (I Luoghi del Cuore)
+  institution: FAI - Fondo Ambiente Italiano (segnalazione del pubblico)
+  language: it
+  reliability: C
+  url: https://www.fondoambiente.it/luoghi/oratorio-di-san-nicola-al-fezzano
+  accessedAt: '2026-10-09'
+- id: lanazione-palio-2022
+  sourceKind: website
+  title: Il Palio della ripartenza è tutto del Fezzano
+  institution: La Nazione
+  language: it
+  reliability: C
+  url: https://www.lanazione.it/la-spezia/cronaca/il-palio-della-ripartenza-e-tutto-del-fezzano-gara-combattuta-canarini-dietro-a-4-secondi-1.7962044
+  accessedAt: '2026-10-09'
+- id: lanazione-prepalio-fezzano
+  sourceKind: website
+  title: 'Prepalio, sfide accese: Fezzano primo'
+  institution: La Nazione
+  language: it
+  reliability: C
+  url: https://www.lanazione.it/la-spezia/cronaca/prepalio-sfide-accese-fezzano-primo-c8d866cc
+  accessedAt: '2026-10-09'

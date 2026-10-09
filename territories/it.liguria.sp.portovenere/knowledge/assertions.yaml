@@ -582,3 +582,348 @@
   evidence: []
   authoredBy: ricerca-territory-pack-v1
   originalClaim: Steep circulation route toward the San Pietro promontory and fortifications.
+
+# --- Base di conoscenza 2026-10: Fezzano. Attribuzioni dedotte da sintesi di ricerca: da verificare sulle fonti ---
+- id: fz-frazione
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: 'Fezzano è uno dei tre paesi del comune di Porto Venere, con Le Grazie e Porto Venere: è il primo che si incontra
+      arrivando dalla Spezia.'
+    en: 'Fezzano is one of the three villages of the municipality of Porto Venere, with Le Grazie and Porto Venere: it is
+      the first you reach coming from La Spezia.'
+  evidence:
+  - source: parco-borghi
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  - source: wikipedia-en-porto-venere
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  - source: lecinqueterre-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-scavi-romani
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: Durante i lavori per il nuovo campo sportivo di Fezzano sono emersi resti di epoca romana; nel 2023 la Soprintendenza
+      di Genova e La Spezia, con il Comune, ha aperto gli scavi a visite guidate.
+    en: Roman-era remains came to light during work on Fezzano's new sports ground; in 2023 the Superintendency of Genoa and
+      La Spezia, with the municipality, opened the excavation to guided visits.
+  evidence:
+  - source: mic-fundus-alphidianus
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-fundus
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: Il Ministero della Cultura presenta i resti romani scoperti a Fezzano come il complesso del «fundus Alphidianus».
+    en: The Ministry of Culture presents the Roman remains found at Fezzano as the complex of the 'fundus Alphidianus'.
+  evidence:
+  - source: mic-fundus-alphidianus
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-toponimo
+  subject: fezzano
+  predicate: described_as
+  type: hypothesis
+  status: in_review
+  texts:
+    it: Si ipotizza che il nome Fezzano derivi proprio dal latino «fundus Alphidianus».
+    en: It is suggested that the name Fezzano derives from the Latin 'fundus Alphidianus'.
+  evidence:
+  - source: lecinqueterre-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  - source: terredilunigiana-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-mezzano
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: uncertain
+  status: in_review
+  texts:
+    it: Secondo una guida turistica locale, fino al IX secolo il paese era chiamato Mezzano.
+    en: According to a local tourist guide, the village was called Mezzano until the 9th century.
+  evidence:
+  - source: lecinqueterre-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-donazione
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: uncertain
+  status: in_review
+  texts:
+    it: Secondo una guida turistica locale, il 6 gennaio 1052 Guidone Malaspina donò Fezzano al monastero di San Venerio.
+    en: According to a local tourist guide, on 6 January 1052 Guidone Malaspina gave Fezzano to the monastery of San Venerio.
+  evidence:
+  - source: lecinqueterre-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-napoleone
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: uncertain
+  status: in_review
+  texts:
+    it: Secondo una guida turistica locale, Fezzano fu per secoli possedimento genovese e nel 1805, in età napoleonica, divenne comune
+      autonomo.
+    en: According to a local tourist guide, Fezzano was a Genoese possession for centuries and became an independent municipality
+      in 1805, in the Napoleonic period.
+  evidence:
+  - source: lecinqueterre-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-strada-1812
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: in_review
+  texts:
+    it: La strada costiera che collega Porto Venere alla Spezia passando per Fezzano e Le Grazie fu costruita nel 1812, in
+      età napoleonica.
+    en: The coastal road linking Porto Venere to La Spezia through Fezzano and Le Grazie was built in 1812, in the Napoleonic
+      period.
+  evidence:
+  - source: wikipedia-en-porto-venere
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-chiesa-1740
+  subject: fezzano
+  predicate: described_as
+  type: disputed
+  status: in_review
+  dispute: fezzano-chiesa-data
+  texts:
+    it: Le guide locali datano al 1740 la chiesa parrocchiale di San Giovanni Battista, nel centro di Fezzano, a navata unica
+      con altari barocchi.
+    en: Local guides date the parish church of San Giovanni Battista, in the centre of Fezzano, to 1740; it has a single nave
+      with Baroque altars.
+  evidence:
+  - source: terredilunigiana-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  - source: lecinqueterre-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-chiesa-catalogo
+  subject: fezzano
+  predicate: described_as
+  type: disputed
+  status: in_review
+  dispute: fezzano-chiesa-data
+  texts:
+    it: Il catalogo nazionale dei beni culturali registra una chiesa parrocchiale di San Giovanni Battista, in piazza San
+      Giovanni Battista, datata a prima del 1739 e opera di maestranze locali.
+    en: The national heritage catalogue records a parish church of San Giovanni Battista, in Piazza San Giovanni Battista,
+      dated before 1739 and built by local craftsmen.
+  evidence:
+  - source: catalogo-0700208306
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-chiesa-opere
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: uncertain
+  status: in_review
+  texts:
+    it: Secondo una guida locale, nella chiesa si conservano cinque grandi tele del pittore locale Giuseppe Tori e una statua
+      attribuita ad Anton Maria Maragliano.
+    en: According to a local guide, the church holds five large canvases by the local painter Giuseppe Tori and a statue attributed
+      to Anton Maria Maragliano.
+  evidence:
+  - source: lecinqueterre-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-san-nicola
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: in_review
+  texts:
+    it: Secondo la scheda del FAI, l'oratorio di San Nicola fu eretto nel 1543 per volontà del capitano Nicolino Porretta
+      e della moglie Bianchetta, accanto all'allora palazzo Porretta; sopra l'altare c'è un dipinto della Madonna del Rosario.
+    en: According to the FAI entry, the oratory of San Nicola was built in 1543 at the wish of Captain Nicolino Porretta and
+      his wife Bianchetta, next to what was then the Porretta palace; above the altar hangs a painting of the Madonna of the
+      Rosary.
+  evidence:
+  - source: fai-oratorio-san-nicola
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-villa-cattaneo
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: uncertain
+  status: in_review
+  texts:
+    it: Le guide locali indicano a Fezzano Villa Cattaneo, del Quattrocento, come dimora della famiglia di Simonetta Cattaneo.
+    en: Local guides identify Villa Cattaneo in Fezzano, from the 15th century, as the home of Simonetta Cattaneo's family.
+  evidence:
+  - source: terredilunigiana-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  - source: lecinqueterre-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-palio
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: established
+  status: in_review
+  texts:
+    it: Fezzano partecipa con una propria borgata al Palio del Golfo della Spezia, la regata tra le borgate marinare del golfo;
+      il suo equipaggio è chiamato «Squali».
+    en: Fezzano takes part with its own borgata in the Palio del Golfo of La Spezia, the regatta between the gulf's seafaring
+      communities; its crew is known as the 'Squali' (sharks).
+  evidence:
+  - source: lanazione-palio-2022
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  - source: lanazione-prepalio-fezzano
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: fz-palio-2022
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: in_review
+  texts:
+    it: Nel 2022 Fezzano vinse la 97ª edizione del Palio del Golfo, la decima vittoria della sua storia.
+    en: In 2022 Fezzano won the 97th Palio del Golfo, the tenth victory in its history.
+  evidence:
+  - source: lanazione-palio-2022
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: sim-vita
+  subject: simonetta-cattaneo-vespucci
+  predicate: lifespan
+  type: fact
+  certainty: probable
+  status: in_review
+  value:
+    yearFrom: 1453
+    yearTo: 1476
+    circa: true
+  texts:
+    it: Simonetta Cattaneo nacque intorno al 1453, sposò Marco Vespucci nel 1469 e morì a Firenze nel 1476.
+    en: Simonetta Cattaneo was born around 1453, married Marco Vespucci in 1469 and died in Florence in 1476.
+  evidence:
+  - source: finestresullarte-simonetta
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  - source: wikipedia-en-simonetta
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: sim-nascita-genova
+  subject: simonetta-cattaneo-vespucci
+  predicate: described_as
+  type: disputed
+  status: in_review
+  dispute: nascita-simonetta
+  texts:
+    it: Secondo il catasto fiorentino del 1469, come riportato da Finestre sull'Arte, Simonetta era nata a Genova.
+    en: According to the Florentine land register of 1469, as reported by Finestre sull'Arte, Simonetta was born in Genoa.
+  evidence:
+  - source: finestresullarte-simonetta
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: sim-nascita-golfo
+  subject: simonetta-cattaneo-vespucci
+  predicate: described_as
+  type: disputed
+  status: in_review
+  dispute: nascita-simonetta
+  texts:
+    it: Una proposta più recente la vuole invece nata a Porto Venere o a Fezzano, dove la famiglia Cattaneo aveva possedimenti.
+    en: A more recent proposal places her birth instead in Porto Venere or Fezzano, where the Cattaneo family owned property.
+  evidence:
+  - source: finestresullarte-simonetta
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  - source: wikipedia-en-simonetta
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10
+- id: sim-venere
+  subject: simonetta-cattaneo-vespucci
+  predicate: described_as
+  type: tradition
+  status: in_review
+  texts:
+    it: Si racconta che Simonetta abbia ispirato la «Nascita di Venere» di Botticelli; l'identificazione è discussa dagli
+      storici dell'arte.
+    en: It is said that Simonetta inspired Botticelli's 'Birth of Venus'; the identification is debated by art historians.
+  evidence:
+  - source: finestresullarte-simonetta
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  - source: wikipedia-en-simonetta
+    attribution: inferred
+    locator: 'sintesi del motore di ricerca del 2026-10-09; pagina non aperta direttamente (rete limitata): verificare sul
+      testo della fonte'
+  authoredBy: ricerca-kb-2026-10

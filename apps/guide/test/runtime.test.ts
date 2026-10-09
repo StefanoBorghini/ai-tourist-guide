@@ -376,3 +376,74 @@ describe("esplorazione libera", () => {
     expect(list.map((p) => p.distanceM)).toEqual([...list.map((p) => p.distanceM)].sort((x, y) => x - y));
   });
 });
+
+describe("passaggio tra esplorazione libera e percorso guidato", () => {
+  const stay = (runtime: GuideRuntime, location: readonly [number, number], from: number, seconds = 15) => {
+    const events: RuntimeEvent[] = [];
+    for (let i = 0; i < seconds; i++) events.push(...runtime.onFix({ location, accuracyM: 5, timestamp: from + i * 1000 }));
+    return events;
+  };
+  const route = () => content.routes[0]!;
+  const at = (ref: string) => content.places.find((p) => p.ref === ref)!.location;
+  /** Prima tappa del percorso con qualcosa da raccontare. */
+  const narratableStop = (runtime: GuideRuntime) => route().stops.map((s) => s.place).find((p) => runtime.planFor(p).items.length > 0)!;
+
+  it("un luogo ascoltato esplorando non si ripete nel percorso, ma la tappa conta", () => {
+    const runtime = new GuideRuntime(content, "auto");
+    runtime.startExplore();
+    const stop = narratableStop(runtime);
+    expect(stay(runtime, at(stop), T0).some((e) => e.type === "narration" && e.placeRef === stop)).toBe(true);
+    const told = runtime.memory.heardUnits;
+
+    runtime.startTour({ now: T0 + MIN, start: at(stop), route: route().ref, keepMemory: true });
+    expect(runtime.kind).toBe("tour");
+    expect(runtime.memory.heardUnits).toEqual(told);
+    // Il percorso parte da capo: nessuna tappa raggiunta per il solo fatto di averla ascoltata prima.
+    expect(runtime.nextStop).toBe(route().stops[0]!.place);
+    for (const s of route().stops.slice(0, route().stops.findIndex((x) => x.place === stop))) runtime.skipStop(s.place);
+    expect(runtime.nextStop).toBe(stop);
+    stay(runtime, destination(at(stop), 180, 400), T0 + 2 * MIN, 40);
+    const again = stay(runtime, at(stop), T0 + 4 * MIN);
+    expect(again.some((e) => e.type === "narration" || e.type === "proposal")).toBe(false);
+    expect(runtime.nextStop).not.toBe(stop);
+  });
+
+  it("una tappa saltata nel percorso viene proposta passando all'esplorazione libera", () => {
+    const runtime = new GuideRuntime(content, "ask");
+    runtime.startTour({ now: T0, start: content.anchors[0]!.location, route: route().ref });
+    const stop = narratableStop(runtime);
+    runtime.skipStop(stop);
+    expect(runtime.skipped).toEqual([stop]);
+    runtime.startExplore({ keepMemory: true });
+    expect(runtime.skipped).toEqual([]);
+    expect(stay(runtime, at(stop), T0 + MIN).some((e) => e.type === "proposal" && e.placeRef === stop)).toBe(true);
+  });
+
+  it("andata e ritorno tra le modalità: la memoria del racconto resta, l'avanzamento è del percorso", () => {
+    const runtime = new GuideRuntime(content, "ask");
+    runtime.startTour({ now: T0, start: content.anchors[0]!.location, route: route().ref });
+    const first = route().stops[0]!.place;
+    runtime.arriveManually(first, T0);
+    const memory = runtime.memory;
+    runtime.startExplore({ keepMemory: true });
+    expect(runtime.visited).toEqual([]);
+    runtime.startTour({ now: T0 + MIN, start: at(first), route: route().ref, keepMemory: true });
+    expect(runtime.memory).toEqual(memory);
+    expect(runtime.wasNarrated(first)).toBe(true);
+    expect(runtime.nextStop).toBe(first);
+    // Confermarla di nuovo non la racconta una seconda volta, ma fa avanzare il percorso.
+    expect(runtime.arriveManually(first, T0 + MIN).some((e) => e.type === "narration")).toBe(false);
+    expect(runtime.nextStop).toBe(route().stops[1]!.place);
+  });
+
+  it("gli stati salvati prima di questa versione si ripristinano (avanzamento dai luoghi visitati)", () => {
+    const runtime = new GuideRuntime(content, "ask");
+    runtime.startTour({ now: T0, start: content.anchors[0]!.location, route: route().ref });
+    runtime.arriveManually(route().stops[0]!.place, T0);
+    const { reached: _omit, declined: _old, ...legacy } = JSON.parse(JSON.stringify(runtime.exportState()));
+    const reopened = new GuideRuntime(content, "ask");
+    reopened.startTour({ now: T0, start: content.anchors[0]!.location, route: route().ref });
+    reopened.restoreState(legacy);
+    expect(reopened.nextStop).toBe(route().stops[1]!.place);
+  });
+});

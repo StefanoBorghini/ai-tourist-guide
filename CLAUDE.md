@@ -21,9 +21,10 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 
 ## Struttura
 
-- `apps/guide` — app Next.js (PWA, poi Capacitor). Due modalità: **Esplora** (principale: esplorazione libera col GPS,
-  tutti i luoghi attivi, nessun piano) e **Itinerari** (percorsi curati o su misura, facoltativi; si passa a Esplora in un
-  tocco senza perdere ciò che è stato raccontato). `lib/runtime.ts` collega motore di contesto e narrazione (logica
+- `apps/guide` — app Next.js (PWA, poi Capacitor). Due modalità sullo stesso motore (GPS, geofence, luoghi, fonti,
+  narrazione), cambia solo l'organizzazione: **esplorazione libera** (nessun piano, tutti i luoghi attivi) e **percorsi
+  guidati** (itinerari curati o su misura, tappe in ordine, GPS reale). Si passa dall'una all'altra in un tocco, nella
+  stessa visita: la memoria del racconto resta, l'avanzamento delle tappe è del singolo percorso. `lib/runtime.ts` collega motore di contesto e narrazione (logica
   pura, testata: coda degli arrivi, niente interruzioni mentre la guida parla, luoghi rifiutati non riproposti per
   15 minuti, luoghi vicini); `lib/gps-status.ts` stato del segnale; `components/PlaceCard.tsx` scheda del luogo; al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);

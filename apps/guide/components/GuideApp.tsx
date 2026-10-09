@@ -247,6 +247,14 @@ export function GuideApp() {
 
   /** Avvia un'esplorazione o un itinerario (nuovo o ripreso da uno stato salvato). */
   const beginSession = (tourContent: BundleContent, tourMode: GuideMode, options: TourOptions | null, start: LngLat, state?: RuntimeState) => {
+    // Visita già in corso sullo stesso territorio: si cambia solo organizzazione, il contesto resta.
+    const current = runtimeRef.current;
+    if (!state && current && current.content === tourContent && current.memory.visitedPlaces.length > 0) {
+      current.mode = tourMode;
+      reorganize(options, start);
+      setScreen("walk");
+      return;
+    }
     const runtime = new GuideRuntime(tourContent, tourMode);
     runtime.inviteQuestions = online && askAvailable;
     if (options) runtime.startTour(options);
@@ -283,17 +291,35 @@ export function GuideApp() {
     startGps();
   };
 
-  /** Dall'itinerario all'esplorazione, senza perdere ciò che è già stato raccontato. */
-  const switchToExplore = () => {
+  /**
+   * Cambia l'organizzazione della visita (esplorazione libera ↔ percorso guidato) senza perderla:
+   * stesso runtime, stessa memoria del racconto, stesso GPS e stesso testo già ascoltato.
+   */
+  const reorganize = (options: TourOptions | null, start?: LngLat) => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
-    runtime.startExplore({ keepMemory: true });
-    tourOptionsRef.current = null;
+    if (options) runtime.startTour({ ...options, keepMemory: true });
+    else runtime.startExplore({ keepMemory: true });
+    tourOptionsRef.current = options;
+    if (start) tourStartRef.current = start;
     setProposal(null);
     setComplete(false);
+    setSelected(null);
     stopSimulation();
+    setFlash(t.switchKeeps);
     saveTour();
     rerender();
+  };
+  const switchToExplore = () => reorganize(null);
+  /** Percorso curato scelto durante la visita: parte da dove si è (o dalla sua prima tappa). */
+  const switchToRoute = (ref: string) => {
+    const runtime = runtimeRef.current;
+    const route = content?.routes.find((r) => r.ref === ref);
+    if (!runtime || !route || !content) return;
+    const first = content.places.find((p) => p.ref === route.stops[0]?.place)?.location;
+    const start = runtime.lastFix?.location ?? first ?? defaultStart(content);
+    setRouteRef(ref);
+    reorganize({ now: Date.now(), start, route: ref, budgetMin: route.durationMin, avoidStairs }, start);
   };
 
   const startTour = () => {
@@ -314,6 +340,8 @@ export function GuideApp() {
           : { budgetMin: budget }),
       avoidStairs,
     }, start);
+    // Anche il percorso guidato usa il GPS reale per riconoscere le tappe.
+    startGps();
   };
 
   const resumeTour = async (saved: SavedTour) => {
@@ -485,6 +513,11 @@ export function GuideApp() {
     return () => clearInterval(id);
   }, [gps, rerender]);
 
+  // Tornando dai percorsi guidati la pagina si apre su di loro.
+  useEffect(() => {
+    if (screen === "setup" && itinerariesOpen) document.getElementById("guided")?.scrollIntoView({ block: "start" });
+  }, [screen, itinerariesOpen]);
+
   useEffect(() => {
     if (!flash) return;
     const id = setTimeout(() => setFlash(null), 6000);
@@ -558,6 +591,7 @@ export function GuideApp() {
 
   if (screen === "setup" && content) {
     const anchor = content.anchors[0];
+    const visitInProgress = runtimeRef.current?.content === content && runtimeRef.current.memory.visitedPlaces.length > 0;
     return (
       <main className="screen">
         <button className="link" onClick={() => setScreen("home")}>← {t.back}</button>
@@ -565,12 +599,14 @@ export function GuideApp() {
         {content.fictional && <p className="notice">{t.fictionalNote}</p>}
         {content.preview && <p className="notice preview">{t.previewNote}</p>}
 
-        <section className="card mode-card primary">
-          <h2>🧭 {t.exploreTitle}</h2>
-          <p>{t.exploreHint}</p>
-          <p className="muted small">{t.backgroundNote}</p>
-          <button className="button primary big" onClick={startExploring}>{t.exploreStart}</button>
-        </section>
+        {visitInProgress && (
+          <div className="card resume">
+            <span>{t.continueVisit(runtimeRef.current!.memory.visitedPlaces.length)}</span>
+            <button className="link" onClick={() => { runtimeRef.current = null; clearSavedTour(); setSavedTour(null); rerender(); }}>
+              {t.restart}
+            </button>
+          </div>
+        )}
 
         <h2>{t.mode}</h2>
         <div className="row wrap">
@@ -581,8 +617,15 @@ export function GuideApp() {
           ))}
         </div>
 
-        <details className="card itineraries" open={itinerariesOpen} onToggle={(e) => setItinerariesOpen((e.target as HTMLDetailsElement).open)}>
-          <summary>🗺 {t.itinerariesTitle}</summary>
+        <section className="card mode-card primary">
+          <h2>🧭 {t.exploreTitle}</h2>
+          <p>{t.exploreHint}</p>
+          <p className="muted small">{t.backgroundNote}</p>
+          <button className="button primary big" onClick={startExploring}>{t.exploreStart}</button>
+        </section>
+
+        <section className={`card mode-card ${itinerariesOpen ? "primary" : ""}`} id="guided">
+          <h2>🗺 {t.itinerariesTitle}</h2>
           <p className="muted small">{t.itinerariesHint}</p>
           <div className="stack">
             {content.routes.map((r) => (
@@ -620,8 +663,8 @@ export function GuideApp() {
             <input type="checkbox" checked={avoidStairs} onChange={(e) => setAvoidStairs(e.target.checked)} />
             {t.avoidStairs}
           </label>
-          <button className="button big" onClick={startTour}>{t.startItinerary}</button>
-        </details>
+          <button className="button primary big" onClick={startTour}>{t.startItinerary}</button>
+        </section>
 
         {content.safetyNotes.map((n) => (
           <p key={n.id} className="notice">⚠ {n.text}</p>
@@ -764,7 +807,10 @@ export function GuideApp() {
       )}
       {simulating && <span className="muted small">{t.simulating}</span>}
       {exploring ? (
-        <button className="button" onClick={openItineraries}>🗺 {t.openItineraries}</button>
+        <button className="button" onClick={() => {
+          const el = document.getElementById("guided-in-session") as HTMLDetailsElement | null;
+          if (el) { el.open = true; el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+        }}>🗺 {t.openItineraries}</button>
       ) : (
         <button className="button" onClick={switchToExplore}>🧭 {t.switchToExplore}</button>
       )}
@@ -828,6 +874,23 @@ export function GuideApp() {
             )}
           </section>
           {ask}
+          <details className="card" id="guided-in-session">
+            <summary><strong>🗺 {t.itinerariesTitle}</strong></summary>
+            <p className="muted small">{t.itinerariesHint}</p>
+            <div className="stack">
+              {content.routes.map((r) => (
+                <button key={r.ref} className="chip route" onClick={() => switchToRoute(r.ref)}>
+                  <span>{r.name}</span>
+                  <span className="muted small">
+                    {r.durationMin} {t.minutes}
+                    {r.difficulty && <> · {t.difficulty[r.difficulty]}</>}
+                    {r.calibration === "draft" && <> · {t.routeDraft}</>}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button className="link" onClick={openItineraries}>{t.moreOptions} →</button>
+          </details>
         </>
       ) : (
         <>

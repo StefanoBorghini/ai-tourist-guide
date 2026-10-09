@@ -30,10 +30,12 @@ import type { Audience } from "@guide/domain";
  * proposta di racconto, racconto da riprodurre, avvisi di tempo, fine del tour.
  * Non sa nulla di interfaccia né di audio: è logica pura, testata senza browser.
  *
- * Due modi d'uso:
+ * Due modi d'uso, sullo stesso motore (GPS, geofence, luoghi, fonti, narrazione):
  * - "explore": esplorazione libera. Nessun piano né tappe: ogni luogo del territorio può essere
  *   proposto quando ci si arriva, nell'ordine in cui il visitatore cammina;
- * - "tour": itinerario (percorso curato o giro su misura) con tappe ordinate.
+ * - "tour": percorso guidato (curato o su misura) con tappe ordinate.
+ * Cambia solo l'organizzazione. La memoria del racconto (cosa è già stato detto) è della visita e
+ * sopravvive ai cambi di modalità; l'avanzamento delle tappe (`reached`) è del singolo percorso.
  */
 
 export type RuntimeKind = "explore" | "tour";
@@ -90,6 +92,8 @@ export interface RuntimeState {
   currentPlaceRef: string | null;
   /** Luoghi rifiutati e quando (ms). Assente negli stati salvati dalle versioni precedenti. */
   declined?: [string, number][];
+  /** Tappe raggiunte nel percorso in corso. Assente nei salvataggi precedenti: si usano i luoghi visitati. */
+  reached?: string[];
 }
 
 /** Luogo vicino alla posizione: distanza e direzione in linea d'aria, calcolate dal sistema. */
@@ -160,6 +164,8 @@ export class GuideRuntime {
   /** Luoghi in cui il visitatore è entrato e che aspettano di essere proposti, in ordine di ingresso. */
   private waiting: string[] = [];
   private declined = new Map<string, number>();
+  /** Luoghi raggiunti (o saltati) da quando è iniziata l'organizzazione corrente: l'avanzamento del percorso. */
+  private reached = new Set<string>();
   private segmentCounter = 0;
 
   constructor(
@@ -191,26 +197,28 @@ export class GuideRuntime {
     return this.names.get(ref) ?? ref;
   }
 
+  /** Luoghi raggiunti nel percorso (o nell'esplorazione) in corso. */
   get visited(): string[] {
-    return this.memory.visitedPlaces;
+    return [...this.reached];
   }
 
-  /** Tappa successiva del piano non ancora visitata. */
+  /** Tappa successiva del piano non ancora raggiunta. */
   get nextStop(): string | null {
-    return this.plan?.stops.find((s) => !this.memory.visitedPlaces.includes(s.placeId))?.placeId ?? null;
+    return this.plan?.stops.find((s) => !this.reached.has(s.placeId))?.placeId ?? null;
   }
 
   /** Riparte da zero: nessun luogo visitato né raccontato. */
   private resetMemory(): void {
     this.memory = emptyMemory();
     this.narratedHere.clear();
-    this.skipped = [];
     this.manualArrivals = [];
     this.declined.clear();
     this.currentPlaceRef = null;
   }
 
   private resetPlan(): void {
+    this.reached.clear();
+    this.skipped = [];
     this.pendingProposal = null;
     this.waiting = [];
     this.anchor = null;
@@ -314,7 +322,12 @@ export class GuideRuntime {
     this.currentPlaceRef = placeRef;
     const name = this.name(placeRef);
     events.push({ type: "arrived", placeRef, name });
-    if (this.narratedHere.has(placeRef)) return events;
+    if (this.narratedHere.has(placeRef)) {
+      // Già raccontato (magari esplorando prima di scegliere il percorso): non si ripete, ma la tappa conta.
+      this.reached.add(placeRef);
+      if (this.isTourComplete()) events.push({ type: "tour_complete" });
+      return events;
+    }
     // Rifiutato da poco: si segna dove si è, senza chiedere di nuovo.
     const declinedAt = this.declined.get(placeRef);
     if (!manual && declinedAt !== undefined && now - declinedAt < DECLINE_COOLDOWN_MS) return events;
@@ -351,8 +364,9 @@ export class GuideRuntime {
   skipStop(placeRef: string): RuntimeEvent[] {
     if (!this.skipped.includes(placeRef)) this.skipped.push(placeRef);
     if (this.pendingProposal === placeRef) this.pendingProposal = null;
-    this.narratedHere.add(placeRef);
-    this.markVisited(placeRef);
+    this.waiting = this.waiting.filter((p) => p !== placeRef);
+    // Saltata nel percorso, non raccontata: passando all'esplorazione libera potrà essere proposta.
+    this.reached.add(placeRef);
     return this.isTourComplete() ? [{ type: "tour_complete" }] : [];
   }
 
@@ -365,6 +379,7 @@ export class GuideRuntime {
       manualArrivals: [...this.manualArrivals],
       currentPlaceRef: this.currentPlaceRef,
       declined: [...this.declined],
+      reached: [...this.reached],
     };
   }
 
@@ -376,6 +391,7 @@ export class GuideRuntime {
     this.manualArrivals = [...state.manualArrivals];
     this.currentPlaceRef = state.currentPlaceRef;
     this.declined = new Map(state.declined ?? []);
+    this.reached = new Set(state.reached ?? state.memory.visitedPlaces);
   }
 
   /** Il visitatore accetta la proposta di racconto. */
@@ -471,7 +487,7 @@ export class GuideRuntime {
   /** Piano narrativo per un luogo, senza modificare la memoria. */
   planFor(placeRef: string): StopPlan {
     const place = this.places.find((p) => p.id === placeRef);
-    const next = this.plan?.stops.find((s) => s.placeId !== placeRef && !this.memory.visitedPlaces.includes(s.placeId));
+    const next = this.plan?.stops.find((s) => s.placeId !== placeRef && !this.reached.has(s.placeId));
     return planStop({
       library: this.library,
       memory: this.memory,
@@ -484,12 +500,13 @@ export class GuideRuntime {
   }
 
   private markVisited(placeRef: string): void {
+    this.reached.add(placeRef);
     if (!this.memory.visitedPlaces.includes(placeRef)) {
       this.memory = { ...this.memory, visitedPlaces: [...this.memory.visitedPlaces, placeRef] };
     }
   }
 
   private isTourComplete(): boolean {
-    return !!this.plan && this.plan.stops.length > 0 && this.plan.stops.every((s) => this.memory.visitedPlaces.includes(s.placeId));
+    return !!this.plan && this.plan.stops.length > 0 && this.plan.stops.every((s) => this.reached.has(s.placeId));
   }
 }

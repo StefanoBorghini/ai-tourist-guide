@@ -2,22 +2,28 @@
  * Prove di qualità delle risposte ibride: esegue le domande di un file di prova (nel Territory Pack)
  * con lo stesso codice della route e scrive un rapporto da rileggere a mano.
  *
- *   npm run ask:eval -- --file <percorso.json> [--only <id,id>] [--no-web] [--max-usd 2] [--dry] [--out rapporto.md]
+ *   npm run ask:eval -- --file <percorso.json> [--only <id,id>] [--no-web] [--web-model <id>] [--max-usd 2]
+ *                       [--dry] [--out rapporto.md] [--json risultati.json]
  *
- * Senza --dry chiama davvero l'API (serve ANTHROPIC_API_KEY, ha un costo). Prima di partire stampa la
- * stima; si ferma prima di superare --max-usd (default 2 $), contando i costi stimati dal listino.
- * --no-web: solo base locale (fase A). --dry: solo cosa la base locale sa su ogni domanda, nessuna chiamata.
+ * Senza --dry chiama davvero l'API (serve ANTHROPIC_API_KEY, ha un costo). Prima di ogni domanda tiene
+ * libera nel budget una riserva prudente (reserveUsd) e non la fa se totale + riserva supera --max-usd
+ * (default 2 $). I costi sono stimati dal listino sui token restituiti dall'API: il dato fatturato è
+ * nella Console. Una domanda già partita non si può interrompere a metà.
+ * --no-web: solo base locale (fase A). --web-model: modello della ricerca (come ASK_WEB_MODEL).
+ * --json: risultati per domanda, da confrontare con `npm run ask:compare -- a.json b.json`.
+ * --dry: solo cosa la base locale sa su ogni domanda, nessuna chiamata.
  *
  * Il rapporto non giudica la qualità da solo: riporta per ogni domanda le informazioni locali, se è
  * stata fatta la ricerca, le fonti (con dominio e livello), i numeri da verificare, i token e il costo.
  * Pertinenza delle citazioni e affermazioni non supportate vanno controllate leggendo le fonti.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import type { AskAnswer } from "../lib/ask";
 import { parseArgs } from "node:util";
 import Anthropic from "@anthropic-ai/sdk";
 import { askRequestSchema } from "../lib/ask";
 import { ASK_MODEL, askGuide, loadKnowledge, webSearchSupported } from "../lib/ask-server";
-import { webConfig } from "../lib/ask-web";
+import { reserveUsd, webConfig } from "../lib/ask-web";
 
 interface EvalQuestion {
   id: string;
@@ -38,6 +44,8 @@ const { values } = parseArgs({
     dry: { type: "boolean", default: false },
     "no-web": { type: "boolean", default: false },
     "max-usd": { type: "string", default: "2" },
+    "web-model": { type: "string" },
+    json: { type: "string" },
     out: { type: "string" },
   },
 });
@@ -57,13 +65,23 @@ if (!values.dry && !process.env.ANTHROPIC_API_KEY) {
 }
 
 const ref = (slug?: string) => (slug ? (slug.includes(":") ? slug : `${spec.destination}:${slug}`) : null);
-const config = { ...webConfig(), ...(values["no-web"] ? { enabled: false } : {}) };
+const config = {
+  ...webConfig(),
+  ...(values["web-model"] ? { model: values["web-model"] } : {}),
+  ...(values["no-web"] ? { enabled: false } : {}),
+};
 const maxUsd = Number(values["max-usd"]);
+if (!(maxUsd > 0)) {
+  console.error("--max-usd deve essere un numero positivo");
+  process.exit(2);
+}
 const only = values.only ? new Set(values.only.split(",")) : null;
 const selected = spec.questions.filter((x) => !only || only.has(x.id));
-// Stima prudente prima di spendere: ~0,04 $ a domanda locale, ~0,30 $ con ricerca (fascia alta).
-const estimate = selected.reduce((sum, q) => sum + (q.expect === "web" && config.enabled ? 0.3 : 0.04), 0);
-console.error(`${selected.length} domande · stima prudente ${estimate.toFixed(2)} $ · tetto di questa esecuzione ${maxUsd} $ · ricerca web ${config.enabled ? "attiva" : "spenta"}`);
+// Riserva per domanda: si applica a tutte, perché anche una domanda «locale» può finire in ricerca.
+const reserve = reserveUsd(ASK_MODEL, config);
+console.error(
+  `${selected.length} domande · riserva prudente ${reserve.toFixed(2)} $ a domanda (massimo ${(reserve * selected.length).toFixed(2)} $) · tetto ${maxUsd} $ · ricerca ${config.enabled ? `attiva (${config.model})` : "spenta"}`,
+);
 const client = values.dry ? null : new Anthropic();
 const supported = client ? await webSearchSupported(client, config.model) : null;
 const out: string[] = [
@@ -76,6 +94,7 @@ let totalUsd = 0;
 let totalSearches = 0;
 const rows: { web: boolean; usd: number; input: number; cacheRead: number; cacheWrite: number; output: number }[] = [];
 let stopped = "";
+const results: { id: string; question: string; webModel: string | null; ms: number; answer: AskAnswer; error?: string }[] = [];
 const summary: string[] = ["| Prova | Atteso | Esito | Origine | Ricerche | Fonti web | Parole | Costo $ |", "|---|---|---|---|---|---|---|---|"];
 
 for (const q of selected) {
@@ -95,16 +114,26 @@ for (const q of selected) {
   out.push(`## ${q.id} — ${q.category}`, "", `**Domanda:** ${q.question}${q.depth === "deep" ? " _(approfondimento)_" : ""}`, "", `**Da verificare:** ${q.check}`, "");
   out.push(`**Informazioni locali sul luogo (${localFacts.length}):** ${localFacts.map((a) => `\`${a.ref.split(":").pop()}\``).join(", ") || "nessuna"}`, "");
   if (!client) continue;
-  const next = q.expect === "web" && config.enabled ? 0.3 : 0.04;
-  if (totalUsd + next > maxUsd) {
+  if (totalUsd + reserve > maxUsd) {
     stopped = `Interrotto prima di «${q.id}»: speso ${totalUsd.toFixed(4)} $, la prossima prova potrebbe superare il tetto di ${maxUsd} $.`;
     console.error(stopped);
     break;
   }
 
   const started = Date.now();
-  const outcome = await askGuide(client, loaded, req, { config, supported, permitted: () => true });
+  let outcome: Awaited<ReturnType<typeof askGuide>>;
+  try {
+    outcome = await askGuide(client, loaded, req, { config, supported, permitted: () => true });
+  } catch (error) {
+    // Errore dell'API (credito esaurito, limite, rete): si registra e ci si ferma, senza riprovare.
+    const message = (error as Error).message.slice(0, 300);
+    stopped = `Interrotto a «${q.id}» per un errore dell'API: ${message}`;
+    console.error(stopped);
+    out.push(`**Errore:** ${message}`, "");
+    break;
+  }
   const a = outcome.answer;
+  results.push({ id: q.id, question: q.question, webModel: outcome.usage.web ? (a.meter?.models.at(-1) ?? config.model) : null, ms: Date.now() - started, answer: a });
   const words = a.answer.split(/\s+/).filter(Boolean).length;
   const searches = outcome.usage.web?.webSearches ?? 0;
   const m = a.meter;
@@ -159,6 +188,7 @@ if (client) {
     "",
   );
 }
+if (values.json) writeFileSync(values.json, JSON.stringify({ destination: spec.destination, kbHash: loaded.kbHash, localModel: ASK_MODEL, webModel: config.enabled ? config.model : null, maxUsd, totalUsd, stopped: stopped || null, results }, null, 2));
 const report = out.join("\n");
 if (values.out) writeFileSync(values.out, report);
 else console.log(report);

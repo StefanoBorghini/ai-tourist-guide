@@ -57,9 +57,15 @@ impostare `ASK_WEB_ENABLED=0` su Vercel e ripubblicare (poi rimetterla a `1`).
 - ☐ Per ogni risposta: in debug «origine web» e numero di ricerche; aprire «Fonti e approfondimenti»:
   i link si aprono? le pagine dicono davvero ciò che la risposta afferma? fonti istituzionali o deboli?
   numeri segnalati «da verificare»? la risposta è migliore di quella della sola base?
-- In alternativa, da un computer con la chiave: `npm run ask:eval -w @guide/app -- --file
-  ../../territories/it.liguria.sp.portovenere/ASK-EVAL.json --no-web --max-usd 1 --out fase-a.md`
-  (fase A) e senza `--no-web`, con `--max-usd 3`, per la fase B: si ferma prima di superare il tetto.
+- In alternativa, da un computer con il repository e la chiave (`ANTHROPIC_API_KEY` nell'ambiente, mai nei file),
+  dalla cartella `apps/guide`, con `F=../../territories/it.liguria.sp.portovenere/ASK-EVAL.json`:
+  - fase A: `npm run ask:eval -- --file $F --no-web --max-usd 0.8 --json a.json --out fase-a.md`
+  - fase B, configurazione attuale: `npm run ask:eval -- --file $F --only sp-promontorio,cd-trasformazioni,sl-portale,madonna-bianca,golfo-poeti,byron-nuotata --max-usd 2.6 --json opus.json --out fase-b-opus.md`
+  - fase B, Sonnet per la ricerca: stesso comando con `--web-model claude-sonnet-5-5 --max-usd 1.6 --json sonnet.json --out fase-b-sonnet.md`
+  - confronto (gratuito): `npm run ask:compare -- opus.json sonnet.json --out confronto.md`, poi compilare
+    qualità e affermazioni non supportate leggendo le fonti.
+  I tetti coprono tutte le domande con la riserva prudente (0,42 $ con Opus, 0,26 $ con Sonnet, 0,07 $ senza
+  ricerca): si ferma prima di superarli, salvo turni ripresi dal server più lunghi della riserva.
 
 ## 1. GPS e stato del segnale
 

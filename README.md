@@ -114,4 +114,7 @@ I limiti per indirizzo e per giorno valgono per singola istanza del server: sono
 Il tetto di spesa mensile affidabile si imposta nella Console Anthropic (limite di spesa del workspace a cui
 appartiene la chiave). `GET /api/guide/ask` dice se la ricerca è attiva e se il modello la supporta (Models API).
 Prove di qualità: `npm run ask:eval -w @guide/app -- --file ../../territories/<id>/ASK-EVAL.json --out rapporto.md`
-(chiama davvero l'API: serve la chiave e ha un costo; `--dry` mostra solo cosa sa la base locale).
+(chiama davvero l'API: serve la chiave e ha un costo; `--dry` mostra solo cosa sa la base locale). Prima di ogni
+domanda tiene libera una riserva prudente e non parte se supererebbe `--max-usd`; `--no-web` per la sola base,
+`--web-model` per scegliere il modello della ricerca, `--json` per salvare i risultati e confrontare due esecuzioni
+con `npm run ask:compare -w @guide/app -- a.json b.json --out confronto.md` (nessun costo).

@@ -16,6 +16,7 @@ import {
   estimateUsd,
   needsWeb,
   parseWebAnswer,
+  reserveUsd,
   sourceTier,
   unsupportedNumbers,
   webConfig,
@@ -332,6 +333,28 @@ describe("risposta ibrida", () => {
     const out = await askGuide(client, loaded, req);
     expect(create).toHaveBeenCalledTimes(1);
     expect(out.answer).toMatchObject({ status: "not_in_knowledge", origin: "local" });
+  });
+
+  it("ASK_WEB_MODEL cambia solo il modello della ricerca, e il costo usa il modello che ha risposto", async () => {
+    const { client, create } = fakeClient(
+      localReply("not_in_knowledge", "Non lo so."),
+      { ...webReply([{ type: "text", text: "Fu ricostruito.", citations: [cite("https://www.unige.it/x", "Studio")] }]), model: "claude-sonnet-5-5" },
+    );
+    const out = await askGuide(client, loaded, req, gate({ config: webConfig({ ASK_WEB_MODEL: "claude-sonnet-5-5" }) }));
+    const models = create.mock.calls.map((c) => (c[0] as { model: string }).model);
+    expect(models).toEqual(["claude-opus-5-5", "claude-sonnet-5-5"]);
+    expect(out.answer.meter?.models).toEqual(["claude-opus-5-5", "claude-sonnet-5-5"]);
+    // locale 1000 in + 100 out su Opus; ricerca 8000 in + 600 out su Sonnet + 1 ricerca
+    expect(out.answer.meter?.costUsd).toBeCloseTo(0.004 + 0.002 + 0.016 + 0.006 + 0.01, 5);
+  });
+
+  it("la riserva prudente per domanda dipende dal modello e dalla ricerca", () => {
+    const opus = reserveUsd("claude-opus-5-5", webConfig({}));
+    const sonnet = reserveUsd("claude-opus-5-5", webConfig({ ASK_WEB_MODEL: "claude-sonnet-5-5" }));
+    const local = reserveUsd("claude-opus-5-5", null);
+    expect(local).toBeLessThan(sonnet);
+    expect(sonnet).toBeLessThan(opus);
+    expect(reserveUsd("claude-opus-5-5", webConfig({ ASK_WEB_ENABLED: "0" }))).toBe(local);
   });
 
   it("le domande fuori tema non attivano la ricerca", async () => {

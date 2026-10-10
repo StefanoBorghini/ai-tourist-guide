@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "ask:context": "tsx scripts/ask-context.ts",
-    "ask:eval": "tsx scripts/ask-eval.ts"
+    "ask:eval": "tsx scripts/ask-eval.ts",
+    "ask:compare": "tsx scripts/ask-compare.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.127.0",

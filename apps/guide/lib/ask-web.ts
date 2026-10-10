@@ -323,6 +323,19 @@ export function addUsage(a: Usage, b: Partial<Usage>): Usage {
   };
 }
 
+/**
+ * Riserva prudente per una domanda, da tenere libera nel budget prima di farla: risposta locale
+ * (6.000 token di base scritti in cache, 3.000 in ingresso, 1.500 in uscita) più, se la ricerca è
+ * attiva, una chiamata con ricerca (50.000 in ingresso, 6.000 in uscita = max_tokens, tutte le ricerche
+ * consentite). Non è il massimo teorico: un turno sospeso e ripreso (pause_turn) può costare di più.
+ */
+export function reserveUsd(localModel: string, web: WebConfig | null): number {
+  const local = estimateUsd(localModel, { input: 3000, cacheWrite: 6000, cacheRead: 0, output: 1500, webSearches: 0 }) ?? 0.1;
+  if (!web || !web.enabled) return local;
+  const search = estimateUsd(web.model, { input: 50_000, cacheWrite: 0, cacheRead: 0, output: 6000, webSearches: web.maxUses }) ?? 0.5;
+  return Math.round((local + search) * 1e4) / 1e4;
+}
+
 /** Stima del costo in dollari (listino pubblico; null se il modello non è in tabella). */
 export function estimateUsd(model: string, u: Usage): number | null {
   const p = PRICES[model];

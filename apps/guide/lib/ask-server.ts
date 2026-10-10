@@ -161,8 +161,8 @@ export async function askLocal(client: Anthropic, loaded: Loaded, req: AskReques
 }
 
 type WebResult =
-  | { ok: true; parsed: ParsedWebAnswer; blocks: ContentBlockLike[]; usage: Usage }
-  | { ok: false; reason: string; usage: Usage };
+  | { ok: true; parsed: ParsedWebAnswer; blocks: ContentBlockLike[]; usage: Usage; model: string }
+  | { ok: false; reason: string; usage: Usage; model: string };
 
 /**
  * Livello B: il modello riceve la base, la risposta locale e lo strumento di ricerca web ufficiale.
@@ -171,6 +171,8 @@ type WebResult =
 export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest, local: AskAnswer | null, config: WebConfig): Promise<WebResult> {
   const started = Date.now();
   let usage = emptyUsage();
+  // Modello che ha risposto davvero (dalla risposta dell'API): serve a stimare il costo giusto.
+  let model = config.model;
   const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
     { role: "user", content: buildQuestionMessage(loaded.content, req) + "\n" + buildWebAddendum(local, req) },
   ];
@@ -178,7 +180,7 @@ export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest,
   for (let round = 0; round < 3; round++) {
     const remainingMs = config.timeoutMs - (Date.now() - started);
     const remainingSearches = config.maxUses - usage.webSearches;
-    if (remainingMs < 5_000 || remainingSearches < 1) return { ok: false, reason: "tempo o ricerche esauriti durante la pausa", usage };
+    if (remainingMs < 5_000 || remainingSearches < 1) return { ok: false, reason: "tempo o ricerche esauriti durante la pausa", usage, model };
     const tool: Anthropic.Beta.Messages.BetaWebSearchTool20260318 = {
       type: "web_search_20260318",
       name: "web_search",
@@ -203,18 +205,19 @@ export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest,
       { timeout: remainingMs, maxRetries: 0 },
     );
     usage = addUsage(usage, toUsage(response.usage));
+    model = response.model || model;
     blocks.push(...(response.content as ContentBlockLike[]));
     if (response.stop_reason === "pause_turn") {
       messages.push({ role: "assistant", content: response.content });
       continue;
     }
-    if (response.stop_reason === "refusal") return { ok: false, reason: "il modello ha rifiutato la richiesta", usage };
-    if (response.stop_reason === "max_tokens") return { ok: false, reason: "risposta troncata (limite di lunghezza)", usage };
+    if (response.stop_reason === "refusal") return { ok: false, reason: "il modello ha rifiutato la richiesta", usage, model };
+    if (response.stop_reason === "max_tokens") return { ok: false, reason: "risposta troncata (limite di lunghezza)", usage, model };
     const parsed = parseWebAnswer(blocks, loaded.content, req);
-    if (!parsed.text) return { ok: false, reason: "risposta vuota", usage };
-    return { ok: true, parsed, blocks, usage };
+    if (!parsed.text) return { ok: false, reason: "risposta vuota", usage, model };
+    return { ok: true, parsed, blocks, usage, model };
   }
-  return { ok: false, reason: "troppe pause del server", usage };
+  return { ok: false, reason: "troppe pause del server", usage, model };
 }
 
 /** Risposta locale con la dichiarazione del limite della ricerca online. */
@@ -246,10 +249,11 @@ export async function askGuide(client: Anthropic, loaded: Loaded, req: AskReques
   let permitted: boolean | undefined;
   const permit = () => (permitted ??= gate!.permitted());
 
+  let webModel = gate?.config.model ?? "";
   const done = (answer: AskAnswer, web?: AskOutcome["web"], webUsage?: Usage): AskOutcome => {
     const parts: [string, Usage][] = [];
     if (local) parts.push([local.model, local.usage]);
-    if (webUsage) parts.push([gate!.config.model, webUsage]);
+    if (webUsage) parts.push([webModel, webUsage]);
     const total = parts.reduce((acc, [, u]) => addUsage(acc, u), emptyUsage());
     const costs = parts.map(([m, u]) => estimateUsd(m, u));
     const costUsd = costs.some((c) => c === null) ? null : Math.round(costs.reduce((a, c) => a! + c!, 0)! * 1e5) / 1e5;
@@ -282,6 +286,7 @@ export async function askGuide(client: Anthropic, loaded: Loaded, req: AskReques
   let web: WebResult;
   try {
     web = await askWeb(client, loaded, req, local ? (local as LocalResult).answer : null, gate!.config);
+    webModel = web.model;
   } catch (error) {
     const message = error instanceof Anthropic.APIError ? `API ${error.status ?? "?"}: ${error.message}` : (error as Error).message;
     return fallback("webUnavailable", { attempted: true, error: message.slice(0, 300), searches: 0, sources: [] });

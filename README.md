@@ -65,12 +65,53 @@ Fase 0 (fondazioni) in corso:
 - [x] prima app: runtime della guida, voce (sintesi del dispositivo), walk mode, simulatore, GPS
 - [x] immagini con licenza nei pack e nei bundle; coordinate dei luoghi lette dalle foto (EXIF)
 - [x] funzionamento offline: service worker e "Scarica per l'uso offline" (pagina, bundle, immagini)
-- [x] domande alla guida (`/api/guide/ask`): risponde solo con affermazioni verificate del bundle, le cita; risposte
+- [x] domande alla guida (`/api/guide/ask`): risponde prima con le affermazioni verificate del bundle, le cita; risposte
       con citazioni inesistenti o numeri non presenti nelle fonti vengono scartate. Richiede `ANTHROPIC_API_KEY`
       nelle variabili d'ambiente del progetto (senza, l'app funziona ma non risponde alle domande)
+- [x] approfondimento con ricerca web (strumento ufficiale dell'API Anthropic) quando la base non basta o su
+      richiesta, con fonti mostrate e marcate come non verificate; limiti, cache e log dei consumi: vedi
+      [Domande e ricerca web](#domande-e-ricerca-web)
 - [x] stadi di rilascio (ricerca, prova sul campo, produzione) e bundle di anteprima dichiarati come tali;
       stato delle coordinate, curatela, informazioni pratiche datate, ipotesi, percorsi curati
 - [x] primo territorio reale: Portovenere (18 luoghi, in ricerca: vedi `territories/it.liguria.sp.portovenere/README.md`)
 - [x] modalità debug per il test sul campo (`?debug=1`): GPS, geofence, stati redazionali, rilievo delle posizioni
 - [ ] Portovenere verificato sul campo (coordinate, percorsi) e dalla redazione (affermazioni)
 - [ ] Studio minimo con changeset
+
+## Domande e ricerca web
+
+Pipeline di `/api/guide/ask` (codice in `apps/guide/lib/ask.ts`, `ask-web.ts`, `ask-server.ts`):
+
+1. **Base locale** — il modello riceve la base di conoscenza del bundle e risponde in JSON con le affermazioni
+   citate; il sistema scarta citazioni inesistenti e numeri non presenti nelle fonti. Se la base risponde, finisce qui.
+2. **Ricerca web** — solo se la base risponde in parte o non risponde, o se il visitatore tocca «Approfondisci».
+   Il modello riceve la stessa base, la risposta locale e lo strumento `web_search_20260318` (filtraggio dinamico dei
+   risultati, nessun costo aggiuntivo per l'esecuzione del codice), con un numero massimo di ricerche e i domini
+   esclusi. Le pagine trovate sono trattate come dati, mai come istruzioni.
+3. **Risposta** — testo parlato con le fonti in «Fonti e approfondimenti» (titolo, sito, livello presunto della
+   fonte, data se nota, brano citato). Una risposta con ricerca che non cita nessuna fonte non si mostra. Se la
+   ricerca non è disponibile la guida risponde con la base locale e lo dice.
+
+Le risposte con ricerca non diventano conoscenza verificata: compaiono nei log (`event: "web_answer"`, con le fonti)
+perché la redazione le valuti e, se reggono, le porti nel Territory Pack.
+
+Variabili d'ambiente (tutte facoltative tranne la chiave):
+
+| Variabile | Default | Effetto |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | — | obbligatoria per le domande (solo lato server) |
+| `ASK_WEB_ENABLED` | `1` | `0` spegne la ricerca web (resta la base locale) |
+| `ASK_WEB_MAX_USES` | `3` | ricerche massime per domanda (1–10) |
+| `ASK_WEB_MODEL` | `claude-opus-5-5` | modello della risposta con ricerca (es. `claude-sonnet-5-5` per spendere meno) |
+| `ASK_WEB_EFFORT` | `medium` | `low` / `medium` / `high` |
+| `ASK_WEB_PER_IP` | `6` | domande con ricerca per indirizzo ogni 10 minuti (per istanza) |
+| `ASK_WEB_DAILY_LIMIT` | `300` | domande con ricerca al giorno per istanza del server |
+| `ASK_WEB_BLOCKED_DOMAINS` | recensioni e social | domini esclusi, separati da virgole (vuoto = nessuno) |
+| `ASK_CACHE_TTL_HOURS` | `24` | durata della cache delle risposte (0 = niente cache) |
+| `ASK_WEB_TIMEOUT_MS` | `50000` | tempo massimo della risposta con ricerca |
+
+I limiti per indirizzo e per giorno valgono per singola istanza del server: sono argini, non quote globali.
+Il tetto di spesa mensile affidabile si imposta nella Console Anthropic (limite di spesa del workspace a cui
+appartiene la chiave). `GET /api/guide/ask` dice se la ricerca è attiva e se il modello la supporta (Models API).
+Prove di qualità: `npm run ask:eval -w @guide/app -- --file ../../territories/<id>/ASK-EVAL.json --out rapporto.md`
+(chiama davvero l'API: serve la chiave e ha un costo; `--dry` mostra solo cosa sa la base locale).

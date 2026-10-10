@@ -16,9 +16,24 @@ import {
   buildQuestionMessage,
   checkModelAnswer,
   fallbackAnswer,
+  webNote,
   type AskAnswer,
   type AskRequest,
 } from "./ask";
+import {
+  WEB_SYSTEM_PROMPT,
+  addUsage,
+  buildWebAddendum,
+  emptyUsage,
+  estimateUsd,
+  needsWeb,
+  parseWebAnswer,
+  unsupportedNumbers,
+  type ContentBlockLike,
+  type ParsedWebAnswer,
+  type Usage,
+  type WebConfig,
+} from "./ask-web";
 
 export const ASK_MODEL = "claude-opus-5-5";
 
@@ -28,7 +43,7 @@ function bundlesDir(): string {
   return existsSync(app) ? app : join(process.cwd(), "apps", "guide", "public", "bundles");
 }
 
-interface Loaded {
+export interface Loaded {
   content: BundleContent;
   knowledge: string;
   /** Impronta della base di conoscenza del bundle: dice quale versione dei contenuti risponde. */
@@ -93,29 +108,44 @@ export interface AskOutcome {
   answer: AskAnswer;
   /** Motivo per cui la risposta del modello è stata scartata (per i log delle lacune). */
   rejected?: string;
-  usage?: { input: number; cacheRead: number; output: number };
+  /** Consumi della risposta locale e, se c'è stata, di quella con ricerca. */
+  usage: { local: Usage; web?: Usage };
+  /** Stima in dollari (listino pubblico). */
+  costUsd: number | null;
+  /** Diagnostica della ricerca web, per i log (nessun segreto). */
+  web?: { attempted: boolean; error?: string; searches: number; sources: string[]; unknownRefs?: string[]; searchErrors?: string[] };
 }
 
-export async function askGuide(client: Anthropic, loaded: Loaded, req: AskRequest): Promise<AskOutcome> {
-  const response = await client.beta.messages.create({
-    model: ASK_MODEL,
-    max_tokens: 4000,
-    // Se il modello declina, l'API ripete la richiesta sul modello di ripiego consigliato.
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    // Risposte brevi da leggere a voce: poca riflessione, latenza bassa.
-    output_config: { effort: "low", format: { type: "json_schema", schema: ANSWER_JSON_SCHEMA } },
-    system: [
-      { type: "text", text: SYSTEM_PROMPT },
-      { type: "text", text: loaded.knowledge, cache_control: { type: "ephemeral" } },
-    ],
-    messages: [{ role: "user", content: buildQuestionMessage(loaded.content, req) }],
-  });
-  const usage = {
-    input: response.usage.input_tokens,
-    cacheRead: response.usage.cache_read_input_tokens ?? 0,
-    output: response.usage.output_tokens,
-  };
+type LocalResult = { answer: AskAnswer; rejected?: string; usage: Usage };
+
+const toUsage = (u: Anthropic.Beta.Messages.BetaUsage): Usage => ({
+  input: u.input_tokens,
+  cacheWrite: u.cache_creation_input_tokens ?? 0,
+  cacheRead: u.cache_read_input_tokens ?? 0,
+  output: u.output_tokens,
+  webSearches: u.server_tool_use?.web_search_requests ?? 0,
+});
+
+/** Livello A: risposta dalla sola base verificata, con controllo rigoroso di citazioni e numeri. */
+export async function askLocal(client: Anthropic, loaded: Loaded, req: AskRequest): Promise<LocalResult> {
+  const response = await client.beta.messages.create(
+    {
+      model: ASK_MODEL,
+      max_tokens: 4000,
+      // Se il modello declina, l'API ripete la richiesta sul modello di ripiego consigliato.
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      // Risposte da leggere a voce: poca riflessione, latenza bassa.
+      output_config: { effort: "low", format: { type: "json_schema", schema: ANSWER_JSON_SCHEMA } },
+      system: [
+        { type: "text", text: SYSTEM_PROMPT },
+        { type: "text", text: loaded.knowledge, cache_control: { type: "ephemeral" } },
+      ],
+      messages: [{ role: "user", content: buildQuestionMessage(loaded.content, req) }],
+    },
+    { timeout: 25_000 },
+  );
+  const usage = toUsage(response.usage);
 
   if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") {
     const reason = response.stop_reason === "refusal" ? "il modello ha rifiutato la richiesta" : "risposta troncata (limite di lunghezza)";
@@ -124,5 +154,164 @@ export async function askGuide(client: Anthropic, loaded: Loaded, req: AskReques
   const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
   const checked = checkModelAnswer(text, loaded.content, req);
   if (!checked.ok) return { answer: fallbackAnswer(req.locale, "rejected", checked.reason), rejected: checked.reason, usage };
-  return { answer: checked.answer, usage };
+  return { answer: { ...checked.answer, origin: "local" }, usage };
+}
+
+type WebResult =
+  | { ok: true; parsed: ParsedWebAnswer; blocks: ContentBlockLike[]; usage: Usage }
+  | { ok: false; reason: string; usage: Usage };
+
+/**
+ * Livello B: il modello riceve la base, la risposta locale e lo strumento di ricerca web ufficiale.
+ * Gestisce pause_turn (turni lunghi sospesi dal server) rimandando il messaggio così com'è.
+ */
+export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest, local: AskAnswer, config: WebConfig): Promise<WebResult> {
+  const started = Date.now();
+  let usage = emptyUsage();
+  const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
+    { role: "user", content: buildQuestionMessage(loaded.content, req) + "\n" + buildWebAddendum(local, req) },
+  ];
+  const blocks: ContentBlockLike[] = [];
+  for (let round = 0; round < 3; round++) {
+    const remainingMs = config.timeoutMs - (Date.now() - started);
+    const remainingSearches = config.maxUses - usage.webSearches;
+    if (remainingMs < 5_000 || remainingSearches < 1) return { ok: false, reason: "tempo o ricerche esauriti durante la pausa", usage };
+    const tool: Anthropic.Beta.Messages.BetaWebSearchTool20260318 = {
+      type: "web_search_20260318",
+      name: "web_search",
+      max_uses: remainingSearches,
+      // I risultati già filtrati dal codice non tornano nella risposta: meno token in uscita.
+      response_inclusion: "excluded",
+      ...(config.blockedDomains.length > 0 ? { blocked_domains: config.blockedDomains } : {}),
+    };
+    const response = await client.beta.messages.create(
+      {
+        model: config.model,
+        max_tokens: 6000,
+        output_config: { effort: config.effort },
+        tools: [tool],
+        system: [
+          { type: "text", text: WEB_SYSTEM_PROMPT },
+          { type: "text", text: loaded.knowledge, cache_control: { type: "ephemeral" } },
+        ],
+        messages,
+      },
+      // Niente nuovi tentativi automatici: raddoppierebbero costi e attesa.
+      { timeout: remainingMs, maxRetries: 0 },
+    );
+    usage = addUsage(usage, toUsage(response.usage));
+    blocks.push(...(response.content as ContentBlockLike[]));
+    if (response.stop_reason === "pause_turn") {
+      messages.push({ role: "assistant", content: response.content });
+      continue;
+    }
+    if (response.stop_reason === "refusal") return { ok: false, reason: "il modello ha rifiutato la richiesta", usage };
+    if (response.stop_reason === "max_tokens") return { ok: false, reason: "risposta troncata (limite di lunghezza)", usage };
+    const parsed = parseWebAnswer(blocks, loaded.content, req);
+    if (!parsed.text) return { ok: false, reason: "risposta vuota", usage };
+    return { ok: true, parsed, blocks, usage };
+  }
+  return { ok: false, reason: "troppe pause del server", usage };
+}
+
+/** Risposta locale con la dichiarazione del limite della ricerca online. */
+function withWebNote(local: AskAnswer, locale: "it" | "en", kind: "webUnavailable" | "webNoSources"): AskAnswer {
+  return { ...local, answer: `${local.answer} ${webNote(locale, kind)}`, ...(kind === "webUnavailable" ? { webUnavailable: true } : {}) };
+}
+
+export interface WebGate {
+  config: WebConfig;
+  /** Il modello supporta la ricerca? (null = non verificato) */
+  supported: boolean | null;
+  /** Limiti di uso rispettati (per indirizzo e per giorno): se falso, niente ricerca. */
+  permitted: () => boolean;
+}
+
+/**
+ * Risposta ibrida: base locale prima (A); ricerca web solo se serve e se consentita (B);
+ * risposta finale che combina le due (C). Se la ricerca non c'è o fallisce, la guida risponde
+ * comunque con la base locale e lo dichiara.
+ */
+export async function askGuide(client: Anthropic, loaded: Loaded, req: AskRequest, gate: WebGate | null = null): Promise<AskOutcome> {
+  const local = await askLocal(client, loaded, req);
+  const localModel = ASK_MODEL;
+  const cost = (web?: Usage) => {
+    const a = estimateUsd(localModel, local.usage);
+    const b = web ? estimateUsd(gate!.config.model, web) : 0;
+    return a === null || b === null ? null : Math.round((a + b) * 1e5) / 1e5;
+  };
+  const done = (answer: AskAnswer, web?: AskOutcome["web"], webUsage?: Usage): AskOutcome => ({
+    answer,
+    ...(local.rejected && answer.origin !== "web" ? { rejected: local.rejected } : {}),
+    usage: { local: local.usage, ...(webUsage ? { web: webUsage } : {}) },
+    costUsd: cost(webUsage),
+    ...(web ? { web } : {}),
+  });
+
+  if (!gate || !gate.config.enabled || !needsWeb(local.answer, req)) return done(local.answer);
+  if (gate.supported === false || !gate.permitted()) {
+    return done(withWebNote(local.answer, req.locale, "webUnavailable"), { attempted: false, error: gate.supported === false ? "modello senza ricerca web" : "limite di uso raggiunto", searches: 0, sources: [] });
+  }
+
+  let web: WebResult;
+  try {
+    web = await askWeb(client, loaded, req, local.answer, gate.config);
+  } catch (error) {
+    const message = error instanceof Anthropic.APIError ? `API ${error.status ?? "?"}: ${error.message}` : (error as Error).message;
+    return done(withWebNote(local.answer, req.locale, "webUnavailable"), { attempted: true, error: message.slice(0, 300), searches: 0, sources: [] });
+  }
+  if (!web.ok) {
+    return done(withWebNote(local.answer, req.locale, "webUnavailable"), { attempted: true, error: web.reason, searches: web.usage.webSearches, sources: [] }, web.usage);
+  }
+  const { parsed } = web;
+  const diag = {
+    attempted: true,
+    searches: web.usage.webSearches,
+    sources: parsed.sources.map((s) => s.url),
+    ...(parsed.unknownRefs.length > 0 ? { unknownRefs: parsed.unknownRefs } : {}),
+    ...(parsed.searchErrors.length > 0 ? { searchErrors: parsed.searchErrors } : {}),
+  };
+  // Una risposta con ricerca che non cita né il web né la base non ha fatti controllabili: non si mostra.
+  if (parsed.sources.length === 0 && parsed.packCitations.length === 0 && !parsed.usedPosition) {
+    const allFailed = parsed.searchErrors.length > 0 && web.usage.webSearches === 0;
+    return done(withWebNote(local.answer, req.locale, allFailed ? "webUnavailable" : "webNoSources"), { ...diag, error: "risposta senza fonti citate" }, web.usage);
+  }
+  const byRef = new Map(loaded.content.assertions.map((a) => [a.ref, a]));
+  const inReview = parsed.packCitations.some((ref) => byRef.get(ref)?.inReview === true);
+  const unsupported = unsupportedNumbers(parsed, web.blocks, loaded.content, req, local.answer);
+  return done(
+    {
+      status: parsed.sources.length > 0 ? "answered" : "partial",
+      answer: parsed.text,
+      citations: parsed.packCitations,
+      origin: "web",
+      webSources: parsed.sources,
+      webSearches: web.usage.webSearches,
+      ...(inReview ? { inReview } : {}),
+      ...(parsed.usedPosition ? { usedPosition: true } : {}),
+      ...(unsupported.length > 0 ? { unsupportedNumbers: unsupported } : {}),
+    },
+    diag,
+    web.usage,
+  );
+}
+
+let capability: { at: number; value: Promise<boolean | null> } | null = null;
+/**
+ * Il modello supporta la ricerca web? Lo dice la Models API (capabilities.server_tools.web_search).
+ * Risultato in memoria per un'ora; null se non si riesce a saperlo (si prova comunque, e un errore
+ * della chiamata fa rispondere con la sola base locale).
+ */
+export function webSearchSupported(client: Anthropic, model: string): Promise<boolean | null> {
+  if (capability && Date.now() - capability.at < 3_600_000) return capability.value;
+  const value = client.models
+    .retrieve(model, {}, { timeout: 5_000, maxRetries: 0 })
+    .then((info) => {
+      const caps = (info as unknown as { capabilities?: { server_tools?: { web_search?: { supported?: unknown } } } | null }).capabilities;
+      const supported = caps?.server_tools?.web_search?.supported;
+      return typeof supported === "boolean" ? supported : null;
+    })
+    .catch(() => null);
+  capability = { at: Date.now(), value };
+  return value;
 }

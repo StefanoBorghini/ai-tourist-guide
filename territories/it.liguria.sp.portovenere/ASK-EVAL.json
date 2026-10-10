@@ -1,0 +1,110 @@
+{
+  "$comment": "Domande di prova per le risposte ibride (base locale + ricerca web). Si eseguono con: npm run ask:eval -w @guide/app -- --file ../../territories/it.liguria.sp.portovenere/ASK-EVAL.json (serve ANTHROPIC_API_KEY; ha un costo). 'expect' è l'esito atteso: local = basta la base, web = serve la ricerca, none = nessuna ricerca (fuori tema). 'check' dice cosa deve verificare chi legge il rapporto.",
+  "destination": "it.liguria.sp.portovenere",
+  "locale": "it",
+  "questions": [
+    {
+      "id": "sp-promontorio",
+      "category": "San Pietro",
+      "question": "Perché la chiesa di San Pietro è costruita proprio sul promontorio?",
+      "selected": "san-pietro",
+      "expect": "web",
+      "check": "Distingue il dato documentato (posizione, eventuale tempio pagano precedente) dalle ipotesi; non presenta come certa l'origine dal tempio di Venere."
+    },
+    {
+      "id": "sp-architettura",
+      "category": "Approfondimento architettonico",
+      "question": "Spiegami in modo approfondito le fasi costruttive della chiesa di San Pietro e cosa osservare dal vivo.",
+      "selected": "san-pietro",
+      "depth": "deep",
+      "expect": "web",
+      "check": "Risposta lunga e ordinata (fasi, materiali, loggia, dettagli da osservare); ogni data con fonte; nessun dettaglio non citato."
+    },
+    {
+      "id": "cd-trasformazioni",
+      "category": "Castello Doria",
+      "question": "Quali trasformazioni storiche ha subito il Castello Doria?",
+      "selected": "castello-doria",
+      "expect": "web",
+      "check": "Usa cd-fortezza e cd-palinsesto della base; aggiunge le fasi con fonti; segnala le date incerte."
+    },
+    {
+      "id": "sl-portale",
+      "category": "Chiese e borgo medievale",
+      "question": "Cosa devo osservare nella facciata e nel portale della chiesa di San Lorenzo?",
+      "selected": "san-lorenzo",
+      "expect": "web",
+      "check": "Dettagli architettonici con fonte; non inventa sculture o iscrizioni."
+    },
+    {
+      "id": "borgo-palazzata",
+      "category": "Chiese e borgo medievale",
+      "question": "Com'era organizzato il borgo medievale e perché le case della Palazzata sono così alte e strette?",
+      "selected": "palazzata-a-mare",
+      "expect": "web",
+      "check": "Funzione difensiva delle case-torri con fonte; distingue interpretazione da fatto."
+    },
+    {
+      "id": "personaggi",
+      "category": "Personaggi storici",
+      "question": "Quali personaggi storici sono legati a Portovenere?",
+      "expect": "web",
+      "check": "Nomi solo con fonte; per Byron distingue la traversata documentata dalla tradizione locale."
+    },
+    {
+      "id": "byron-nuotata",
+      "category": "Fonti incerte",
+      "question": "È vero che Byron partì a nuoto da questa grotta per raggiungere Shelley a Lerici?",
+      "selected": "grotta-byron",
+      "expect": "web",
+      "check": "La base ha gb-byron come tradizione: la risposta deve dirlo; se le fonti divergono (data, percorso, destinazione) lo segnala."
+    },
+    {
+      "id": "madonna-bianca",
+      "category": "Leggende e tradizioni",
+      "question": "Cosa racconta la leggenda della Madonna Bianca?",
+      "selected": "san-lorenzo",
+      "expect": "web",
+      "check": "Presentata come leggenda/tradizione, mai come fatto; distingue la festa (documentata) dal miracolo (tradizione)."
+    },
+    {
+      "id": "simonetta-nascita",
+      "category": "Fonti discordanti",
+      "question": "Simonetta Vespucci è nata a Fezzano?",
+      "selected": "fezzano",
+      "expect": "local",
+      "check": "La base ha due versioni in disaccordo (sim-nascita-genova, sim-nascita-golfo): le presenta entrambe senza sceglierne una."
+    },
+    {
+      "id": "fezzano-chiesa",
+      "category": "Risposta già nella base",
+      "question": "Quando è stata costruita la chiesa di Fezzano?",
+      "selected": "fezzano",
+      "expect": "local",
+      "check": "Usa fz-chiesa-1740 e fz-chiesa-catalogo e dichiara la divergenza; nessuna ricerca necessaria."
+    },
+    {
+      "id": "golfo-poeti",
+      "category": "Territorio",
+      "question": "Qual è il rapporto storico fra Portovenere, la Palmaria e il Golfo dei Poeti?",
+      "selected": "palmaria",
+      "expect": "web",
+      "check": "Spiega il nome 'Golfo dei Poeti' con fonte; nessuna generalizzazione non citata."
+    },
+    {
+      "id": "orientamento",
+      "category": "Orientamento",
+      "question": "Come arrivo al Castello Doria da qui?",
+      "at": "piazza-bastreri",
+      "expect": "local",
+      "check": "Solo distanza e direzione in linea d'aria calcolate dal sistema; nessuna strada, scala o tempo di cammino; nessuna ricerca web."
+    },
+    {
+      "id": "fuori-tema",
+      "category": "Fuori tema",
+      "question": "Chi ha vinto l'ultimo campionato di calcio?",
+      "expect": "none",
+      "check": "Esito off_topic, nessuna ricerca, nessun costo di ricerca."
+    }
+  ]
+}

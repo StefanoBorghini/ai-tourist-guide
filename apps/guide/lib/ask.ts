@@ -38,6 +38,8 @@ export const askRequestSchema = z.object({
     .array(z.object({ question: z.string().max(ASK_LIMITS.questionChars), answer: z.string().max(2000) }))
     .max(ASK_LIMITS.history)
     .default([]),
+  /** "deep": il visitatore chiede di approfondire (abilita la ricerca web anche se la base risponde). */
+  depth: z.enum(["auto", "deep"]).default("auto"),
 });
 export type AskRequest = z.infer<typeof askRequestSchema>;
 
@@ -59,6 +61,33 @@ export interface AskAnswer {
   usedPosition?: boolean;
   /** Solo per "rejected": quale controllo non è stato superato (diagnostica, nessun segreto). */
   checkReason?: string;
+  /** "web": la risposta integra informazioni trovate online (non verificate dalla redazione). */
+  origin?: "local" | "web";
+  /** Fonti web citate nella risposta, ordinate per affidabilità presunta. */
+  webSources?: WebSource[];
+  /** Ricerche web eseguite per questa risposta. */
+  webSearches?: number;
+  /** La ricerca web serviva ma non era disponibile: la risposta usa solo la base locale. */
+  webUnavailable?: boolean;
+  /** Numeri della risposta web non ritrovati nelle fonti citate (indizio per la revisione, solo debug). */
+  unsupportedNumbers?: string[];
+  /** Risposta servita dalla cache del server. */
+  cached?: boolean;
+}
+
+/** Livello di affidabilità presunto dal dominio: 1 istituzioni, 2 archivi e musei, 3 università, 4 opere di riferimento, 5 altro. */
+export type SourceTier = 1 | 2 | 3 | 4 | 5;
+
+export interface WebSource {
+  title: string;
+  url: string;
+  /** Dominio, al posto dell'ente quando questo non è noto. */
+  site: string;
+  tier: SourceTier;
+  /** Data di aggiornamento della pagina, se il motore di ricerca la riporta. */
+  pageAge?: string;
+  /** Brano citato (fino a 150 caratteri): cosa sostiene la fonte. */
+  citedText?: string;
 }
 
 /** Citazione delle distanze calcolate dal sistema (non è un'affermazione della base). */
@@ -107,7 +136,7 @@ Regole, in ordine di importanza:
 7. Orientamento ("dove si trova", "come ci arrivo", "cosa c'è vicino"): usa solo le distanze e le direzioni in linea d'aria elencate nel CONTESTO, dicendo che sono in linea d'aria e approssimative, e aggiungi "${POSITION_CITATION}" alle citazioni. Non descrivere strade, scale, sentieri, tempi di cammino, orari o mezzi: non li conosci. Invita a seguire la mappa dell'app. Se nel CONTESTO la posizione non è disponibile, dillo e non stimare distanze. Per suggerire cosa visitare scegli tra i luoghi vicini del CONTESTO e racconta di loro solo ciò che dice la BASE DI CONOSCENZA.
 8. "Questo luogo" è il luogo selezionato, se c'è; altrimenti il luogo in cui si trova.
 
-Stile: risposta parlata, verrà letta ad alta voce mentre la persona cammina. Due-quattro frasi, niente elenchi, niente markdown, niente riferimenti tra parentesi nel testo. Rispondi nella lingua indicata nel CONTESTO.`;
+Stile: risposta parlata, verrà letta ad alta voce mentre la persona cammina. La prima frase risponde subito. Adatta la lunghezza alla domanda e a quanto dice la base: due-quattro frasi per una domanda semplice; se chiede di spiegare o approfondire, usa tutte le affermazioni pertinenti (fino a otto-dieci frasi), con contesto, dettagli da osservare e collegamenti. Niente elenchi, niente markdown, niente riferimenti tra parentesi nel testo. Rispondi nella lingua indicata nel CONTESTO.`;
 
 const TYPE_LABEL: Record<string, string> = {
   fact: "fact",
@@ -305,16 +334,25 @@ const FALLBACK = {
     unavailable: "In questo momento non riesco a rispondere alle domande. Il racconto della visita continua a funzionare.",
     offline: "Per le domande serve la rete. Il racconto dei luoghi invece funziona anche offline.",
     rejected: "Ho provato a risponderti, ma la risposta non ha superato il controllo sulle fonti, quindi preferisco non leggertela. Prova a chiedere in un altro modo.",
+    webUnavailable: "In questo momento non riesco a cercare fonti online, quindi ti ho risposto solo con le informazioni della guida.",
+    webNoSources: "Ho cercato anche online, ma non ho trovato fonti attendibili da citarti su questo.",
   },
   en: {
     not_in_knowledge: "I have no verified information about that, so I'd rather not guess.",
     unavailable: "I can't answer questions right now. The tour narration still works.",
     offline: "Questions need a connection. The narration of the places works offline too.",
     rejected: "I tried to answer, but the answer did not pass the source check, so I'd rather not read it to you. Try asking in another way.",
+    webUnavailable: "I can't search online sources right now, so I answered only with the guide's own information.",
+    webNoSources: "I also searched online, but found no reliable sources I could cite on this.",
   },
 } as const;
 
-export function fallbackAnswer(locale: "it" | "en", kind: keyof (typeof FALLBACK)["it"], checkReason?: string): AskAnswer {
+export type FallbackKind = Exclude<keyof (typeof FALLBACK)["it"], "webUnavailable" | "webNoSources">;
+
+/** Frase che dichiara un limite della ricerca online (non disponibile, o nessuna fonte attendibile). */
+export const webNote = (locale: "it" | "en", kind: "webUnavailable" | "webNoSources") => FALLBACK[locale][kind];
+
+export function fallbackAnswer(locale: "it" | "en", kind: FallbackKind, checkReason?: string): AskAnswer {
   return {
     status: kind === "not_in_knowledge" || kind === "rejected" ? kind : "unavailable",
     answer: FALLBACK[locale][kind],

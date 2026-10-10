@@ -54,10 +54,11 @@ export interface DebugPanelProps {
   /** Impronta della base con cui risponde il server delle domande (null se non nota). */
   serverKbHash?: string | null;
   askAvailable?: boolean;
+  webAvailable?: boolean;
 }
 
 export function DebugPanel(props: DebugPanelProps) {
-  const { content, runtime, gpsError, fixSource, online, offlineReady, bundleHash, serverKbHash, askAvailable } = props;
+  const { content, runtime, gpsError, fixSource, online, offlineReady, bundleHash, serverKbHash, askAvailable, webAvailable } = props;
   const snap = runtime.debugSnapshot();
   const fix = snap.fix;
   const overlaps = useMemo(() => fenceOverlaps(content), [content]);
@@ -157,6 +158,7 @@ export function DebugPanel(props: DebugPanelProps) {
           )}
           <br />
           domande AI: {askAvailable ? <span className="good">disponibili</span> : <span className="warn">non disponibili (chiave assente o offline)</span>}
+          {askAvailable && <> · ricerca web: {webAvailable ? <span className="good">attiva</span> : <span className="warn">non attiva</span>}</>}
         </dd>
       </dl>
 

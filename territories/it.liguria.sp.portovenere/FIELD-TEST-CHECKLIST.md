@@ -103,6 +103,11 @@ Modalità «Mi chiede prima».
   rimandare alla mappa; **non** deve inventare strade, scale o tempi di cammino.
 - ☐ «Cosa posso visitare qui vicino?» — propone luoghi effettivamente vicini?
 - ☐ Le risposte su contenuti in revisione riportano «⚠ Risposta basata su contenuti in revisione».
+- ☐ Domanda storica non coperta dalla guida (es. «Quali trasformazioni ha subito il Castello Doria?»): la risposta
+  arriva entro un minuto, riporta «🌐 Include informazioni trovate online…» e «Fonti e approfondimenti» si apre
+  con link funzionanti. Annotare se le fonti sono pertinenti.
+- ☐ «🔎 Approfondisci» sotto una risposta della guida: risposta più ricca, con fonti.
+- ☐ La lettura ad alta voce di una risposta lunga resta ascoltabile camminando? (annotare la durata)
 - ☐ Senza rete: messaggio chiaro, il racconto dei luoghi continua.
 
 ## 7. Percorsi guidati e passaggio tra modalità

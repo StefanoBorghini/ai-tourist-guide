@@ -9,10 +9,15 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 2. **Il sistema calcola, l'AI racconta.** Posizione, tempi, percorsi e selezione dei contenuti sono deterministici
    e testabili; l'AI genera solo testo a partire da affermazioni verificate.
 3. **L'AI non inventa fatti.** Racconta solo affermazioni `verified` di livello ammesso dalla configurazione del
-   territorio, e le cita. Nessun accesso al web per la guida. Unica eccezione: i territori con `releaseStage`
+   territorio, e le cita. Unica eccezione: i territori con `releaseStage`
    `research` o `field_test` producono bundle di **anteprima** che includono anche affermazioni `in_review`
    (mai `draft`), marcate e dichiarate all'utente; in `production` il validatore impone affermazioni verificate,
    coordinate `field_verified` e percorsi `field_calibrated`.
+   **Ricerca web (decisione del proprietario, 2026-10):** il racconto dei luoghi non usa mai il web; le *risposte alle
+   domande* possono approfondire con lo strumento ufficiale di ricerca web dell'API Anthropic, solo dopo la base locale
+   e solo se questa non basta o se il visitatore chiede di approfondire (`lib/ask-web.ts`). Ciò che viene dal web si
+   mostra con le sue fonti, marcato come non verificato dalla redazione, e **non entra mai da solo nel Territory Pack**:
+   ci arriva solo con il processo normale di revisione. Si spegne con `ASK_WEB_ENABLED=0`.
 4. **Il Territory Pack è l'unica porta d'ingresso dei contenuti.** Il formato è definito in
    `packages/domain/src/pack-schema.ts` e validato da `guide-pack validate`. Le immagini entrano solo con fonte,
    autore e licenza dichiarati; non si raccolgono immagini dal web senza licenza.
@@ -29,7 +34,10 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   15 minuti, luoghi vicini); `lib/gps-status.ts` stato del segnale; `components/PlaceCard.tsx` scheda del luogo; al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato; distanze e direzioni in linea d'aria le calcola il
-  sistema dalla posizione, l'AI le riferisce soltanto) e `app/api/guide/ask` per le domande all'AI;
+  sistema dalla posizione, l'AI le riferisce soltanto), `lib/ask-web.ts` (approfondimento con ricerca web: quando
+  cercare, lettura di fonti e citazioni, cache, limiti, costi; puro e testato), `lib/ask-server.ts` (chiamate al
+  modello) e `app/api/guide/ask` per le domande all'AI; `npm run ask:eval` esegue le domande di prova di un territorio
+  (`ASK-EVAL.json` nel pack) e scrive un rapporto da rileggere;
   `components/DebugPanel.tsx` e `lib/field-points.ts` per il test sul campo (`?debug=1`);
   `components/MapView.tsx` e `lib/map-view.ts` per la mappa (Web Mercator, sfondo OpenStreetMap solo online e
   solo per le prove: in produzione serve un fornitore di tile con licenza adeguata)

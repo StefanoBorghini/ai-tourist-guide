@@ -409,7 +409,7 @@ Il livello Bronze **non è invenzione dell'AI**: ogni affermazione resta legata 
 
 - L'AI riceve solo affermazioni con stato e livello ammessi dalla configurazione del territorio.
 - Deve citarle con marcatori nel testo; un validatore controlla date, numeri, nomi e formule di certezza prima della sintesi vocale.
-- L'AI non ha accesso al web.
+- L'AI non ha accesso al web nel racconto dei luoghi. *(Aggiornamento 2026-10: le risposte alle domande possono approfondire con la ricerca web ufficiale dell'API, dopo la base locale, con fonti mostrate e marcate come non verificate; vedi README, «Domande e ricerca web».)*
 - Ogni generazione viene registrata (modello, versione del prompt, versione della conoscenza, affermazioni fornite e citate, esito del validatore).
 - Il turista può segnalare "questa informazione mi sembra sbagliata", e la segnalazione arriva in redazione.
 

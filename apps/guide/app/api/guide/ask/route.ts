@@ -93,7 +93,9 @@ export async function POST(request: Request): Promise<Response> {
   const hit = key ? answers.get(key) : undefined;
   if (hit) {
     console.info(JSON.stringify({ event: "ask", status: hit.status, origin: hit.origin ?? "local", cached: true, kbHash: loaded.kbHash, ms: Date.now() - started }));
-    return Response.json({ ...hit, cached: true });
+    // Dalla cache: nessuna chiamata al modello, costo zero.
+    const meter = { models: [], calls: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, webSearches: 0, costUsd: 0 };
+    return Response.json({ ...hit, cached: true, meter });
   }
 
   const ai = getClient();
@@ -132,13 +134,15 @@ export async function POST(request: Request): Promise<Response> {
       depth: req.depth,
       cached: false,
       kbHash: loaded.kbHash,
-      models: { local: ASK_MODEL, ...(outcome.usage.web ? { web: config.model } : {}) },
+      // Modelli che hanno risposto davvero (dalla risposta dell'API; ASK_MODEL è quello richiesto).
+      models: outcome.answer.meter?.models ?? [ASK_MODEL],
+      calls: outcome.answer.meter?.calls ?? 0,
       usage: outcome.usage,
       costUsd: outcome.costUsd,
       web: outcome.web ? { attempted: outcome.web.attempted, searches: outcome.web.searches, sources: outcome.web.sources.length, error: outcome.web.error, searchErrors: outcome.web.searchErrors } : null,
       ms: Date.now() - started,
     }));
-    if (key && cacheable(outcome.answer)) answers.set(key, outcome.answer);
+    if (key && cacheable(outcome.answer)) answers.set(key, { ...outcome.answer, meter: undefined });
     return Response.json(outcome.answer);
   } catch (error) {
     if (error instanceof Anthropic.RateLimitError) {

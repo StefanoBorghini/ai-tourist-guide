@@ -18,6 +18,7 @@ import {
   fallbackAnswer,
   webNote,
   type AskAnswer,
+  type AskMeter,
   type AskRequest,
 } from "./ask";
 import {
@@ -108,15 +109,15 @@ export interface AskOutcome {
   answer: AskAnswer;
   /** Motivo per cui la risposta del modello è stata scartata (per i log delle lacune). */
   rejected?: string;
-  /** Consumi della risposta locale e, se c'è stata, di quella con ricerca. */
-  usage: { local: Usage; web?: Usage };
+  /** Consumi della risposta locale e di quella con ricerca, se ci sono state. */
+  usage: { local?: Usage; web?: Usage };
   /** Stima in dollari (listino pubblico). */
   costUsd: number | null;
   /** Diagnostica della ricerca web, per i log (nessun segreto). */
   web?: { attempted: boolean; error?: string; searches: number; sources: string[]; unknownRefs?: string[]; searchErrors?: string[] };
 }
 
-type LocalResult = { answer: AskAnswer; rejected?: string; usage: Usage };
+type LocalResult = { answer: AskAnswer; rejected?: string; usage: Usage; model: string };
 
 const toUsage = (u: Anthropic.Beta.Messages.BetaUsage): Usage => ({
   input: u.input_tokens,
@@ -146,15 +147,17 @@ export async function askLocal(client: Anthropic, loaded: Loaded, req: AskReques
     { timeout: 25_000 },
   );
   const usage = toUsage(response.usage);
+  // Il modello che ha risposto davvero (con il ripiego automatico può non essere ASK_MODEL).
+  const model = response.model || ASK_MODEL;
 
   if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") {
     const reason = response.stop_reason === "refusal" ? "il modello ha rifiutato la richiesta" : "risposta troncata (limite di lunghezza)";
-    return { answer: fallbackAnswer(req.locale, "rejected", reason), rejected: reason, usage };
+    return { answer: fallbackAnswer(req.locale, "rejected", reason), rejected: reason, usage, model };
   }
   const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
   const checked = checkModelAnswer(text, loaded.content, req);
-  if (!checked.ok) return { answer: fallbackAnswer(req.locale, "rejected", checked.reason), rejected: checked.reason, usage };
-  return { answer: { ...checked.answer, origin: "local" }, usage };
+  if (!checked.ok) return { answer: fallbackAnswer(req.locale, "rejected", checked.reason), rejected: checked.reason, usage, model };
+  return { answer: { ...checked.answer, origin: "local" }, usage, model };
 }
 
 type WebResult =
@@ -165,7 +168,7 @@ type WebResult =
  * Livello B: il modello riceve la base, la risposta locale e lo strumento di ricerca web ufficiale.
  * Gestisce pause_turn (turni lunghi sospesi dal server) rimandando il messaggio così com'è.
  */
-export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest, local: AskAnswer, config: WebConfig): Promise<WebResult> {
+export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest, local: AskAnswer | null, config: WebConfig): Promise<WebResult> {
   const started = Date.now();
   let usage = emptyUsage();
   const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
@@ -231,37 +234,60 @@ export interface WebGate {
  * Risposta ibrida: base locale prima (A); ricerca web solo se serve e se consentita (B);
  * risposta finale che combina le due (C). Se la ricerca non c'è o fallisce, la guida risponde
  * comunque con la base locale e lo dichiara.
+ *
+ * Approfondimento («Approfondisci»): la base locale ha già risposto alla stessa domanda, quindi si va
+ * diretti alla ricerca (la base è comunque nel contesto) e la si interroga di nuovo solo se la
+ * ricerca non è disponibile o non produce fonti. Così non si paga due volte la stessa risposta locale.
  */
 export async function askGuide(client: Anthropic, loaded: Loaded, req: AskRequest, gate: WebGate | null = null): Promise<AskOutcome> {
-  const local = await askLocal(client, loaded, req);
-  const localModel = ASK_MODEL;
-  const cost = (web?: Usage) => {
-    const a = estimateUsd(localModel, local.usage);
-    const b = web ? estimateUsd(gate!.config.model, web) : 0;
-    return a === null || b === null ? null : Math.round((a + b) * 1e5) / 1e5;
-  };
-  const done = (answer: AskAnswer, web?: AskOutcome["web"], webUsage?: Usage): AskOutcome => ({
-    answer,
-    ...(local.rejected && answer.origin !== "web" ? { rejected: local.rejected } : {}),
-    usage: { local: local.usage, ...(webUsage ? { web: webUsage } : {}) },
-    costUsd: cost(webUsage),
-    ...(web ? { web } : {}),
-  });
+  let local: LocalResult | null = null;
+  const getLocal = async () => (local ??= await askLocal(client, loaded, req));
+  const webOn = gate !== null && gate.config.enabled && gate.supported !== false;
+  let permitted: boolean | undefined;
+  const permit = () => (permitted ??= gate!.permitted());
 
-  if (!gate || !gate.config.enabled || !needsWeb(local.answer, req)) return done(local.answer);
-  if (gate.supported === false || !gate.permitted()) {
-    return done(withWebNote(local.answer, req.locale, "webUnavailable"), { attempted: false, error: gate.supported === false ? "modello senza ricerca web" : "limite di uso raggiunto", searches: 0, sources: [] });
+  const done = (answer: AskAnswer, web?: AskOutcome["web"], webUsage?: Usage): AskOutcome => {
+    const parts: [string, Usage][] = [];
+    if (local) parts.push([local.model, local.usage]);
+    if (webUsage) parts.push([gate!.config.model, webUsage]);
+    const total = parts.reduce((acc, [, u]) => addUsage(acc, u), emptyUsage());
+    const costs = parts.map(([m, u]) => estimateUsd(m, u));
+    const costUsd = costs.some((c) => c === null) ? null : Math.round(costs.reduce((a, c) => a! + c!, 0)! * 1e5) / 1e5;
+    const meter: AskMeter = { models: [...new Set(parts.map(([m]) => m))], calls: parts.length, ...total, costUsd };
+    return {
+      answer: { ...answer, meter },
+      ...(local?.rejected && answer.origin !== "web" ? { rejected: local.rejected } : {}),
+      usage: { ...(local ? { local: local.usage } : {}), ...(webUsage ? { web: webUsage } : {}) },
+      costUsd,
+      ...(web ? { web } : {}),
+    };
+  };
+  /** Ripiego: la risposta locale (calcolata ora se serve) con la dichiarazione del limite. */
+  const fallback = async (kind: "webUnavailable" | "webNoSources", web: AskOutcome["web"], webUsage?: Usage) => {
+    const l = await getLocal();
+    // Fuori tema o senza servizio: la nota sulla ricerca non avrebbe senso.
+    if (l.answer.status === "off_topic" || l.answer.status === "unavailable") return done(l.answer, web, webUsage);
+    return done(withWebNote(l.answer, req.locale, kind), web, webUsage);
+  };
+
+  const direct = req.depth === "deep" && webOn && permit();
+  if (!direct) {
+    const l = await getLocal();
+    if (!gate || !gate.config.enabled || !needsWeb(l.answer, req)) return done(l.answer);
+    if (gate.supported === false || !permit()) {
+      return done(withWebNote(l.answer, req.locale, "webUnavailable"), { attempted: false, error: gate.supported === false ? "modello senza ricerca web" : "limite di uso raggiunto", searches: 0, sources: [] });
+    }
   }
 
   let web: WebResult;
   try {
-    web = await askWeb(client, loaded, req, local.answer, gate.config);
+    web = await askWeb(client, loaded, req, local ? (local as LocalResult).answer : null, gate!.config);
   } catch (error) {
     const message = error instanceof Anthropic.APIError ? `API ${error.status ?? "?"}: ${error.message}` : (error as Error).message;
-    return done(withWebNote(local.answer, req.locale, "webUnavailable"), { attempted: true, error: message.slice(0, 300), searches: 0, sources: [] });
+    return fallback("webUnavailable", { attempted: true, error: message.slice(0, 300), searches: 0, sources: [] });
   }
   if (!web.ok) {
-    return done(withWebNote(local.answer, req.locale, "webUnavailable"), { attempted: true, error: web.reason, searches: web.usage.webSearches, sources: [] }, web.usage);
+    return fallback("webUnavailable", { attempted: true, error: web.reason, searches: web.usage.webSearches, sources: [] }, web.usage);
   }
   const { parsed } = web;
   const diag = {
@@ -274,11 +300,11 @@ export async function askGuide(client: Anthropic, loaded: Loaded, req: AskReques
   // Una risposta con ricerca che non cita né il web né la base non ha fatti controllabili: non si mostra.
   if (parsed.sources.length === 0 && parsed.packCitations.length === 0 && !parsed.usedPosition) {
     const allFailed = parsed.searchErrors.length > 0 && web.usage.webSearches === 0;
-    return done(withWebNote(local.answer, req.locale, allFailed ? "webUnavailable" : "webNoSources"), { ...diag, error: "risposta senza fonti citate" }, web.usage);
+    return fallback(allFailed ? "webUnavailable" : "webNoSources", { ...diag, error: "risposta senza fonti citate" }, web.usage);
   }
   const byRef = new Map(loaded.content.assertions.map((a) => [a.ref, a]));
   const inReview = parsed.packCitations.some((ref) => byRef.get(ref)?.inReview === true);
-  const unsupported = unsupportedNumbers(parsed, web.blocks, loaded.content, req, local.answer);
+  const unsupported = unsupportedNumbers(parsed, web.blocks, loaded.content, req, local ? (local as LocalResult).answer : null);
   return done(
     {
       status: parsed.sources.length > 0 ? "answered" : "partial",

@@ -73,6 +73,22 @@ export interface AskAnswer {
   unsupportedNumbers?: string[];
   /** Risposta servita dalla cache del server. */
   cached?: boolean;
+  /** Consumi della risposta (somma delle chiamate al modello): per misurare i costi durante le prove. */
+  meter?: AskMeter;
+}
+
+export interface AskMeter {
+  /** Modelli che hanno effettivamente risposto (dalla risposta dell'API). */
+  models: string[];
+  /** Chiamate al modello eseguite (0 se servita dalla cache). */
+  calls: number;
+  input: number;
+  cacheWrite: number;
+  cacheRead: number;
+  output: number;
+  webSearches: number;
+  /** Stima in dollari dal listino pubblico; null se il modello non è in tabella. */
+  costUsd: number | null;
 }
 
 /** Livello di affidabilità presunto dal dominio: 1 istituzioni, 2 archivi e musei, 3 università, 4 opere di riferimento, 5 altro. */

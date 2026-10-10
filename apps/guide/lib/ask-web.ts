@@ -116,9 +116,11 @@ Stile — la risposta verrà letta ad alta voce mentre la persona cammina:
 - rispondi nella lingua indicata nel CONTESTO.`;
 
 /** Parte variabile: la risposta locale già controllata, come punto di partenza. */
-export function buildWebAddendum(local: AskAnswer, req: AskRequest): string {
+export function buildWebAddendum(local: AskAnswer | null, req: AskRequest): string {
   const lines = ["", "RISPOSTA DELLA BASE LOCALE (già controllata)"];
-  if (local.status === "answered" || local.status === "partial") {
+  if (!local) {
+    lines.push("Non calcolata per questa richiesta: la BASE DI CONOSCENZA è comunque qui sopra, usala per prima.");
+  } else if (local.status === "answered" || local.status === "partial") {
     lines.push(`Esito: ${local.status === "answered" ? "la base risponde" : "la base risponde solo in parte"}.`, `Testo: ${local.answer}`);
     if (local.citations.length > 0) lines.push(`Affermazioni usate: ${local.citations.join(", ")}`);
   } else {
@@ -276,8 +278,8 @@ const numbersIn = (text: string) => new Set([...text.matchAll(NUMBER)].map((m) =
  * citati dalle fonti web. I brani citati sono corti (150 caratteri), quindi è un indizio per la
  * revisione, non una prova di invenzione: per questo non scarta la risposta.
  */
-export function unsupportedNumbers(parsed: ParsedWebAnswer, blocks: ContentBlockLike[], content: BundleContent, req: AskRequest, local: AskAnswer): string[] {
-  const allowed = numbersIn(`${req.question} ${local.answer}`);
+export function unsupportedNumbers(parsed: ParsedWebAnswer, blocks: ContentBlockLike[], content: BundleContent, req: AskRequest, local: AskAnswer | null): string[] {
+  const allowed = numbersIn(`${req.question} ${local?.answer ?? ""}`);
   const byRef = new Map(content.assertions.map((a) => [a.ref, a]));
   for (const ref of parsed.packCitations) {
     const a = byRef.get(ref)!;

@@ -1,6 +1,7 @@
 # Checklist del test sul campo — Portovenere
 
-Versione dell'app: commit `df722e6` (esplorazione libera + percorsi guidati nella stessa visita).
+Versione dell'app: dal commit `df722e6` (esplorazione libera + percorsi guidati); domande con ricerca web e
+contatore dei costi in debug dai commit successivi (verificare in Debug → «Contenuti» che telefono e server coincidano).
 Scopo: calibrare coordinate e geofence, verificare proposte audio, luoghi vicini e passaggio tra modalità.
 Nessun punto diventa `field_verified` durante il test: i rilievi si esportano e si rivedono dopo con
 `guide-pack field` (propone, non scrive nel pack).
@@ -16,6 +17,49 @@ Legenda: ☐ da fare · ✓ superato · ✗ non superato (annotare cosa, dove, a
 - ☐ Domande AI: con rete, l'indirizzo `/api/guide/ask` deve rispondere `{"available":true}`.
   Se risponde `false`, `ANTHROPIC_API_KEY` non è impostata nel progetto Vercel (Production).
 - ☐ Annotare modello di telefono, sistema operativo e browser.
+
+## 0b. Budget delle prove (20 $ complessivi, piano di spesa)
+
+Ripartizione: 5 $ base locale (fase A) · 5 $ ricerca web (fase B) · 10 $ riserva per il campo.
+
+- ☐ Console Anthropic: annotare il credito disponibile prima di iniziare (`____ $`) e verificare che la
+  **ricarica automatica sia disattivata**. Con il credito prepagato e la ricarica spenta, a credito esaurito
+  l'API smette di rispondere: è l'unico tetto davvero globale. I limiti dell'app valgono per istanza del server.
+- ☐ Debug (`?debug=1`) → «azzera» il totale delle domande nella sezione domande prima di ogni fase.
+- ☐ Dopo ogni fase annotare: totale stimato mostrato dal telefono, numero di domande, quante con ricerca,
+  e la «Spesa di questo mese» della Console (confrontare **prima e dopo** la stessa fase, non periodi diversi).
+- ☐ Fermarsi quando il totale della fase raggiunge la sua quota.
+- Costi attesi (stime, non misure): domanda dalla base 0,02–0,05 $; con ricerca 0,10–0,35 $; da cache 0 $.
+
+## 0c. Fase A — base locale (prima del sopralluogo, con rete; ~10 domande, ~0,50 $)
+
+Impostazione: nessuna. La ricerca parte solo se la base non basta; per tenerla spenta in questa fase si può
+impostare `ASK_WEB_ENABLED=0` su Vercel e ripubblicare (poi rimetterla a `1`).
+
+- ☐ Fezzano: «Quando è stata costruita la chiesa di Fezzano?» — deve citare entrambe le date in disaccordo.
+- ☐ Fezzano: «Simonetta Vespucci è nata a Fezzano?» — deve presentare le due versioni senza sceglierne una.
+- ☐ San Pietro: «Perché la chiesa è costruita sul promontorio?» — cosa dice la base, e lo dichiara «in revisione»?
+- ☐ Castello Doria: «Che cos'era il Castello Doria?» — usa le due affermazioni della base?
+- ☐ Grotta di Byron: «È vero che Byron nuotò da qui?» — la presenta come tradizione, non come fatto?
+- ☐ Una domanda di cui la base non sa nulla (es. «Chi era il vescovo di Portovenere nel 1500?»): deve dirlo.
+- ☐ «Come arrivo al Castello Doria?» — solo distanza e direzione in linea d'aria, niente strade né tempi.
+- ☐ Per ogni risposta: corretta? abbastanza approfondita? costo in debug? annotare «chiamate 1».
+
+## 0d. Fase B — ricerca web (con rete; ~8 domande, 1,50–3 $)
+
+- ☐ `/api/guide/ask` mostra `"web":{"enabled":true,…,"supported":true}`.
+- ☐ «Quali trasformazioni storiche ha subito il Castello Doria?» (scheda del Castello)
+- ☐ «Cosa devo osservare nella facciata di San Lorenzo?» (scheda di San Lorenzo)
+- ☐ «Cosa racconta la leggenda della Madonna Bianca?» — leggenda distinta dai fatti?
+- ☐ «Qual è il rapporto storico fra Portovenere, la Palmaria e il Golfo dei Poeti?»
+- ☐ Una risposta della base (fase A) → «🔎 Approfondisci»: in debug deve risultare «chiamate 1».
+- ☐ Ripetere una domanda identica sullo stesso luogo: deve risultare «dalla cache» con costo 0.
+- ☐ Per ogni risposta: in debug «origine web» e numero di ricerche; aprire «Fonti e approfondimenti»:
+  i link si aprono? le pagine dicono davvero ciò che la risposta afferma? fonti istituzionali o deboli?
+  numeri segnalati «da verificare»? la risposta è migliore di quella della sola base?
+- In alternativa, da un computer con la chiave: `npm run ask:eval -w @guide/app -- --file
+  ../../territories/it.liguria.sp.portovenere/ASK-EVAL.json --no-web --max-usd 1 --out fase-a.md`
+  (fase A) e senza `--no-web`, con `--max-usd 3`, per la fase B: si ferma prima di superare il tetto.
 
 ## 1. GPS e stato del segnale
 
@@ -127,6 +171,12 @@ Modalità «Mi chiede prima».
 - ☐ Annotare i tempi reali di ogni tratto del percorso (i tempi sono «da calibrare»).
 - ☐ Periplo Palmaria: oggi ha **una sola tappa** (l'isola); verificare come si comporta e annotare
   quali punti del giro meriterebbero una tappa.
+
+## 7b. Connessione lenta
+
+- ☐ Nei carrugi o in zone con segnale debole: una domanda con ricerca può richiedere fino a un minuto;
+  compare «Cerco anche fonti online…»? Il racconto dei luoghi continua nel frattempo?
+- ☐ Se la risposta non arriva entro ~65 s: messaggio chiaro, nessun blocco dell'app.
 
 ## 8. Offline
 

@@ -12,6 +12,32 @@ import type { UiText } from "../lib/i18n";
 
 const NEARBY_M = 300;
 
+/** Totale dei costi delle domande su questo dispositivo, per le prove (solo in debug). */
+interface CostTally {
+  usd: number;
+  questions: number;
+  withWeb: number;
+  searches: number;
+  since: string;
+}
+const TALLY_KEY = "guide.askCostTally";
+const emptyTally = (): CostTally => ({ usd: 0, questions: 0, withWeb: 0, searches: 0, since: new Date().toISOString() });
+function readTally(): CostTally {
+  try {
+    const raw = localStorage.getItem(TALLY_KEY);
+    return raw ? (JSON.parse(raw) as CostTally) : emptyTally();
+  } catch {
+    return emptyTally();
+  }
+}
+function writeTally(t: CostTally) {
+  try {
+    localStorage.setItem(TALLY_KEY, JSON.stringify(t));
+  } catch {
+    // archiviazione non disponibile: il totale vale solo per questa pagina
+  }
+}
+
 /** Riconoscimento vocale del browser (non standard: Chrome e Safari lo espongono con prefisso). */
 interface Recognition {
   lang: string;
@@ -51,6 +77,10 @@ export function AskBox(props: {
   const [slow, setSlow] = useState(false);
   const [listening, setListening] = useState(false);
   const [answers, setAnswers] = useState<{ question: string; answer: AskAnswer }[]>([]);
+  const [tally, setTally] = useState<CostTally | null>(null);
+  useEffect(() => {
+    if (debug) setTally(readTally());
+  }, [debug]);
   const recognitionRef = useRef<Recognition | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
@@ -107,6 +137,13 @@ export function AskBox(props: {
     // Ciò che la risposta ha raccontato entra nella memoria del giro: il racconto non lo ripeterà.
     if (answer.citations.length > 0) runtime.memory = rememberAssertions(runtime.memory, answer.citations);
     setAnswers((prev) => [...prev, { question: q, answer }]);
+    if (debug && answer.meter) {
+      const m = answer.meter;
+      const t = readTally();
+      const next = { ...t, usd: t.usd + (m.costUsd ?? 0), questions: t.questions + 1, withWeb: t.withWeb + (m.webSearches > 0 || answer.origin === "web" ? 1 : 0), searches: t.searches + m.webSearches };
+      writeTally(next);
+      setTally(next);
+    }
     voice?.enqueue([{ id: `answer-${Date.now()}`, text: answer.answer, title: t.askTitle }]);
     setQuestion("");
     clearTimeout(slowTimer);
@@ -187,6 +224,15 @@ export function AskBox(props: {
           ))}
         </div>
       )}
+      {debug && tally && (
+        <p className="muted small">
+          debug · domande su questo telefono dal {new Date(tally.since).toLocaleDateString()}: {tally.questions} ({tally.withWeb} con ricerca, {tally.searches} ricerche) ·
+          costo stimato <b>{tally.usd.toFixed(3)} $</b>{" "}
+          <button type="button" className="chip small" onClick={() => { const t = emptyTally(); writeTally(t); setTally(t); }}>
+            azzera
+          </button>
+        </p>
+      )}
       {last && (
         <div className="ask-answer" aria-live="polite">
           <p className="muted small">{last.question}</p>
@@ -214,6 +260,15 @@ export function AskBox(props: {
               {last.answer.cached && <> · dalla cache</>}
               {last.answer.webUnavailable && <> · ricerca web non disponibile</>}
               {last.answer.unsupportedNumbers && <> · numeri da verificare: {last.answer.unsupportedNumbers.join(", ")}</>}
+              {last.answer.meter && (
+                <>
+                  <br />
+                  costo stimato <b>{last.answer.meter.costUsd === null ? "?" : `${last.answer.meter.costUsd.toFixed(4)} $`}</b> · chiamate {last.answer.meter.calls} ·
+                  token in {last.answer.meter.input} (cache letti {last.answer.meter.cacheRead}, scritti {last.answer.meter.cacheWrite}) · out {last.answer.meter.output} ·
+                  ricerche {last.answer.meter.webSearches}
+                  {last.answer.meter.models.length > 0 && <> · {last.answer.meter.models.join(", ")}</>}
+                </>
+              )}
             </p>
           )}
         </div>

@@ -245,15 +245,42 @@ describe("risposta ibrida", () => {
     expect(out.costUsd).toBeGreaterThan(0.01);
   });
 
-  it("su richiesta di approfondimento cerca anche se la base risponde", async () => {
-    const { client, create } = fakeClient(
-      localReply("answered", "Breve.", [ref]),
-      webReply([{ type: "text", text: "Più a fondo.", citations: [cite("https://www.unige.it/x", "Studio")] }]),
-    );
+  it("l'approfondimento va diretto alla ricerca, senza ripagare la risposta locale", async () => {
+    const { client, create } = fakeClient(webReply([{ type: "text", text: "Più a fondo.", citations: [cite("https://www.unige.it/x", "Studio")] }]));
+    const out = await askGuide(client, loaded, { ...req, depth: "deep" }, gate());
+    expect(create).toHaveBeenCalledTimes(1);
+    const params = create.mock.calls[0]![0] as unknown as { tools?: unknown[]; messages: { content: string }[] };
+    expect(params.tools).toHaveLength(1);
+    expect(params.messages[0]!.content).toContain("APPROFONDIMENTO");
+    expect(out.answer.origin).toBe("web");
+    expect(out.usage.local).toBeUndefined();
+  });
+
+  it("se l'approfondimento fallisce interroga la base locale e lo dichiara", async () => {
+    const { client, create } = fakeClient(new Error("timeout"), localReply("answered", "Dalla base.", [ref]));
     const out = await askGuide(client, loaded, { ...req, depth: "deep" }, gate());
     expect(create).toHaveBeenCalledTimes(2);
-    expect(String((create.mock.calls[1]![0] as unknown as { messages: { content: string }[] }).messages[0]!.content)).toContain("APPROFONDIMENTO");
-    expect(out.answer.origin).toBe("web");
+    expect(out.answer).toMatchObject({ origin: "local", webUnavailable: true, citations: [ref] });
+    expect(out.answer.answer).toMatch(/^Dalla base\. /);
+  });
+
+  it("l'approfondimento senza ricerca consentita usa la sola base", async () => {
+    const { client, create } = fakeClient(localReply("answered", "Dalla base.", [ref]));
+    const out = await askGuide(client, loaded, { ...req, depth: "deep" }, gate({ permitted: () => false }));
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(out.answer.webUnavailable).toBe(true);
+  });
+
+  it("ogni risposta porta il contatore dei consumi (somma delle chiamate)", async () => {
+    const { client } = fakeClient(
+      localReply("not_in_knowledge", "Non lo so."),
+      webReply([{ type: "text", text: "Fu ricostruito.", citations: [cite("https://www.unige.it/x", "Studio")] }]),
+    );
+    const out = await askGuide(client, loaded, req, gate());
+    expect(out.answer.meter).toMatchObject({ calls: 2, input: 9000, output: 700, webSearches: 1, models: ["claude-opus-5-5"] });
+    // 9000 token in ingresso a 4 $/M + 700 in uscita a 20 $/M + 1 ricerca a 0,01 $
+    expect(out.answer.meter?.costUsd).toBeCloseTo(0.036 + 0.014 + 0.01, 5);
+    expect(out.costUsd).toBe(out.answer.meter?.costUsd);
   });
 
   it("riprende i turni sospesi (pause_turn) rimandando il messaggio dell'assistente", async () => {
@@ -309,7 +336,8 @@ describe("risposta ibrida", () => {
 
   it("le domande fuori tema non attivano la ricerca", async () => {
     const { client, create } = fakeClient(localReply("off_topic", "Parliamo della visita."));
-    await askGuide(client, loaded, { ...req, depth: "deep" }, gate());
+    const out = await askGuide(client, loaded, req, gate());
     expect(create).toHaveBeenCalledTimes(1);
+    expect(out.answer.answer).toBe("Parliamo della visita.");
   });
 });

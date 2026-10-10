@@ -56,7 +56,9 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   `video` (con `poster`) restano fuori dal pacchetto offline (`streamFiles`); `cover: true` indica la copertina
   della destinazione, che l'indice dei bundle espone alla pagina iniziale
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
-- `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime)
+- `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`
+  test delle migrazioni e delle policy su un Postgres locale (`npm run db:check`), `supabase/rollback/` revoche.
+  Architettura della piattaforma (CMS, account, pubblicazione, premium): `docs/v0.3-platform/PLATFORM-ARCHITECTURE.md`
 
 ## Comandi
 
@@ -64,6 +66,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 - `npm run packs:validate` — valida tutti i pack sotto `territories/`
 - `npm run bundles:build:test` — compila il bundle del territorio sintetico in `dist/bundles/`
 - `npm run dev` / `npm run build` — app
+- `npm run db:check` — migrazioni, policy RLS, revoca e riapplicazione su un Postgres 16 + PostGIS locale
 
 ## Convenzioni
 

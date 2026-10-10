@@ -4,6 +4,7 @@
  * - pagina e risorse statiche di Next: in cache, aggiornate quando c'è rete;
  * - file dei bundle (contenuti e immagini): hanno l'hash nel nome, quindi non cambiano mai → prima la cache;
  * - indice e manifest dei bundle: prima la rete (per vedere le nuove versioni), la cache se manca;
+ * - video ambientali: mai in cache (richieste a intervalli, pesanti, non servono offline);
  * - /api/: mai in cache.
  *
  * Le chiavi dei cache devono restare allineate a lib/offline.ts.
@@ -32,6 +33,7 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+  if (/\.(mp4|webm)$/i.test(url.pathname) || request.headers.has("range")) return;
 
   if (url.pathname.startsWith("/bundles/")) {
     const immutable = /\/(content\.[0-9a-f]+\.json|media\/[^/]+)$/.test(url.pathname);

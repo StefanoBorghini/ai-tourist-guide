@@ -612,8 +612,10 @@ function checkMedia(pack: TerritoryPack, ctx: Context): void {
     const where = { file, item: m.id };
     for (const raw of m.subjects) lookupNode(raw, pack, ctx, where);
 
-    if (!existsSync(join(pack.dir, MEDIA_FILES_DIR, m.file))) {
-      ctx.out.error({ code: "MEDIA_FILE_MISSING", packId, ...where, message: `file non trovato: ${MEDIA_FILES_DIR}/${m.file}` });
+    for (const f of [m.file, ...(m.poster ? [m.poster] : [])]) {
+      if (!existsSync(join(pack.dir, MEDIA_FILES_DIR, f))) {
+        ctx.out.error({ code: "MEDIA_FILE_MISSING", packId, ...where, message: `file non trovato: ${MEDIA_FILES_DIR}/${f}` });
+      }
     }
     const other = usedFiles.get(m.file);
     if (other) ctx.out.warning({ code: "MEDIA_FILE_REUSED", packId, ...where, message: `stesso file di ${other}` });

@@ -52,7 +52,7 @@ function main(args: string[]): number {
     const dir = join(out, destination, `${locale}-${flavor}`);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
-    for (const [path, data] of bundle.files) {
+    for (const [path, data] of [...bundle.files, ...bundle.streamFiles]) {
       mkdirSync(dirname(join(dir, path)), { recursive: true });
       writeFileSync(join(dir, path), data);
     }

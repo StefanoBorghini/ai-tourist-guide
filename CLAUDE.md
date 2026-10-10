@@ -31,7 +31,9 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   guidati** (itinerari curati o su misura, tappe in ordine, GPS reale). Si passa dall'una all'altra in un tocco, nella
   stessa visita: la memoria del racconto resta, l'avanzamento delle tappe è del singolo percorso. `lib/runtime.ts` collega motore di contesto e narrazione (logica
   pura, testata: coda degli arrivi, niente interruzioni mentre la guida parla, luoghi rifiutati non riproposti per
-  15 minuti, luoghi vicini); `lib/gps-status.ts` stato del segnale; `components/PlaceCard.tsx` scheda del luogo; al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
+  15 minuti, luoghi vicini); `lib/gps-status.ts` stato del segnale; `components/PlaceCard.tsx` scheda del luogo (galleria, miniature: mai la
+  foto di un altro luogo al posto di quella mancante); `components/Icon.tsx` icone; `app/globals.css` design system
+  (font di sistema, nessun download: funziona offline); `app/manifest.ts` manifest della PWA; al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato; distanze e direzioni in linea d'aria le calcola il
   sistema dalla posizione, l'AI le riferisce soltanto), `lib/ask-web.ts` (approfondimento con ricerca web: quando
@@ -50,7 +52,9 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 - `packages/narrative-planner` — decide cosa raccontare in ogni tappa (unità, prerequisiti, richiami, ganci) e
   aggiorna la memoria del tour. Deterministico: l'AI riceve il piano e rende solo i raccordi
 - `packages/bundle` — compila un Territory Pack in un bundle di runtime per lingua (solo affermazioni raccontabili,
-  deterministico, con hash) e lo rilegge sul dispositivo. L'app usa solo i bundle, mai il database
+  deterministico, con hash) e lo rilegge sul dispositivo. L'app usa solo i bundle, mai il database. I media
+  `video` (con `poster`) restano fuori dal pacchetto offline (`streamFiles`); `cover: true` indica la copertina
+  della destinazione, che l'indice dei bundle espone alla pagina iniziale
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime)
 

@@ -52,6 +52,11 @@ export interface BuiltBundle {
   content: BundleContent;
   /** File da scrivere, per percorso relativo alla cartella del bundle. */
   files: Map<string, string | Uint8Array>;
+  /**
+   * File da pubblicare accanto al bundle ma fuori dal manifest (video): non entrano nel pacchetto
+   * offline né nella verifica d'integrità, si scaricano solo quando l'app li mostra.
+   */
+  streamFiles: Map<string, Uint8Array>;
 }
 
 const sha256 = (data: string | Uint8Array) =>
@@ -115,6 +120,7 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   const allSources = new Map<string, BundleSource>();
   const media: BundleMedia[] = [];
   const assetFiles = new Map<string, Uint8Array>();
+  const streamFiles = new Map<string, Uint8Array>();
   const allowNonCommercial = dest.config.media.allowNonCommercial;
 
   for (const pack of scope) {
@@ -239,14 +245,22 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
       if (m.license === "all-rights-reserved" || (!rules.commercialUse && !allowNonCommercial)) continue;
       const alt = pick(m.alt, fallback);
       if (!alt) continue;
-      const data = options.readAsset!(pack.dir, `${MEDIA_FILES_DIR}/${m.file}`);
-      const ext = m.file.split(".").pop()!.toLowerCase();
-      const path = `media/${sha256(data).slice(0, 16)}.${ext}`;
-      assetFiles.set(path, data);
+      const store = (file: string, into: Map<string, Uint8Array>) => {
+        const data = options.readAsset!(pack.dir, `${MEDIA_FILES_DIR}/${file}`);
+        const path = `media/${sha256(data).slice(0, 16)}.${file.split(".").pop()!.toLowerCase()}`;
+        into.set(path, data);
+        return path;
+      };
+      const video = m.kind === "video";
+      const path = store(m.file, video ? streamFiles : assetFiles);
+      const poster = video && m.poster ? store(m.poster, assetFiles) : undefined;
       const caption = m.caption ? pick(m.caption, fallback)?.value : undefined;
       media.push({
         ref: formatNodeRef({ packId, slug: m.id }),
+        ...(video ? { kind: "video" as const } : {}),
         path,
+        ...(poster ? { poster } : {}),
+        ...(m.cover ? { cover: true as const } : {}),
         subjects: m.subjects.map(full).sort(),
         alt: alt.value,
         ...(caption ? { caption } : {}),
@@ -329,5 +343,5 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     totalBytes: fileEntries.reduce((s, f) => s + f.bytes, 0),
   };
   files.set("manifest.json", JSON.stringify(manifest, null, 2));
-  return { manifest, content, files };
+  return { manifest, content, files, streamFiles };
 }

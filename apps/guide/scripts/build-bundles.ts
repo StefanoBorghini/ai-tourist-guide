@@ -23,7 +23,15 @@ if (issues.length > 0) {
 }
 
 rmSync(OUT, { recursive: true, force: true });
-const index: { destination: string; name: string; locale: string; fictional: boolean; preview: boolean; manifest: string }[] = [];
+interface IndexCover {
+  /** Immagine (per i video: il poster), indirizzo assoluto nel sito. */
+  image: string;
+  /** Video ambientale facoltativo (senza audio). */
+  video?: string;
+  alt: string;
+  credit?: string;
+}
+const index: { destination: string; name: string; locale: string; fictional: boolean; preview: boolean; manifest: string; cover?: IndexCover }[] = [];
 
 for (const pack of packs.values()) {
   if (pack.manifest.kind !== "destination") continue;
@@ -34,17 +42,33 @@ for (const pack of packs.values()) {
     });
     const dir = join(OUT, pack.manifest.id, `${locale}-full`);
     mkdirSync(dir, { recursive: true });
-    for (const [path, data] of bundle.files) {
+    for (const [path, data] of [...bundle.files, ...bundle.streamFiles]) {
       mkdirSync(dirname(join(dir, path)), { recursive: true });
       writeFileSync(join(dir, path), data);
     }
+    // Copertina per la pagina iniziale: si mostra prima di aprire il bundle (immagine ed eventuale video).
+    const base = `/bundles/${pack.manifest.id}/${locale}-full/`;
+    const covers = bundle.content.media.filter((m) => m.cover);
+    const coverImage = covers.find((m) => !m.kind) ?? covers.find((m) => m.poster);
+    const coverVideo = covers.find((m) => m.kind === "video");
+    const credit = (m: (typeof covers)[number]) => m.attribution ?? m.author;
     index.push({
       destination: pack.manifest.id,
       name: bundle.content.name,
       locale,
       fictional: bundle.content.fictional,
       preview: bundle.content.preview,
-      manifest: `/bundles/${pack.manifest.id}/${locale}-full/manifest.json`,
+      manifest: `${base}manifest.json`,
+      ...(coverImage
+        ? {
+            cover: {
+              image: base + (coverImage.kind === "video" ? coverImage.poster! : coverImage.path),
+              ...(coverVideo ? { video: base + coverVideo.path } : {}),
+              alt: coverImage.alt,
+              ...(credit(coverImage) ? { credit: credit(coverImage)! } : {}),
+            },
+          }
+        : {}),
     });
     console.log(`✓ bundle ${pack.manifest.id} ${locale} (${(bundle.manifest.totalBytes / 1024).toFixed(1)} KB)${bundle.content.preview ? " [anteprima]" : ""}`);
   }

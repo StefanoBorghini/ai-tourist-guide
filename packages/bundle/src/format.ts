@@ -153,8 +153,14 @@ export interface BundleRoute {
 
 export interface BundleMedia {
   ref: string;
+  /** Assente = immagine. I video non fanno parte del pacchetto offline: si caricano solo quando servono. */
+  kind?: "video";
   /** Percorso del file nel bundle (indirizzato per contenuto). */
   path: string;
+  /** Per i video: immagine mostrata prima e al posto del video (nel pacchetto offline). */
+  poster?: string;
+  /** Copertina della destinazione. */
+  cover?: true;
   subjects: string[];
   alt: string;
   caption?: string;

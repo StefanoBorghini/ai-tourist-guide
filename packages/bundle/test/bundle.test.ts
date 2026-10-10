@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TerritoryPack } from "@guide/domain";
 import { engineInputsFromPack, planTour } from "@guide/context-engine";
@@ -197,6 +198,30 @@ describe("media", () => {
     const nc = b.content.media.find((m) => m.ref === ref("torre-foto-nc"))!;
     expect(nc.attribution).toContain("CC BY-NC");
     expect(nc.originalUrl).toBe("https://example.org/torre-fittizia");
+  });
+
+  it("i video restano fuori dal pacchetto offline, il loro poster no; la copertina è marcata", () => {
+    const copy = structuredClone(packs);
+    const pack = copy.get(D)!;
+    // Copia del pack in una cartella temporanea, con un finto video accanto alle immagini.
+    const dir = join(mkdtempSync(join(tmpdir(), "bundle-video-")), D);
+    cpSync(pack.dir, dir, { recursive: true });
+    const fakeVideo = new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]);
+    writeFileSync(join(dir, "media/files/porta.mp4"), fakeVideo);
+    pack.dir = dir;
+    const photo = pack.media.find((m) => m.id === "porta-del-borgo-foto")!;
+    photo.cover = true;
+    pack.media.push({ ...photo, id: "porta-video", kind: "video", file: "porta.mp4", poster: photo.file, cover: true });
+    const b = buildBundle(copy, { destination: D, locale: "it", allowFictional: true, readAsset });
+    const video = b.content.media.find((m) => m.ref === ref("porta-video"))!;
+    expect(video).toMatchObject({ kind: "video", cover: true });
+    expect(video.path).toMatch(/^media\/[0-9a-f]{16}\.mp4$/);
+    expect(b.streamFiles.get(video.path)).toEqual(fakeVideo);
+    expect(b.files.has(video.path)).toBe(false);
+    expect(b.manifest.files.map((f) => f.path)).not.toContain(video.path);
+    expect(b.manifest.files.map((f) => f.path)).toContain(video.poster);
+    expect(b.content.media.find((m) => m.ref === ref("porta-del-borgo-foto"))).toMatchObject({ cover: true });
+    expect(b.content.media.find((m) => m.ref === ref("porta-del-borgo-foto"))!.kind).toBeUndefined();
   });
 
   it("è deterministico anche con le immagini", () => {

@@ -9,6 +9,8 @@ import type { PositionSource } from "../lib/field-points";
 import type { GuideRuntime } from "../lib/runtime";
 import type { GuideVoice } from "../lib/speech";
 import type { UiText } from "../lib/i18n";
+import { Icon } from "./Icon";
+import { PlaceThumb } from "./PlaceCard";
 
 const NEARBY_M = 300;
 
@@ -69,8 +71,10 @@ export function AskBox(props: {
   debug?: boolean;
   /** Il server può approfondire con la ricerca web. */
   webAvailable?: boolean;
+  /** Cartella del bundle (per la miniatura del luogo di cui si parla). */
+  base?: string;
 }) {
-  const { content, runtime, voice, online, t, selectedPlace, fixSource, focusKey, debug, webAvailable } = props;
+  const { content, runtime, voice, online, t, selectedPlace, fixSource, focusKey, debug, webAvailable, base } = props;
   const locale = content.locale === "it" ? "it" : "en";
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
@@ -174,56 +178,142 @@ export function AskBox(props: {
   };
 
   const last = answers.at(-1);
+  const earlier = answers.slice(-4, -1);
   // Si può approfondire una risposta della base locale, se il server ha la ricerca online.
   const canDeepen = webAvailable && online && last && last.answer.origin !== "web" && !last.answer.webUnavailable && last.answer.status !== "off_topic" && last.answer.status !== "unavailable";
+  const aboutName = about ? runtime.name(about) : null;
+  // Suggerimenti legati al luogo di cui si parla; senza luogo, quelli generali.
+  const suggestions = aboutName ? t.askSuggestFor(aboutName) : t.askSuggest;
+  const replay = (text: string) => {
+    voice?.stop();
+    voice?.enqueue([{ id: `answer-${Date.now()}`, text, title: t.askTitle }]);
+  };
   return (
-    <section className="card ask" ref={sectionRef}>
-      <h2>{t.askTitle}</h2>
-      {about && <p className="muted small ask-context">{t.askContext(runtime.name(about))}</p>}
-      {!online ? (
-        <p className="muted small">{fallbackAnswer(locale, "offline").answer}</p>
-      ) : (
-        <form
-          className="ask-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void ask(question);
-          }}
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            value={question}
-            maxLength={ASK_LIMITS.questionChars}
-            placeholder={t.askPlaceholder}
-            aria-label={t.askTitle}
-            onChange={(e) => setQuestion(e.target.value)}
-            disabled={busy}
-          />
-          {Recognition && (
-            <button type="button" className={`button ${listening ? "on" : ""}`} onClick={listen} disabled={busy} aria-label={t.askVoice}>
-              🎙
-            </button>
-          )}
-          <button type="submit" className="button primary" disabled={busy || question.trim().length < 2}>
-            {busy ? "…" : t.askSend}
-          </button>
-        </form>
-      )}
-      {busy && (
-        <p className="muted small" aria-live="polite">
-          {t.askBusy} {slow && t.askBusyLong}
-        </p>
-      )}
-      {online && (
-        <div className="ask-suggest">
-          {t.askSuggest.map((q) => (
-            <button key={q} type="button" className="chip small" disabled={busy} onClick={() => void ask(q)}>
-              {q}
-            </button>
+    <section className="card ask" ref={sectionRef} aria-label={t.askTitle}>
+      <div className="ask-head">
+        {about && base ? (
+          <PlaceThumb content={content} placeRef={about} base={base} name={aboutName ?? ""} className="guide-avatar" />
+        ) : (
+          <span className="guide-avatar" aria-hidden="true"><Icon name="sparkle" size={22} /></span>
+        )}
+        <div>
+          <h2>{t.guideTitle}</h2>
+          <p className="muted small ask-context">{aboutName ? t.askContext(aboutName) : t.guideSubtitleAny}</p>
+        </div>
+      </div>
+
+      {answers.length > 0 && (
+        <div className="ask-thread">
+          {earlier.map((a, i) => (
+            <div key={i} className="stack" style={{ gap: 8 }}>
+              <p className="bubble-q"><span className="sr-only">{t.askYou}: </span>{a.question}</p>
+              <div className="bubble-a">
+                {a.answer.answer.split(/\n{2,}/).map((para, j) => <p key={j}>{para}</p>)}
+              </div>
+            </div>
           ))}
+          {last && (
+            <>
+              <p className="bubble-q"><span className="sr-only">{t.askYou}: </span>{last.question}</p>
+              <div className={`ask-answer ${last.answer.status}`} aria-live="polite">
+                <p className="muted small sr-only">{last.question}</p>
+                {last.answer.answer.split(/\n{2,}/).map((para, i) => (
+                  <p key={i}>{para}</p>
+                ))}
+                {last.answer.origin === "web" && <p className="muted small">🌐 {t.askWeb}</p>}
+                {last.answer.citations.length > 0 && (
+                  <p className="muted small">{last.answer.inReview ? `⚠ ${t.askInReview}` : `✓ ${t.askVerified}`}</p>
+                )}
+                {last.answer.usedPosition && <p className="muted small">📍 {t.askPosition}</p>}
+                <AnswerSources content={content} answer={last.answer} t={t} />
+                <div className="answer-tools">
+                  {voice && (
+                    <button type="button" className="chip small" onClick={() => replay(last.answer.answer)}>
+                      <Icon name="volume" size={16} /> {t.askListen}
+                    </button>
+                  )}
+                  {canDeepen && (
+                    <button type="button" className="chip small" disabled={busy} onClick={() => void ask(last.question, "deep")}>
+                      🔎 {t.askDeeper}
+                    </button>
+                  )}
+                </div>
+                {debug && (
+                  <p className="muted small">
+                    debug · esito <code>{last.answer.status}</code>
+                    {last.answer.checkReason && <> · scartata: {last.answer.checkReason}</>}
+                    {last.answer.citations.length > 0 && <> · citazioni: {last.answer.citations.map((c) => c.split(":").pop()).join(", ")}</>}
+                    {last.answer.origin && <> · origine {last.answer.origin}</>}
+                    {last.answer.webSearches !== undefined && <> · ricerche web: {last.answer.webSearches}</>}
+                    {last.answer.cached && <> · dalla cache</>}
+                    {last.answer.webUnavailable && <> · ricerca web non disponibile</>}
+                    {last.answer.unsupportedNumbers && <> · numeri da verificare: {last.answer.unsupportedNumbers.join(", ")}</>}
+                    {last.answer.meter && (
+                      <>
+                        <br />
+                        costo stimato <b>{last.answer.meter.costUsd === null ? "?" : `${last.answer.meter.costUsd.toFixed(4)} $`}</b> · chiamate {last.answer.meter.calls} ·
+                        token in {last.answer.meter.input} (cache letti {last.answer.meter.cacheRead}, scritti {last.answer.meter.cacheWrite}) · out {last.answer.meter.output} ·
+                        ricerche {last.answer.meter.webSearches}
+                        {last.answer.meter.models.length > 0 && <> · {last.answer.meter.models.join(", ")}</>}
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
+
+      {busy && (
+        <p className="thinking" aria-live="polite">
+          <span className="dots" aria-hidden="true"><i /><i /><i /></span>
+          <span>{t.askBusy} {slow && t.askBusyLong}</span>
+        </p>
+      )}
+
+      {!online ? (
+        <p className="notice"><Icon name="wifiOff" /> {fallbackAnswer(locale, "offline").answer}</p>
+      ) : (
+        <>
+          {!busy && (
+            <div className="ask-suggest">
+              {suggestions.map((q) => (
+                <button key={q} type="button" className="chip small" disabled={busy} onClick={() => void ask(q)}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+          <form
+            className="ask-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void ask(question);
+            }}
+          >
+            <input
+              ref={inputRef}
+              type="text"
+              value={question}
+              maxLength={ASK_LIMITS.questionChars}
+              placeholder={t.askPlaceholder}
+              aria-label={t.askTitle}
+              onChange={(e) => setQuestion(e.target.value)}
+              disabled={busy}
+            />
+            {Recognition && (
+              <button type="button" className={`round-btn ${listening ? "on" : ""}`} onClick={listen} disabled={busy} aria-label={t.askVoice}>
+                <Icon name="mic" />
+              </button>
+            )}
+            <button type="submit" className="button primary" disabled={busy || question.trim().length < 2} aria-label={t.askSend}>
+              {busy ? "…" : t.askSend} <Icon name="send" size={18} />
+            </button>
+          </form>
+        </>
+      )}
+
       {debug && tally && (
         <p className="muted small">
           debug · domande su questo telefono dal {new Date(tally.since).toLocaleDateString()}: {tally.questions} ({tally.withWeb} con ricerca, {tally.searches} ricerche) ·
@@ -232,46 +322,6 @@ export function AskBox(props: {
             azzera
           </button>
         </p>
-      )}
-      {last && (
-        <div className="ask-answer" aria-live="polite">
-          <p className="muted small">{last.question}</p>
-          {last.answer.answer.split(/\n{2,}/).map((para, i) => (
-            <p key={i}>{para}</p>
-          ))}
-          {last.answer.origin === "web" && <p className="muted small">🌐 {t.askWeb}</p>}
-          {last.answer.citations.length > 0 && (
-            <p className="muted small">{last.answer.inReview ? `⚠ ${t.askInReview}` : `✓ ${t.askVerified}`}</p>
-          )}
-          {last.answer.usedPosition && <p className="muted small">📍 {t.askPosition}</p>}
-          <AnswerSources content={content} answer={last.answer} t={t} />
-          {canDeepen && (
-            <button type="button" className="chip small" disabled={busy} onClick={() => void ask(last.question, "deep")}>
-              🔎 {t.askDeeper}
-            </button>
-          )}
-          {debug && (
-            <p className="muted small">
-              debug · esito <code>{last.answer.status}</code>
-              {last.answer.checkReason && <> · scartata: {last.answer.checkReason}</>}
-              {last.answer.citations.length > 0 && <> · citazioni: {last.answer.citations.map((c) => c.split(":").pop()).join(", ")}</>}
-              {last.answer.origin && <> · origine {last.answer.origin}</>}
-              {last.answer.webSearches !== undefined && <> · ricerche web: {last.answer.webSearches}</>}
-              {last.answer.cached && <> · dalla cache</>}
-              {last.answer.webUnavailable && <> · ricerca web non disponibile</>}
-              {last.answer.unsupportedNumbers && <> · numeri da verificare: {last.answer.unsupportedNumbers.join(", ")}</>}
-              {last.answer.meter && (
-                <>
-                  <br />
-                  costo stimato <b>{last.answer.meter.costUsd === null ? "?" : `${last.answer.meter.costUsd.toFixed(4)} $`}</b> · chiamate {last.answer.meter.calls} ·
-                  token in {last.answer.meter.input} (cache letti {last.answer.meter.cacheRead}, scritti {last.answer.meter.cacheWrite}) · out {last.answer.meter.output} ·
-                  ricerche {last.answer.meter.webSearches}
-                  {last.answer.meter.models.length > 0 && <> · {last.answer.meter.models.join(", ")}</>}
-                </>
-              )}
-            </p>
-          )}
-        </div>
       )}
     </section>
   );

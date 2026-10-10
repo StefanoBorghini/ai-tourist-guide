@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { verifyBundle, type BundleContent, type BundleManifest } from "@guide/bundle/client";
-import { distanceM, type Fix, type LngLat } from "@guide/context-engine";
+import { bearingDeg, distanceM, type Fix, type LngLat } from "@guide/context-engine";
 import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeKind, type RuntimeState, type TourOptions } from "../lib/runtime";
 import type { PositionSource } from "../lib/field-points";
 import { gpsStatus, type GpsErrorCode, type GpsStatus } from "../lib/gps-status";
@@ -14,7 +14,8 @@ import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker
 import { AskBox } from "./AskBox";
 import { DebugPanel } from "./DebugPanel";
 import { MapView } from "./MapView";
-import { PlaceCard, PlacePhoto } from "./PlaceCard";
+import { Icon } from "./Icon";
+import { PlaceCard, PlacePhoto, PlaceThumb, placeMedia, thumbSrc } from "./PlaceCard";
 
 interface BundleEntry {
   destination: string;
@@ -24,6 +25,8 @@ interface BundleEntry {
   /** Bundle di anteprima: territorio con contenuti ancora in revisione. */
   preview?: boolean;
   manifest: string;
+  /** Copertina per la pagina iniziale (immagine, video facoltativo, testo alternativo, credito). */
+  cover?: { image: string; video?: string; alt: string; credit?: string };
 }
 
 type Screen = "home" | "setup" | "walk";
@@ -103,7 +106,7 @@ export function GuideApp() {
   const [, setTick] = useState(0);
   const [proposal, setProposal] = useState<{ placeRef: string; name: string } | null>(null);
   const [transcript, setTranscript] = useState<NarrationSegment[]>([]);
-  const [speech, setSpeech] = useState<{ state: SpeechState; currentId: string | null }>({ state: "idle", currentId: null });
+  const [speech, setSpeech] = useState<{ state: SpeechState; currentId: string | null; title?: string }>({ state: "idle", currentId: null });
   const [rate, setRate] = useState(1);
   const [simulating, setSimulating] = useState(false);
   const [gps, setGps] = useState(false);
@@ -121,9 +124,35 @@ export function GuideApp() {
 
   // La lingua del dispositivo si legge dopo il montaggio: il server non la conosce
   // e leggerla durante il rendering produce un'idratazione diversa (errore React #418).
-  const [deviceLocale, setDeviceLocale] = useState<"it" | "en">("en");
-  useEffect(() => setDeviceLocale(navigator.language.startsWith("it") ? "it" : "en"), []);
-  const locale = content?.locale ?? deviceLocale;
+  // La lingua scelta nella pagina iniziale vale per l'interfaccia e per il territorio che si apre.
+  const [uiLocale, setUiLocale] = useState<"it" | "en">("en");
+  useEffect(() => {
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem("guide-lang");
+    } catch {
+      // memoria non disponibile
+    }
+    setUiLocale(saved === "it" || saved === "en" ? saved : navigator.language.startsWith("it") ? "it" : "en");
+  }, []);
+  const chooseLocale = (l: "it" | "en") => {
+    setUiLocale(l);
+    try {
+      localStorage.setItem("guide-lang", l);
+    } catch {
+      // memoria non disponibile
+    }
+  };
+  // Nella pagina iniziale vale la lingua scelta; dentro un territorio, quella del suo bundle.
+  const locale = screen === "home" ? uiLocale : (content?.locale ?? uiLocale);
+  const [view, setView] = useState<"map" | "list">("map");
+  const [openRoute, setOpenRoute] = useState<string | null>(null);
+  // Il video ambientale parte solo se il dispositivo non chiede movimento ridotto o risparmio dati.
+  const [allowVideo, setAllowVideo] = useState(false);
+  useEffect(() => {
+    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+    setAllowVideo(!saveData && !window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }, []);
   const t = uiFor(locale);
   const rerender = useCallback(() => setTick((n) => n + 1), []);
 
@@ -276,7 +305,7 @@ export function GuideApp() {
           speechStateRef.current = state;
           // Mentre la guida parla, i luoghi raggiunti aspettano: niente interruzioni.
           if (runtimeRef.current) runtimeRef.current.narrating = state === "speaking";
-          setSpeech({ state, currentId: current?.id ?? null });
+          setSpeech({ state, currentId: current?.id ?? null, ...(current?.title ? { title: current.title } : {}) });
         })
       : null;
     setTranscript([]);
@@ -329,11 +358,13 @@ export function GuideApp() {
     reorganize({ now: Date.now(), start, route: ref, budgetMin: route.durationMin, avoidStairs }, start);
   };
 
-  const startTour = () => {
+  /** Avvia un percorso curato (ref) o su misura (null). */
+  const startTour = (chosen: string | null = routeRef) => {
     if (!content) return;
+    setRouteRef(chosen);
     const now = Date.now();
     const anchor = content.anchors[0];
-    const route = routeRef ? content.routes.find((r) => r.ref === routeRef) : undefined;
+    const route = chosen ? content.routes.find((r) => r.ref === chosen) : undefined;
     // Con un percorso curato si parte dalla sua prima tappa; altrimenti dall'ancora (o dal primo luogo).
     const firstStop = route ? content.places.find((p) => p.ref === route.stops[0]?.place) : undefined;
     const start = firstStop?.location ?? anchor?.location ?? content.places[0]!.location;
@@ -554,144 +585,345 @@ export function GuideApp() {
 
   // ------------------------------------------------------------------ schermate
 
+  const brand = (
+    <span className="brand">
+      {/* eslint-disable-next-line @next/next/no-img-element -- marchio statico */}
+      <img src="/brand/mark-white.png" alt="PV" width={47} height={22} />
+      <span className="brand-sep" aria-hidden="true" />
+      <span className="brand-name">AI Guide</span>
+    </span>
+  );
+  const languageSwitch = (
+    <div className="segmented on-photo" role="group" aria-label={t.language}>
+      {(["it", "en"] as const).map((l) => (
+        <button key={l} aria-pressed={uiLocale === l} onClick={() => chooseLocale(l)} lang={l}>
+          {l === "it" ? "Italiano" : "English"}
+        </button>
+      ))}
+    </div>
+  );
+
   if (screen === "home") {
     const byDestination = new Map<string, BundleEntry[]>();
     for (const e of entries) byDestination.set(e.destination, [...(byDestination.get(e.destination) ?? []), e]);
+    const groups = [...byDestination.values()];
+    const pick = (group: BundleEntry[]) => group.find((e) => e.locale === uiLocale) ?? group[0]!;
+    const real = groups.filter((g) => !g[0]!.fictional).map(pick);
+    const demo = groups.filter((g) => g[0]!.fictional).map(pick);
+    const featured = real.find((e) => e.cover) ?? real[0] ?? demo[0];
+    const cover = featured?.cover;
+    const languages = (destination: string) => (byDestination.get(destination) ?? []).map((e) => (e.locale === "it" ? "Italiano" : "English")).join(" · ");
     return (
-      <main className="screen">
-        <p className="eyebrow">AI Guide</p>
-        <h1>{t.tagline}</h1>
-        <h2>{t.chooseDestination}</h2>
-        {!online && <p className="notice">{t.offlineNow}</p>}
-        {error && <p className="error">{online ? error : t.offlineNoBundle}</p>}
-        {savedTour && (
-          <div className="card resume">
-            <strong>{savedTour.kind === "explore" ? t.resumeExplore : t.resumeTitle}: {savedTour.entry.name}</strong>
-            <span className="muted small">
-              {t.resumeSaved} {clock(savedTour.savedAt, locale)} · {savedTour.state.memory.visitedPlaces.length} {t.resumeVisited}
-            </span>
-            <div className="row">
-              <button className="button primary" onClick={() => void resumeTour(savedTour)}>{t.resume}</button>
-              <button className="button" onClick={() => { clearSavedTour(); setSavedTour(null); }}>{t.resumeDiscard}</button>
+      <main className="home">
+        <section className="hero">
+          {cover && (
+            <div className="hero-media">
+              {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
+              <img className="ken" src={cover.image} alt={cover.alt} fetchPriority="high" />
+              {cover.video && allowVideo && online && <video src={cover.video} poster={cover.image} autoPlay muted loop playsInline preload="auto" aria-hidden="true" />}
             </div>
+          )}
+          <header className="hero-top">
+            {brand}
+            {languageSwitch}
+          </header>
+          <div className="hero-copy">
+            {featured && (
+              <span className="hero-place">
+                <Icon name="pin" size={16} /> {featured.name}
+              </span>
+            )}
+            <h1>{t.heroTitle}</h1>
+            <p className="lede">{t.heroLede}</p>
+            {featured && (
+              <div className="hero-cta">
+                <button className="button primary xl" onClick={() => openBundle(featured)}>
+                  {t.exploreStart} <Icon name="forward" />
+                </button>
+                {featured.preview && <span className="badge on-photo">{t.previewBadge}</span>}
+              </div>
+            )}
+            {cover?.credit && <p className="hero-credit">{t.photo}: {cover.credit}</p>}
           </div>
-        )}
-        <div className="stack">
-          {[...byDestination.values()].map((group) => (
-            <div key={group[0]!.destination} className="card">
-              <strong>{group[0]!.name}</strong>
-              {group[0]!.fictional && <span className="badge">{t.fictional}</span>}
-              {group[0]!.preview && <span className="badge preview">{t.previewBadge}</span>}
+        </section>
+
+        <div className="home-body">
+          {!online && (
+            <p className="notice">
+              <Icon name="wifiOff" /> {t.offlineNow}
+            </p>
+          )}
+          {error && <p className="notice gps-error">{online ? error : t.offlineNoBundle}</p>}
+          {savedTour && (
+            <div className="resume">
+              <div>
+                <strong>{savedTour.kind === "explore" ? t.resumeExplore : t.resumeTitle}: {savedTour.entry.name}</strong>
+                <span className="small" style={{ display: "block" }}>
+                  {t.resumeSaved} {clock(savedTour.savedAt, locale)} · {savedTour.state.memory.visitedPlaces.length} {t.resumeVisited}
+                </span>
+              </div>
               <div className="row">
-                {group.map((e) => (
-                  <button key={e.locale} className="button" onClick={() => openBundle(e)}>
-                    {e.locale === "it" ? "Italiano" : "English"}
+                <button className="button primary" onClick={() => void resumeTour(savedTour)}>{t.resume}</button>
+                <button className="button ghost" onClick={() => { clearSavedTour(); setSavedTour(null); }}>{t.resumeDiscard}</button>
+              </div>
+            </div>
+          )}
+
+          {real.length > 0 && (
+            <>
+              <div className="section-head">
+                <h2>{t.destinations}</h2>
+              </div>
+              <div className="dest-grid">
+                {real.map((e) => (
+                  <article key={e.destination} className="dest-card">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
+                    {e.cover && <img src={e.cover.image} alt={e.cover.alt} loading="lazy" />}
+                    <div className="dest-card-body">
+                      <h3>{e.name}</h3>
+                      <p className="meta">
+                        <Icon name="globe" size={16} /> {t.languagesAvailable}: {languages(e.destination)}
+                        {e.preview && <span className="badge on-photo">{t.previewBadge}</span>}
+                      </p>
+                      <button className="button primary" onClick={() => openBundle(e)}>
+                        {t.exploreDestination(e.name)} <Icon name="forward" />
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
+
+          {demo.length > 0 && (
+            <section className="section">
+              <div className="section-intro">
+                <h3>{t.demoTerritories}</h3>
+                <p className="muted small">{t.demoNote}</p>
+              </div>
+              <div className="demo-list">
+                {demo.map((e) => (
+                  <button key={e.destination} className="demo-item" onClick={() => openBundle(e)}>
+                    <span>
+                      <strong>{e.name}</strong>
+                      <span className="muted small" style={{ display: "block" }}>{t.fictional} · {languages(e.destination)}</span>
+                    </span>
+                    <Icon name="forward" />
                   </button>
                 ))}
               </div>
-            </div>
-          ))}
+            </section>
+          )}
         </div>
+        <footer className="home-foot muted small">AI Guide{cover?.credit ? ` · ${t.photo}: ${cover.credit}` : ""}</footer>
       </main>
     );
   }
 
+  /** Copertina della destinazione aperta: quella dell'indice, oppure la prima immagine del bundle. */
+  const destinationCover = (c: BundleContent): { src: string; alt: string } | null => {
+    const fromIndex = openedEntryRef.current?.cover;
+    if (fromIndex) return { src: fromIndex.image, alt: fromIndex.alt };
+    const first = c.media.find((m) => m.cover) ?? c.media[0];
+    const src = thumbSrc(first, bundleBase);
+    return first && src ? { src, alt: first.alt } : null;
+  };
+  /**
+   * Copertina di un percorso: una foto delle sue tappe (prima le foto, poi i fotogrammi dei video).
+   * Percorsi diversi ruotano tra le foto disponibili, così le schede non si ripetono.
+   */
+  const routeCover = (c: BundleContent, stops: string[]) => {
+    const pool = [...new Set(stops.flatMap((ref) => placeMedia(c, ref)))].sort((a, b) => Number(a.kind === "video") - Number(b.kind === "video"));
+    const i = Math.max(0, c.routes.findIndex((r) => r.stops.map((s) => s.place).join() === stops.join()));
+    return thumbSrc(pool[i % Math.max(1, pool.length)], bundleBase);
+  };
+  const placeName = (c: BundleContent, ref: string) => c.places.find((p) => p.ref === ref)?.name ?? ref;
+
   if (screen === "setup" && content) {
     const anchor = content.anchors[0];
     const visitInProgress = runtimeRef.current?.content === content && runtimeRef.current.memory.visitedPlaces.length > 0;
+    const heroCover = destinationCover(content);
     return (
-      <main className="screen">
-        <button className="link" onClick={() => setScreen("home")}>← {t.back}</button>
-        <h1>{content.name}</h1>
-        {content.fictional && <p className="notice">{t.fictionalNote}</p>}
-        {content.preview && <p className="notice preview">{t.previewNote}</p>}
-
-        {visitInProgress && (
-          <div className="card resume">
-            <span>{t.continueVisit(runtimeRef.current!.memory.visitedPlaces.length)}</span>
-            <button className="link" onClick={() => { runtimeRef.current = null; clearSavedTour(); setSavedTour(null); rerender(); }}>
-              {t.restart}
+      <main className="hub">
+        <section className="hub-hero">
+          {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
+          {heroCover && <img src={heroCover.src} alt={heroCover.alt} />}
+          <div className="hero-top">
+            <button className="back-btn" onClick={() => setScreen("home")}>
+              <Icon name="back" /> {t.back}
             </button>
+            {brand}
           </div>
-        )}
-
-        <h2>{t.mode}</h2>
-        <div className="row wrap">
-          {(["ask", "auto", "silent"] as const).map((m) => (
-            <button key={m} className={`chip ${mode === m ? "on" : ""}`} onClick={() => setMode(m)}>
-              {t.modes[m]}
-            </button>
-          ))}
-        </div>
-
-        <section className="card mode-card primary">
-          <h2>🧭 {t.exploreTitle}</h2>
-          <p>{t.exploreHint}</p>
-          <p className="muted small">{t.backgroundNote}</p>
-          <button className="button primary big" onClick={startExploring}>{t.exploreStart}</button>
+          <div className="hub-title">
+            <p className="eyebrow" style={{ color: "rgba(255,255,255,.8)" }}>{t.howToVisit}</p>
+            <h1>{content.name}</h1>
+            <div className="row wrap">
+              {content.preview && <span className="badge on-photo">{t.previewBadge}</span>}
+              {content.fictional && <span className="badge on-photo">{t.fictional}</span>}
+            </div>
+          </div>
         </section>
 
-        <section className={`card mode-card ${itinerariesOpen ? "primary" : ""}`} id="guided">
-          <h2>🗺 {t.itinerariesTitle}</h2>
-          <p className="muted small">{t.itinerariesHint}</p>
-          <div className="stack">
-            {content.routes.map((r) => (
-              <button key={r.ref} className={`chip route ${routeRef === r.ref ? "on" : ""}`} onClick={() => setRouteRef(r.ref)}>
-                <span>{r.name}</span>
-                <span className="muted small">
-                  {r.durationMin} {t.minutes}
-                  {r.difficulty && <> · {t.difficulty[r.difficulty]}</>}
-                  {r.elevationGainM !== undefined && <> · +{r.elevationGainM} m</>}
-                  {r.calibration === "draft" && <> · {t.routeDraft}</>}
-                </span>
-              </button>
-            ))}
-            <button className={`chip ${routeRef === null ? "on" : ""}`} onClick={() => setRouteRef(null)}>
-              {t.routeFree}
-            </button>
-          </div>
-          {routeRef === null && <h3>{t.howLong}</h3>}
-          {routeRef === null && (
-            <div className="row wrap">
-              {BUDGETS.map((b) => (
-                <button key={b} className={`chip ${budget === b ? "on" : ""}`} onClick={() => setBudget(b)}>
-                  {b} {t.minutes}
+        <div className="hub-body">
+          {visitInProgress && (
+            <div className="resume light">
+              <span>{t.continueVisit(runtimeRef.current!.memory.visitedPlaces.length)}</span>
+              <div className="row">
+                <button className="button ghost" onClick={() => { runtimeRef.current = null; clearSavedTour(); setSavedTour(null); rerender(); }}>
+                  {t.restart}
                 </button>
-              ))}
+              </div>
             </div>
           )}
-          {anchor && routeRef === null && (
-            <label className="check">
-              <input type="checkbox" checked={returnToAnchor} onChange={(e) => setReturnToAnchor(e.target.checked)} />
-              {t.returnTo} {anchor.name} {t.by} {clock(Date.now() + budget * 60_000, locale)}
-            </label>
-          )}
-          <label className="check">
-            <input type="checkbox" checked={avoidStairs} onChange={(e) => setAvoidStairs(e.target.checked)} />
-            {t.avoidStairs}
-          </label>
-          <button className="button primary big" onClick={startTour}>{t.startItinerary}</button>
-        </section>
 
-        {content.safetyNotes.map((n) => (
-          <p key={n.id} className="notice">⚠ {n.text}</p>
-        ))}
-        {offlineSupported() && opened && (
-          <div className="offline-box">
-            {offline === "yes" ? (
-              <p className="ok">✓ {t.offlineReady}</p>
-            ) : (
-              <>
-                <button className="button" disabled={offline === "downloading" || !online} onClick={saveOffline}>
-                  ⬇ {t.offlineDownload} ({Math.ceil(opened.manifest.totalBytes / 1024)} KB)
+          <div className="hub-grid">
+            <div className="stack" style={{ gap: 22 }}>
+              <section className="mode-explore">
+                <h2>{t.exploreTitle}</h2>
+                <p className="muted">{t.exploreHint}</p>
+                <ul className="feature-list">
+                  {t.exploreFeatures.map((f, i) => (
+                    <li key={f}>
+                      <Icon name={(["map", "volume", "chat"] as const)[i]!} /> {f}
+                    </li>
+                  ))}
+                </ul>
+                <button className="button primary xl block" onClick={startExploring}>
+                  {t.exploreStart} <Icon name="forward" />
                 </button>
-                {offline === "downloading" && <p className="muted small">{Math.round(progress * 100)}%</p>}
-                {offline === "error" && <p className="error">{t.offlineError}</p>}
-                <p className="muted small">{t.offlineHint}</p>
-              </>
-            )}
+                <p className="muted small">{t.backgroundNote}</p>
+              </section>
+
+              <section className="card prefs">
+                <h3>{t.preferences}</h3>
+                <p className="muted small">{t.mode}</p>
+                <div className="segmented wide" role="group" aria-label={t.mode}>
+                  {(["ask", "auto", "silent"] as const).map((m) => (
+                    <button key={m} aria-pressed={mode === m} onClick={() => setMode(m)}>
+                      {t.modes[m]}
+                    </button>
+                  ))}
+                </div>
+                <label className="check">
+                  <input type="checkbox" checked={avoidStairs} onChange={(e) => setAvoidStairs(e.target.checked)} />
+                  {t.avoidStairs}
+                </label>
+                {offlineSupported() && opened && (
+                  <div className="offline-box">
+                    {offline === "yes" ? (
+                      <p className="ok"><Icon name="check" /> {t.offlineReady}</p>
+                    ) : (
+                      <>
+                        <button className="button quiet" disabled={offline === "downloading" || !online} onClick={saveOffline}>
+                          <Icon name="download" /> {t.offlineDownload} ({Math.ceil(opened.manifest.totalBytes / 1024)} KB)
+                        </button>
+                        {offline === "downloading" && <p className="muted small">{Math.round(progress * 100)}%</p>}
+                        {offline === "error" && <p className="error small">{t.offlineError}</p>}
+                        <p className="muted small">{t.offlineHint}</p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </section>
+              {content.preview && (
+                <p className="notice preview">
+                  <Icon name="info" /> {t.previewNote}
+                </p>
+              )}
+              {content.fictional && (
+                <p className="notice">
+                  <Icon name="info" /> {t.fictionalNote}
+                </p>
+              )}
+              {content.safetyNotes.map((n) => (
+                <p key={n.id} className="notice">
+                  <Icon name="info" /> {n.text}
+                </p>
+              ))}
+            </div>
+
+            <section className="section" id="guided">
+              <div className="section-intro">
+                <h2>{t.itinerariesTitle}</h2>
+                <p className="muted small">{t.itinerariesHint}</p>
+              </div>
+              {content.routes.map((r) => {
+                const open = openRoute === r.ref || (itinerariesOpen && openRoute === null && routeRef === r.ref);
+                const stops = r.stops.map((s) => s.place);
+                const cover = routeCover(content, stops);
+                return (
+                  <article key={r.ref} className={`route-card ${open ? "open" : ""}`}>
+                    <button className="route-head" aria-expanded={open} onClick={() => setOpenRoute(open ? "" : r.ref)}>
+                      <span className="route-cover">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- foto della prima tappa */}
+                        {cover ? <img src={cover} alt="" loading="lazy" /> : <Icon name="route" size={28} />}
+                      </span>
+                      <span>
+                        <span className="route-title">{r.name}</span>
+                        <span className="meta-line">
+                          <span><Icon name="clock" size={15} /> {r.durationMin} {t.minutes}</span>
+                          <span><Icon name="pin" size={15} /> {t.stopsCount(stops.length)}</span>
+                          {r.difficulty && <span><Icon name="walk" size={15} /> {t.difficulty[r.difficulty]}</span>}
+                          {r.elevationGainM !== undefined && <span><Icon name="steps" size={15} /> +{r.elevationGainM} m</span>}
+                        </span>
+                        {r.calibration === "draft" && <span className="muted small" style={{ display: "block", marginTop: 4 }}>{t.routeDraft}</span>}
+                      </span>
+                      <Icon name="forward" className="chev" />
+                    </button>
+                    {open && (
+                      <div className="route-body">
+                        <p className="eyebrow">{t.routeStops}</p>
+                        <ol className="stops-strip">
+                          {stops.map((ref, i) => (
+                            <li key={ref}>
+                              <span className="stop-num">{i + 1}</span>
+                              <span className="stop-name">{placeName(content, ref)}</span>
+                            </li>
+                          ))}
+                        </ol>
+                        <button className="button primary big block" onClick={() => startTour(r.ref)}>
+                          {t.startItinerary} <Icon name="forward" />
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+
+              <article className={`route-card ${openRoute === "custom" ? "open" : ""}`}>
+                <button className="route-head" aria-expanded={openRoute === "custom"} onClick={() => setOpenRoute(openRoute === "custom" ? "" : "custom")}>
+                  <span className="route-cover"><Icon name="sparkle" size={30} /></span>
+                  <span>
+                    <span className="route-title">{t.customRoute}</span>
+                    <span className="meta-line"><span>{t.customRouteHint}</span></span>
+                  </span>
+                  <Icon name="forward" className="chev" />
+                </button>
+                {openRoute === "custom" && (
+                  <div className="route-body custom-route">
+                    <p className="eyebrow">{t.howLong}</p>
+                    <div className="row wrap">
+                      {BUDGETS.map((b) => (
+                        <button key={b} className={`chip ${budget === b ? "on" : ""}`} onClick={() => setBudget(b)}>
+                          {b} {t.minutes}
+                        </button>
+                      ))}
+                    </div>
+                    {anchor && (
+                      <label className="check">
+                        <input type="checkbox" checked={returnToAnchor} onChange={(e) => setReturnToAnchor(e.target.checked)} />
+                        {t.returnTo} {anchor.name} {t.by} {clock(Date.now() + budget * 60_000, locale)}
+                      </label>
+                    )}
+                    <button className="button primary big block" onClick={() => startTour(null)}>
+                      {t.startItinerary} <Icon name="forward" />
+                    </button>
+                  </div>
+                )}
+              </article>
+            </section>
           </div>
-        )}
+        </div>
       </main>
     );
   }
@@ -707,6 +939,9 @@ export function GuideApp() {
   const cardRef = selected ?? runtime.currentPlaceRef;
   const canAsk = askAvailable && online;
   const nearby = runtime.nearby(NEARBY_COUNT);
+  const tourRoute = !exploring && tourOptionsRef.current?.route ? content.routes.find((r) => r.ref === tourOptionsRef.current!.route) : undefined;
+  const planStops = runtime.plan?.stops.map((s) => s.placeId) ?? [];
+  const doneCount = planStops.filter((ref) => runtime.visited.includes(ref)).length;
   const leave = () => {
     stopSimulation();
     stopGps();
@@ -719,9 +954,15 @@ export function GuideApp() {
     setItinerariesOpen(true);
     leave();
   };
+  const choosePlace = (ref: string) => {
+    setSelected(ref);
+    // Su telefono la scheda è sotto la mappa: la si porta in vista.
+    requestAnimationFrame(() => document.querySelector(".place-card")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+  };
 
   const proposalCard = proposal && (
-    <section className="card proposal" role="alert">
+    <section className="proposal" role="alert">
+      <PlaceThumb content={content} placeRef={proposal.placeRef} base={bundleBase} name={proposal.name} className="thumb" />
       <p>{t.arrivedAsk(proposal.name)}</p>
       <div className="row">
         <button className="button primary" onClick={() => { setProposal(null); handleEvents(runtime.acceptProposal(Date.now())); }}>{t.yes}</button>
@@ -746,7 +987,9 @@ export function GuideApp() {
       {...(selected ? { onClose: () => setSelected(null) } : {})}
     />
   ) : exploring ? (
-    <p className="muted small">{t.selectHint}</p>
+    <p className="notice">
+      <Icon name="pin" /> {t.selectHint}
+    </p>
   ) : null;
 
   const speaking = speech.state !== "idle";
@@ -757,10 +1000,10 @@ export function GuideApp() {
       <p className="now-text">{currentSegment?.text ?? (transcript.length === 0 ? (exploring ? t.nothingExplore : t.nothing) : transcript.at(-1)!.text)}</p>
       {!voiceRef.current && <p className="muted small">{t.noVoice}</p>}
       <div className="controls">
-        <button className="button big" disabled={!speaking} onClick={() => voiceRef.current?.toggle()}>
-          {speech.state === "paused" ? `▶ ${t.play}` : `❚❚ ${t.pause}`}
+        <button className="button primary big" disabled={!speaking} onClick={() => voiceRef.current?.toggle()}>
+          {speech.state === "paused" ? <><Icon name="play" /> {t.play}</> : <><Icon name="pause" /> {t.pause}</>}
         </button>
-        <button className="button" disabled={!speaking} onClick={() => voiceRef.current?.skip()}>⏭ {t.skip}</button>
+        <button className="button" disabled={!speaking} onClick={() => voiceRef.current?.skip()}><Icon name="skip" /> {t.skip}</button>
         <button
           className="button"
           onClick={() => {
@@ -773,9 +1016,30 @@ export function GuideApp() {
         </button>
       </div>
       {!exploring && runtime.currentPlaceRef && !speaking && !proposal && (
-        <button className="button" onClick={() => handleEvents(runtime.narrate(runtime.currentPlaceRef))}>{t.tellMe}</button>
+        <button className="button" onClick={() => handleEvents(runtime.narrate(runtime.currentPlaceRef))}>
+          <Icon name="volume" /> {t.tellMe}
+        </button>
       )}
     </section>
+  );
+
+  // Lettore sempre a portata di pollice mentre la guida parla.
+  const player = speaking && (
+    <div className={`player ${speech.state === "paused" ? "paused" : ""}`} role="region" aria-label={t.nowPlaying}>
+      <span className="eq" aria-hidden="true"><i /><i /><i /></span>
+      <span className="what">
+        <strong>{currentSegment ? runtime.name(currentSegment.placeRef) : (speech.title ?? t.nowPlaying)}</strong>
+        <span>{t.nowPlaying}</span>
+      </span>
+      <span className="actions">
+        <button className="round-btn main" onClick={() => voiceRef.current?.toggle()} aria-label={speech.state === "paused" ? t.play : t.pause}>
+          <Icon name={speech.state === "paused" ? "play" : "pause"} />
+        </button>
+        <button className="round-btn" onClick={() => voiceRef.current?.skip()} aria-label={t.skip}>
+          <Icon name="skip" />
+        </button>
+      </span>
+    </div>
   );
 
   const map = (
@@ -787,7 +1051,7 @@ export function GuideApp() {
       simulated={fixSource === "simulated"}
       t={t}
       selected={selected}
-      onSelect={setSelected}
+      onSelect={(ref) => (ref ? choosePlace(ref) : setSelected(null))}
       tall={exploring}
     />
   );
@@ -804,36 +1068,185 @@ export function GuideApp() {
       focusKey={askFocus}
       debug={debug}
       webAvailable={webAvailable}
+      base={bundleBase}
     />
   );
 
-  const controls = (
-    <section className="card row wrap">
+  const tools = (
+    <section className="tools">
+      <p className="eyebrow">{t.tools}</p>
       {!simulating ? (
-        <button className="button" onClick={startSimulation} disabled={gps}>🚶 {t.simulate}</button>
+        <button className="button quiet" onClick={startSimulation} disabled={gps}><Icon name="walk" /> {t.simulate}</button>
       ) : (
-        <button className="button" onClick={stopSimulation}>■ {t.stopSim}</button>
+        <button className="button quiet" onClick={stopSimulation}>■ {t.stopSim}</button>
       )}
       {simulating && <span className="muted small">{t.simulating}</span>}
-      {exploring ? (
-        <button className="button" onClick={() => {
-          const el = document.getElementById("guided-in-session") as HTMLDetailsElement | null;
-          if (el) { el.open = true; el.scrollIntoView({ behavior: "smooth", block: "start" }); }
-        }}>🗺 {t.openItineraries}</button>
-      ) : (
-        <button className="button" onClick={switchToExplore}>🧭 {t.switchToExplore}</button>
-      )}
     </section>
   );
 
+  // Tutti i luoghi, i più vicini prima quando la posizione è nota.
+  const fixHere = runtime.lastFix?.location;
+  const allPlaces = content.places
+    .map((p) => ({ p, d: fixHere ? distanceM(fixHere, p.location) : null }))
+    .sort((a, b) => (a.d !== null && b.d !== null ? a.d - b.d : 0));
+
+  const exploreMain = (
+    <>
+      <div className="view-switch">
+        <div className="segmented" role="group" aria-label={t.allPlaces}>
+          <button aria-pressed={view === "map"} onClick={() => setView("map")}><Icon name="map" size={18} /> {t.viewMap}</button>
+          <button aria-pressed={view === "list"} onClick={() => setView("list")}><Icon name="list" size={18} /> {t.viewList}</button>
+        </div>
+        <span className="muted small">{t.placesCount(content.places.length)}</span>
+      </div>
+      {view === "map" ? (
+        <>
+          {map}
+          <section className="section" aria-label={t.nearbyTitle}>
+            <h3>{t.nearbyTitle}</h3>
+            {nearby.length === 0 ? (
+              <p className="muted small">{t.nearbyNoFix}</p>
+            ) : (
+              <div className="carousel nearby">
+                {nearby.map((p) => (
+                  <button key={p.ref} className={`tile ${p.ref === cardRef ? "on" : ""}`} onClick={() => choosePlace(p.ref)}>
+                    <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="tile-img" />
+                    <span className="tile-body">
+                      <span className="tile-name">{p.ref === runtime.currentPlaceRef ? "📍 " : ""}{p.name}</span>
+                      <span className="dist">
+                        {formatDistance(p.distanceM, content.locale)} {compass(p.bearingDeg, t.dirs)}
+                        {p.narrated && <span className="good">· ✓ {t.heard}</span>}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      ) : (
+        <ul className="places">
+          {allPlaces.map(({ p, d }) => (
+            <li key={p.ref}>
+              <button className={`place-row ${p.ref === cardRef ? "on" : ""}`} onClick={() => choosePlace(p.ref)}>
+                <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="thumb" />
+                <span>
+                  <span className="name">{p.name}</span>
+                  {p.short && <span className="short">{p.short}</span>}
+                </span>
+                <span className="dist">
+                  {d !== null && fixHere ? <>{formatDistance(d, content.locale)}<br />{compass(bearingDeg(fixHere, p.location), t.dirs)}</> : null}
+                  {runtime.wasNarrated(p.ref) && <span className="heard" style={{ display: "block" }}>✓</span>}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+
+  const tourProgress = (
+    <section className="card tour-progress">
+      <div>
+        <p className="eyebrow">{tourRoute?.name ?? t.itinerariesTitle}</p>
+        {planStops.length > 0 && <h3>{t.progress(Math.min(doneCount + 1, planStops.length), planStops.length)}</h3>}
+      </div>
+      {planStops.length > 0 && (
+        <div className="progress-bar" role="progressbar" aria-valuemin={0} aria-valuemax={planStops.length} aria-valuenow={doneCount}>
+          <span style={{ width: `${(100 * doneCount) / planStops.length}%` }} />
+        </div>
+      )}
+      {nextPlace && (
+        <div className="next-stop">
+          <PlaceThumb content={content} placeRef={nextPlace.ref} base={bundleBase} name={nextPlace.name} className="thumb" />
+          <div>
+            <span className="muted small">{t.next}</span>
+            <strong>{nextPlace.name}</strong>
+          </div>
+        </div>
+      )}
+      {runtime.nextStop && (
+        <div className="manual">
+          <p className="muted small">{t.manualHint}</p>
+          <div className="row wrap">
+            <button className="button" onClick={() => arriveHere(runtime.nextStop!)}><Icon name="pin" /> {t.imHere}: {runtime.name(runtime.nextStop)}</button>
+            {runtime.routeStops && (
+              <button className="button quiet" onClick={() => skipStop(runtime.nextStop!)}><Icon name="skip" /> {t.skipStop}</button>
+            )}
+          </div>
+        </div>
+      )}
+      {anchorStatus && (
+        <p className={`anchor ${anchorStatus.level}`}>
+          {anchorStatus.level === "ok" || anchorStatus.level === "soon"
+            ? t.anchor[anchorStatus.level](anchorName, clock(anchorStatus.leaveBy, locale))
+            : t.anchor[anchorStatus.level](anchorName)}
+        </p>
+      )}
+      {runtime.plan?.status === "no_time" && <p className="anchor late">{t.noPlan}</p>}
+    </section>
+  );
+
+  const planCard = (
+    <section className="card">
+      <h3>{t.plan}</h3>
+      <ol className="stops-strip">
+        {runtime.plan?.stops.map((s, i) => {
+          const done = runtime.visited.includes(s.placeId);
+          const current = !done && s.placeId === runtime.nextStop;
+          return (
+            <li key={s.placeId} className={done ? "done" : current ? "current" : ""}>
+              <span className="stop-num">{done ? <Icon name="check" size={16} /> : i + 1}</span>
+              <span className="stop-name">
+                {runtime.name(s.placeId)} {done && <span className="muted small">· {t.visited}</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+
+  const itinerariesInSession = (
+    <details className="card" id="guided-in-session">
+      <summary><Icon name="route" /> {t.itinerariesTitle}</summary>
+      <p className="muted small">{t.itinerariesHint}</p>
+      <div className="stack">
+        {content.routes.map((r) => (
+          <button key={r.ref} className="place-row" onClick={() => switchToRoute(r.ref)}>
+            <span className="thumb">
+              {/* eslint-disable-next-line @next/next/no-img-element -- foto della prima tappa */}
+              {routeCover(content, r.stops.map((s) => s.place)) ? <img src={routeCover(content, r.stops.map((s) => s.place))!} alt="" loading="lazy" /> : <Icon name="route" />}
+            </span>
+            <span>
+              <span className="name">{r.name}</span>
+              <span className="short">
+                {r.durationMin} {t.minutes} · {t.stopsCount(r.stops.length)}
+                {r.difficulty && <> · {t.difficulty[r.difficulty]}</>}
+                {r.calibration === "draft" && <> · {t.routeDraft}</>}
+              </span>
+            </span>
+            <Icon name="forward" />
+          </button>
+        ))}
+      </div>
+      <button className="link" onClick={openItineraries}>{t.moreOptions} <Icon name="forward" size={16} /></button>
+    </details>
+  );
+
   return (
-    <main className={`screen walk ${exploring ? "explore" : "tour"}`}>
-      <header className="walk-header">
-        <button className="link" onClick={leave}>← {t.back}</button>
-        <strong>{content.name}</strong>
-        {content.fictional && <span className="badge">{t.fictional}</span>}
-        {!online && <span className="badge offline">{t.offlineBadge}</span>}
+    <main className={`walk ${exploring ? "explore" : "tour"}`}>
+      <header className="topbar">
+        <button className="round-btn" onClick={leave} aria-label={t.back}><Icon name="back" /></button>
+        <div style={{ minWidth: 0 }}>
+          <div className="title">{content.name}</div>
+          <span className="sub">{exploring ? t.exploreTitle : (tourRoute?.name ?? t.itinerariesTitle)}</span>
+        </div>
+        <span className="spacer" />
+        {!online && <span className="badge offline"><Icon name="wifiOff" size={14} /> {t.offlineBadge}</span>}
         {content.preview && <span className="badge preview">{t.previewBadge}</span>}
+        {content.fictional && <span className="badge">{t.fictional}</span>}
         <button className={`link debug-toggle ${debug ? "on" : ""}`} onClick={() => {
           const next = !debug;
           setDebug(next);
@@ -845,132 +1258,61 @@ export function GuideApp() {
 
       <GpsBar status={status} gps={gps} simulating={simulating} onToggle={toggleGps} t={t} />
       {pausedNotice && (
-        <p className="notice" role="status">
-          {t.pausedNotice}{" "}
-          <button className="link" onClick={() => setPausedNotice(false)}>✕</button>
+        <p className="notice toast" role="status">
+          <Icon name="info" /> {t.pausedNotice}
+          <button className="link" onClick={() => setPausedNotice(false)} aria-label={t.close}><Icon name="close" size={18} /></button>
         </p>
       )}
-      {flash && <p className="notice" role="status">{flash}</p>}
-      {complete && <p className="notice success">{t.complete}</p>}
+      {flash && <p className="notice toast" role="status"><Icon name="info" /> {flash}</p>}
+      {complete && <p className="notice success toast"><Icon name="check" /> {t.complete}</p>}
       {proposalCard}
 
-      {exploring ? (
-        <>
-          {map}
-          {placeCard}
-          {(speaking || transcript.length > 0) && nowPlaying}
-          <section className="card">
-            <h2>{t.nearbyTitle}</h2>
-            {nearby.length === 0 ? (
-              <p className="muted small">{t.nearbyNoFix}</p>
-            ) : (
-              <ul className="nearby">
-                {nearby.map((p) => (
-                  <li key={p.ref} className={p.ref === cardRef ? "on" : ""}>
-                    <button onClick={() => setSelected(p.ref)}>
-                      <span>
-                        {p.ref === runtime.currentPlaceRef ? "📍 " : ""}
-                        {p.name}
-                        {p.narrated && <span className="muted small"> · ✓ {t.heard}</span>}
-                      </span>
-                      <span className="dist">
-                        {formatDistance(p.distanceM, content.locale)} {compass(p.bearingDeg, t.dirs)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-          {ask}
-          <details className="card" id="guided-in-session">
-            <summary><strong>🗺 {t.itinerariesTitle}</strong></summary>
-            <p className="muted small">{t.itinerariesHint}</p>
-            <div className="stack">
-              {content.routes.map((r) => (
-                <button key={r.ref} className="chip route" onClick={() => switchToRoute(r.ref)}>
-                  <span>{r.name}</span>
-                  <span className="muted small">
-                    {r.durationMin} {t.minutes}
-                    {r.difficulty && <> · {t.difficulty[r.difficulty]}</>}
-                    {r.calibration === "draft" && <> · {t.routeDraft}</>}
-                  </span>
-                </button>
+      <div className="walk-grid">
+        <div className="walk-main">{exploring ? exploreMain : map}</div>
+        <div className="walk-side">
+          {exploring ? (
+            <>
+              {placeCard}
+              {(speaking || transcript.length > 0) && nowPlaying}
+              {ask}
+              {itinerariesInSession}
+            </>
+          ) : (
+            <>
+              {tourProgress}
+              {nowPlaying}
+              {selected && placeCard}
+              {ask}
+              {planCard}
+              <button className="button quiet" onClick={switchToExplore}><Icon name="compass" /> {t.switchToExplore}</button>
+            </>
+          )}
+          {tools}
+          {debug && (
+            <DebugPanel
+              content={content}
+              runtime={runtime}
+              gpsError={gpsError ? gpsErrorText(gpsError, t) : null}
+              fixSource={fixSource}
+              online={online}
+              offlineReady={offlineSupported() ? offline === "yes" : null}
+              bundleHash={opened?.manifest.kbHash ?? null}
+              serverKbHash={serverBundles?.find((b) => b.destination === content.destination && b.locale === content.locale)?.kbHash ?? null}
+              askAvailable={askAvailable}
+              webAvailable={webAvailable}
+            />
+          )}
+          {transcript.length > 0 && (
+            <details className="card">
+              <summary>{t.transcript}</summary>
+              {transcript.map((s) => (
+                <p key={s.id} className={s.kind === "bridge" ? "bridge" : ""}>{s.text}</p>
               ))}
-            </div>
-            <button className="link" onClick={openItineraries}>{t.moreOptions} →</button>
-          </details>
-        </>
-      ) : (
-        <>
-          {nowPlaying}
-          <section className="card status">
-            {nextPlace && (
-              <p>
-                <span className="muted">{t.next}:</span> <strong>{nextPlace.name}</strong>
-              </p>
-            )}
-            {runtime.nextStop && (
-              <div className="manual">
-                <p className="muted small">{t.manualHint}</p>
-                <div className="row wrap">
-                  <button className="button" onClick={() => arriveHere(runtime.nextStop!)}>📍 {t.imHere}: {runtime.name(runtime.nextStop)}</button>
-                  {runtime.routeStops && (
-                    <button className="button" onClick={() => skipStop(runtime.nextStop!)}>⏭ {t.skipStop}</button>
-                  )}
-                </div>
-              </div>
-            )}
-            {anchorStatus && (
-              <p className={`anchor ${anchorStatus.level}`}>
-                {anchorStatus.level === "ok" || anchorStatus.level === "soon"
-                  ? t.anchor[anchorStatus.level](anchorName, clock(anchorStatus.leaveBy, locale))
-                  : t.anchor[anchorStatus.level](anchorName)}
-              </p>
-            )}
-            {runtime.plan?.status === "no_time" && <p className="anchor late">{t.noPlan}</p>}
-          </section>
-          {map}
-          {selected && placeCard}
-          {ask}
-          <section className="card">
-            <h2>{t.plan}</h2>
-            <ol className="plan">
-              {runtime.plan?.stops.map((s) => (
-                <li key={s.placeId} className={runtime.visited.includes(s.placeId) ? "done" : ""}>
-                  {runtime.name(s.placeId)} {runtime.visited.includes(s.placeId) && <span className="muted">· {t.visited}</span>}
-                </li>
-              ))}
-            </ol>
-          </section>
-        </>
-      )}
-
-      {controls}
-
-      {debug && (
-        <DebugPanel
-          content={content}
-          runtime={runtime}
-          gpsError={gpsError ? gpsErrorText(gpsError, t) : null}
-          fixSource={fixSource}
-          online={online}
-          offlineReady={offlineSupported() ? offline === "yes" : null}
-          bundleHash={opened?.manifest.kbHash ?? null}
-          serverKbHash={serverBundles?.find((b) => b.destination === content.destination && b.locale === content.locale)?.kbHash ?? null}
-          askAvailable={askAvailable}
-          webAvailable={webAvailable}
-        />
-      )}
-
-      {transcript.length > 0 && (
-        <details className="card">
-          <summary>{t.transcript}</summary>
-          {transcript.map((s) => (
-            <p key={s.id} className={s.kind === "bridge" ? "bridge" : ""}>{s.text}</p>
-          ))}
-        </details>
-      )}
+            </details>
+          )}
+        </div>
+      </div>
+      {player}
     </main>
   );
 }
@@ -1006,9 +1348,12 @@ function GpsBar({ status, gps, simulating, onToggle, t }: { status: GpsStatus; g
   const alert = ["stale", "no_signal", "denied", "unavailable", "imprecise"].includes(status.level);
   return (
     <div className={`gps-bar ${status.level}`} role={alert ? "alert" : "status"}>
-      <p>📍 {text}</p>
+      <p>
+        <span className="gps-dot" aria-hidden="true" />
+        <span>📍 {text}</span>
+      </p>
       {status.level !== "unavailable" && !simulating && (
-        <button className={`button ${gps ? "" : "primary"}`} onClick={onToggle}>
+        <button className={`button ${gps ? "quiet" : "primary"}`} onClick={onToggle}>
           {gps ? t.gps.stop : t.gps.start}
         </button>
       )}

@@ -345,9 +345,14 @@ export type Route = z.infer<typeof routeSchema>;
 export const mediaSchema = z
   .strictObject({
     id: slug,
-    kind: z.enum(["image"]),
+    /** Immagine o breve video ambientale (senza audio, caricato solo quando serve, mai nel pacchetto offline). */
+    kind: z.enum(["image", "video"]).default("image"),
     /** File nella cartella del pack, relativo a media/files/. */
-    file: z.string().regex(/^[\w.-]+\.(jpe?g|png|webp)$/i, "nome file non valido (jpg, png, webp)"),
+    file: z.string().regex(/^[\w.-]+\.(jpe?g|png|webp|mp4|webm)$/i, "nome file non valido (jpg, png, webp, mp4, webm)"),
+    /** Per i video: immagine mostrata prima e al posto del video (stessa cartella). */
+    poster: z.string().regex(/^[\w.-]+\.(jpe?g|png|webp)$/i, "nome file non valido (jpg, png, webp)").optional(),
+    /** Immagine (o video) di copertina della destinazione, nella pagina iniziale. */
+    cover: z.boolean().optional(),
     /** Luoghi o nodi raffigurati. */
     subjects: z.array(ref).min(1),
     caption: localized.optional(),
@@ -367,6 +372,14 @@ export const mediaSchema = z
   .refine((m) => m.license === "public-domain" || m.author !== undefined, {
     message: "autore obbligatorio (salvo pubblico dominio)",
     path: ["author"],
+  })
+  .refine((m) => (m.kind === "video") === /\.(mp4|webm)$/i.test(m.file), {
+    message: "i video sono file mp4 o webm, le immagini jpg, png o webp",
+    path: ["file"],
+  })
+  .refine((m) => m.kind !== "video" || m.poster !== undefined, {
+    message: "un video richiede l'immagine poster",
+    path: ["poster"],
   })
   .refine((m) => m.license !== "licensed" || m.licenseNote !== undefined, {
     message: "una licenza concessa per iscritto richiede licenseNote",

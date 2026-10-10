@@ -4,7 +4,7 @@
  * Font di sistema (nessun download): funziona offline e si carica subito.
  * Uso all'aperto: contrasti alti, controlli ≥ 48 px, testo ≥ 16 px.
  */
-/* Nero di Portovenere Experience, avorio e sabbia; un solo tema (scuro), a prescindere dal sistema. */
+/* Nero dell'identità del marchio, avorio e sabbia; un solo tema (scuro), a prescindere dal sistema. */
 :root {
   --bg: #0c0c0c;
   --surface: #151515;

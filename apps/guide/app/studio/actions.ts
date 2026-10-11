@@ -29,14 +29,19 @@ export async function signIn(form: FormData) {
   redirect("/studio");
 }
 
-function loginError(error: { code?: string; status?: number; message?: string }): string {
+function loginError(error: { code?: string; status?: number; message?: string; name?: string }): string {
   const code = error.code ?? "";
   if (code === "invalid_credentials") return "Email o password non corrette.";
   if (code === "email_not_confirmed") return "L'email non è ancora confermata: confermala in Supabase (Authentication → Users).";
   if (code === "email_provider_disabled") return "L'accesso con email e password è disattivato in Supabase (Authentication → Sign In / Providers → Email).";
   if (error.status === 401 || /api key/i.test(error.message ?? "")) return "Chiave di Supabase non valida in questo ambiente: controlla NEXT_PUBLIC_SUPABASE_ANON_KEY su Vercel.";
   if (code === "over_request_rate_limit" || error.status === 429) return "Troppi tentativi: riprova tra qualche minuto.";
-  return `Accesso non riuscito (codice: ${code || error.status || "sconosciuto"}).`;
+  // Senza codice né stato di solito la richiesta non è arrivata a Supabase (indirizzo sbagliato, rete).
+  const detail = [error.name, error.status ? `HTTP ${error.status}` : "", (error.message ?? "").slice(0, 160)].filter(Boolean).join(" · ");
+  if (!code && !error.status) {
+    return `Supabase non raggiungibile da questo ambiente: controlla NEXT_PUBLIC_SUPABASE_URL su Vercel (deve essere https://<id-progetto>.supabase.co). Dettaglio: ${detail || "nessuno"}.`;
+  }
+  return `Accesso non riuscito (codice: ${code || error.status}). Dettaglio: ${detail}.`;
 }
 
 export async function signOut() {

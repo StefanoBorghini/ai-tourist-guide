@@ -20,6 +20,8 @@
     "@guide/context-engine": "0.1.0",
     "@guide/domain": "0.1.0",
     "@guide/narrative-planner": "0.1.0",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.2",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",

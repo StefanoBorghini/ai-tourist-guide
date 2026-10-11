@@ -285,7 +285,7 @@ returns jsonb language sql stable set search_path = public as $$
     'verifiedBy', a.verified_by,
     'verifiedAt', a.verified_at,
     'reviewNote', a.review_note,
-    'evidence', coalesce((select jsonb_agg(jsonb_build_object('title', s.title, 'attribution', e.attribution,
+    'evidence', coalesce((select jsonb_agg(jsonb_build_object('position', e.position, 'title', s.title, 'attribution', e.attribution,
                                                               'locator', e.locator, 'url', s.url) order by e.position)
                           from evidence e join sources s on s.id = e.source_id where e.assertion_id = a.id), '[]'),
     'mine', a.authored_by = auth.uid()::text) order by a.status, a.slug), '[]')
@@ -339,6 +339,30 @@ begin
     raise exception 'azione sconosciuta: %', p_action;
   end if;
 
+  return (select x from jsonb_array_elements(studio_assertions(p_pack)) x where x ->> 'slug' = p_slug);
+end;
+$$;
+
+-- Conferma di una fonte dedotta: chi verifica l'ha controllata e indica dove (pagina, sezione, URL).
+-- Senza almeno una fonte confermata un'affermazione non si verifica. La conferma resta nello storico
+-- come nota dell'affermazione.
+create or replace function studio_confirm_evidence(p_pack text, p_slug text, p_position int, p_locator text)
+returns jsonb language plpgsql set search_path = public as $$
+declare
+  v_assertion uuid;
+  v_title text;
+  v_locator text := nullif(trim(coalesce(p_locator, '')), '');
+begin
+  perform studio_require(can_verify_pack(p_pack), 'solo un esperto o la redazione possono confermare una fonte');
+  select id into v_assertion from assertions where pack_id = p_pack and slug = p_slug;
+  if v_assertion is null then raise exception 'affermazione non trovata: %', p_slug; end if;
+  if v_locator is null then raise exception 'indica dove hai trovato l''informazione nella fonte (pagina, sezione o indirizzo)'; end if;
+  update evidence e set attribution = 'explicit', locator = v_locator
+  from sources s
+  where s.id = e.source_id and e.assertion_id = v_assertion and e.position = p_position and e.attribution = 'inferred'
+  returning s.title into v_title;
+  if v_title is null then raise exception 'nessuna fonte dedotta in quella posizione'; end if;
+  update assertions set review_note = left('Fonte confermata (' || v_title || '): ' || v_locator, 2000) where id = v_assertion;
   return (select x from jsonb_array_elements(studio_assertions(p_pack)) x where x ->> 'slug' = p_slug);
 end;
 $$;
@@ -423,7 +447,7 @@ begin
     'studio_me()', 'studio_packs()', 'studio_places(text)', 'studio_place(text, text)',
     'studio_update_place(text, text, jsonb)', 'studio_routes(text)', 'studio_route(text, text)',
     'studio_set_route_stops(text, text, jsonb)', 'studio_assertions(text, text)',
-    'studio_review_assertion(text, text, text, text)', 'studio_media(text)', 'studio_register_media(text, jsonb)'
+    'studio_review_assertion(text, text, text, text)', 'studio_confirm_evidence(text, text, int, text)', 'studio_media(text)', 'studio_register_media(text, jsonb)'
   ] loop
     execute format('revoke execute on function %s from public, anon', f);
     execute format('grant execute on function %s to authenticated, service_role', f);

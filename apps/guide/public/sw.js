@@ -5,7 +5,7 @@
  * - file dei bundle (contenuti e immagini): hanno l'hash nel nome, quindi non cambiano mai → prima la cache;
  * - indice e manifest dei bundle: prima la rete (per vedere le nuove versioni), la cache se manca;
  * - video ambientali: mai in cache (richieste a intervalli, pesanti, non servono offline);
- * - /api/: mai in cache.
+ * - /api/ e /studio: mai in cache (lo Studio mostra dati riservati e funziona solo online).
  *
  * Le chiavi dei cache devono restare allineate a lib/offline.ts.
  */
@@ -32,7 +32,7 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/") || /^\/studio(\/|$)/.test(url.pathname)) return;
   if (/\.(mp4|webm)$/i.test(url.pathname) || request.headers.has("range")) return;
 
   if (url.pathname.startsWith("/bundles/")) {

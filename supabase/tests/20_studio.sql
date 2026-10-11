@@ -204,6 +204,36 @@ do $$ begin
 end $$;
 reset role;
 
+-- Conferma della fonte: solo chi verifica, con il punto della fonte; poi la verifica è possibile.
+set role authenticated;
+set request.jwt.claim.sub = 'd0000000-0000-0000-0000-000000000001';
+do $$ begin
+  begin
+    perform studio_confirm_evidence('it.test.borgo-di-prova', 'nota-esperto', 0, 'p. 12');
+    raise exception 'FALLITO: un editor non conferma le fonti';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = 'd0000000-0000-0000-0000-000000000002';
+do $$
+declare a jsonb;
+begin
+  begin
+    perform studio_confirm_evidence('it.test.borgo-di-prova', 'nota-esperto', 0, ' ');
+    raise exception 'FALLITO: conferma senza indicare il punto della fonte';
+  exception when raise_exception then
+    if sqlerrm like 'FALLITO%' then raise; end if;
+  end;
+  a := studio_confirm_evidence('it.test.borgo-di-prova', 'nota-esperto', 0, 'p. 12, secondo capoverso');
+  if a #>> '{evidence,0,attribution}' <> 'explicit' or a #>> '{evidence,0,locator}' <> 'p. 12, secondo capoverso' then
+    raise exception 'FALLITO: fonte confermata con il punto indicato';
+  end if;
+  a := studio_review_assertion('it.test.borgo-di-prova', 'nota-esperto', 'verify');
+  if a ->> 'status' <> 'verified' then raise exception 'FALLITO: verifica dopo la conferma della fonte'; end if;
+end $$;
+reset role;
+
 -- ---------------------------------------------------------------- media
 set role authenticated;
 set request.jwt.claim.sub = 'd0000000-0000-0000-0000-000000000001';

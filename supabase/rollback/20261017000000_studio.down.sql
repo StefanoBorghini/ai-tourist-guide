@@ -1,6 +1,7 @@
 -- Revoca di 20261017000000_studio.sql.
 drop function if exists studio_register_media(text, jsonb);
 drop function if exists studio_media(text);
+drop function if exists studio_confirm_evidence(text, text, int, text);
 drop function if exists studio_review_assertion(text, text, text, text);
 drop function if exists studio_assertions(text, text);
 drop function if exists studio_set_route_stops(text, text, jsonb);

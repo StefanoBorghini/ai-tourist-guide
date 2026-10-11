@@ -132,11 +132,29 @@ da un'API che verifica il diritto lato server (milestone 7).
 |---|---|---|
 | 1 | Audit, architettura, modello dati, migrazioni, permessi, test sul database | **fatto** (questo documento, `supabase/migrations/20261013500000_*`, `20261014000000_*`, `supabase/tests/`, `supabase/rollback/`) |
 | 2 | Progetto Supabase (tuo account) e collegamento: migrazioni applicate a un progetto di prova, verifica sul progetto reale (`supabase/tests/remote-check.sql`), poi variabili d'ambiente solo in Preview | in corso: progetto creato, migrazioni applicate, verifica `superato` sul progetto reale (2026-10-11) dopo la correzione di 9 tabelle senza RLS (`20261015000000_rls_remaining_tables.sql`); restano il primo amministratore e le variabili in Preview |
-| 3 | Import pack → database e export database → pack, con prova di parità sui bundle | |
+| 3 | Import pack → database e export database → pack, con prova di parità sui bundle | **fatto in locale** (`20261016000000_pack_import_export.sql`, `guide-pack db-sql` / `db-export`, `supabase/tests/roundtrip.ts`): tutti i pack di `territories/` tornano identici e danno bundle identici byte per byte; da applicare al progetto di prova |
 | 4 | Studio minimo: accesso staff, territori, luoghi, percorsi (riordino delle tappe), media library, revisione delle affermazioni | |
 | 5 | Pubblicazione: richiesta → validazione → compilazione → bundle su Storage → indice; app che legge l'indice da Storage | |
 | 6 | Account visitatori nella PWA: registrazione, conferma, recupero password, profilo, preferiti, avanzamenti, cancellazione | |
 | 7 | Premium: API che serve i contenuti premium dopo `can_access_route()`; integrazione del fornitore di pagamenti in una fase successiva | |
+
+## 9b. Import ed export dei pack (milestone 3)
+
+Formato di scambio: l'«istantanea» del pack, cioè i file YAML in un unico JSON con i riferimenti completi
+(`pack:slug`). `import_pack(istantanea)` crea o aggiorna il pack nel database e rimuove ciò che non c'è più;
+`pack_snapshot(pack_id)` lo rilegge nello stesso formato. Entrambe sono riservate al servizio e al SQL Editor.
+
+```bash
+npx tsx packages/territory-pack/src/cli.ts db-sql territories --pack <id> --out importa.sql   # pack e dipendenze → SQL
+npx tsx packages/territory-pack/src/cli.ts db-export istantanea.json --out <cartella> --media <file-media>
+```
+`db-sql` rifiuta i pack con errori di validazione. I file media restano fuori dal database: l'istantanea
+porta percorso, impronta sha256, tipo e dimensione; i file andranno nel bucket `media` (milestone 4–5).
+Per una corrispondenza esatta il database conserva anche l'ordine degli elenchi che contano e `partOf`.
+La prova (`npm run db:check`): ogni pack importato, riletto, riscritto in YAML, ricaricato e validato è identico
+all'originale e produce bundle identici (manifest, `kbHash`, contenuti); reimportare non cambia nulla; ciò che si
+toglie dal pack si toglie dal database. Ha già trovato e corretto un difetto: lo storico non registrava una
+destinazione senza slug.
 
 ## 10. Variabili d'ambiente (segnaposto, nessun valore reale)
 

@@ -23,6 +23,9 @@ done
 # La verifica da incollare nel SQL Editor del progetto reale deve passare anche qui e non lasciare dati.
 echo "test remote-check.sql"
 "${PSQL[@]}" -f "$HERE/remote-check.sql" -At | grep -qx 'superato|0|0' || { echo "remote-check.sql: esito inatteso"; exit 1; }
+# Parità pack ↔ database: ogni pack di territories/ importato, riletto e ricompilato in bundle identici.
+echo "test roundtrip.ts"
+PGHOST="$DATA" PGPORT="$PORT" PGUSER=postgres PGDATABASE=postgres npx tsx "$HERE/roundtrip.ts"
 for f in "$HERE"/[1-9]*.sql; do
   [ -e "$f" ] || continue
   echo "test $(basename "$f")"

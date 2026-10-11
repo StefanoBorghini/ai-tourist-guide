@@ -46,7 +46,8 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack
 - `packages/territory-pack` — caricamento, validazione e CLI `guide-pack` (`validate`, `photos`: coordinate dall'EXIF,
   `field`: revisione dei rilievi sul campo, formato `guide-field-points/2` in `packages/domain/src/field-points.ts`;
-  propone, non scrive mai nel pack)
+  propone, non scrive mai nel pack; `db-sql`/`db-export`: scambio con il database tramite `import_pack()` e
+  `pack_snapshot()`, `src/db.ts`)
 - `packages/context-engine` — motore di contesto sul dispositivo: geofence, movimento, pianificatore con ancora,
   monitor del tempo, istantanea per la narrazione. TypeScript puro, senza rete né AI; testato con tracce GPS simulate
 - `packages/narrative-planner` — decide cosa raccontare in ogni tappa (unità, prerequisiti, richiami, ganci) e
@@ -57,7 +58,8 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   della destinazione, che l'indice dei bundle espone alla pagina iniziale
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`
-  test delle migrazioni e delle policy su un Postgres locale (`npm run db:check`), `supabase/rollback/` revoche.
+  test delle migrazioni, delle policy e della parità pack ↔ database su un Postgres locale (`npm run db:check`;
+  `remote-check.sql` è la stessa verifica da incollare nel SQL Editor del progetto reale), `supabase/rollback/` revoche.
   Architettura della piattaforma (CMS, account, pubblicazione, premium): `docs/v0.3-platform/PLATFORM-ARCHITECTURE.md`
 
 ## Comandi

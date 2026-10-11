@@ -28,7 +28,10 @@ grant execute on function auth.uid() to anon, authenticated, service_role;
 
 -- Storage: solo la tabella degli oggetti, per provare le policy dei file.
 create schema if not exists storage;
-create table if not exists storage.buckets (id text primary key, name text not null, public boolean not null default false);
+create table if not exists storage.buckets (
+  id text primary key, name text not null, public boolean not null default false,
+  file_size_limit bigint, allowed_mime_types text[]
+);
 create table if not exists storage.objects (
   id uuid primary key default gen_random_uuid(),
   bucket_id text references storage.buckets (id),

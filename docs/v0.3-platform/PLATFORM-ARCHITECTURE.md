@@ -133,7 +133,7 @@ da un'API che verifica il diritto lato server (milestone 7).
 | 1 | Audit, architettura, modello dati, migrazioni, permessi, test sul database | **fatto** (questo documento, `supabase/migrations/20261013500000_*`, `20261014000000_*`, `supabase/tests/`, `supabase/rollback/`) |
 | 2 | Progetto Supabase (tuo account) e collegamento: migrazioni applicate a un progetto di prova, verifica sul progetto reale (`supabase/tests/remote-check.sql`), poi variabili d'ambiente solo in Preview | in corso: progetto creato, migrazioni applicate, verifica `superato` sul progetto reale (2026-10-11) dopo la correzione di 9 tabelle senza RLS (`20261015000000_rls_remaining_tables.sql`); restano il primo amministratore e le variabili in Preview |
 | 3 | Import pack → database e export database → pack, con prova di parità sui bundle | **fatto in locale** (`20261016000000_pack_import_export.sql`, `guide-pack db-sql` / `db-export`, `supabase/tests/roundtrip.ts`): tutti i pack di `territories/` tornano identici e danno bundle identici byte per byte; applicata al progetto di prova e Portovenere importato (2026-10-11) |
-| 4 | Studio minimo: accesso staff, territori, luoghi, percorsi (riordino delle tappe), media library, revisione delle affermazioni | |
+| 4 | Studio minimo: accesso staff, territori, luoghi, percorsi (riordino delle tappe), media library, revisione delle affermazioni | **fatto in locale** (`/studio`, `20261017000000_studio.sql`, sezione 9c); da provare nell'anteprima Vercel con le variabili in Preview |
 | 5 | Pubblicazione: richiesta → validazione → compilazione → bundle su Storage → indice; app che legge l'indice da Storage | |
 | 6 | Account visitatori nella PWA: registrazione, conferma, recupero password, profilo, preferiti, avanzamenti, cancellazione | |
 | 7 | Premium: API che serve i contenuti premium dopo `can_access_route()`; integrazione del fornitore di pagamenti in una fase successiva | |
@@ -156,13 +156,41 @@ all'originale e produce bundle identici (manifest, `kbHash`, contenuti); reimpor
 toglie dal pack si toglie dal database. Ha già trovato e corretto un difetto: lo storico non registrava una
 destinazione senza slug.
 
+## 9c. Studio (milestone 4)
+
+`/studio` nella stessa app, riservato allo staff. Nessuna tabella nuova: le pagine chiamano le funzioni
+`studio_*` del database con la sessione dell'utente (chiave pubblica + JWT), quindi valgono RLS, trigger
+redazionali e storico. Nessuna chiave di servizio nello Studio.
+
+- **Accesso**: email e password di Supabase Auth; `proxy.ts` rinnova la sessione solo su `/studio`; ogni pagina e
+  ogni azione verificano l'utente con il server di autenticazione (`getUser`) e i ruoli con `studio_me()`.
+  Chi non ha ruoli vede «Accesso non consentito». Gli account staff li crea l'amministratore (nessuna registrazione).
+- **Luoghi**: nome e descrizione (it/en), importanza, sosta, categorie, note di campo; coordinate modificabili solo
+  dichiarando il metodo, e tornano `preliminary` (la verifica sul campo si dichiara, non si deduce).
+- **Percorsi**: riordino, aggiunta e rimozione delle tappe, sosta e facoltatività; un percorso calibrato con tappe
+  cambiate torna `draft`.
+- **Affermazioni**: bozza → in revisione → verificata/respinta; verifica solo da esperto o redazione, mai dall'autore,
+  con almeno una fonte esplicita; un esperto può confermare una fonte dedotta indicando dove l'ha controllata; rifiuto
+  e ritiro della verifica con motivo (`assertions.review_note`).
+- **Foto**: il browser carica il file nel bucket privato `media` (`<pack>/<file>`, JPEG/PNG/WebP fino a 15 MB; il bucket
+  ammette al massimo 50 MB e i formati di media_assets), poi `studio_register_media` registra autore, licenza,
+  provenienza, testo alternativo e luoghi raffigurati, solo se il file è davvero nel bucket. Le anteprime usano indirizzi
+  firmati di 10 minuti. I media importati dai pack hanno i metadati ma non ancora il file nel bucket.
+- **Pubblicazione**: le modifiche restano nel database; arrivano all'app con la milestone 5.
+- Il service worker non mette mai in cache `/studio`.
+
+Prove: `supabase/tests/20_studio.sql` (permessi e regole per ruolo, in `npm run db:check`), `apps/guide/test/studio.test.ts`
+e una prova end-to-end nel browser (31 controlli: accesso, ruoli, luoghi, tappe, revisione, caricamento, telefono)
+su uno stack locale con Postgres, PostgREST e un sostituto di Auth e Storage che applica le stesse policy RLS.
+Non sostituisce la prova sul progetto Supabase reale (Auth e Storage veri).
+
 ## 10. Variabili d'ambiente (segnaposto, nessun valore reale)
 
 | Variabile | Dove | Uso |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | client e server | indirizzo del progetto (pubblico) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | client e server | chiave pubblica: tutto passa dalle policy RLS |
-| `SUPABASE_SERVICE_ROLE_KEY` | **solo server** (pubblicazione, webhook futuri) | ignora le RLS: mai nel client, mai nei log |
+| `SUPABASE_SERVICE_ROLE_KEY` | **solo server** (pubblicazione, webhook futuri) | ignora le RLS: mai nel client, mai nei log. **Non serve allo Studio** (milestone 4): solo dalla pubblicazione |
 | `ANTHROPIC_API_KEY` | solo server | invariata |
 
 Vedi `apps/guide/.env.example`.

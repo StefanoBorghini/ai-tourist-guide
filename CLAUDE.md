@@ -42,7 +42,10 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   (`ASK-EVAL.json` nel pack) e scrive un rapporto da rileggere;
   `components/DebugPanel.tsx` e `lib/field-points.ts` per il test sul campo (`?debug=1`);
   `components/MapView.tsx` e `lib/map-view.ts` per la mappa (Web Mercator, sfondo OpenStreetMap solo online e
-  solo per le prove: in produzione serve un fornitore di tile con licenza adeguata)
+  solo per le prove: in produzione serve un fornitore di tile con licenza adeguata);
+  `app/studio/` e `lib/studio/` lo Studio della redazione (`/studio`, Supabase Auth, funzioni `studio_*` del database con
+  l'identità dell'utente, nessuna chiave di servizio; `proxy.ts` solo per `/studio`; senza variabili dice di non essere
+  configurato e la guida funziona come prima)
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack
 - `packages/territory-pack` — caricamento, validazione e CLI `guide-pack` (`validate`, `photos`: coordinate dall'EXIF,
   `field`: revisione dei rilievi sul campo, formato `guide-field-points/2` in `packages/domain/src/field-points.ts`;

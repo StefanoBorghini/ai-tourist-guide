@@ -61,6 +61,7 @@ export function validatePacks(
     checkAssertions(pack, ctx);
     checkUnits(pack, ctx);
     checkRoutes(pack, ctx);
+    checkAccess(pack, ctx);
     checkMedia(pack, ctx);
   }
   return out.issues;
@@ -601,6 +602,48 @@ function checkRoutes(pack: TerritoryPack, ctx: Context): void {
     for (const raw of route.sources) lookupSource(raw, pack, ctx, where);
     if (route.calibration === "draft" && pack.manifest.releaseStage === "production") {
       ctx.out.error({ code: "ROUTE_NOT_CALIBRATED", packId, ...where, message: "percorso non ancora calibrato sul posto" });
+    }
+  }
+}
+
+// ------------------------------------------------------------------ accesso
+
+/** Contenuti a pagamento: luoghi introduttivi e percorsi premium devono esistere nella destinazione. */
+function checkAccess(pack: TerritoryPack, ctx: Context): void {
+  const access = pack.config.access;
+  if (!access) return;
+  const file = PACK_FILES.config.path;
+  const packId = pack.manifest.id;
+  if (pack.manifest.kind !== "destination") {
+    ctx.out.error({ code: "ACCESS_NOT_DESTINATION", packId, file, message: "l'accesso a pagamento si configura solo sulle destinazioni" });
+    return;
+  }
+  const places = new Set(pack.places.map((p) => p.id));
+  const routes = new Set(pack.routes.map((r) => r.id));
+  for (const [list, label] of [[access.introPlaces, "luogo introduttivo"], [access.premiumRoutes, "percorso premium"]] as const) {
+    if (new Set(list).size !== list.length) {
+      ctx.out.warning({ code: "ACCESS_DUPLICATE", packId, file, message: `${label} ripetuto` });
+    }
+  }
+  for (const id of access.introPlaces) {
+    if (!places.has(id)) ctx.out.error({ code: "ACCESS_INTRO_UNKNOWN", packId, file, item: id, message: `luogo introduttivo inesistente: ${id}` });
+  }
+  for (const id of access.premiumRoutes) {
+    if (!routes.has(id)) ctx.out.error({ code: "ACCESS_ROUTE_UNKNOWN", packId, file, item: id, message: `percorso premium inesistente: ${id}` });
+  }
+  if (access.explore !== "premium") return;
+  if (access.introPlaces.length === 0) {
+    ctx.out.warning({ code: "ACCESS_NO_INTRO", packId, file, message: "esplorazione a pagamento senza luoghi introduttivi: l'anteprima non avrà racconti" });
+  }
+  for (const id of access.introPlaces) {
+    if (!places.has(id)) continue;
+    for (const locale of pack.manifest.locales) {
+      const opening = pack.units.some(
+        (u) => u.unitType === "opening" && u.locale === locale && resolveRef(u.anchor, packId)?.packId === packId && resolveRef(u.anchor, packId)?.slug === id,
+      );
+      if (!opening) {
+        ctx.out.warning({ code: "ACCESS_INTRO_NO_OPENING", packId, file, item: id, message: `il luogo introduttivo ${id} non ha un racconto d'apertura in ${locale}` });
+      }
     }
   }
 }

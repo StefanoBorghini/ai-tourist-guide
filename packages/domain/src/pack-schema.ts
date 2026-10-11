@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PACK_ID_PATTERN, REF_PATTERN, SLUG_PATTERN } from "./ids.ts";
 import {
+  ACCESS_TIERS,
   ANCHOR_KINDS,
   ASSERTION_STATUSES,
   ASSERTION_TYPES,
@@ -113,8 +114,22 @@ export const territoryConfigSchema = z.strictObject({
     })
     .default({ allowNonCommercial: false }),
   safetyNotes: z.array(z.strictObject({ id: slug, text: localized })).default([]),
+  /**
+   * Accesso ai contenuti (solo destinazioni). Assente = tutto gratuito, come prima.
+   * Con l'esplorazione a pagamento restano gratuiti mappa, luoghi, percorsi non premium e il racconto
+   * d'apertura dei luoghi introduttivi (al massimo 3, scelti dalla redazione); il resto non entra nel
+   * bundle pubblico. Un percorso premium non entra nel bundle pubblico in nessun caso.
+   */
+  access: z
+    .strictObject({
+      explore: z.enum(ACCESS_TIERS).default("free"),
+      introPlaces: z.array(slug).max(3).default([]),
+      premiumRoutes: z.array(slug).default([]),
+    })
+    .optional(),
 });
 export type TerritoryConfig = z.infer<typeof territoryConfigSchema>;
+export type AccessConfig = NonNullable<TerritoryConfig["access"]>;
 
 // --------------------------------------------------- geography/places.yaml
 

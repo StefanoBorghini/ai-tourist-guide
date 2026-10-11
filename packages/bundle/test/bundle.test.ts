@@ -273,3 +273,75 @@ describe("anteprima per i territori non ancora in produzione", () => {
     expect(build().content.places.every((p) => p.coordinateStatus === "field_verified")).toBe(true);
   });
 });
+
+describe("contenuti a pagamento (config.access)", () => {
+  const withAccess = (access: NonNullable<TerritoryPack["config"]["access"]>) => {
+    const copy = structuredClone(packs);
+    copy.get(D)!.config.access = access;
+    return buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+  };
+  // Frasi che esistono solo nei racconti e nei fatti a pagamento del borgo di prova (i nomi dei nodi,
+  // come «Leggenda della sirena», restano pubblici: sono titoli, non contenuti).
+  const PREMIUM_TEXTS = ["cantasse", "1150", "1220", "sue poesie", "presidiata"];
+
+  it("senza configurazione tutto è pubblico e il bundle non cambia", () => {
+    const free = build();
+    const explicit = withAccess({ explore: "free", introPlaces: [], premiumRoutes: [] });
+    expect(free.premium).toEqual([]);
+    expect(free.content.locked).toBeUndefined();
+    expect(contentJson(explicit)).toBe(contentJson(free));
+  });
+
+  it("esplorazione a pagamento: pubbliche solo le aperture dei luoghi introduttivi e ciò che serve a capirle", () => {
+    const b = withAccess({ explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: [] });
+    expect(b.content.units.map((u) => u.ref)).toEqual(["it.test:repubblica-introduzione-it", ref("porta-apertura-it")]);
+    expect(b.content.assertions.map((a) => a.ref).sort()).toEqual(
+      ["it.test:repubblica-controllo-costa", ref("porta-funzione"), ref("porta-larghezza")].sort(),
+    );
+    // Mappa, luoghi e percorsi gratuiti restano.
+    expect(b.content.places).toHaveLength(5);
+    expect(b.content.routes.map((r) => r.ref)).toEqual([ref("giro-breve")]);
+    expect(b.content.locked).toEqual({ explore: true, routes: [] });
+    // Nessun testo a pagamento in nessun file pubblico.
+    const files = [...b.files.values()].filter((f): f is string => typeof f === "string").join("\n");
+    for (const text of PREMIUM_TEXTS) expect(files).not.toContain(text);
+    const premiumJson = JSON.stringify(b.premium);
+    for (const text of PREMIUM_TEXTS) expect(premiumJson).toContain(text);
+    // …ma nella parte a pagamento sì, con i loro fatti e le loro fonti.
+    const [explore] = b.premium;
+    expect(explore!.kind).toBe("explore");
+    expect(explore!.units.map((u) => u.ref)).toEqual([
+      ref("belvedere-ada-it"), ref("belvedere-leggenda-it"), ref("chiesa-datazione-it"), ref("torre-dettaglio-it"),
+    ]);
+    expect(explore!.assertions.map((a) => a.ref)).toContain(ref("sirena-racconto"));
+    expect(explore!.sources.map((s) => s.ref)).toContain(ref("racconto-orale-fittizio"));
+  });
+
+  it("percorso premium: fuori dal bundle pubblico, presentato solo con nome e durata", () => {
+    const b = withAccess({ explore: "free", introPlaces: [], premiumRoutes: ["giro-breve"] });
+    expect(b.content.routes).toEqual([]);
+    expect(b.content.locked).toEqual({ explore: false, routes: [{ ref: ref("giro-breve"), name: "Il borgo in 45 minuti", durationMin: 45 }] });
+    expect(b.premium).toHaveLength(1);
+    expect(b.premium[0]).toMatchObject({ kind: "route", ref: ref("giro-breve"), units: [] });
+    expect(b.premium[0]!.routes[0]!.stops).toHaveLength(4);
+    // Con l'esplorazione gratuita i racconti delle tappe restano pubblici.
+    expect(b.content.units.length).toBe(build().content.units.length);
+  });
+
+  it("percorso premium con esplorazione a pagamento: porta con sé i racconti delle sue tappe", () => {
+    const b = withAccess({ explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: ["giro-breve"] });
+    const route = b.premium.find((p) => p.kind === "route")!;
+    expect(route.units.map((u) => u.ref)).toEqual([
+      ref("belvedere-ada-it"), ref("belvedere-leggenda-it"), ref("chiesa-datazione-it"), ref("torre-dettaglio-it"),
+    ]);
+    expect(contentJson(b)).not.toContain("\"stops\"");
+  });
+
+  it("il pianificatore narrativo funziona con il solo bundle pubblico", () => {
+    const b = withAccess({ explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: [] });
+    const library = libraryFromBundle(b.content);
+    const at = (slug: string) => planStop({ library, memory: emptyMemory(), placeRef: ref(slug), locale: "it", timeBudgetS: 120 });
+    expect(JSON.stringify(at("porta-del-borgo").items)).toContain(ref("porta-apertura-it"));
+    expect(at("torre-di-prova").items).toEqual([]);
+  });
+});

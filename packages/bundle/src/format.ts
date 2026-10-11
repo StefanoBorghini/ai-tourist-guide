@@ -196,6 +196,30 @@ export interface BundleContent {
   units: BundleUnit[];
   routes: BundleRoute[];
   media: BundleMedia[];
+  /** Presente solo se la destinazione ha contenuti a pagamento: dice all'app che cosa manca e perché. */
+  locked?: BundleLocked;
+}
+
+/** Contenuti a pagamento esclusi dal bundle pubblico. */
+export interface BundleLocked {
+  /** I racconti dell'esplorazione completa non ci sono (restano le aperture dei luoghi introduttivi). */
+  explore: boolean;
+  /** Percorsi premium: solo nome e durata, per presentarli. */
+  routes: { ref: string; name: string; durationMin: number }[];
+}
+
+/**
+ * Parte a pagamento di un bundle: mai nei file pubblici. "explore" contiene i racconti dell'esplorazione
+ * completa; "route" un percorso premium con i racconti delle sue tappe che non sono già pubblici.
+ */
+export interface PremiumPart {
+  kind: "explore" | "route";
+  /** Percorso, per le parti "route". */
+  ref?: string;
+  units: BundleUnit[];
+  assertions: BundleAssertion[];
+  routes: BundleRoute[];
+  sources: BundleSource[];
 }
 
 export interface BundleFile {

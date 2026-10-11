@@ -61,7 +61,8 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   (`/bundles/`) e quelli pubblicati dallo Studio nel bucket `bundles` (`/pub/`, che li sostituiscono; `lib/bundle-index.ts`,
   pipeline in `lib/studio/publish.ts`, vedi `docs/v0.3-platform/PUBBLICAZIONE.md`). I media
   `video` (con `poster`) restano fuori dal pacchetto offline (`streamFiles`); `cover: true` indica la copertina
-  della destinazione, che l'indice dei bundle espone alla pagina iniziale
+  della destinazione, che l'indice dei bundle espone alla pagina iniziale; i contenuti a pagamento (`config.access` della destinazione:
+  esplorazione, luoghi introduttivi, percorsi premium) restano fuori dal bundle pubblico, vedi `docs/v0.3-platform/ACCESSO-CONTENUTI.md`
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`
   test delle migrazioni, delle policy e della parità pack ↔ database su un Postgres locale (`npm run db:check`;

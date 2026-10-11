@@ -95,6 +95,10 @@ export type RouteDifficulty = (typeof ROUTE_DIFFICULTIES)[number];
 export const ROUTE_CALIBRATIONS = ["draft", "field_calibrated"] as const;
 export type RouteCalibration = (typeof ROUTE_CALIBRATIONS)[number];
 
+/** Accesso a un contenuto: gratuito o incluso in un prodotto a pagamento. */
+export const ACCESS_TIERS = ["free", "premium"] as const;
+export type AccessTier = (typeof ACCESS_TIERS)[number];
+
 /**
  * Come è stato stabilito il legame tra un'affermazione e la sua fonte:
  * - explicit: la fonte sostiene esplicitamente l'affermazione (verificato da chi l'ha collegata);

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { PREDICATES } from "../src/ontology.ts";
 import {
+  ACCESS_TIERS,
   ASSERTION_TYPES,
   CERTAINTY_LEVELS,
   COORDINATE_STATUSES,
@@ -58,6 +59,7 @@ describe("allineamento codice ↔ database", () => {
     ["evidence_attribution", EVIDENCE_ATTRIBUTIONS],
     ["release_stage", RELEASE_STAGES],
     ["route_difficulty", ROUTE_DIFFICULTIES],
+    ["access_tier", ACCESS_TIERS],
     ["route_calibration", ROUTE_CALIBRATIONS],
   ])("enum %s", (name, values) => {
     expect(sqlEnum(name)).toEqual([...values]);

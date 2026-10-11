@@ -228,6 +228,23 @@ export async function updatePack(form: FormData) {
   back(path, { ok: "Territorio salvato." });
 }
 
+/** Contenuti a pagamento della destinazione: li decide l'amministratore (lo verifica il database). */
+export async function setAccess(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/accesso`;
+  const explore = text(form, "explore") === "premium" ? "premium" : "free";
+  const introPlaces = list(form, "introPlaces");
+  if (introPlaces.length > 3) back(path, { errore: "Al massimo 3 luoghi introduttivi." });
+  const { error } = await rpc(supabase, "studio_set_access", {
+    p_pack: pack,
+    p: { explore, introPlaces, premiumRoutes: list(form, "premiumRoutes") },
+  });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath("/studio", "layout");
+  back(path, { ok: "Accesso salvato. Nell'app cambia alla prossima pubblicazione." });
+}
+
 /** Cambio di stato. Per pubblicare rifà il controllo completo sul server e lo registra con la richiesta. */
 /** Messaggio dell'esito di una pubblicazione, per la pagina del territorio. */
 function publicationMessage(r: PublicationResult): Record<string, string> {

@@ -4,6 +4,8 @@ Data: 2026-10-11 · Stato: **proposta da approvare. Nessuna implementazione.**
 Integra due richieste: «Catalogo commerciale CMS e integrazione Stripe» e «Specifica account, autenticazione e acquisti».
 Prerequisito: l'hardening del CMS (`CMS-SECURITY-HARDENING.md`) applicato e verificato su Supabase Preview.
 
+**Aggiornamento 2026-10-11:** approvata la **directory gratuita delle attività locali**, consultabile senza account né acquisti e separata dai prodotti a pagamento. Decisioni e note in `DIRECTORY-ATTIVITA-LOCALI.md`.
+
 **Regole che il piano rispetta:**
 - marchio unico «AI Tourist Guide»;
 - download e anteprima gratuiti, senza account;

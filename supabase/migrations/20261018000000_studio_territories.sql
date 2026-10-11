@@ -235,7 +235,8 @@ begin
 
   if p ? 'dependsOn' then
     perform studio_check_dependencies(p_pack, p -> 'dependsOn');
-    delete from pack_dependencies where pack_id = p_pack
+    -- Si tolgono solo le dipendenze che l'utente vede: quelle verso territori fuori dal suo ambito restano.
+    delete from pack_dependencies where pack_id = p_pack and is_pack_staff(depends_on_id)
       and depends_on_id not in (select jsonb_array_elements_text(p -> 'dependsOn'));
     insert into pack_dependencies (pack_id, depends_on_id)
     select p_pack, d from jsonb_array_elements_text(p -> 'dependsOn') d
@@ -349,8 +350,9 @@ begin
   if coalesce((p ->> 'dwellMin')::int, 10) not between 1 and 240 then raise exception 'sosta tra 1 e 240 minuti'; end if;
   if coalesce((p ->> 'radiusM')::int, 40) not between 5 and 2000 then raise exception 'raggio tra 5 e 2000 metri'; end if;
 
+  -- «nuovo» è riservato: /studio/<territorio>/luoghi/nuovo è la pagina di creazione.
   v_slug := studio_free_slug(coalesce(nullif(p ->> 'slug', ''), v_name ->> k.default_locale),
-                             array(select slug from nodes where pack_id = p_pack));
+                             array(select slug from nodes where pack_id = p_pack) || array['nuovo']);
   insert into nodes (pack_id, slug, kind) values (p_pack, v_slug, 'place') returning id into v_node;
   insert into node_labels (node_id, locale, name, short_description)
   select v_node, n.key, n.value #>> '{}', nullif(trim(p #>> array['short', n.key]), '')

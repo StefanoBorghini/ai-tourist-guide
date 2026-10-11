@@ -16,13 +16,23 @@ interface PlaceRow {
 export default async function PlacesPage({ params }: { params: Promise<{ pack: string }> }) {
   const { pack } = await params;
   const session = await requireStaff();
-  const { data, error } = await rpc<PlaceRow[]>(session.supabase, "studio_places", { p_pack: pack });
+  const [{ data, error }, k] = await Promise.all([
+    rpc<PlaceRow[]>(session.supabase, "studio_places", { p_pack: pack }),
+    rpc<{ canEdit: boolean }>(session.supabase, "studio_pack", { p_pack: pack }),
+  ]);
   const places = data ?? [];
   return (
     <main className="st-page">
       <StudioHeader session={session} crumbs={[{ label: pack }]} />
       <PackTabs pack={pack} current="luoghi" />
-      <h1>Luoghi</h1>
+      <div className="st-titlebar">
+        <h1>Luoghi</h1>
+        {k.data?.canEdit && (
+          <Link className="st-btn st-primary" href={`/studio/${encodeURIComponent(pack)}/luoghi/nuovo`}>
+            Nuovo luogo
+          </Link>
+        )}
+      </div>
       <Notice errore={error ? friendlyError(error) : undefined} />
       {places.length === 0 && !error && <p>Nessun luogo visibile per questo territorio.</p>}
       <table className="st-table">

@@ -63,3 +63,16 @@ describe("configurazione locale", () => {
     expect(readStudioConfig({ NEXT_PUBLIC_SUPABASE_URL: "http://localhost.evil.com", NEXT_PUBLIC_SUPABASE_ANON_KEY: "k" })).toBeNull();
   });
 });
+
+describe("nuovo territorio", () => {
+  it("propone l'identificativo dal territorio che lo contiene e dal nome", async () => {
+    const { suggestPackId, PACK_ID_RE, withinScopes } = await import("../lib/studio/shared");
+    expect(suggestPackId("it.liguria.sp", "Lerici & San Terenzo")).toBe("it.liguria.sp.lerici-san-terenzo");
+    expect(suggestPackId("", "Cinque Terre")).toBe("cinque-terre");
+    expect(PACK_ID_RE.test("it.liguria.sp.lerici")).toBe(true);
+    expect(PACK_ID_RE.test("it.Liguria")).toBe(false);
+    expect(withinScopes("it.liguria.sp.lerici", false, ["it.liguria"])).toBe(true);
+    expect(withinScopes("it.liguriax", false, ["it.liguria"])).toBe(false);
+    expect(withinScopes("fr.nice", true, [])).toBe(true);
+  });
+});

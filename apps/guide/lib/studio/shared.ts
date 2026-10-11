@@ -108,3 +108,28 @@ export const COORDINATE_LABELS: Record<string, string> = {
   field_verified: "verificate sul posto",
   needs_review: "da ricontrollare",
 };
+
+/** Come studio_slugify nel database: «Chiesa di San Pietro» → «chiesa-di-san-pietro». */
+export function slugify(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
+/** Identificativo proposto per un nuovo territorio: quello del territorio che lo contiene + il nome. */
+export function suggestPackId(parent: string, name: string): string {
+  const slug = slugify(name);
+  if (!slug) return parent ? `${parent}.` : "";
+  return parent ? `${parent}.${slug}` : slug;
+}
+
+export const PACK_ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$/;
+
+/** L'identificativo rientra negli ambiti dell'utente? (stessa regola di can_edit_pack) */
+export function withinScopes(id: string, anywhere: boolean, scopes: readonly string[]): boolean {
+  return anywhere || scopes.some((s) => id === s || id.startsWith(`${s}.`));
+}

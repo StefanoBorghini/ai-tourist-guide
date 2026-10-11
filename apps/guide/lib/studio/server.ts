@@ -78,3 +78,24 @@ export async function signedMediaUrls(supabase: SupabaseClient, paths: string[])
   const { data } = await supabase.storage.from("media").createSignedUrls(unique, 600);
   return new Map((data ?? []).flatMap((d) => (d.signedUrl && d.path && !d.error ? [[d.path, d.signedUrl] as const] : [])));
 }
+
+/**
+ * Controllo di pubblicazione: istantanee del territorio e dei territori da cui dipende (lette con i
+ * permessi dell'utente), file presenti nel bucket, poi validatore e prova di compilazione.
+ */
+export async function checkReadiness(supabase: SupabaseClient, pack: string) {
+  const { assessReadiness } = await import("./readiness");
+  const snapshots = new Map<string, Record<string, unknown> | null>();
+  const load = async (id: string) => {
+    if (snapshots.has(id)) return;
+    const { data } = await supabase.rpc("pack_snapshot", { p_pack: id });
+    snapshots.set(id, (data ?? null) as Record<string, unknown> | null);
+    const deps = ((data as { manifest?: { dependsOn?: string[] } } | null)?.manifest?.dependsOn ?? []);
+    for (const d of deps) await load(d);
+  };
+  await load(pack);
+  const target = snapshots.get(pack) as { media?: { file: string; poster?: string }[] } | null;
+  const paths = (target?.media ?? []).flatMap((m) => [m.file, ...(m.poster ? [m.poster] : [])]).map((f) => `${pack}/${f}`);
+  const stored = new Set((await signedMediaUrls(supabase, paths)).keys());
+  return assessReadiness(pack, snapshots, stored);
+}

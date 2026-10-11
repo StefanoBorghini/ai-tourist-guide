@@ -35,12 +35,17 @@ export function Notice({ ok, errore }: { ok?: string; errore?: string }) {
   return null;
 }
 
-export function PackTabs({ pack, current }: { pack: string; current: "luoghi" | "percorsi" | "affermazioni" | "media" | null }) {
+export type PackTab = "panoramica" | "luoghi" | "percorsi" | "racconti" | "affermazioni" | "fonti" | "media";
+
+export function PackTabs({ pack, current }: { pack: string; current: PackTab | null }) {
   const base = `/studio/${encodeURIComponent(pack)}`;
   const tabs = [
+    ["panoramica", "Panoramica"],
     ["luoghi", "Luoghi"],
     ["percorsi", "Percorsi"],
+    ["racconti", "Racconti"],
     ["affermazioni", "Affermazioni"],
+    ["fonti", "Fonti"],
     ["media", "Foto"],
   ] as const;
   return (
@@ -56,6 +61,31 @@ export function PackTabs({ pack, current }: { pack: string; current: "luoghi" | 
 
 export function Draft({ children }: { children: ReactNode }) {
   return <p className="st-hint">{children}</p>;
+}
+
+export const PACK_STATUS_LABELS: Record<string, string> = {
+  draft: "Bozza",
+  in_review: "In revisione",
+  published: "Pubblicato",
+  archived: "Archiviato",
+};
+export const KIND_LABELS: Record<string, string> = {
+  destination: "Destinazione",
+  region: "Regione",
+  area: "Area",
+  core: "Nucleo",
+};
+export const STAGE_LABELS: Record<string, string> = {
+  research: "Ricerca (anteprima)",
+  field_test: "Prova sul campo (anteprima)",
+  production: "Produzione",
+};
+
+/** Stato del territorio: le destinazioni hanno uno stato, regioni e aree sono contenitori. */
+export function PackStatus({ status }: { status: string | null | undefined }) {
+  if (!status) return <span className="st-status">contenitore</span>;
+  const cls = status === "published" ? "st-verified" : status === "in_review" ? "st-in_review" : "st-draft";
+  return <span className={`st-status ${cls}`}>{PACK_STATUS_LABELS[status] ?? status}</span>;
 }
 
 export type SearchParams = Promise<Record<string, string | string[] | undefined>>;

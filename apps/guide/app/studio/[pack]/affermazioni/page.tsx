@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireStaff, rpc } from "../../../../lib/studio/server";
 import { friendlyError, STATUS_LABELS } from "../../../../lib/studio/shared";
-import { confirmEvidence, reviewAssertion } from "../../actions";
+import { confirmEvidence, createAssertion, reviewAssertion } from "../../actions";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../ui";
 
 interface AssertionRow {
@@ -32,9 +32,12 @@ export default async function AssertionsPage({ params, searchParams }: { params:
   const q = await searchParams;
   const filter = (FILTERS as readonly string[]).includes(one(q.stato) ?? "") ? one(q.stato)! : "in_review";
   const session = await requireStaff();
-  const [{ data, error }, packs] = await Promise.all([
+  const [{ data, error }, packs, places, sources, k] = await Promise.all([
     rpc<AssertionRow[]>(session.supabase, "studio_assertions", { p_pack: pack, p_status: filter }),
     rpc<PackRow[]>(session.supabase, "studio_packs"),
+    rpc<{ slug: string; name: string }[]>(session.supabase, "studio_places", { p_pack: pack }),
+    rpc<{ slug: string; title: string }[]>(session.supabase, "studio_sources", { p_pack: pack }),
+    rpc<{ defaultLocale: string; locales: string[] }>(session.supabase, "studio_pack", { p_pack: pack }),
   ]);
   const perms = packs.data?.find((p) => p.id === pack);
   const rows = data ?? [];
@@ -48,6 +51,74 @@ export default async function AssertionsPage({ params, searchParams }: { params:
         Regola dei quattro occhi: un'affermazione la verifica un esperto o la redazione, mai chi l'ha scritta, e solo con almeno una
         fonte confermata (non dedotta). Il rifiuto e il ritiro di una verifica richiedono un motivo; ogni decisione resta nello storico.
       </p>
+      {(perms?.canEdit || perms?.canVerify) && (
+        <details className="st-create">
+          <summary>Nuova affermazione</summary>
+          {(places.data ?? []).length === 0 ? (
+            <p className="st-hint">Serve almeno un luogo di cui parlare.</p>
+          ) : (
+            <form action={createAssertion} className="st-form">
+              <input type="hidden" name="pack" value={pack} />
+              <div className="st-row">
+                <label>
+                  Di quale luogo parla
+                  <select name="subject" required>
+                    {(places.data ?? []).map((p) => (
+                      <option key={p.slug} value={p.slug}>{p.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Tipo
+                  <select name="type" defaultValue="fact">
+                    <option value="fact">Fatto</option>
+                    <option value="interpretation">Interpretazione</option>
+                    <option value="hypothesis">Ipotesi</option>
+                    <option value="tradition">Tradizione</option>
+                    <option value="legend">Leggenda</option>
+                  </select>
+                </label>
+                <label>
+                  Certezza (fatti e interpretazioni)
+                  <select name="certainty" defaultValue="established">
+                    <option value="established">Accertata</option>
+                    <option value="probable">Probabile</option>
+                    <option value="uncertain">Incerta</option>
+                  </select>
+                </label>
+              </div>
+              {(k.data?.locales ?? ["it"]).map((l) => (
+                <label key={l}>
+                  Testo ({l})
+                  <textarea name={`text_${l}`} rows={2} maxLength={2000} required={l === k.data?.defaultLocale} />
+                </label>
+              ))}
+              <div className="st-row">
+                <label>
+                  Fonte
+                  <select name="source" defaultValue="">
+                    <option value="">— nessuna (resta in bozza finché non ne aggiungi una) —</option>
+                    {(sources.data ?? []).map((s) => (
+                      <option key={s.slug} value={s.slug}>{s.title}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Dove, nella fonte
+                  <input name="locator" maxLength={300} placeholder="pagina, sezione o indirizzo" />
+                </label>
+              </div>
+              <label className="st-inline">
+                <input type="checkbox" name="submit" value="1" defaultChecked /> manda subito in revisione
+              </label>
+              <p className="st-hint">La verifica la fa un esperto o la redazione, mai chi scrive (regola dei quattro occhi).</p>
+              <div className="st-actions">
+                <button className="st-btn st-primary" type="submit">Crea l&apos;affermazione</button>
+              </div>
+            </form>
+          )}
+        </details>
+      )}
       <nav className="st-filters" aria-label="Stato">
         {FILTERS.map((f) => (
           <Link key={f} href={`${base}?stato=${f}`} aria-current={f === filter ? "page" : undefined}>

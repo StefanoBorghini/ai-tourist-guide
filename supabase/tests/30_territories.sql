@@ -175,6 +175,21 @@ do $$ begin
   end if;
 end $$;
 
+-- Un editor che non vede la regione madre non la toglie salvando le dipendenze.
+insert into pack_dependencies (pack_id, depends_on_id) values ('it.test.nuovo-borgo', 'it.liguria');
+set role authenticated;
+set request.jwt.claim.sub = 'f0000000-0000-0000-0000-000000000001';
+do $$ begin
+  perform studio_update_pack('it.test.nuovo-borgo', '{"dependsOn": ["it.test"]}');
+end $$;
+reset role;
+do $$ begin
+  if not exists (select 1 from pack_dependencies where pack_id = 'it.test.nuovo-borgo' and depends_on_id = 'it.liguria') then
+    raise exception 'FALLITO: una dipendenza invisibile all''editor resta';
+  end if;
+  delete from pack_dependencies where pack_id = 'it.test.nuovo-borgo' and depends_on_id = 'it.liguria';
+end $$;
+
 -- L'editor con ambito ristretto non vede il nuovo territorio; l'esperto dell'area sì, ma non lo modifica.
 set role authenticated;
 set request.jwt.claim.sub = 'f0000000-0000-0000-0000-000000000003';

@@ -6,11 +6,11 @@
  */
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireStaff, rpc, studioClient, studioConfig } from "../../lib/studio/server";
+import { checkReadiness, requireStaff, rpc, studioClient, studioConfig } from "../../lib/studio/server";
 import { checkStops, friendlyError, MEDIA_LICENSES, MEDIA_SOURCES } from "../../lib/studio/shared";
 
-const back = (path: string, result: { ok?: string; errore?: string }): never => {
-  const q = new URLSearchParams(result as Record<string, string>).toString();
+const back = (path: string, result: Record<string, string | undefined>): never => {
+  const q = new URLSearchParams(Object.entries(result).filter((e): e is [string, string] => e[1] !== undefined)).toString();
   redirect(`${path}?${q}`);
 };
 const text = (form: FormData, name: string) => String(form.get(name) ?? "").trim();
@@ -174,4 +174,175 @@ export async function registerMedia(input: RegisterMediaInput) {
   if (error) return { error: friendlyError(error) };
   revalidatePath(packPath(input.pack), "layout");
   return { error: null };
+}
+
+// ---------------------------------------------------------------- territori
+
+const texts = (form: FormData, name: string) => ({ it: text(form, `${name}_it`), en: text(form, `${name}_en`) });
+const list = (form: FormData, name: string) => form.getAll(name).map(String).map((v) => v.trim()).filter(Boolean);
+
+export async function createPack(form: FormData) {
+  const { supabase } = await requireStaff();
+  const id = text(form, "id");
+  const { error } = await rpc(supabase, "studio_create_pack", {
+    p: {
+      id,
+      kind: text(form, "kind"),
+      title: texts(form, "title"),
+      description: texts(form, "description"),
+      defaultLocale: text(form, "defaultLocale"),
+      locales: list(form, "locales"),
+      releaseStage: text(form, "releaseStage") || "research",
+      dependsOn: list(form, "dependsOn"),
+      ...(text(form, "organizationId") ? { organizationId: text(form, "organizationId") } : {}),
+    },
+  });
+  if (error) back("/studio/nuovo", { errore: friendlyError(error) });
+  revalidatePath("/studio", "layout");
+  back(`${packPath(id)}/panoramica`, { ok: "Territorio creato in bozza. Ora aggiungi luoghi, fonti, affermazioni e racconti." });
+}
+
+export async function updatePack(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/panoramica`;
+  const patch: Record<string, unknown> = {
+    title: texts(form, "title"),
+    description: texts(form, "description"),
+    defaultLocale: text(form, "defaultLocale"),
+    locales: list(form, "locales"),
+    releaseStage: text(form, "releaseStage"),
+    dependsOn: list(form, "dependsOn"),
+  };
+  if (form.has("cover")) patch.cover = text(form, "cover") || null;
+  const { error } = await rpc(supabase, "studio_update_pack", { p_pack: pack, p: patch });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath("/studio", "layout");
+  back(path, { ok: "Territorio salvato." });
+}
+
+/** Cambio di stato. Per pubblicare rifà il controllo completo sul server e lo registra con la richiesta. */
+export async function setPackStatus(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const status = text(form, "status");
+  const path = `${packPath(pack)}/panoramica`;
+  let report: unknown = null;
+  if (status === "published") {
+    const r = await checkReadiness(supabase, pack);
+    if (!r.ok) back(path, { controllo: "1", errore: `Il controllo di pubblicazione non è superato (${r.errors.length} errori): correggili prima di pubblicare.` });
+    report = { ok: r.ok, checkedAt: r.checkedAt, errors: r.errors, warnings: r.warnings.length, bundles: r.bundles };
+  }
+  const { error } = await rpc(supabase, "studio_set_pack_status", { p_pack: pack, p_status: status, p_report: report });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath("/studio", "layout");
+  const done: Record<string, string> = {
+    in_review: "Territorio in revisione.",
+    draft: "Territorio riportato in bozza.",
+    published: "Pubblicazione approvata e richiesta registrata. Arriverà nell'app con la pipeline di pubblicazione.",
+  };
+  back(path, { ok: done[status] ?? "Stato aggiornato." });
+}
+
+// ---------------------------------------------------------------- nuovi contenuti
+
+const numberOr = (v: string, fallback?: number) => (v === "" ? fallback : Number(v.replace(",", ".")));
+
+export async function createPlace(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const location = [numberOr(text(form, "lng")), numberOr(text(form, "lat"))];
+  if (!location.every((n) => typeof n === "number" && Number.isFinite(n))) back(`${packPath(pack)}/luoghi/nuovo`, { errore: "Coordinate non valide." });
+  const { data, error } = await rpc<{ slug: string }>(supabase, "studio_create_place", {
+    p_pack: pack,
+    p: {
+      name: texts(form, "name"),
+      short: texts(form, "short"),
+      placeKind: text(form, "placeKind"),
+      categories: text(form, "categories").split(",").map((c) => c.trim()).filter(Boolean),
+      location,
+      coordinateMethod: text(form, "coordinateMethod"),
+      importance: numberOr(text(form, "importance"), 3),
+      dwellMin: numberOr(text(form, "dwellMin"), 10),
+      radiusM: numberOr(text(form, "radiusM"), 40),
+    },
+  });
+  if (error || !data) back(`${packPath(pack)}/luoghi/nuovo`, { errore: friendlyError(error) });
+  revalidatePath(packPath(pack), "layout");
+  back(`${packPath(pack)}/luoghi/${encodeURIComponent(data!.slug)}`, { ok: "Luogo creato." });
+}
+
+export async function createSource(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/fonti`;
+  const { error } = await rpc(supabase, "studio_create_source", {
+    p_pack: pack,
+    p: {
+      title: text(form, "title"),
+      sourceKind: text(form, "sourceKind"),
+      authors: text(form, "authors").split(",").map((a) => a.trim()).filter(Boolean),
+      institution: text(form, "institution"),
+      year: text(form, "year"),
+      url: text(form, "url"),
+      reliability: text(form, "reliability"),
+      language: text(form, "language"),
+    },
+  });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(packPath(pack), "layout");
+  back(path, { ok: "Fonte aggiunta." });
+}
+
+export async function createAssertion(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/affermazioni`;
+  const source = text(form, "source");
+  const { error } = await rpc(supabase, "studio_create_assertion", {
+    p_pack: pack,
+    p: {
+      subject: text(form, "subject"),
+      type: text(form, "type"),
+      certainty: text(form, "certainty"),
+      texts: texts(form, "text"),
+      evidence: source ? [{ source, locator: text(form, "locator") }] : [],
+      submit: text(form, "submit") === "1",
+    },
+  });
+  if (error) back(path, { stato: "draft", errore: friendlyError(error) });
+  revalidatePath(packPath(pack), "layout");
+  back(path, { stato: text(form, "submit") === "1" ? "in_review" : "draft", ok: "Affermazione creata." });
+}
+
+export async function createUnit(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/racconti`;
+  const { error } = await rpc(supabase, "studio_create_unit", {
+    p_pack: pack,
+    p: {
+      anchor: text(form, "anchor"),
+      unitType: text(form, "unitType"),
+      locale: text(form, "locale"),
+      durationS: numberOr(text(form, "durationS"), 30),
+      text: text(form, "text"),
+      assertions: list(form, "assertions"),
+    },
+  });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(packPath(pack), "layout");
+  back(path, { ok: "Racconto creato." });
+}
+
+export async function createRoute(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const { data, error } = await rpc<{ slug: string }>(supabase, "studio_create_route", {
+    p_pack: pack,
+    p: { name: texts(form, "name"), durationMin: numberOr(text(form, "durationMin"), 0), stops: list(form, "stops").map((place) => ({ place })) },
+  });
+  if (error || !data) back(`${packPath(pack)}/percorsi`, { errore: friendlyError(error) });
+  revalidatePath(packPath(pack), "layout");
+  back(`${packPath(pack)}/percorsi/${encodeURIComponent(data!.slug)}`, { ok: "Percorso creato: ora ordina le tappe." });
 }

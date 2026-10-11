@@ -134,6 +134,7 @@ da un'API che verifica il diritto lato server (milestone 7).
 | 2 | Progetto Supabase (tuo account) e collegamento: migrazioni applicate a un progetto di prova, verifica sul progetto reale (`supabase/tests/remote-check.sql`), poi variabili d'ambiente solo in Preview | in corso: progetto creato, migrazioni applicate, verifica `superato` sul progetto reale (2026-10-11) dopo la correzione di 9 tabelle senza RLS (`20261015000000_rls_remaining_tables.sql`); restano il primo amministratore e le variabili in Preview |
 | 3 | Import pack → database e export database → pack, con prova di parità sui bundle | **fatto in locale** (`20261016000000_pack_import_export.sql`, `guide-pack db-sql` / `db-export`, `supabase/tests/roundtrip.ts`): tutti i pack di `territories/` tornano identici e danno bundle identici byte per byte; applicata al progetto di prova e Portovenere importato (2026-10-11) |
 | 4 | Studio minimo: accesso staff, territori, luoghi, percorsi (riordino delle tappe), media library, revisione delle affermazioni | **fatto in locale** (`/studio`, `20261017000000_studio.sql`, sezione 9c); da provare nell'anteprima Vercel con le variabili in Preview |
+| 4b | Territori dal CMS: creazione, metadati, stati (bozza, revisione, pubblicato), dipendenze, controllo di pubblicazione, contenuti nei nuovi territori | **fatto in locale** (`20261018000000_studio_territories.sql`, `TERRITORI-DAL-CMS.md`); da applicare al progetto di prova |
 | 5 | Pubblicazione: richiesta → validazione → compilazione → bundle su Storage → indice; app che legge l'indice da Storage | |
 | 6 | Account visitatori nella PWA: registrazione, conferma, recupero password, profilo, preferiti, avanzamenti, cancellazione | |
 | 7 | Premium: API che serve i contenuti premium dopo `can_access_route()`; integrazione del fornitore di pagamenti in una fase successiva | |
@@ -176,6 +177,8 @@ redazionali e storico. Nessuna chiave di servizio nello Studio.
   ammette al massimo 50 MB e i formati di media_assets), poi `studio_register_media` registra autore, licenza,
   provenienza, testo alternativo e luoghi raffigurati, solo se il file è davvero nel bucket. Le anteprime usano indirizzi
   firmati di 10 minuti. I media importati dai pack hanno i metadati ma non ancora il file nel bucket.
+- **Territori**: creazione e gestione di nuovi territori dallo Studio, con stati e controllo di pubblicazione
+  (`TERRITORI-DAL-CMS.md`).
 - **Pubblicazione**: le modifiche restano nel database; arrivano all'app con la milestone 5.
 - Il service worker non mette mai in cache `/studio`.
 

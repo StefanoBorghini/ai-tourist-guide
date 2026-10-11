@@ -31,7 +31,7 @@ export async function signIn(form: FormData) {
 
 function loginError(error: { code?: string; status?: number; message?: string; name?: string }): string {
   const code = error.code ?? "";
-  if (code === "invalid_credentials") return "Email o password non corrette.";
+  if (code === "invalid_credentials" || /invalid login credentials/i.test(error.message ?? "")) return "Email o password non corrette.";
   if (code === "email_not_confirmed") return "L'email non è ancora confermata: confermala in Supabase (Authentication → Users).";
   if (code === "email_provider_disabled") return "L'accesso con email e password è disattivato in Supabase (Authentication → Sign In / Providers → Email).";
   if (error.status === 401 || /api key/i.test(error.message ?? "")) return "Chiave di Supabase non valida in questo ambiente: controlla NEXT_PUBLIC_SUPABASE_ANON_KEY su Vercel.";
@@ -199,7 +199,11 @@ export async function createPack(form: FormData) {
   });
   if (error) back("/studio/nuovo", { errore: friendlyError(error) });
   revalidatePath("/studio", "layout");
-  back(`${packPath(id)}/panoramica`, { ok: "Territorio creato in bozza. Ora aggiungi luoghi, fonti, affermazioni e racconti." });
+  back(`${packPath(id)}/panoramica`, {
+    ok: text(form, "kind") === "destination"
+      ? "Destinazione creata in bozza. Ora aggiungi luoghi, fonti, affermazioni e racconti."
+      : "Territorio creato. È un contenitore: ora crea le destinazioni al suo interno.",
+  });
 }
 
 export async function updatePack(form: FormData) {

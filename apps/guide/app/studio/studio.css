@@ -127,3 +127,7 @@
 details.st-create { margin: 14px 0; padding: 12px 16px; border-radius: var(--r-md); border: 1px dashed var(--line-strong); }
 details.st-create > summary { cursor: pointer; color: var(--sand); font-weight: 600; }
 details.st-create[open] > summary { margin-bottom: 12px; }
+.st-grid-2 { margin-top: 16px; }
+.st-panel h3 { margin: 18px 0 8px; font-size: 16px; }
+.st-panel .st-actions { margin-bottom: 4px; }
+.st-panel .st-actions .st-btn { text-decoration: none; }

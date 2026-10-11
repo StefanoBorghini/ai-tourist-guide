@@ -102,6 +102,7 @@ returns jsonb language sql stable set search_path = public as $$
     'releaseStage', p.release_stage,
     'qualityTier', p.quality_tier,
     'version', p.version,
+    'fictional', p.fictional,
     'organization', (select jsonb_build_object('id', o.id, 'name', o.name) from organizations o where o.id = p.organization_id),
     'dependsOn', coalesce((select jsonb_agg(depends_on_id order by depends_on_id) from pack_dependencies where pack_id = p.id), '[]'),
     'dependents', coalesce((select jsonb_agg(pack_id order by pack_id) from pack_dependencies where depends_on_id = p.id), '[]'),
@@ -184,9 +185,12 @@ begin
     (select pk.organization_id from packs pk where pk.id = (select jsonb_array_elements_text(p -> 'dependsOn') limit 1)));
   if v_org is null then raise exception 'nessuna organizzazione a cui assegnare il territorio'; end if;
 
-  insert into packs (id, kind, organization_id, default_locale, locales, title, description, release_stage, quality_tier, version, config)
+  -- Dentro un territorio fittizio (di prova) si crea solo un territorio fittizio: un territorio reale non
+  -- può dipendere da contenuti inventati (lo stesso controllo del validatore, FICTIONAL_DEPENDENCY).
+  insert into packs (id, kind, organization_id, default_locale, locales, title, description, release_stage, quality_tier, version, config, fictional)
   values (v_id, v_kind::pack_kind, v_org, v_default, v_locales, v_title, studio_clean_texts(p -> 'description'),
-          coalesce(p ->> 'releaseStage', 'research')::release_stage, 'silver', '0.1.0', '{}');
+          coalesce(p ->> 'releaseStage', 'research')::release_stage, 'silver', '0.1.0', '{}',
+          exists (select 1 from packs d where d.fictional and d.id in (select jsonb_array_elements_text(coalesce(p -> 'dependsOn', '[]')))));
   insert into pack_dependencies (pack_id, depends_on_id)
   select v_id, d from jsonb_array_elements_text(coalesce(p -> 'dependsOn', '[]')) d;
   if v_kind = 'destination' then
@@ -264,6 +268,7 @@ returns text[] language sql stable set search_path = public as $$
   with k as (select * from packs where id = p_pack)
   select array_remove(array[
     case when (select coalesce(title ->> default_locale, '') from k) = '' then 'manca il nome nella lingua principale' end,
+    case when (select fictional from k) then 'territorio fittizio (di prova): non si pubblica' end,
     case when not exists (select 1 from nodes n join places pl on pl.node_id = n.id where n.pack_id = p_pack)
          then 'nessun luogo' end,
     case when not exists (

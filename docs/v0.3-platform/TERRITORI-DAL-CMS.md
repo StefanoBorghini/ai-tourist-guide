@@ -52,3 +52,36 @@ Obiettivo: creare e gestire un nuovo territorio interamente dallo Studio, senza 
 - Un territorio senza contenuti si può creare e lasciare in bozza, ma non si manda in pubblicazione.
 - Le regioni (e le aree) sono contenitori: non hanno stato né copertina e non arrivano all'app da sole; arrivano le
   destinazioni che dipendono da loro, con i loro nodi e affermazioni.
+- Un territorio di prova (`fictional`) resta di prova: lo è chi dipende da un territorio fittizio, e non si pubblica.
+
+## Implementazione (2026-10-11)
+
+Migrazione `supabase/migrations/20261018000000_studio_territories.sql` (con revoca in `supabase/rollback/`). Nessuna
+tabella nuova: usa `packs`, `pack_dependencies`, `destinations`, `nodes`, `assertions`, `narrative_units`, `routes`,
+`media_assets`, `publications`.
+
+- **Creazione** (`/studio/nuovo`, `studio_create_pack`): identificativo (proposto dal nome, poi immutabile e
+  rifiutato se non valido, mai «corretto» in silenzio), tipo (regione, area, destinazione), nome e descrizione it/en,
+  lingua principale e lingue supportate (tra quelle abilitate), stadio, «fa parte di». Il permesso si controlla sul
+  nuovo identificativo con `can_edit_pack`, quindi con lo stesso ambito gerarchico dei ruoli; una dipendenza che
+  l'utente non vede è «fuori dai tuoi permessi», mai «non trovata»; i cicli sono rifiutati. Una destinazione nasce in
+  bozza.
+- **Metadati** (`/studio/<id>/panoramica`, `studio_update_pack`): nome, descrizione, lingue, stadio (`production` solo
+  con il permesso di pubblicazione), dipendenze (salvando non si tolgono quelle che l'utente non vede), copertina
+  scelta tra le foto del territorio.
+- **Stati** (`studio_set_pack_status`): bozza → in revisione → pubblicato; ritorno in bozza; ritiro. Pubblicare
+  richiede il permesso di pubblicazione, nessun blocco nel database (`studio_publish_blockers`: nome, fittizio, almeno
+  un luogo, almeno un racconto raccontabile nella lingua principale) e il controllo completo superato: lo Studio
+  rilegge il territorio e le sue dipendenze, li valida con lo stesso validatore dei file e compila i bundle per ogni
+  lingua. La pubblicazione scrive una riga in `publications` (stato `requested`) con il rapporto.
+- **Contenuti** nel nuovo territorio: luoghi (con metodo delle coordinate e geofence di arrivo), fonti, affermazioni
+  (con fonte esplicita), racconti (legati alle affermazioni), percorsi, foto e copertina.
+- **La PWA non cambia**: legge solo i bundle compilati da `territories/`. Bozze, revisioni e anche i territori
+  «pubblicati» nello Studio non vi compaiono finché la pipeline della milestone 5 non compila i bundle da Storage.
+
+Prove: `supabase/tests/30_territories.sql` (ruoli, ambiti, identificativi, dipendenze e cicli, stati, blocchi,
+contenuti, copertina, dipendenza nascosta conservata, Portovenere identico prima e dopo) in `npm run db:check`;
+`apps/guide/test/readiness.test.ts`; prova end-to-end nel browser su stack locale (23 controlli): una regione di
+prova, una destinazione al suo interno, luogo, fonte, affermazione, racconti, percorso, foto e copertina, controllo
+superato (bundle it ed en), revisione e pubblicazione, indice della PWA invariato, editor di un altro ambito
+respinto, Liguria e Portovenere invariati.

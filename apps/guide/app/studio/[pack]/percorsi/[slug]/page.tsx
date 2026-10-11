@@ -1,6 +1,6 @@
 import { requireStaff, rpc } from "../../../../../lib/studio/server";
 import { friendlyError, type Stop } from "../../../../../lib/studio/shared";
-import { Notice, PackTabs, StudioHeader } from "../../../ui";
+import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../../ui";
 import { StopsEditor } from "./StopsEditor";
 
 interface RouteDetail {
@@ -15,8 +15,9 @@ interface RouteDetail {
   canEdit: boolean;
 }
 
-export default async function RoutePage({ params }: { params: Promise<{ pack: string; slug: string }> }) {
+export default async function RoutePage({ params, searchParams }: { params: Promise<{ pack: string; slug: string }>; searchParams: SearchParams }) {
   const { pack, slug } = await params;
+  const q = await searchParams;
   const session = await requireStaff();
   const { data: route, error } = await rpc<RouteDetail>(session.supabase, "studio_route", { p_pack: pack, p_slug: slug });
   const base = `/studio/${encodeURIComponent(pack)}`;
@@ -30,6 +31,7 @@ export default async function RoutePage({ params }: { params: Promise<{ pack: st
       ) : (
         <>
           <h1>{name}</h1>
+          <Notice ok={one(q.ok)} errore={one(q.errore)} />
           <p className="st-meta">
             {slug} · {route.durationMin} min{route.difficulty ? ` · ${route.difficulty}` : ""} ·{" "}
             {route.calibration === "field_calibrated" ? "calibrato sul posto" : "da calibrare sul posto"}

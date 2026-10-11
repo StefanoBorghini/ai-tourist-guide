@@ -13,6 +13,7 @@ interface PackDetail {
   locales: string[];
   releaseStage: string;
   version: string;
+  fictional: boolean;
   organization: { id: string; name: string } | null;
   dependsOn: string[];
   dependents: string[];
@@ -67,6 +68,7 @@ export default async function OverviewPage({ params, searchParams }: { params: P
       <p className="st-meta">
         {k.id} · {KIND_LABELS[k.kind] ?? k.kind} · versione {k.version} · {STAGE_LABELS[k.releaseStage] ?? k.releaseStage}
         {k.organization ? ` · ${k.organization.name}` : ""}
+        {k.fictional ? " · fittizio (di prova: non si pubblica)" : ""}
         {k.dependsOn.length ? ` · dentro ${k.dependsOn.join(", ")}` : ""}
         {k.dependents.length ? ` · contiene ${k.dependents.join(", ")}` : ""}
       </p>

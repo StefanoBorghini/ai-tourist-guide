@@ -75,7 +75,8 @@ begin
   k := studio_create_pack('{"id": "it.test.nuovo-borgo", "kind": "destination", "title": {"it": "Nuovo borgo", "en": "New village"},
                             "description": {"it": "Un borgo di prova creato dallo Studio."}, "defaultLocale": "it",
                             "locales": ["it", "en"], "dependsOn": ["it.test"]}');
-  if k ->> 'status' <> 'draft' or k -> 'dependsOn' <> '["it.test"]' or k #>> '{organization,id}' is null then
+  if k ->> 'status' <> 'draft' or k -> 'dependsOn' <> '["it.test"]' or k #>> '{organization,id}' is null
+     or (k ->> 'fictional')::boolean is not true then
     raise exception 'FALLITO: destinazione creata in bozza, con dipendenza e organizzazione: %', k;
   end if;
   begin
@@ -138,6 +139,20 @@ begin
     raise exception 'FALLITO: il nuovo territorio si rilegge nel formato dei pack';
   end if;
 
+  -- Un territorio fittizio (nato dentro l'area di prova) non si pubblica.
+  begin
+    perform studio_set_pack_status('it.test.nuovo-borgo', 'published', '{"ok": true}');
+    raise exception 'FALLITO: un territorio fittizio non si pubblica';
+  exception when raise_exception then if sqlerrm not like '%fittizio%' then raise; end if; end;
+end $$;
+reset role;
+-- Da qui si simula un territorio reale con gli stessi contenuti.
+update packs set fictional = false where id = 'it.test.nuovo-borgo';
+set role authenticated;
+set request.jwt.claim.sub = 'f0000000-0000-0000-0000-000000000001';
+do $$
+declare k jsonb;
+begin
   -- Pubblicazione: solo con un controllo superato; registra la richiesta.
   begin
     perform studio_set_pack_status('it.test.nuovo-borgo', 'published', '{"ok": false}');

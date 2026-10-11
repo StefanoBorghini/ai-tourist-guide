@@ -36,6 +36,17 @@ export function checkImage(file: { type: string; size: number }): string | null 
   return null;
 }
 
+/**
+ * Diritti della foto: le stesse regole dei vincoli di media_assets, dette prima del caricamento
+ * (il database le impone comunque, ma senza un messaggio leggibile).
+ */
+export function checkMediaRights(m: { author: string; license: string; source: string; originalUrl: string; licenseNote: string }): string | null {
+  if (m.license !== "public-domain" && !m.author.trim()) return "Indica l'autore della foto (si può omettere solo per il pubblico dominio).";
+  if (m.license === "licensed" && !m.licenseNote.trim()) return "Per una licenza concessa per iscritto indica il riferimento all'accordo.";
+  if (m.source === "web" && !m.originalUrl.trim()) return "Per una foto presa dal web indica l'indirizzo originale.";
+  return null;
+}
+
 /** Nome del file nel bucket: minuscole, cifre e trattini, con un suffisso che evita le sovrascritture. */
 export function storageFileName(original: string, type: string, suffix: string): string {
   const base = original

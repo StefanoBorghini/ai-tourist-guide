@@ -7,7 +7,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { checkReadiness, requireStaff, rpc, studioClient, studioConfig } from "../../lib/studio/server";
-import { checkStops, friendlyError, MEDIA_LICENSES, MEDIA_SOURCES } from "../../lib/studio/shared";
+import { checkMediaRights, checkStops, friendlyError, MEDIA_LICENSES, MEDIA_SOURCES } from "../../lib/studio/shared";
 
 const back = (path: string, result: Record<string, string | undefined>): never => {
   const q = new URLSearchParams(Object.entries(result).filter((e): e is [string, string] => e[1] !== undefined)).toString();
@@ -154,6 +154,8 @@ export async function registerMedia(input: RegisterMediaInput) {
   const { supabase } = await requireStaff();
   if (!(MEDIA_LICENSES as readonly string[]).includes(input.license)) return { error: "Licenza non valida." };
   if (!(MEDIA_SOURCES as readonly string[]).includes(input.source)) return { error: "Provenienza non valida." };
+  const rights = checkMediaRights(input);
+  if (rights) return { error: rights };
   const { error } = await rpc(supabase, "studio_register_media", {
     p_pack: input.pack,
     p: {

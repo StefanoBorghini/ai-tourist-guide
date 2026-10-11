@@ -3,7 +3,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { checkImage, MEDIA_BUCKET, MEDIA_LICENSES, MEDIA_SOURCES, storageFileName, type StudioConfig } from "../../../../lib/studio/shared";
+import { checkImage, checkMediaRights, MEDIA_BUCKET, MEDIA_LICENSES, MEDIA_SOURCES, storageFileName, type StudioConfig } from "../../../../lib/studio/shared";
 import { registerMedia } from "../../actions";
 
 const LICENSE_LABELS: Record<string, string> = {
@@ -51,6 +51,14 @@ export function MediaUploader({ pack, config, places }: { pack: string; config: 
     if (problem) return setMessage({ error: problem });
     const subjects = data.getAll("subjects").map(String);
     if (subjects.length === 0) return setMessage({ error: "Indica almeno un luogo raffigurato." });
+    const rights = checkMediaRights({
+      author: String(data.get("author") ?? ""),
+      license: String(data.get("license") ?? ""),
+      source: String(data.get("source") ?? ""),
+      originalUrl: String(data.get("originalUrl") ?? ""),
+      licenseNote: String(data.get("licenseNote") ?? ""),
+    });
+    if (rights) return setMessage({ error: rights });
 
     setBusy(true);
     setMessage(null);
@@ -139,8 +147,8 @@ export function MediaUploader({ pack, config, places }: { pack: string; config: 
       </label>
       <div className="st-row">
         <label>
-          Autore
-          <input name="author" maxLength={200} placeholder="Obbligatorio salvo pubblico dominio" />
+          Autore (obbligatorio salvo pubblico dominio)
+          <input name="author" maxLength={200} placeholder="Nome e cognome o ente" />
         </label>
         <label>
           Licenza

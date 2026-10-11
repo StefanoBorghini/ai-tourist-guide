@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkImage, checkStops, friendlyError, MAX_IMAGE_BYTES, moveStop, readStudioConfig, storageFileName } from "../lib/studio/shared";
+import { checkImage, checkMediaRights, checkStops, friendlyError, MAX_IMAGE_BYTES, moveStop, readStudioConfig, storageFileName } from "../lib/studio/shared";
 
 describe("configurazione dello Studio", () => {
   it("senza variabili lo Studio è spento (la guida no)", () => {
@@ -74,5 +74,20 @@ describe("nuovo territorio", () => {
     expect(withinScopes("it.liguria.sp.lerici", false, ["it.liguria"])).toBe(true);
     expect(withinScopes("it.liguriax", false, ["it.liguria"])).toBe(false);
     expect(withinScopes("fr.nice", true, [])).toBe(true);
+  });
+});
+
+describe("diritti delle foto", () => {
+  const base = { author: "", license: "own", source: "own_photo", originalUrl: "", licenseNote: "" };
+  it("chiede l'autore salvo pubblico dominio", () => {
+    expect(checkMediaRights(base)).toMatch(/autore/);
+    expect(checkMediaRights({ ...base, author: "  " })).toMatch(/autore/);
+    expect(checkMediaRights({ ...base, author: "Mario Rossi" })).toBeNull();
+    expect(checkMediaRights({ ...base, license: "public-domain" })).toBeNull();
+  });
+  it("chiede l'accordo per le licenze concesse e l'indirizzo per il web", () => {
+    expect(checkMediaRights({ ...base, author: "Ente", license: "licensed" })).toMatch(/accordo/);
+    expect(checkMediaRights({ ...base, author: "X", source: "web" })).toMatch(/indirizzo/);
+    expect(checkMediaRights({ ...base, author: "X", source: "web", originalUrl: "https://example.org/f.jpg" })).toBeNull();
   });
 });

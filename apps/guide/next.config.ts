@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { publishedOrigin } from "./lib/bundle-index";
 
 const nextConfig: NextConfig = {
   // I pacchetti del monorepo sono distribuiti come sorgenti TypeScript.
@@ -14,7 +13,9 @@ const nextConfig: NextConfig = {
   // dominio dell'app (service worker e uso senza rete funzionano come per /bundles/). Senza Supabase
   // configurato non c'è nulla da servire e l'app usa solo i bundle compilati dai file.
   async rewrites() {
-    const origin = publishedOrigin();
+    // Stessa regola di publishedOrigin() in lib/bundle-index.ts (qui senza importare codice dell'app).
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/\/+$/, "");
+    const origin = url && /^https?:\/\/[^/]+$/.test(url) ? url : null;
     return origin ? [{ source: "/pub/:path*", destination: `${origin}/storage/v1/object/public/bundles/:path*` }] : [];
   },
 };

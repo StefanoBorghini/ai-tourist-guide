@@ -675,11 +675,41 @@ p { margin: 0; }
   gap: 12px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
   padding: 2px var(--gutter) 8px;
   margin: 0 calc(-1 * var(--gutter));
   scrollbar-width: none;
 }
 .carousel::-webkit-scrollbar { display: none; }
+/* Contenitore del carosello: frecce e sfumature sui bordi dove il contenuto continua. */
+.carousel-wrap { position: relative; }
+.carousel-wrap.more-end .carousel { mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
+.carousel-wrap.more-start .carousel { mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); }
+.carousel-wrap.more-start.more-end .carousel { mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); }
+.carousel-arrow {
+  position: absolute;
+  top: calc(50% - 22px);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong, var(--line));
+  background: var(--surface);
+  color: var(--ink, inherit);
+  box-shadow: var(--shadow-sm);
+  display: none;
+  place-items: center;
+  cursor: pointer;
+  z-index: 2;
+}
+.carousel-arrow.prev { left: 6px; }
+.carousel-arrow.next { right: 6px; }
+.carousel-arrow:focus-visible { outline: 2px solid var(--sea); outline-offset: 2px; }
+/* Col mouse le frecce; col dito basta scorrere. */
+@media (hover: hover) and (pointer: fine) { .carousel-arrow { display: grid; } }
+/* Su schermi larghi il carosello sta nella sua colonna, senza uscire a sinistra e a destra. */
+@media (min-width: 980px) {
+  .walk-main .carousel { margin: 0; padding: 2px 0 8px; scroll-padding-inline: 0; }
+}
 .tile {
   appearance: none;
   flex: 0 0 min(62%, 240px);

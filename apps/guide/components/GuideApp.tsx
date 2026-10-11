@@ -15,6 +15,7 @@ import { AskBox } from "./AskBox";
 import { mergeIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndex, type BundleIndexEntry } from "../lib/bundle-index";
 import { DebugPanel } from "./DebugPanel";
 import { MapView } from "./MapView";
+import { Carousel } from "./Carousel";
 import { Icon } from "./Icon";
 import { PlaceCard, PlacePhoto, PlaceThumb, placeMedia, thumbSrc } from "./PlaceCard";
 
@@ -1109,9 +1110,9 @@ export function GuideApp() {
             {nearby.length === 0 ? (
               <p className="muted small">{t.nearbyNoFix}</p>
             ) : (
-              <div className="carousel nearby">
+              <Carousel className="nearby" label={t.nearbyTitle} prevLabel={t.carouselPrev} nextLabel={t.carouselNext}>
                 {nearby.map((p) => (
-                  <button key={p.ref} className={`tile ${p.ref === cardRef ? "on" : ""}`} onClick={() => choosePlace(p.ref)}>
+                  <button key={p.ref} role="listitem" className={`tile ${p.ref === cardRef ? "on" : ""}`} onClick={() => choosePlace(p.ref)}>
                     <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="tile-img" />
                     <span className="tile-body">
                       <span className="tile-name">{p.ref === runtime.currentPlaceRef ? "📍 " : ""}{p.name}</span>
@@ -1122,7 +1123,7 @@ export function GuideApp() {
                     </span>
                   </button>
                 ))}
-              </div>
+              </Carousel>
             )}
           </section>
         </>

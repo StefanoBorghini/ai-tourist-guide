@@ -85,7 +85,11 @@ export function sortEntries(entries: BundleIndexEntry[]): BundleIndexEntry[] {
  * lingue pubblicate); le altre destinazioni restano quelle dei file. Le voci pubblicate devono puntare a /pub/.
  */
 export function mergeIndexes(staticEntries: BundleIndexEntry[], published: BundleIndexEntry[] | null | undefined): BundleIndexEntry[] {
-  const valid = (published ?? []).filter((e) => typeof e?.destination === "string" && typeof e.manifest === "string" && e.manifest.startsWith(PUB_PREFIX));
+  // Una voce vale solo se punta alla cartella del suo territorio: un indice manomesso non può far leggere a un
+  // territorio i file di un altro.
+  const valid = (published ?? []).filter((e) =>
+    typeof e?.destination === "string" && typeof e.manifest === "string" && e.manifest.startsWith(`${PUB_PREFIX}${e.destination}/`)
+    && !e.manifest.includes("..") && (!e.cover || [e.cover.image, e.cover.video].every((u) => u === undefined || u.startsWith(`${PUB_PREFIX}${e.destination}/`))));
   const replaced = new Set(valid.map((e) => e.destination));
   return sortEntries([...staticEntries.filter((e) => !replaced.has(e.destination)), ...valid]);
 }

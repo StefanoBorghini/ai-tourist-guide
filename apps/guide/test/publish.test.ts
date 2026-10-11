@@ -137,6 +137,14 @@ describe("indice dei bundle", () => {
     expect(mergeIndexes(statics, [entry("b", "it", "https://altro.example/manifest.json")])).toEqual(statics);
   });
 
+  it("una voce pubblicata vale solo se punta alla cartella del suo territorio", () => {
+    const statics = [entry("b", "it", "/bundles/b/it-full/manifest.json")];
+    expect(mergeIndexes(statics, [entry("b", "it", "/pub/altro/it-full/manifest.json")])).toEqual(statics);
+    expect(mergeIndexes(statics, [entry("b", "it", "/pub/b/../altro/it-full/manifest.json")])).toEqual(statics);
+    expect(mergeIndexes(statics, [{ ...entry("b", "it", "/pub/b/it-full/manifest.json"), cover: { image: "/pub/altro/x.jpg", alt: "" } }])).toEqual(statics);
+    expect(mergeIndexes(statics, [entry("b", "it", "/pub/b/it-full/manifest.json")]).map((e) => e.manifest)).toEqual(["/pub/b/it-full/manifest.json"]);
+  });
+
   it("indirizzi del bucket pubblico", () => {
     expect(publishedOrigin({ NEXT_PUBLIC_SUPABASE_URL: "https://x.supabase.co/" })).toBe("https://x.supabase.co");
     expect(publishedOrigin({})).toBeNull();

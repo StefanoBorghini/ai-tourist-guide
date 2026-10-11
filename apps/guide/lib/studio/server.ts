@@ -135,6 +135,9 @@ export interface PublicationResult {
 
 /** Indice pubblico (index.json nel bucket «bundles») ricalcolato dal database: chi è in linea e con quale versione. */
 export async function refreshPublicIndex(supabase: SupabaseClient): Promise<string | null> {
+  // L'indice di tutti lo riscrive solo lo staff della piattaforma (20261021000000_cms_hardening.sql).
+  const allowed = await supabase.rpc("studio_can_publish_any");
+  if (allowed.data !== true) return "l'indice dell'app lo aggiorna lo staff della piattaforma";
   const { data, error } = await supabase.rpc("public_bundle_index");
   if (error) return error.message;
   const up = await supabase.storage.from(BUNDLES_BUCKET).upload("index.json", new TextEncoder().encode(JSON.stringify(data)), {

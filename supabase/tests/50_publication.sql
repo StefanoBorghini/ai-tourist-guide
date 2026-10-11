@@ -3,6 +3,10 @@
 -- una richiesta aperta) e gli utenti di 10 e 30.
 \set ON_ERROR_STOP 1
 
+-- Situazione di partenza (come amministratore del database): alfa approvata con una richiesta aperta.
+update destinations set status = 'published' where pack_id = 'it.test.alfa';
+insert into publications (pack_id, requested_by, status) values ('it.test.alfa', 'a0000000-0000-0000-0000-000000000002', 'requested');
+
 create temp table impronta_50 as select md5(pack_snapshot('it.liguria.sp.portovenere')::text) as prima;
 
 -- Anonimo: niente funzioni di pubblicazione (l'indice pubblico lo legge dal file nel bucket).

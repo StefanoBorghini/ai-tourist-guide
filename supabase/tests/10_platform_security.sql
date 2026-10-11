@@ -99,8 +99,17 @@ begin
   update nodes set attributes = '{"categoria":"intruso"}' where slug = 'luogo-b';
   if found then raise exception 'FALLITO: l''editor non modifica un altro territorio'; end if;
   if exists (select 1 from nodes where pack_id = 'it.test.beta') then raise exception 'FALLITO: l''editor non vede un altro territorio'; end if;
-  update places set location = 'SRID=4326;POINT(9.8301 44.0501)' where node_id = 'b0000000-0000-0000-0000-00000000000a';
-  if not found then raise exception 'FALLITO: l''editor corregge le coordinate del proprio territorio'; end if;
+  -- Coordinate: non con un UPDATE diretto (20261021000000_cms_hardening.sql), sì dallo Studio indicando il metodo.
+  begin
+    update places set location = 'SRID=4326;POINT(9.8301 44.0501)' where node_id = 'b0000000-0000-0000-0000-00000000000a';
+    raise exception 'FALLITO: coordinate cambiate senza passare dallo Studio';
+  exception when raise_exception then
+    if sqlerrm like 'FALLITO%' then raise; end if;
+  end;
+  perform studio_update_place('it.test.alfa', 'luogo-a', '{"location": [9.8301, 44.0501], "coordinateMethod": "rilievo GPS"}');
+  if (select coordinate_method from places where node_id = 'b0000000-0000-0000-0000-00000000000a') is distinct from 'rilievo GPS' then
+    raise exception 'FALLITO: l''editor corregge le coordinate del proprio territorio dallo Studio';
+  end if;
 
   insert into assertions (pack_id, slug, subject_id, predicate_id, type, certainty, status, authored_by)
   values ('it.test.alfa', 'fatto-1', 'b0000000-0000-0000-0000-00000000000a', 'described_as', 'fact', 'established', 'draft', 'chiunque')
@@ -129,19 +138,22 @@ begin
   exception when insufficient_privilege then null; end;
 
   -- Media: metadati e file nel proprio territorio, mai altrove.
+  -- Il file c'è prima della registrazione (media_assets_guard).
+  insert into storage.objects (bucket_id, name, owner) values ('media', 'it.test.alfa/foto-1.jpg', 'a0000000-0000-0000-0000-000000000002');
   insert into media_assets (pack_id, slug, kind, storage_path, sha256, source, author, license, mime_type, bytes)
   values ('it.test.alfa', 'foto-1', 'image', 'it.test.alfa/foto-1.jpg', 'x', 'own_photo', 'Redazione', 'own', 'image/jpeg', 200000);
   begin
     insert into media_assets (pack_id, slug, kind, storage_path, sha256, source, author, license, mime_type, bytes)
     values ('it.test.alfa', 'enorme', 'image', 'it.test.alfa/enorme.jpg', 'x', 'own_photo', 'Redazione', 'own', 'image/jpeg', 99000000);
     raise exception 'FALLITO: immagini oltre il limite di dimensione rifiutate';
-  exception when check_violation then null; end;
+  -- Rifiutata dal vincolo, o prima ancora perché il file non è nel bucket (media_assets_guard).
+  exception when check_violation or raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
   begin
     insert into media_assets (pack_id, slug, kind, storage_path, sha256, source, author, license, mime_type, bytes)
     values ('it.test.alfa', 'formato', 'audio', 'it.test.alfa/x.exe', 'x', 'own_photo', 'Redazione', 'own', 'application/x-msdownload', 100);
     raise exception 'FALLITO: formati non ammessi rifiutati';
-  exception when check_violation then null; end;
-  insert into storage.objects (bucket_id, name, owner) values ('media', 'it.test.alfa/foto-1.jpg', 'a0000000-0000-0000-0000-000000000002');
+  -- Rifiutata dal vincolo, o prima ancora perché il file non è nel bucket (media_assets_guard).
+  exception when check_violation or raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
   begin
     insert into storage.objects (bucket_id, name, owner) values ('media', 'it.test.beta/intruso.jpg', 'a0000000-0000-0000-0000-000000000002');
     raise exception 'FALLITO: un editor non carica file in un altro territorio';
@@ -154,9 +166,20 @@ begin
   exception when insufficient_privilege then null; end;
 
   -- Pubblicazione: l'editor la chiede per il proprio territorio, non per un altro.
-  update destinations set status = 'published' where pack_id = 'it.test.alfa';
-  if not found then raise exception 'FALLITO: l''editor pubblica il proprio territorio'; end if;
-  insert into publications (pack_id, requested_by) values ('it.test.alfa', 'a0000000-0000-0000-0000-000000000002');
+  -- Pubblicazione: non con UPDATE o INSERT diretti, solo dallo Studio con controllo e blocchi (20261021000000_cms_hardening.sql).
+  begin
+    update destinations set status = 'published' where pack_id = 'it.test.alfa';
+    raise exception 'FALLITO: stato «pubblicato» con un UPDATE diretto';
+  exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+  begin
+    insert into publications (pack_id, requested_by) values ('it.test.alfa', 'a0000000-0000-0000-0000-000000000002');
+    raise exception 'FALLITO: richiesta di pubblicazione con un INSERT diretto';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform studio_set_pack_status('it.test.alfa', 'in_review');
+    perform studio_set_pack_status('it.test.alfa', 'published', '{"ok": true}');
+    raise exception 'FALLITO: un territorio senza contenuti si pubblica';
+  exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
   begin
     insert into publications (pack_id, requested_by) values ('it.test.beta', 'a0000000-0000-0000-0000-000000000002');
     raise exception 'FALLITO: nessuna pubblicazione su territori non autorizzati';

@@ -23,9 +23,20 @@ export async function signIn(form: FormData) {
   if (!config) back("/studio/login", { errore: "Studio non configurato." });
   const supabase = await studioClient(config!);
   const { error } = await supabase.auth.signInWithPassword({ email: text(form, "email"), password: String(form.get("password") ?? "") });
-  // Stesso messaggio per email sconosciuta e password errata.
-  if (error) back("/studio/login", { errore: "Email o password non corrette, oppure email non ancora confermata." });
+  // Stesso messaggio per email sconosciuta e password errata; per gli altri casi il codice di Supabase
+  // (non contiene dati personali) aiuta a capire se il problema è di configurazione.
+  if (error) back("/studio/login", { errore: loginError(error) });
   redirect("/studio");
+}
+
+function loginError(error: { code?: string; status?: number; message?: string }): string {
+  const code = error.code ?? "";
+  if (code === "invalid_credentials") return "Email o password non corrette.";
+  if (code === "email_not_confirmed") return "L'email non è ancora confermata: confermala in Supabase (Authentication → Users).";
+  if (code === "email_provider_disabled") return "L'accesso con email e password è disattivato in Supabase (Authentication → Sign In / Providers → Email).";
+  if (error.status === 401 || /api key/i.test(error.message ?? "")) return "Chiave di Supabase non valida in questo ambiente: controlla NEXT_PUBLIC_SUPABASE_ANON_KEY su Vercel.";
+  if (code === "over_request_rate_limit" || error.status === 429) return "Troppi tentativi: riprova tra qualche minuto.";
+  return `Accesso non riuscito (codice: ${code || error.status || "sconosciuto"}).`;
 }
 
 export async function signOut() {

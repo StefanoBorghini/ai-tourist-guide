@@ -131,7 +131,7 @@ da un'API che verifica il diritto lato server (milestone 7).
 | # | Milestone | Stato |
 |---|---|---|
 | 1 | Audit, architettura, modello dati, migrazioni, permessi, test sul database | **fatto** (questo documento, `supabase/migrations/20261013500000_*`, `20261014000000_*`, `supabase/tests/`, `supabase/rollback/`) |
-| 2 | Progetto Supabase (tuo account) e collegamento: variabili d'ambiente, migrazioni applicate a un ambiente di prova | serve la tua decisione |
+| 2 | Progetto Supabase (tuo account) e collegamento: migrazioni applicate a un progetto di prova, verifica sul progetto reale (`supabase/tests/remote-check.sql`), poi variabili d'ambiente solo in Preview | in corso: progetto creato e migrazioni applicate; la verifica ha trovato 9 tabelle senza RLS, corrette da `20261015000000_rls_remaining_tables.sql` |
 | 3 | Import pack → database e export database → pack, con prova di parità sui bundle | |
 | 4 | Studio minimo: accesso staff, territori, luoghi, percorsi (riordino delle tappe), media library, revisione delle affermazioni | |
 | 5 | Pubblicazione: richiesta → validazione → compilazione → bundle su Storage → indice; app che legge l'indice da Storage | |
@@ -155,5 +155,7 @@ Vedi `apps/guide/.env.example`.
 npm run db:check   # Postgres 16 + PostGIS locali: applica le migrazioni, i test di sicurezza, la revoca e la riapplicazione
 ```
 Il test usa un piccolo strato che imita Supabase (`supabase/tests/00_supabase_stub.sql`: `auth.users`, `auth.uid()`,
-ruoli `anon`/`authenticated`/`service_role`, `storage.objects`). Non sostituisce la prova su un progetto Supabase reale
-(milestone 2).
+ruoli `anon`/`authenticated`/`service_role`, `storage.objects`). Non sostituisce la prova su un progetto Supabase reale:
+per quella c'è `supabase/tests/remote-check.sql`, da incollare nel SQL Editor del progetto. Esegue gli stessi controlli
+(più: PostGIS, bucket, nessuna tabella di `public` senza RLS, scritture anonime rifiutate) e alla fine annulla tutti i
+dati di prova; risponde con una riga `superato` oppure con un errore `FALLITO: …`. `db:check` lo esegue anche in locale.

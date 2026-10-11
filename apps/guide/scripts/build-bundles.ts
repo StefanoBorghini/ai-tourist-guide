@@ -2,8 +2,8 @@
  * Compila i bundle di tutte le destinazioni presenti in territories/ e li copia
  * in public/bundles/, con un indice. Gira prima di `next dev` e `next build`.
  *
- * I territori fittizi (di test) sono inclusi solo se GUIDE_INCLUDE_FICTIONAL non è "false":
- * finché non esiste un territorio reale, l'app mostra quello di prova, dichiarandolo.
+ * I territori fittizi (di test, in territories/_synthetic) restano fuori dall'app pubblicata: si includono
+ * solo con GUIDE_INCLUDE_FICTIONAL=true (prove in locale).
  */
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -14,7 +14,7 @@ import { loadPacks } from "@guide/territory-pack";
 const here = dirname(fileURLToPath(import.meta.url));
 const TERRITORIES = resolve(here, "../../../territories");
 const OUT = resolve(here, "../public/bundles");
-const includeFictional = process.env.GUIDE_INCLUDE_FICTIONAL !== "false";
+const includeFictional = process.env.GUIDE_INCLUDE_FICTIONAL === "true";
 
 const { packs, issues } = loadPacks(TERRITORIES);
 if (issues.length > 0) {

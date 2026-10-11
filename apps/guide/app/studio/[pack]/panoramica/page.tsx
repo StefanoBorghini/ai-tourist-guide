@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { checkReadiness, requireStaff, rpc } from "../../../../lib/studio/server";
 import { deleteHref, friendlyError } from "../../../../lib/studio/shared";
-import { setPackStatus, updatePack } from "../../actions";
+import { republishPack, setPackStatus, updatePack } from "../../actions";
 import { KIND_LABELS, Notice, one, PackStatus, PackTabs, STAGE_LABELS, StudioHeader, type SearchParams } from "../../ui";
 
 interface PackDetail {
@@ -21,11 +21,21 @@ interface PackDetail {
   publishedAt: string | null;
   cover: string | null;
   coverCandidates: string[];
-  publications: { status: string; createdAt: string; report: { ok?: boolean; bundles?: { locale: string; units: number; places: number }[] } | null }[];
+  publications: {
+    status: string;
+    createdAt: string;
+    report: {
+      ok?: boolean;
+      pipeline?: { errors?: string[]; warnings?: string[]; bundles?: { locale: string; totalBytes: number; places: number; units: number }[] };
+    } | null;
+  }[];
   counts: Record<string, number>;
   canEdit: boolean;
   canPublish: boolean;
 }
+
+// La pubblicazione compila e carica i bundle in questa richiesta: serve più tempo del solito.
+export const maxDuration = 60;
 
 export default async function OverviewPage({ params, searchParams }: { params: Promise<{ pack: string }>; searchParams: SearchParams }) {
   const { pack } = await params;
@@ -49,6 +59,8 @@ export default async function OverviewPage({ params, searchParams }: { params: P
   const candidates = (all.data ?? []).filter((p) => p.id !== pack && !k.dependents.includes(p.id));
   const ro = !k.canEdit;
   const isDestination = k.kind === "destination";
+  const live = k.publications.find((p) => p.status === "published");
+  const lastFailed = k.publications[0]?.status === "failed" ? k.publications[0] : undefined;
   const statusForm = (status: string, label: string, primary = false) => (
     <form action={setPackStatus}>
       <input type="hidden" name="pack" value={pack} />
@@ -101,21 +113,39 @@ export default async function OverviewPage({ params, searchParams }: { params: P
           ) : (
             <>
               <p className="st-hint">
-                «Pubblicato» vuol dire approvato per la pubblicazione: il territorio arriva nell'app solo quando la pipeline di
-                pubblicazione (prossima fase) ripete il controllo e compila i bundle. Finché è in bozza o in revisione non compare.
+                Pubblicare compila il territorio (testi, luoghi, percorsi, foto) e lo mette nell'app: i visitatori lo vedono
+                subito, senza aggiornare l'app. Le modifiche fatte dopo arrivano nell'app solo quando ripubblichi.
               </p>
+              {live ? (
+                <p className="st-live">
+                  <strong>Nell'app</strong> dal {new Date(live.createdAt).toLocaleString("it-IT")}
+                  {live.report?.pipeline?.bundles?.length
+                    ? ` · ${live.report.pipeline.bundles.map((b) => `${b.locale}: ${b.places} luoghi, ${b.units} racconti, ${(b.totalBytes / 1024 / 1024).toFixed(1)} MB`).join(" · ")}`
+                    : ""}
+                  {k.status !== "published" ? " · ritirato: non compare più" : ""}
+                </p>
+              ) : (
+                <p className="st-meta">Non ancora nell'app.</p>
+              )}
+              {lastFailed && (
+                <div className="st-notice st-error">
+                  Ultima pubblicazione non riuscita ({new Date(lastFailed.createdAt).toLocaleString("it-IT")}):{" "}
+                  {(lastFailed.report?.pipeline?.errors ?? []).slice(0, 5).join("; ") || "errore sconosciuto"}
+                </div>
+              )}
               <div className="st-actions">
                 <Link className="st-btn" href={`${base}/panoramica?controllo=1`}>Esegui il controllo di pubblicazione</Link>
                 {k.status === "draft" && k.canEdit && statusForm("in_review", "Manda in revisione")}
                 {k.status === "in_review" && k.canEdit && statusForm("draft", "Riporta in bozza")}
                 {k.status === "in_review" && k.canPublish && statusForm("published", "Approva e pubblica", true)}
-                {k.status === "published" && k.canPublish && statusForm("in_review", "Ritira la pubblicazione")}
+                {k.status === "published" && k.canPublish && (
+                  <form action={republishPack}>
+                    <input type="hidden" name="pack" value={pack} />
+                    <button className="st-btn st-primary" type="submit">Ripubblica con le modifiche</button>
+                  </form>
+                )}
+                {k.status === "published" && k.canPublish && statusForm("in_review", "Ritira dall'app")}
               </div>
-              {k.publications.length > 0 && (
-                <p className="st-meta">
-                  Ultima richiesta: {new Date(k.publications[0]!.createdAt).toLocaleString("it-IT")} · {k.publications[0]!.status}
-                </p>
-              )}
             </>
           )}
           {report && (

@@ -1,14 +1,18 @@
 /**
  * Uso senza rete: registrazione del service worker (public/sw.js) e scaricamento di un bundle.
  *
- * Un bundle è "disponibile offline" quando manifest e tutti i suoi file sono nella cache del dispositivo.
+ * Un bundle è "disponibile offline" quando indice, manifest e tutti i suoi file sono nella cache del dispositivo.
+ * Vale allo stesso modo per i bundle dei file (/bundles/) e per quelli pubblicati dallo Studio (/pub/).
  * Le chiavi dei cache devono restare allineate a public/sw.js.
  */
 import type { BundleManifest } from "@guide/bundle/client";
+import { PUB_INDEX_URL, PUB_PREFIX, STATIC_INDEX_URL } from "./bundle-index";
 
 export const SHELL_CACHE = "guide-shell-v1";
 export const BUNDLE_CACHE = "guide-bundles-v1";
-export const INDEX_URL = "/bundles/index.json";
+/** Indice dei bundle dei file; per un bundle pubblicato dallo Studio serve anche il suo indice (/pub/). */
+export const INDEX_URL = STATIC_INDEX_URL;
+const indexUrls = (manifestUrl: string) => (manifestUrl.startsWith(PUB_PREFIX) ? [INDEX_URL, PUB_INDEX_URL] : [INDEX_URL]);
 
 export function registerServiceWorker(): void {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
@@ -23,7 +27,7 @@ export function offlineSupported(): boolean {
 /** Indirizzi da tenere in cache per un bundle: indice, manifest e file elencati nel manifest. */
 export function bundleUrls(manifestUrl: string, manifest: Pick<BundleManifest, "files">): string[] {
   const base = manifestUrl.replace(/manifest\.json$/, "");
-  return [INDEX_URL, manifestUrl, ...manifest.files.map((f) => base + f.path)];
+  return [...indexUrls(manifestUrl), manifestUrl, ...manifest.files.map((f) => base + f.path)];
 }
 
 /** Risorse della pagina attuale (script e fogli di stile di Next), per aprire l'app senza rete. */
@@ -65,5 +69,6 @@ export async function downloadBundle(
 
 export async function removeBundle(manifestUrl: string, manifest: BundleManifest): Promise<void> {
   const cache = await caches.open(BUNDLE_CACHE);
-  for (const url of bundleUrls(manifestUrl, manifest)) if (url !== INDEX_URL) await cache.delete(url);
+  const keep = new Set(indexUrls(manifestUrl));
+  for (const url of bundleUrls(manifestUrl, manifest)) if (!keep.has(url)) await cache.delete(url);
 }

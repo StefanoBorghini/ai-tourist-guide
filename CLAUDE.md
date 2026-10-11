@@ -57,7 +57,9 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 - `packages/narrative-planner` — decide cosa raccontare in ogni tappa (unità, prerequisiti, richiami, ganci) e
   aggiorna la memoria del tour. Deterministico: l'AI riceve il piano e rende solo i raccordi
 - `packages/bundle` — compila un Territory Pack in un bundle di runtime per lingua (solo affermazioni raccontabili,
-  deterministico, con hash) e lo rilegge sul dispositivo. L'app usa solo i bundle, mai il database. I media
+  deterministico, con hash) e lo rilegge sul dispositivo. L'app usa solo i bundle, mai il database: quelli dei file
+  (`/bundles/`) e quelli pubblicati dallo Studio nel bucket `bundles` (`/pub/`, che li sostituiscono; `lib/bundle-index.ts`,
+  pipeline in `lib/studio/publish.ts`, vedi `docs/v0.3-platform/PUBBLICAZIONE.md`). I media
   `video` (con `poster`) restano fuori dal pacchetto offline (`streamFiles`); `cover: true` indica la copertina
   della destinazione, che l'indice dei bundle espone alla pagina iniziale
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test

@@ -76,7 +76,7 @@ export function assessReadiness(target: string, snapshots: Map<string, Record<st
   for (const m of pack.media) {
     for (const f of [m.file, ...(m.poster ? [m.poster] : [])]) {
       if (!storedFiles.has(`${target}/${f}`)) {
-        errors.push({ level: "error", code: "MEDIA_NOT_IN_STORAGE", pack: target, message: `${m.id}: file ${f} non presente nel bucket media` });
+        errors.push({ level: "error", code: "MEDIA_NOT_IN_STORAGE", pack: target, message: `${m.id}: file ${f} non presente nel bucket media (se viene dai file del repository: Foto → «Copia i file dal repository»)` });
       }
     }
   }

@@ -34,6 +34,8 @@ interface Context {
   out: IssueCollector;
   /** Data di riferimento (AAAA-MM-GG) per le informazioni pratiche da ricontrollare. */
   today: string;
+  /** Esistenza di un file media (percorso completo): il disco, o il bucket per i territori del database. */
+  fileExists: (path: string) => boolean;
 }
 
 /**
@@ -41,10 +43,13 @@ interface Context {
  * qui si controllano integrità referenziale, ontologia, regole di verifica
  * e coerenza narrativa, anche tra pack diversi.
  */
-export function validatePacks(packs: Map<string, TerritoryPack>, options: { today?: string } = {}): PackIssue[] {
+export function validatePacks(
+  packs: Map<string, TerritoryPack>,
+  options: { today?: string; fileExists?: (path: string) => boolean } = {},
+): PackIssue[] {
   const out = new IssueCollector();
   const today = options.today ?? new Date().toISOString().slice(0, 10);
-  const ctx: Context = { packs, nodes: new Map(), sources: new Map(), reachable: new Map(), out, today };
+  const ctx: Context = { packs, nodes: new Map(), sources: new Map(), reachable: new Map(), out, today, fileExists: options.fileExists ?? existsSync };
 
   for (const pack of packs.values()) indexPack(pack, ctx);
   for (const pack of packs.values()) ctx.reachable.set(pack.manifest.id, resolveDependencies(pack, ctx));
@@ -613,7 +618,7 @@ function checkMedia(pack: TerritoryPack, ctx: Context): void {
     for (const raw of m.subjects) lookupNode(raw, pack, ctx, where);
 
     for (const f of [m.file, ...(m.poster ? [m.poster] : [])]) {
-      if (!existsSync(join(pack.dir, MEDIA_FILES_DIR, f))) {
+      if (!ctx.fileExists(join(pack.dir, MEDIA_FILES_DIR, f))) {
         ctx.out.error({ code: "MEDIA_FILE_MISSING", packId, ...where, message: `file non trovato: ${MEDIA_FILES_DIR}/${f}` });
       }
     }

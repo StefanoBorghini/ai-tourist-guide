@@ -138,3 +138,5 @@ details.st-create[open] > summary { margin-bottom: 12px; }
 .st-delete-link { color: var(--danger); font-size: 13px; text-decoration: none; }
 .st-delete-link:hover { text-decoration: underline; }
 .st-delete h2 { margin-top: 0; }
+
+.st-live { padding: 10px 14px; border-radius: var(--r-sm); background: var(--ok-soft); color: var(--ok); font-size: 14px; margin: 10px 0; }

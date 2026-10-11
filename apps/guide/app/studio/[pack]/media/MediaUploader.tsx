@@ -25,6 +25,38 @@ const SOURCE_LABELS: Record<string, string> = {
   other: "Altro",
 };
 
+/** Lato lungo massimo delle foto pubblicate: basta per lo schermo di un telefono e pesa poco offline. */
+const MAX_SIDE = 2048;
+const REDUCE_ABOVE_BYTES = 1.5 * 1024 * 1024;
+
+/**
+ * Riduce una foto troppo grande prima del caricamento (lato lungo 2048 px, JPEG o WebP di buona qualità).
+ * Toglie anche i metadati EXIF (posizione GPS compresa), che non servono all'app. Se il browser non ce la fa,
+ * resta l'originale.
+ */
+async function reduceImage(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size <= REDUCE_ABOVE_BYTES) {
+      bitmap.close();
+      return file;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const type = file.type === "image/jpeg" ? "image/jpeg" : "image/webp"; // PNG → WebP: conserva la trasparenza
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.85));
+    if (!blob || blob.size >= file.size) return file;
+    const name = file.name.replace(/\.[^.]*$/, "") + (type === "image/jpeg" ? ".jpg" : ".webp");
+    return new File([blob], name, { type });
+  } catch {
+    return file;
+  }
+}
+
 async function sha256(file: File): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -45,9 +77,9 @@ export function MediaUploader({ pack, config, places }: { pack: string; config: 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
-    const file = data.get("file");
-    if (!(file instanceof File) || file.size === 0) return setMessage({ error: "Scegli un'immagine." });
-    const problem = checkImage(file);
+    const chosen = data.get("file");
+    if (!(chosen instanceof File) || chosen.size === 0) return setMessage({ error: "Scegli un'immagine." });
+    const problem = checkImage(chosen);
     if (problem) return setMessage({ error: problem });
     const subjects = data.getAll("subjects").map(String);
     if (subjects.length === 0) return setMessage({ error: "Indica almeno un luogo raffigurato." });
@@ -62,6 +94,7 @@ export function MediaUploader({ pack, config, places }: { pack: string; config: 
 
     setBusy(true);
     setMessage(null);
+    const file = await reduceImage(chosen);
     const supabase = createBrowserClient(config.url, config.anonKey);
     const name = storageFileName(file.name, file.type, Date.now().toString(36));
     const path = `${pack}/${name}`;

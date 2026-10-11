@@ -45,6 +45,8 @@ export interface BuildOptions {
    * Senza questa funzione i media non vengono inclusi (la compilazione resta pura).
    */
   readAsset?: (packDir: string, relativePath: string) => Uint8Array;
+  /** Esistenza dei file media per il validatore (predefinito: il disco). Serve ai territori del database. */
+  fileExists?: (path: string) => boolean;
 }
 
 export interface BuiltBundle {
@@ -94,7 +96,7 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
 
   const scope = reachablePacks(destination, packs);
   const scopeIds = new Set(scope.map((p) => p.manifest.id));
-  const issues = validatePacks(new Map([...packs].filter(([id]) => scopeIds.has(id))));
+  const issues = validatePacks(new Map([...packs].filter(([id]) => scopeIds.has(id))), options.fileExists ? { fileExists: options.fileExists } : {});
   if (hasErrors(issues)) {
     throw new BundleBuildError(
       "il territorio ha errori di validazione: correggerli prima di compilare",

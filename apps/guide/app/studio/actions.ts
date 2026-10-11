@@ -6,7 +6,8 @@
  */
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { checkReadiness, requireStaff, rpc, studioClient, studioConfig } from "../../lib/studio/server";
+import { checkReadiness, refreshPublicIndex, requireStaff, rpc, runPublication, signedMediaUrls, studioClient, studioConfig, type PublicationResult } from "../../lib/studio/server";
+import { copyRepoMedia } from "../../lib/studio/repo-media";
 import { afterDeleteHref, checkMediaRights, checkStops, DELETE_KINDS, filesInPack, friendlyError, isDeleteKind, MEDIA_BUCKET, MEDIA_LICENSES, MEDIA_SOURCES } from "../../lib/studio/shared";
 
 const back = (path: string, result: Record<string, string | undefined>): never => {
@@ -228,6 +229,13 @@ export async function updatePack(form: FormData) {
 }
 
 /** Cambio di stato. Per pubblicare rifà il controllo completo sul server e lo registra con la richiesta. */
+/** Messaggio dell'esito di una pubblicazione, per la pagina del territorio. */
+function publicationMessage(r: PublicationResult): Record<string, string> {
+  if (!r.ok) return { errore: `Pubblicazione non riuscita: ${r.errors.slice(0, 3).join("; ")}. La versione nell'app resta quella di prima.` };
+  const bundles = r.bundles.map((b) => `${b.locale} ${(b.totalBytes / 1024 / 1024).toFixed(1)} MB`).join(", ");
+  return { ok: `Pubblicato: il territorio è nell'app (${bundles}).${r.warnings.length ? ` Avvisi: ${r.warnings.length}.` : ""}` };
+}
+
 export async function setPackStatus(form: FormData) {
   const { supabase } = await requireStaff();
   const pack = text(form, "pack");
@@ -239,15 +247,59 @@ export async function setPackStatus(form: FormData) {
     if (!r.ok) back(path, { controllo: "1", errore: `Il controllo di pubblicazione non è superato (${r.errors.length} errori): correggili prima di pubblicare.` });
     report = { ok: r.ok, checkedAt: r.checkedAt, errors: r.errors, warnings: r.warnings.length, bundles: r.bundles };
   }
+  const before = await rpc<{ status: string | null }>(supabase, "studio_pack", { p_pack: pack });
   const { error } = await rpc(supabase, "studio_set_pack_status", { p_pack: pack, p_status: status, p_report: report });
   if (error) back(path, { errore: friendlyError(error) });
   revalidatePath("/studio", "layout");
+  if (status === "published") back(path, publicationMessage(await runPublication(supabase, pack)));
+  if (before.data?.status === "published") {
+    // Ritiro: l'indice pubblico si ricalcola senza questo territorio.
+    const indexError = await refreshPublicIndex(supabase);
+    back(path, indexError
+      ? { errore: `Pubblicazione ritirata nel database, ma l'indice dell'app non è stato aggiornato: ${indexError}` }
+      : { ok: "Pubblicazione ritirata: il territorio non compare più nell'app (chi l'ha già scaricato lo conserva)." });
+  }
   const done: Record<string, string> = {
     in_review: "Territorio in revisione.",
     draft: "Territorio riportato in bozza.",
-    published: "Pubblicazione approvata e richiesta registrata. Arriverà nell'app con la pipeline di pubblicazione.",
   };
   back(path, { ok: done[status] ?? "Stato aggiornato." });
+}
+
+/** Ripubblica un territorio già in linea, per portare nell'app le modifiche fatte dopo. */
+export async function republishPack(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/panoramica`;
+  const r = await checkReadiness(supabase, pack);
+  if (!r.ok) back(path, { controllo: "1", errore: `Il controllo di pubblicazione non è superato (${r.errors.length} errori): correggili prima di ripubblicare.` });
+  const { error } = await rpc(supabase, "studio_request_publication", {
+    p_pack: pack,
+    p_report: { ok: r.ok, checkedAt: r.checkedAt, errors: r.errors, warnings: r.warnings.length, bundles: r.bundles },
+  });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath("/studio", "layout");
+  back(path, publicationMessage(await runPublication(supabase, pack)));
+}
+
+/** Copia nel bucket «media» i file dei media importati dai file del repository (stessa impronta). */
+export async function copyMediaFromRepository(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/media`;
+  const { data: snap, error } = await rpc<{ media?: { file: string; poster?: string; sha256?: string }[] }>(supabase, "pack_snapshot", { p_pack: pack });
+  if (error || !snap) back(path, { errore: error ? friendlyError(error) : "Territorio non leggibile." });
+  const media = snap!.media ?? [];
+  const paths = media.flatMap((m) => [m.file, ...(m.poster ? [m.poster] : [])]).map((f) => `${pack}/${f}`);
+  const inBucket = new Set((await signedMediaUrls(supabase, paths)).keys());
+  const r = await copyRepoMedia(supabase, pack, media, inBucket);
+  revalidatePath(path);
+  const parts = [
+    r.copied.length ? `${r.copied.length} file copiati nel bucket` : "Nessun file da copiare",
+    r.missing.length ? `non trovati nel repository: ${r.missing.join(", ")}` : "",
+    r.failed.length ? `non riusciti: ${r.failed.join("; ")}` : "",
+  ].filter(Boolean).join(". ");
+  back(path, r.failed.length || r.missing.length ? { errore: `${parts}.` } : { ok: `${parts}.` });
 }
 
 // ---------------------------------------------------------------- nuovi contenuti

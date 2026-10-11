@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireStaff, rpc, signedMediaUrls } from "../../../../lib/studio/server";
 import { deleteHref, friendlyError } from "../../../../lib/studio/shared";
+import { copyMediaFromRepository } from "../../actions";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../ui";
 import { MediaUploader } from "./MediaUploader";
 
@@ -23,6 +24,9 @@ interface PackRow {
   canEdit: boolean;
 }
 
+// La copia dei file dal repository carica più file in una richiesta.
+export const maxDuration = 60;
+
 export default async function MediaPage({ params, searchParams }: { params: Promise<{ pack: string }>; searchParams: SearchParams }) {
   const { pack } = await params;
   const q = await searchParams;
@@ -35,6 +39,7 @@ export default async function MediaPage({ params, searchParams }: { params: Prom
   const media = data ?? [];
   const urls = await signedMediaUrls(session.supabase, media.map((m) => (m.kind === "video" ? (m.poster ?? "") : m.path)));
   const canEdit = !!packs.data?.find((p) => p.id === pack)?.canEdit;
+  const withoutFile = media.filter((m) => !urls.get(m.kind === "video" ? (m.poster ?? "") : m.path)).length;
   return (
     <main className="st-page">
       <StudioHeader session={session} crumbs={[{ label: pack }]} />
@@ -45,6 +50,16 @@ export default async function MediaPage({ params, searchParams }: { params: Prom
         temporanei. Ogni foto entra con autore, licenza e provenienza dichiarati, come nei Territory Pack.
       </p>
       <Notice ok={one(q.ok)} errore={one(q.errore) ?? (error ? friendlyError(error) : undefined)} />
+      {canEdit && withoutFile > 0 && (
+        <form action={copyMediaFromRepository} className="st-panel">
+          <input type="hidden" name="pack" value={pack} />
+          <p>
+            {withoutFile} {withoutFile === 1 ? "media non ha" : "media non hanno"} il file nel bucket: sono stati importati dai file
+            del repository, che li contiene. Senza file non si pubblicano.
+          </p>
+          <button className="st-btn" type="submit">Copia i file dal repository</button>
+        </form>
+      )}
       {canEdit && session.config && (
         <MediaUploader pack={pack} config={session.config} places={(places.data ?? []).map((p) => ({ slug: p.slug, name: p.name }))} />
       )}

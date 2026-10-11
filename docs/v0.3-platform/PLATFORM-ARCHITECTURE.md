@@ -135,7 +135,7 @@ da un'API che verifica il diritto lato server (milestone 7).
 | 3 | Import pack → database e export database → pack, con prova di parità sui bundle | **fatto in locale** (`20261016000000_pack_import_export.sql`, `guide-pack db-sql` / `db-export`, `supabase/tests/roundtrip.ts`): tutti i pack di `territories/` tornano identici e danno bundle identici byte per byte; applicata al progetto di prova e Portovenere importato (2026-10-11) |
 | 4 | Studio minimo: accesso staff, territori, luoghi, percorsi (riordino delle tappe), media library, revisione delle affermazioni | **fatto in locale** (`/studio`, `20261017000000_studio.sql`, sezione 9c); da provare nell'anteprima Vercel con le variabili in Preview |
 | 4b | Territori dal CMS: creazione, metadati, stati (bozza, revisione, pubblicato), dipendenze, controllo di pubblicazione, contenuti nei nuovi territori; eliminazione con piano, blocchi e copia di sicurezza | **fatto in locale** (`20261018000000_studio_territories.sql`, `20261019000000_studio_delete.sql`, `TERRITORI-DAL-CMS.md`); da applicare al progetto di prova |
-| 5 | Pubblicazione: richiesta → validazione → compilazione → bundle su Storage → indice; app che legge l'indice da Storage | |
+| 5 | Pubblicazione: richiesta → validazione → compilazione → bundle su Storage → indice; app che legge l'indice da Storage | **fatto in locale** (`20261020000000_publication.sql`, `PUBBLICAZIONE.md`); da applicare al progetto di prova |
 | 6 | Account visitatori nella PWA: registrazione, conferma, recupero password, profilo, preferiti, avanzamenti, cancellazione | |
 | 7 | Premium: API che serve i contenuti premium dopo `can_access_route()`; integrazione del fornitore di pagamenti in una fase successiva | |
 
@@ -193,7 +193,7 @@ Non sostituisce la prova sul progetto Supabase reale (Auth e Storage veri).
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | client e server | indirizzo del progetto (pubblico) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | client e server | chiave pubblica: tutto passa dalle policy RLS |
-| `SUPABASE_SERVICE_ROLE_KEY` | **solo server** (pubblicazione, webhook futuri) | ignora le RLS: mai nel client, mai nei log. **Non serve allo Studio** (milestone 4): solo dalla pubblicazione |
+| `SUPABASE_SERVICE_ROLE_KEY` | **solo server** (webhook futuri) | ignora le RLS: mai nel client, mai nei log. **Non serve allo Studio né alla pubblicazione**: la pubblicazione usa la sessione di chi pubblica e le policy di Storage |
 | `ANTHROPIC_API_KEY` | solo server | invariata |
 
 Vedi `apps/guide/.env.example`.

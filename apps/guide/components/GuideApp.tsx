@@ -12,21 +12,24 @@ import { GuideVoice, type SpeechState } from "../lib/speech";
 import { uiFor, type UiText } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
 import { AskBox } from "./AskBox";
+import { mergeIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndex, type BundleIndexEntry } from "../lib/bundle-index";
 import { DebugPanel } from "./DebugPanel";
 import { MapView } from "./MapView";
 import { Icon } from "./Icon";
 import { PlaceCard, PlacePhoto, PlaceThumb, placeMedia, thumbSrc } from "./PlaceCard";
 
-interface BundleEntry {
-  destination: string;
-  name: string;
-  locale: string;
-  fictional: boolean;
-  /** Bundle di anteprima: territorio con contenuti ancora in revisione. */
-  preview?: boolean;
-  manifest: string;
-  /** Copertina per la pagina iniziale (immagine, video facoltativo, testo alternativo, credito). */
-  cover?: { image: string; video?: string; alt: string; credit?: string };
+type BundleEntry = BundleIndexEntry;
+
+/** Bundle pubblicati dallo Studio (serviti sotto /pub/), se Supabase è configurato per questo deploy. */
+const PUBLISHED = publishedOrigin({ NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL }) !== null;
+
+/** Indice dei territori: bundle dei file, sostituiti da quelli pubblicati dallo Studio. Basta che uno dei due risponda. */
+async function loadIndex(): Promise<BundleEntry[]> {
+  const get = (url: string) =>
+    fetch(url).then((r) => (r.ok ? (r.json() as Promise<BundleIndex>) : Promise.reject(new Error(`HTTP ${r.status}`))));
+  const [statics, published] = await Promise.allSettled([get(STATIC_INDEX_URL), PUBLISHED ? get(PUB_INDEX_URL) : Promise.reject(new Error("off"))]);
+  if (statics.status === "rejected" && published.status === "rejected") throw statics.reason as Error;
+  return mergeIndexes(statics.status === "fulfilled" ? statics.value.bundles : [], published.status === "fulfilled" ? published.value.bundles : null);
 }
 
 type Screen = "home" | "setup" | "walk";
@@ -201,9 +204,8 @@ export function GuideApp() {
   }, []);
 
   useEffect(() => {
-    fetch("/bundles/index.json")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d: { bundles: BundleEntry[] }) => setEntries(d.bundles))
+    loadIndex()
+      .then(setEntries)
       .catch((e: Error) => setError(e.message));
   }, []);
 

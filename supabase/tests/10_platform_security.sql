@@ -146,9 +146,11 @@ begin
     insert into storage.objects (bucket_id, name, owner) values ('media', 'it.test.beta/intruso.jpg', 'a0000000-0000-0000-0000-000000000002');
     raise exception 'FALLITO: un editor non carica file in un altro territorio';
   exception when insufficient_privilege then null; end;
+  -- Bundle: chi pubblica un territorio ne scrive i file (20261020000000_publication.sql), non quelli di altri.
+  insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/it-full/manifest.json', 'a0000000-0000-0000-0000-000000000002');
   begin
-    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/manifest.json', 'a0000000-0000-0000-0000-000000000002');
-    raise exception 'FALLITO: solo il servizio di pubblicazione scrive i bundle';
+    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.beta/it-full/manifest.json', 'a0000000-0000-0000-0000-000000000002');
+    raise exception 'FALLITO: un editor non scrive i bundle di un altro territorio';
   exception when insufficient_privilege then null; end;
 
   -- Pubblicazione: l'editor la chiede per il proprio territorio, non per un altro.

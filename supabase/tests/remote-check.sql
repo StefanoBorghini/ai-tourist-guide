@@ -5,7 +5,7 @@
 -- nel database non resta nulla, nemmeno se un controllo fallisce.
 -- Esito: una tabella con «superato»; se qualcosa non va, un errore che inizia con «FALLITO».
 -- Gli stessi controlli girano in locale con `npm run db:check` (10_platform_security.sql).
-do $verifica$
+do $$
 declare
   a uuid;
   p uuid;
@@ -276,7 +276,7 @@ begin
     if sqlerrm <> 'VERIFICA_SUPERATA' then raise; end if;
   end;
 end
-$verifica$;
+$$;
 
 -- Arriva qui solo se tutti i controlli sono passati (i dati di prova sono già stati annullati).
 select 'superato' as esito,

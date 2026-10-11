@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireStaff, rpc } from "../../../../lib/studio/server";
-import { friendlyError, STATUS_LABELS } from "../../../../lib/studio/shared";
+import { deleteHref, friendlyError, STATUS_LABELS } from "../../../../lib/studio/shared";
 import { confirmEvidence, createAssertion, reviewAssertion } from "../../actions";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../ui";
 
@@ -139,6 +139,9 @@ export default async function AssertionsPage({ params, searchParams }: { params:
                   {a.slug} · {a.subject} · {a.type}
                   {a.certainty ? ` (${a.certainty})` : ""}
                 </span>
+                {(perms?.canEdit || perms?.canVerify) && (
+                  <Link className="st-delete-link" href={deleteHref(pack, "assertion", a.slug)}>Elimina…</Link>
+                )}
               </div>
               <p className="st-assertion-text">{a.text ?? <em>senza testo</em>}</p>
               <details open={inferredOnly && !!perms?.canVerify && a.status === "in_review"}>

@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { requireStaff, rpc, signedMediaUrls } from "../../../../lib/studio/server";
-import { friendlyError } from "../../../../lib/studio/shared";
-import { Notice, PackTabs, StudioHeader } from "../../ui";
+import { deleteHref, friendlyError } from "../../../../lib/studio/shared";
+import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../ui";
 import { MediaUploader } from "./MediaUploader";
 
 interface MediaRow {
@@ -22,8 +23,9 @@ interface PackRow {
   canEdit: boolean;
 }
 
-export default async function MediaPage({ params }: { params: Promise<{ pack: string }> }) {
+export default async function MediaPage({ params, searchParams }: { params: Promise<{ pack: string }>; searchParams: SearchParams }) {
   const { pack } = await params;
+  const q = await searchParams;
   const session = await requireStaff();
   const [{ data, error }, places, packs] = await Promise.all([
     rpc<MediaRow[]>(session.supabase, "studio_media", { p_pack: pack }),
@@ -42,7 +44,7 @@ export default async function MediaPage({ params }: { params: Promise<{ pack: st
         Gli originali stanno nel bucket privato «media» di Supabase, nella cartella del territorio; qui si vedono con indirizzi
         temporanei. Ogni foto entra con autore, licenza e provenienza dichiarati, come nei Territory Pack.
       </p>
-      <Notice errore={error ? friendlyError(error) : undefined} />
+      <Notice ok={one(q.ok)} errore={one(q.errore) ?? (error ? friendlyError(error) : undefined)} />
       {canEdit && session.config && (
         <MediaUploader pack={pack} config={session.config} places={(places.data ?? []).map((p) => ({ slug: p.slug, name: p.name }))} />
       )}
@@ -67,6 +69,7 @@ export default async function MediaPage({ params }: { params: Promise<{ pack: st
                 {m.author ?? "—"} · {m.license} · {m.source}
                 {m.bytes ? ` · ${(m.bytes / 1024 / 1024).toFixed(1)} MB` : ""}
               </span>
+              {canEdit && <Link className="st-delete-link" href={deleteHref(pack, "media", m.slug)}>Elimina…</Link>}
             </li>
           );
         })}

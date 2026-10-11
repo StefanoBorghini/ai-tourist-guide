@@ -44,8 +44,8 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   `components/MapView.tsx` e `lib/map-view.ts` per la mappa (Web Mercator, sfondo OpenStreetMap solo online e
   solo per le prove: in produzione serve un fornitore di tile con licenza adeguata);
   `app/studio/` e `lib/studio/` lo Studio della redazione (`/studio`, Supabase Auth, funzioni `studio_*` del database con
-  l'identità dell'utente, nessuna chiave di servizio; `proxy.ts` solo per `/studio`; nuovi territori, stati e controllo di
-  pubblicazione in `lib/studio/readiness.ts`, vedi `docs/v0.3-platform/TERRITORI-DAL-CMS.md`; senza variabili dice di non essere
+  l'identità dell'utente, nessuna chiave di servizio; `proxy.ts` solo per `/studio`; nuovi territori, stati, eliminazione (piano e copia
+  di sicurezza nel database) e controllo di pubblicazione in `lib/studio/readiness.ts`, vedi `docs/v0.3-platform/TERRITORI-DAL-CMS.md`; senza variabili dice di non essere
   configurato e la guida funziona come prima)
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack
 - `packages/territory-pack` — caricamento, validazione e CLI `guide-pack` (`validate`, `photos`: coordinate dall'EXIF,

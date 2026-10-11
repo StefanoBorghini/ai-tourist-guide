@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireStaff, rpc } from "../../../../lib/studio/server";
 import { COORDINATE_LABELS, friendlyError } from "../../../../lib/studio/shared";
-import { Notice, PackTabs, StudioHeader } from "../../ui";
+import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../ui";
 
 interface PlaceRow {
   slug: string;
@@ -13,8 +13,9 @@ interface PlaceRow {
   media: number;
 }
 
-export default async function PlacesPage({ params }: { params: Promise<{ pack: string }> }) {
+export default async function PlacesPage({ params, searchParams }: { params: Promise<{ pack: string }>; searchParams: SearchParams }) {
   const { pack } = await params;
+  const q = await searchParams;
   const session = await requireStaff();
   const [{ data, error }, k] = await Promise.all([
     rpc<PlaceRow[]>(session.supabase, "studio_places", { p_pack: pack }),
@@ -33,7 +34,7 @@ export default async function PlacesPage({ params }: { params: Promise<{ pack: s
           </Link>
         )}
       </div>
-      <Notice errore={error ? friendlyError(error) : undefined} />
+      <Notice ok={one(q.ok)} errore={one(q.errore) ?? (error ? friendlyError(error) : undefined)} />
       {places.length === 0 && !error && <p>Nessun luogo visibile per questo territorio.</p>}
       <table className="st-table">
         <thead>

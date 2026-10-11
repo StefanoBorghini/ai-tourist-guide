@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireStaff, rpc, signedMediaUrls } from "../../../../../lib/studio/server";
-import { COORDINATE_LABELS, friendlyError } from "../../../../../lib/studio/shared";
+import { COORDINATE_LABELS, deleteHref, friendlyError } from "../../../../../lib/studio/shared";
 import { updatePlace } from "../../../actions";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../../ui";
 
@@ -48,6 +48,9 @@ export default async function PlacePage({ params, searchParams }: { params: Prom
       </p>
       <Notice ok={one(q.ok)} errore={one(q.errore)} />
       {ro && <p className="st-hint">Sola lettura: il tuo ruolo non modifica i luoghi di questo territorio.</p>}
+      {!ro && (
+        <p><Link className="st-delete-link" href={deleteHref(pack, "place", slug)}>Elimina questo luogo…</Link></p>
+      )}
 
       <form action={updatePlace} className="st-form st-grid">
         <input type="hidden" name="pack" value={pack} />

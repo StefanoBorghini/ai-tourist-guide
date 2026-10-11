@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireStaff, rpc } from "../../lib/studio/server";
 import { friendlyError, STATUS_LABELS } from "../../lib/studio/shared";
-import { KIND_LABELS, Notice, PackStatus, StudioHeader } from "./ui";
+import { KIND_LABELS, Notice, one, PackStatus, StudioHeader, type SearchParams } from "./ui";
 
 interface PackRow {
   id: string;
@@ -20,7 +20,8 @@ interface PackRow {
   canVerify: boolean;
 }
 
-export default async function StudioHome() {
+export default async function StudioHome({ searchParams }: { searchParams: SearchParams }) {
+  const q = await searchParams;
   const session = await requireStaff();
   const [{ data, error }, scopes] = await Promise.all([
     rpc<PackRow[]>(session.supabase, "studio_packs"),
@@ -42,7 +43,7 @@ export default async function StudioHome() {
       <p className="st-hint">
         Le modifiche fatte qui restano nel database della redazione: arrivano nell'app solo con la pubblicazione (prossima fase).
       </p>
-      <Notice errore={error ? friendlyError(error) : undefined} />
+      <Notice ok={one(q.ok)} errore={one(q.errore) ?? (error ? friendlyError(error) : undefined)} />
       {packs.length === 0 && !error && <p>Nessun territorio assegnato al tuo account.</p>}
       <ul className="st-cards">
         {packs.map((p) => (

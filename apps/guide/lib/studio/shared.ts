@@ -90,6 +90,9 @@ export function checkStops(stops: readonly Pick<Stop, "place" | "dwellMin">[]): 
 export function friendlyError(error: { message?: string; code?: string } | null | undefined): string {
   const message = error?.message?.trim() ?? "";
   if (error?.code === "PGRST301" || /JWT|jwt/.test(message)) return "La sessione è scaduta: accedi di nuovo.";
+  if (error?.code === "23503" || /foreign key/.test(message)) {
+    return "È ancora usato da altri contenuti (anche di territori che non vedi): non si può eliminare.";
+  }
   if (/^[a-zàèéìòù'"]/i.test(message) && !/violates|syntax|function .* does not exist|column/.test(message)) return message;
   return "Operazione non riuscita. Riprova; se continua, segnalalo con l'ora esatta.";
 }
@@ -143,4 +146,40 @@ export const PACK_ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$/;
 /** L'identificativo rientra negli ambiti dell'utente? (stessa regola di can_edit_pack) */
 export function withinScopes(id: string, anywhere: boolean, scopes: readonly string[]): boolean {
   return anywhere || scopes.some((s) => id === s || id.startsWith(`${s}.`));
+}
+
+// ---------------------------------------------------------------- eliminazione
+
+export type DeleteKind = "pack" | "place" | "route" | "source" | "assertion" | "unit" | "media";
+
+/** Cosa si elimina, al singolare con l'articolo, e la pagina dove si torna dopo. */
+export const DELETE_KINDS: Record<DeleteKind, { label: string; the: string; done: string; section: string }> = {
+  pack: { label: "territorio", the: "il territorio", done: "Territorio eliminato", section: "" },
+  place: { label: "luogo", the: "il luogo", done: "Luogo eliminato", section: "luoghi" },
+  route: { label: "percorso", the: "il percorso", done: "Percorso eliminato", section: "percorsi" },
+  source: { label: "fonte", the: "la fonte", done: "Fonte eliminata", section: "fonti" },
+  assertion: { label: "affermazione", the: "l'affermazione", done: "Affermazione eliminata", section: "affermazioni" },
+  unit: { label: "racconto", the: "il racconto", done: "Racconto eliminato", section: "racconti" },
+  media: { label: "foto", the: "la foto", done: "Foto eliminata", section: "media" },
+};
+
+export function isDeleteKind(v: unknown): v is DeleteKind {
+  return typeof v === "string" && Object.hasOwn(DELETE_KINDS, v);
+}
+
+/** Indirizzo della pagina di conferma. */
+export function deleteHref(pack: string, kind: DeleteKind, slug?: string): string {
+  const q = new URLSearchParams({ tipo: kind, ...(slug ? { slug } : {}) });
+  return `/studio/${encodeURIComponent(pack)}/elimina?${q}`;
+}
+
+/** Dove si torna dopo l'eliminazione: la sezione dell'elemento, o l'elenco dei territori. */
+export function afterDeleteHref(pack: string, kind: DeleteKind): string {
+  return kind === "pack" ? "/studio" : `/studio/${encodeURIComponent(pack)}/${DELETE_KINDS[kind].section}`;
+}
+
+/** Solo file del territorio: il server non toglie mai dal bucket qualcosa fuori dalla sua cartella. */
+export function filesInPack(pack: string, files: unknown): string[] {
+  if (!Array.isArray(files)) return [];
+  return [...new Set(files.filter((f): f is string => typeof f === "string" && f.startsWith(`${pack}/`) && !f.includes("..")))];
 }

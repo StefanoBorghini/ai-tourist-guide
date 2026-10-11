@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { checkReadiness, requireStaff, rpc } from "../../../../lib/studio/server";
-import { friendlyError } from "../../../../lib/studio/shared";
+import { deleteHref, friendlyError } from "../../../../lib/studio/shared";
 import { setPackStatus, updatePack } from "../../actions";
 import { KIND_LABELS, Notice, one, PackStatus, PackTabs, STAGE_LABELS, StudioHeader, type SearchParams } from "../../ui";
 
@@ -221,6 +221,12 @@ export default async function OverviewPage({ params, searchParams }: { params: P
           </div>
         )}
       </form>
+
+      {session.me.admin && (
+        <p>
+          <Link className="st-delete-link" href={deleteHref(pack, "pack")}>Elimina questo territorio…</Link>
+        </p>
+      )}
     </main>
   );
 }

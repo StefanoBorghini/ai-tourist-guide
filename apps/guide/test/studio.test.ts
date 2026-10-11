@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkImage, checkMediaRights, checkStops, friendlyError, MAX_IMAGE_BYTES, moveStop, readStudioConfig, storageFileName } from "../lib/studio/shared";
+import { afterDeleteHref, checkImage, checkMediaRights, checkStops, deleteHref, filesInPack, isDeleteKind, friendlyError, MAX_IMAGE_BYTES, moveStop, readStudioConfig, storageFileName } from "../lib/studio/shared";
 
 describe("configurazione dello Studio", () => {
   it("senza variabili lo Studio è spento (la guida no)", () => {
@@ -89,5 +89,27 @@ describe("diritti delle foto", () => {
     expect(checkMediaRights({ ...base, author: "Ente", license: "licensed" })).toMatch(/accordo/);
     expect(checkMediaRights({ ...base, author: "X", source: "web" })).toMatch(/indirizzo/);
     expect(checkMediaRights({ ...base, author: "X", source: "web", originalUrl: "https://example.org/f.jpg" })).toBeNull();
+  });
+});
+
+describe("eliminazione", () => {
+  it("riconosce solo i tipi previsti", () => {
+    expect(isDeleteKind("place")).toBe(true);
+    expect(isDeleteKind("pack")).toBe(true);
+    expect(isDeleteKind("toString")).toBe(false);
+    expect(isDeleteKind("users")).toBe(false);
+  });
+  it("conferma e ritorno", () => {
+    expect(deleteHref("it.x", "place", "torre")).toBe("/studio/it.x/elimina?tipo=place&slug=torre");
+    expect(deleteHref("it.x", "pack")).toBe("/studio/it.x/elimina?tipo=pack");
+    expect(afterDeleteHref("it.x", "source")).toBe("/studio/it.x/fonti");
+    expect(afterDeleteHref("it.x", "pack")).toBe("/studio");
+  });
+  it("toglie dal bucket solo file della cartella del territorio", () => {
+    expect(filesInPack("it.x", ["it.x/a.jpg", "it.x/a.jpg", "it.y/b.jpg", "it.x/../it.y/c.jpg", 3, "it.xx/d.jpg"])).toEqual(["it.x/a.jpg"]);
+    expect(filesInPack("it.x", null)).toEqual([]);
+  });
+  it("un riferimento ancora in uso ha un messaggio chiaro", () => {
+    expect(friendlyError({ code: "23503", message: "update or delete on table \"nodes\" violates foreign key constraint" })).toMatch(/ancora usato/);
   });
 });

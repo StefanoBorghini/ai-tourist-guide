@@ -131,3 +131,10 @@ details.st-create[open] > summary { margin-bottom: 12px; }
 .st-panel h3 { margin: 18px 0 8px; font-size: 16px; }
 .st-panel .st-actions { margin-bottom: 4px; }
 .st-panel .st-actions .st-btn { text-decoration: none; }
+
+/* Eliminazione: un solo pulsante rosso, nella pagina di conferma; altrove un collegamento discreto. */
+.st-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); font-weight: 600; }
+.st-danger:hover:not(:disabled) { border-color: var(--danger); filter: brightness(1.1); }
+.st-delete-link { color: var(--danger); font-size: 13px; text-decoration: none; }
+.st-delete-link:hover { text-decoration: underline; }
+.st-delete h2 { margin-top: 0; }

@@ -85,3 +85,26 @@ contenuti, copertina, dipendenza nascosta conservata, Portovenere identico prima
 prova, una destinazione al suo interno, luogo, fonte, affermazione, racconti, percorso, foto e copertina, controllo
 superato (bundle it ed en), revisione e pubblicazione, indice della PWA invariato, editor di un altro ambito
 respinto, Liguria e Portovenere invariati.
+
+## Eliminazione (2026-10-11)
+
+Migrazione `supabase/migrations/20261019000000_studio_delete.sql` (revoca in `supabase/rollback/`). Ogni elemento
+(territorio, luogo, percorso, fonte, affermazione, racconto, foto) ha «Elimina…», che apre una pagina di conferma
+(`/studio/<id>/elimina`) con il piano calcolato dal database (`studio_delete_plan`):
+
+- **Cosa sparisce insieme**: un luogo porta con sé i racconti ambientati lì, le affermazioni su di lui e le foto che
+  raffigurano solo lui (le foto con altri luoghi restano); un territorio, tutto il suo contenuto.
+- **Cosa lo impedisce**: nessun riferimento rotto. Un luogo che è tappa di un percorso, contiene altri luoghi o è
+  citato da racconti e affermazioni di altri; una fonte usata come prova; un'affermazione usata da un racconto; un
+  territorio che contiene altri territori, è pubblicato o ha prodotti a pagamento. Il piano dice cosa sistemare prima.
+- **Chi**: chi modifica il territorio; un'affermazione verificata la elimina un esperto o la redazione; un contenuto
+  pubblicato, chi pubblica; un territorio intero solo l'amministratore, riscrivendo l'identificativo per conferma.
+- **Copia di sicurezza**: prima di ogni eliminazione il territorio com'era viene salvato per intero in
+  `content_revisions` (`table_name = 'pack_snapshot'`, formato di `import_pack`; per un territorio eliminato anche i
+  ruoli limitati a quel territorio). Il test riporta un territorio eliminato identico con `import_pack`.
+- **File**: lo Studio toglie dal bucket `media` i file rimasti senza foto (mai quelli ancora usati da un'altra foto, mai
+  fuori dalla cartella del territorio), con la sessione dell'utente.
+- **App**: non cambia. I territori dei file (`territories/`) restano nei file; i territori fittizi di prova non sono più
+  compilati nell'app pubblicata (si includono solo con `GUIDE_INCLUDE_FICTIONAL=true`).
+
+Prove: `supabase/tests/40_delete.sql` in `npm run db:check`; prova nel browser su stack locale (17 controlli).

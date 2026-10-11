@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { requireStaff, rpc } from "../../../../lib/studio/server";
-import { friendlyError } from "../../../../lib/studio/shared";
+import { deleteHref, friendlyError } from "../../../../lib/studio/shared";
 import { createSource } from "../../actions";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../ui";
 
@@ -126,7 +127,12 @@ export default async function SourcesPage({ params, searchParams }: { params: Pr
               </td>
               <td>{KINDS[s.kind] ?? s.kind}</td>
               <td>{s.reliability}</td>
-              <td>{s.uses} affermazioni</td>
+              <td>
+                {s.uses} affermazioni
+                {k.data?.canEdit && (
+                  <span className="st-meta"><Link className="st-delete-link" href={deleteHref(pack, "source", s.slug)}>Elimina…</Link></span>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

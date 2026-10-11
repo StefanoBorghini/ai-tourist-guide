@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { requireStaff, rpc } from "../../../../../lib/studio/server";
-import { friendlyError, type Stop } from "../../../../../lib/studio/shared";
+import { deleteHref, friendlyError, type Stop } from "../../../../../lib/studio/shared";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../../ui";
 import { StopsEditor } from "./StopsEditor";
 
@@ -47,6 +48,9 @@ export default async function RoutePage({ params, searchParams }: { params: Prom
             </ul>
           )}
           <StopsEditor pack={pack} slug={slug} initial={route.stops} places={route.places} canEdit={route.canEdit} />
+          {route.canEdit && (
+            <p><Link className="st-delete-link" href={deleteHref(pack, "route", slug)}>Elimina questo percorso…</Link></p>
+          )}
         </>
       )}
     </main>

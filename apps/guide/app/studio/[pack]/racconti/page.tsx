@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { requireStaff, rpc } from "../../../../lib/studio/server";
-import { friendlyError, STATUS_LABELS } from "../../../../lib/studio/shared";
+import { deleteHref, friendlyError, STATUS_LABELS } from "../../../../lib/studio/shared";
 import { createUnit } from "../../actions";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../ui";
 
@@ -115,6 +116,7 @@ export default async function UnitsPage({ params, searchParams }: { params: Prom
                 <span className="st-meta">
                   {u.anchor} · {TYPES[u.unitType] ?? u.unitType} · {u.locale} · {u.durationS} s
                 </span>
+                {k.data?.canEdit && <Link className="st-delete-link" href={deleteHref(pack, "unit", u.slug)}>Elimina…</Link>}
               </div>
               <p className="st-assertion-text">{u.text}</p>
               <p className="st-meta">

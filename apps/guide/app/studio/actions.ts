@@ -7,7 +7,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { checkReadiness, requireStaff, rpc, studioClient, studioConfig } from "../../lib/studio/server";
-import { checkMediaRights, checkStops, friendlyError, MEDIA_LICENSES, MEDIA_SOURCES } from "../../lib/studio/shared";
+import { afterDeleteHref, checkMediaRights, checkStops, DELETE_KINDS, filesInPack, friendlyError, isDeleteKind, MEDIA_BUCKET, MEDIA_LICENSES, MEDIA_SOURCES } from "../../lib/studio/shared";
 
 const back = (path: string, result: Record<string, string | undefined>): never => {
   const q = new URLSearchParams(Object.entries(result).filter((e): e is [string, string] => e[1] !== undefined)).toString();
@@ -351,4 +351,40 @@ export async function createRoute(form: FormData) {
   if (error || !data) back(`${packPath(pack)}/percorsi`, { errore: friendlyError(error) });
   revalidatePath(packPath(pack), "layout");
   back(`${packPath(pack)}/percorsi/${encodeURIComponent(data!.slug)}`, { ok: "Percorso creato: ora ordina le tappe." });
+}
+
+// ---------------------------------------------------------------- eliminazione
+
+/**
+ * Elimina un elemento o un territorio dopo la pagina di conferma. Il database controlla di nuovo
+ * permessi e blocchi e salva prima una copia del territorio; poi si tolgono dal bucket i file rimasti
+ * senza media, con la sessione dell'utente (policy di Storage).
+ */
+export async function deleteItem(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const kind = text(form, "kind");
+  const slug = text(form, "slug");
+  if (!isDeleteKind(kind)) back("/studio", { errore: "Tipo da eliminare non valido." });
+  const k = kind as keyof typeof DELETE_KINDS;
+  const { data, error } = k === "pack"
+    ? await rpc<{ files?: unknown }>(supabase, "studio_delete_pack", { p_pack: pack, p_confirm: text(form, "confirm") })
+    : await rpc<{ files?: unknown }>(supabase, "studio_delete", { p_pack: pack, p_kind: k, p_slug: slug });
+  if (error) back(`${packPath(pack)}/elimina`, { tipo: k, slug: slug || undefined, errore: friendlyError(error) });
+
+  let files = filesInPack(pack, data?.files);
+  if (k === "pack") {
+    // Anche i file caricati e mai registrati: la cartella del territorio si svuota.
+    const listed = await supabase.storage.from(MEDIA_BUCKET).list(pack, { limit: 1000 });
+    files = [...new Set([...files, ...filesInPack(pack, (listed.data ?? []).map((f) => `${pack}/${f.name}`))])];
+  }
+  let note = "";
+  if (files.length > 0) {
+    const removed = await supabase.storage.from(MEDIA_BUCKET).remove(files);
+    if (removed.error) note = ` I file nel bucket non sono stati tolti (${removed.error.message}): si possono togliere dal pannello di Supabase.`;
+  }
+  revalidatePath("/studio", "layout");
+  back(afterDeleteHref(pack, k), {
+    ok: `${DELETE_KINDS[k].done}${k === "pack" ? ` (${pack})` : ""}. Una copia del territorio com'era prima è salvata nello storico.${note}`,
+  });
 }

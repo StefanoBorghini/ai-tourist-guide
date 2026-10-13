@@ -22,7 +22,7 @@ for f in "$ROOT"/migrations/*.sql; do
 done
 # La verifica da incollare nel SQL Editor del progetto reale deve passare anche qui e non lasciare dati.
 echo "test remote-check.sql"
-"${PSQL[@]}" -f "$HERE/remote-check.sql" -At | grep -qx 'superato|0|0' || { echo "remote-check.sql: esito inatteso"; exit 1; }
+"${PSQL[@]}" -f "$HERE/remote-check.sql" -At | grep -qx 'superato|0|0|nessuno' || { echo "remote-check.sql: esito inatteso"; exit 1; }
 # Parità pack ↔ database: ogni pack di territories/ importato, riletto e ricompilato in bundle identici.
 echo "test roundtrip.ts"
 PGHOST="$DATA" PGPORT="$PORT" PGUSER=postgres PGDATABASE=postgres npx tsx "$HERE/roundtrip.ts"
@@ -33,9 +33,19 @@ for f in "$HERE"/[1-9]*.sql; do
 done
 # Revoca: le migrazioni con uno script in rollback/ si devono poter annullare (in ordine inverso)
 # e riapplicare, senza errori.
+# La revoca dei diritti non deve mai allargarli: con dati commerciali presenti si ferma prima di cambiare qualcosa.
+ENT=20261024000000_entitlements
+echo "test revoca $ENT con dati presenti"
+"${PSQL[@]}" -f "$HERE/rollback/entitlements_guard.sql" >/dev/null
+if "${PSQL[@]}" -f "$ROOT/rollback/$ENT.down.sql" 2>"$DATA/guard.err"; then echo "la revoca dei diritti doveva fermarsi"; exit 1; fi
+grep -q "REVOCA DIRITTI interrotta, nulla è stato modificato" "$DATA/guard.err" || { cat "$DATA/guard.err"; exit 1; }
+"${PSQL[@]}" -f "$HERE/rollback/entitlements_guard_check.sql"
+# Due sessioni reali in parallelo: presa in carico delle pubblicazioni (R2) e revoca con scritture concorrenti (R6).
+TMPDIR_CONC="$DATA" PGHOST="$DATA" PGPORT="$PORT" PGUSER=postgres PGDATABASE=postgres bash "$HERE/concurrent.sh"
 for f in $(ls "$ROOT"/rollback/*.down.sql 2>/dev/null | sort -r); do
   echo "revoca $(basename "$f")"
   "${PSQL[@]}" -f "$f"
+  if [ "$(basename "$f" .down.sql)" = "$ENT" ]; then "${PSQL[@]}" -f "$HERE/rollback/entitlements_after.sql"; fi
 done
 for f in "$ROOT"/rollback/*.down.sql; do
   [ -e "$f" ] || continue

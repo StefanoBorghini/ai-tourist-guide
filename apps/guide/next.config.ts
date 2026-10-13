@@ -7,7 +7,8 @@ const nextConfig: NextConfig = {
     // La route delle domande legge i bundle compilati dal disco: vanno inclusi nella funzione.
     "/api/guide/ask": ["./public/bundles/**/*.json"],
     // Lo Studio copia nel bucket i file media dei territori nati dal repository (Foto → «Copia i file dal repository»).
-    "/studio/**": ["../../territories/*/media/files/*", "../../territories/*/*/media/files/*"],
+    // …e legge l'indice dei bundle statici: niente contenuti a pagamento per le destinazioni che ci sono.
+    "/studio/**": ["../../territories/*/media/files/*", "../../territories/*/*/media/files/*", "./public/bundles/index.json"],
   },
   // Bundle pubblicati dallo Studio (/pub/ → bucket pubblico «bundles» di Supabase, sullo stesso dominio dell'app):
   // la riscrittura è in proxy.ts, che aggiunge le intestazioni di sicurezza alle risposte.

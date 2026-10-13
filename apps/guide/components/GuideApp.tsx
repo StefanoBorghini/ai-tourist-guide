@@ -12,7 +12,7 @@ import { GuideVoice, type SpeechState } from "../lib/speech";
 import { uiFor, type UiText } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
 import { AskBox } from "./AskBox";
-import { mergeIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndex, type BundleIndexEntry } from "../lib/bundle-index";
+import { bundleBase as bundleBaseOf, loadIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndexEntry } from "../lib/bundle-index";
 import { DebugPanel } from "./DebugPanel";
 import { MapView } from "./MapView";
 import { Carousel } from "./Carousel";
@@ -25,13 +25,8 @@ type BundleEntry = BundleIndexEntry;
 const PUBLISHED = publishedOrigin({ NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL }) !== null;
 
 /** Indice dei territori: bundle dei file, sostituiti da quelli pubblicati dallo Studio. Basta che uno dei due risponda. */
-async function loadIndex(): Promise<BundleEntry[]> {
-  const get = (url: string) =>
-    fetch(url).then((r) => (r.ok ? (r.json() as Promise<BundleIndex>) : Promise.reject(new Error(`HTTP ${r.status}`))));
-  const [statics, published] = await Promise.allSettled([get(STATIC_INDEX_URL), PUBLISHED ? get(PUB_INDEX_URL) : Promise.reject(new Error("off"))]);
-  if (statics.status === "rejected" && published.status === "rejected") throw statics.reason as Error;
-  return mergeIndexes(statics.status === "fulfilled" ? statics.value.bundles : [], published.status === "fulfilled" ? published.value.bundles : null);
-}
+/** Indice: bundle dei file più quelli pubblicati. Se l'indice pubblicato non si legge lo si dice (publishedOk). */
+const loadIndex = () => loadIndexes((url) => fetch(url), STATIC_INDEX_URL, PUBLISHED ? PUB_INDEX_URL : null);
 
 type Screen = "home" | "setup" | "walk";
 const BUDGETS = [20, 30, 45, 60, 90];
@@ -78,6 +73,8 @@ function clock(ms: number, locale: string): string {
 export function GuideApp() {
   const [entries, setEntries] = useState<BundleEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /** Indice pubblicato non leggibile: alcune destinazioni mancano per ora (nessun ripiego su altri contenuti). */
+  const [indexPartial, setIndexPartial] = useState(false);
   const [screen, setScreen] = useState<Screen>("home");
   const [content, setContent] = useState<BundleContent | null>(null);
   const [bundleBase, setBundleBase] = useState("");
@@ -206,7 +203,10 @@ export function GuideApp() {
 
   useEffect(() => {
     loadIndex()
-      .then(setEntries)
+      .then((r) => {
+        setEntries(r.entries);
+        setIndexPartial(!r.publishedOk);
+      })
       .catch((e: Error) => setError(e.message));
   }, []);
 
@@ -215,7 +215,7 @@ export function GuideApp() {
   /** Scarica (o legge dalla cache) e verifica il bundle di una destinazione. */
   const loadBundle = async (entry: BundleEntry): Promise<BundleContent> => {
     const manifest = (await (await fetch(entry.manifest)).json()) as BundleManifest;
-    const base = entry.manifest.replace(/manifest\.json$/, "");
+    const base = bundleBaseOf(entry.manifest);
     const json = await (await fetch(base + manifest.content)).text();
     const verified = await verifyBundle(manifest, json);
     setContent(verified);
@@ -657,6 +657,7 @@ export function GuideApp() {
             </p>
           )}
           {error && <p className="notice gps-error">{online ? error : t.offlineNoBundle}</p>}
+          {!error && indexPartial && <p className="notice">{t.indexPartial}</p>}
           {savedTour && (
             <div className="resume">
               <div>

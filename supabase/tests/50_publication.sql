@@ -28,7 +28,7 @@ do $$ begin
     raise exception 'FALLITO: pubblicazione chiusa da chi non pubblica il territorio';
   exception when insufficient_privilege then null; end;
   begin
-    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/it-full/manifest.json', auth.uid());
+    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/it-full/media/0123456789abcdef.jpg', auth.uid());
     raise exception 'FALLITO: file di un altro territorio';
   exception when insufficient_privilege then null; end;
 end $$;
@@ -45,36 +45,56 @@ do $$ begin
 end $$;
 reset role;
 
--- Editor di alfa: chiude la pubblicazione.
+-- Editor di alfa: prende in carico la pubblicazione e la chiude per identificativo (R2: manifest e contenuti nella
+-- cartella della pubblicazione, <lingua>-full/<id>/; nessun index.json da scrivere, l'indice è numerato).
+create temp table pub_50 (id uuid);
+grant select, insert on pub_50 to authenticated;
 set role authenticated;
 set request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000002';
 do $$
-declare v jsonb; b jsonb;
+declare v jsonb; b jsonb; p uuid;
 begin
-  insert into storage.objects (bucket_id, name, owner) values ('bundles', 'index.json', auth.uid());
+  begin
+    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'index.json', auth.uid());
+    raise exception 'FALLITO: index.json della struttura precedente riscritto';
+  exception when insufficient_privilege then null; end;
+  p := (studio_publication_claim('it.test.alfa') ->> 'publication')::uuid;
+  if p is null then raise exception 'FALLITO: presa in carico'; end if;
+  insert into pub_50 values (p);
   b := jsonb_build_array(
-    jsonb_build_object('locale', 'it', 'url', '/pub/it.test.alfa/it-full/manifest.json',
-      'manifest', jsonb_build_object('bundleSchemaVersion', 1, 'minAppVersion', '0.1.0', 'destination', 'it.test.alfa', 'kbHash', 'k1', 'totalBytes', 100),
-      'entry', jsonb_build_object('destination', 'it.test.alfa', 'name', 'Alfa', 'locale', 'it', 'manifest', '/pub/it.test.alfa/it-full/manifest.json')),
-    jsonb_build_object('locale', 'en', 'url', '/pub/it.test.alfa/en-full/manifest.json',
-      'manifest', jsonb_build_object('bundleSchemaVersion', 1, 'minAppVersion', '0.1.0', 'destination', 'it.test.alfa', 'kbHash', 'k2', 'totalBytes', 90),
-      'entry', jsonb_build_object('destination', 'it.test.alfa', 'name', 'Alfa', 'locale', 'en', 'manifest', '/pub/it.test.alfa/en-full/manifest.json')));
+    jsonb_build_object('locale', 'it', 'url', '/pub/it.test.alfa/it-full/' || p || '/manifest.json',
+      'manifest', jsonb_build_object('bundleSchemaVersion', 1, 'minAppVersion', '0.1.0', 'destination', 'it.test.alfa', 'kbHash', 'k1', 'totalBytes', 100,
+                                     'content', p || '/content.0000000000000001.json'),
+      'entry', jsonb_build_object('destination', 'it.test.alfa', 'name', 'Alfa', 'locale', 'it', 'manifest', '/pub/it.test.alfa/it-full/' || p || '/manifest.json')),
+    jsonb_build_object('locale', 'en', 'url', '/pub/it.test.alfa/en-full/' || p || '/manifest.json',
+      'manifest', jsonb_build_object('bundleSchemaVersion', 1, 'minAppVersion', '0.1.0', 'destination', 'it.test.alfa', 'kbHash', 'k2', 'totalBytes', 90,
+                                     'content', p || '/content.0000000000000002.json'),
+      'entry', jsonb_build_object('destination', 'it.test.alfa', 'name', 'Alfa', 'locale', 'en', 'manifest', '/pub/it.test.alfa/en-full/' || p || '/manifest.json')));
   -- Un bundle con l'indirizzo di un altro territorio è rifiutato.
   begin
     perform studio_publication_finish('it.test.alfa', true, '{}',
-      jsonb_set(b, '{0,url}', '"/pub/it.test.beta/it-full/manifest.json"'));
+      jsonb_set(b, '{0,url}', '"/pub/it.test.beta/it-full/manifest.json"'), p);
     raise exception 'FALLITO: accettato un bundle fuori dalla cartella';
-  exception when raise_exception then null; end;
-  v := studio_publication_finish('it.test.alfa', true, '{"ms": 1200}', b);
+  exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+  -- La forma senza identificativo non mette in linea nulla.
+  begin
+    perform studio_publication_finish('it.test.alfa', true, '{"ms": 1200}', b);
+    raise exception 'FALLITO: pubblicazione in linea senza presa in carico';
+  exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+  v := studio_publication_finish('it.test.alfa', true, '{"ms": 1200}', b, p);
   if v ->> 'status' <> 'published' or jsonb_array_length(v -> 'bundles') <> 2 then raise exception 'FALLITO: esito %', v; end if;
 end $$;
 reset role;
 
-do $$ begin
+do $$
+declare p text := (select id::text from pub_50);
+begin
   if (select count(*) from bundles where pack_id = 'it.test.alfa' and version = 1) <> 2 then
     raise exception 'FALLITO: bundle non registrati';
   end if;
-  if public_bundle_index() -> 'bundles' <> '[{"destination": "it.test.alfa", "name": "Alfa", "locale": "en", "manifest": "/pub/it.test.alfa/en-full/manifest.json"}, {"destination": "it.test.alfa", "name": "Alfa", "locale": "it", "manifest": "/pub/it.test.alfa/it-full/manifest.json"}]' then
+  if public_bundle_index() -> 'bundles' <> jsonb_build_array(
+       jsonb_build_object('destination', 'it.test.alfa', 'name', 'Alfa', 'locale', 'en', 'manifest', '/pub/it.test.alfa/en-full/' || p || '/manifest.json'),
+       jsonb_build_object('destination', 'it.test.alfa', 'name', 'Alfa', 'locale', 'it', 'manifest', '/pub/it.test.alfa/it-full/' || p || '/manifest.json')) then
     raise exception 'FALLITO: indice %', public_bundle_index();
   end if;
   -- Gli altri territori (anche approvati) non ci sono finché non hanno una pubblicazione riuscita.

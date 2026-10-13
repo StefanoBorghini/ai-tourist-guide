@@ -8,6 +8,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { checkReadiness, refreshPublicIndex, requireStaff, rpc, runPublication, signedMediaUrls, studioClient, studioConfig, type PublicationResult } from "../../lib/studio/server";
 import { copyRepoMedia } from "../../lib/studio/repo-media";
+import { premiumBlockedByStatic } from "../../lib/static-bundles";
+import { staticDestinations } from "../../lib/static-index";
 import { afterDeleteHref, checkMediaRights, checkStops, DELETE_KINDS, filesInPack, friendlyError, isDeleteKind, MEDIA_BUCKET, MEDIA_LICENSES, MEDIA_SOURCES } from "../../lib/studio/shared";
 
 const back = (path: string, result: Record<string, string | undefined>): never => {
@@ -235,10 +237,14 @@ export async function setAccess(form: FormData) {
   const path = `${packPath(pack)}/accesso`;
   const explore = text(form, "explore") === "premium" ? "premium" : "free";
   const introPlaces = list(form, "introPlaces");
+  const premiumRoutes = list(form, "premiumRoutes");
   if (introPlaces.length > 3) back(path, { errore: "Al massimo 3 luoghi introduttivi." });
+  // Le destinazioni con bundle compilati dai file non possono avere contenuti a pagamento (lo ricontrolla la pubblicazione).
+  const blocked = explore === "premium" || premiumRoutes.length > 0 ? premiumBlockedByStatic(pack, await staticDestinations()) : null;
+  if (blocked) back(path, { errore: `Non salvato: ${blocked}.` });
   const { error } = await rpc(supabase, "studio_set_access", {
     p_pack: pack,
-    p: { explore, introPlaces, premiumRoutes: list(form, "premiumRoutes") },
+    p: { explore, introPlaces, premiumRoutes },
   });
   if (error) back(path, { errore: friendlyError(error) });
   revalidatePath("/studio", "layout");

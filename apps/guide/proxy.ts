@@ -5,7 +5,7 @@
  */
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { publishedOrigin, pubToStorageUrl } from "./lib/bundle-index";
+import { BUNDLES_BUCKET, currentIndexObject, listIndexObjects, PUB_INDEX_URL, publishedOrigin, pubToStorageUrl } from "./lib/bundle-index";
 import { readStudioConfig } from "./lib/studio/shared";
 
 /**
@@ -18,11 +18,32 @@ const PUB_HEADERS = {
   "Content-Security-Policy": "default-src 'none'; img-src 'self'; media-src 'self'; sandbox",
 };
 
+/**
+ * /pub/index.json: la fotografia numerata più alta di index/ (immutabili: un processo sospeso che carica tardi una
+ * fotografia vecchia non la rende mai quella servita), oppure il vecchio index.json finché non ce n'è nessuna.
+ * Se l'elenco non risponde: 503, mai un indice più vecchio al posto di quello in vigore.
+ */
+async function publishedIndexResponse(origin: string): Promise<NextResponse> {
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  const found = anonKey ? await currentIndexObject(listIndexObjects(origin, anonKey)) : { ok: false as const, error: "chiave pubblica mancante" };
+  if (!found.ok) {
+    const failed = new NextResponse(null, { status: 503 });
+    for (const [k, v] of Object.entries(PUB_HEADERS)) failed.headers.set(k, v);
+    failed.headers.set("Cache-Control", "no-store");
+    return failed;
+  }
+  const response = NextResponse.rewrite(new URL(`${origin}/storage/v1/object/public/${BUNDLES_BUCKET}/${found.object}`));
+  for (const [k, v] of Object.entries(PUB_HEADERS)) response.headers.set(k, v);
+  response.headers.set("Cache-Control", "no-cache");
+  return response;
+}
+
 export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/pub/")) {
     // La riscrittura verso il bucket la fa qui (non in next.config): così le intestazioni restano sulla risposta.
     const origin = publishedOrigin({ NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL });
     if (!origin) return new NextResponse(null, { status: 404 });
+    if (request.nextUrl.pathname === PUB_INDEX_URL) return publishedIndexResponse(origin);
     const response = NextResponse.rewrite(new URL(pubToStorageUrl(request.nextUrl.pathname, origin) + request.nextUrl.search));
     for (const [k, v] of Object.entries(PUB_HEADERS)) response.headers.set(k, v);
     return response;

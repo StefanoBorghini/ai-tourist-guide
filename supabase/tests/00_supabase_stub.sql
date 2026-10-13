@@ -40,6 +40,8 @@ create table if not exists storage.objects (
   owner uuid,
   created_at timestamptz not null default now()
 );
+-- Come in Supabase Storage (indice bucketid_objname): un nome per bucket. Senza upsert, un file non si riscrive.
+create unique index if not exists bucketid_objname on storage.objects (bucket_id, name);
 create or replace function storage.foldername(name text) returns text[] language sql immutable as $$
   select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1]
 $$;

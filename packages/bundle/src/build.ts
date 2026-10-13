@@ -145,6 +145,9 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   const assetFiles = new Map<string, Uint8Array>();
   const streamFiles = new Map<string, Uint8Array>();
   const allowNonCommercial = dest.config.media.allowNonCommercial;
+  // Contenuti a pagamento configurati (config.access della destinazione): cambiano ciò che è pubblico.
+  const access = dest.config.access;
+  const commercial = access !== undefined && (access.explore === "premium" || access.premiumRoutes.length > 0);
 
   for (const pack of scope) {
     const packId = pack.manifest.id;
@@ -169,7 +172,9 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
         ...(p.accessibility?.stairs !== undefined ? { stairs: p.accessibility.stairs } : {}),
         ...(p.walkable === false ? { walkable: false as const } : {}),
         coordinateStatus: p.coordinates.status,
-        ...(preview && p.curation
+        // Note di curatela: solo nelle anteprime gratuite (prove sul campo), mai con contenuti a pagamento:
+        // sono appunti della redazione e possono anticipare i racconti esclusi.
+        ...(preview && !commercial && p.curation
           ? { curation: { ...(p.curation.storyStatus ? { storyStatus: p.curation.storyStatus } : {}), notes: [...p.curation.notes] } }
           : {}),
         practical: p.practical.flatMap((info) => {
@@ -314,8 +319,7 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   const included = new Set(assertions.map((a) => a.ref));
   const safeUnits = units.filter((u) => u.assertions.every((a) => included.has(a)));
 
-  // Contenuti a pagamento (config.access della destinazione): fuori dal bundle pubblico.
-  const access = dest.config.access;
+  // Contenuti a pagamento: fuori dal bundle pubblico.
   const destRef = (slug: string) => formatNodeRef({ packId: destination, slug });
   const explorePremium = access?.explore === "premium";
   const premiumRouteRefs = new Set((access?.premiumRoutes ?? []).map(destRef));
@@ -342,6 +346,19 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   };
   // Fonti: solo quelle citate da affermazioni, percorsi e informazioni pratiche inclusi.
   const sources = sourcesFor(publicAssertions, publicRoutes, true);
+  // Nodi (persone, eventi, leggende…): con l'esplorazione a pagamento solo quelli citati da ciò che resta pubblico,
+  // perché anche un nome («Leggenda della sirena») anticipa un racconto escluso.
+  const publicNodes = explorePremium
+    ? (() => {
+        const used = new Set([
+          ...publicUnits.flatMap((u) => [u.anchor, ...u.introduces, ...u.requires, ...u.hooks.map((h) => h.target)]),
+          ...publicAssertions.flatMap((a) => [a.subject, ...(a.object ? [a.object] : [])]),
+          ...media.flatMap((m) => m.subjects),
+          ...places.flatMap((p) => (p.partOf ? [p.partOf] : [])),
+        ]);
+        return nodes.filter((n) => used.has(n.ref));
+      })()
+    : nodes;
 
   const premium: PremiumPart[] = [];
   const part = (kind: PremiumPart["kind"], partUnits: BundleUnit[], partRoutes: BundleRoute[], ref?: string): PremiumPart => {
@@ -356,10 +373,11 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     };
   };
   if (explorePremium) premium.push(part("explore", safeUnits.filter((u) => !publicUnitRefs.has(u.ref)), []));
+  // Percorso premium: solo l'itinerario (tappe, durata, fonti). I racconti delle tappe restano dove sono:
+  // pubblici se l'esplorazione è gratuita, nell'esplorazione completa se è a pagamento. Scelta prudente: un acquisto
+  // di percorso non sblocca racconti dell'esplorazione (vedi docs/v0.3-platform/ACCESSO-CONTENUTI.md, «Percorsi»).
   for (const r of routes.filter((r) => premiumRouteRefs.has(r.ref)).sort(byRef)) {
-    const stops = new Set(r.stops.map((s) => s.place));
-    const atStops = withPrerequisites(safeUnits.filter((u) => stops.has(u.anchor)), safeUnits);
-    premium.push(part("route", atStops.filter((u) => !publicUnitRefs.has(u.ref)), [r], r.ref));
+    premium.push(part("route", [], [r], r.ref));
   }
 
   const content: BundleContent = {
@@ -379,7 +397,7 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
       .filter((n) => n.text),
     places: places.sort(byRef),
     anchors: anchors.sort(byRef),
-    nodes: nodes.sort(byRef),
+    nodes: publicNodes.sort(byRef),
     sources,
     assertions: publicAssertions.sort(byRef),
     units: publicUnits.sort(byRef),

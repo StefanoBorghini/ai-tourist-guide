@@ -183,9 +183,17 @@ begin
   exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
 
   -- P8: nel bucket pubblico solo i file dei bundle, solo nella propria cartella; l'indice no.
-  insert into storage.objects (bucket_id, name, owner) values ('bundles', 'za.alfa/it-full/manifest.json', auth.uid());
-  insert into storage.objects (bucket_id, name, owner) values ('bundles', 'za.alfa/it-full/content.0123abcd.json', auth.uid());
+  -- Dal 20261023000000 (R2) manifest e contenuti si scrivono solo nella cartella di una pubblicazione in corso
+  -- (test 50 e 80): nella struttura precedente sono rifiutati.
   insert into storage.objects (bucket_id, name, owner) values ('bundles', 'za.alfa/it-full/media/0123456789abcdef.jpg', auth.uid());
+  begin
+    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'za.alfa/it-full/manifest.json', auth.uid());
+    raise exception 'FALLITO: manifest fuori dalla cartella di una pubblicazione';
+  exception when insufficient_privilege then null; end;
+  begin
+    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'za.alfa/it-full/content.0123abcd.json', auth.uid());
+    raise exception 'FALLITO: contenuto fuori dalla cartella di una pubblicazione';
+  exception when insufficient_privilege then null; end;
   begin
     insert into storage.objects (bucket_id, name, owner) values ('bundles', 'za.alfa/it-full/pagina.html', auth.uid());
     raise exception 'FALLITO: HTML nel bucket pubblico';
@@ -258,7 +266,12 @@ do $$ begin
     update packs set organization_id = '6b000000-0000-0000-0000-000000000000' where id = 'za.alfa';
     raise exception 'FALLITO: lo staff (non amministratore) cambia l''organizzazione';
   exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
-  insert into storage.objects (bucket_id, name, owner) values ('bundles', 'index.json', auth.uid());
+  -- L'indice si scrive come fotografia numerata, col numero assegnato da studio_index_snapshot (R2).
+  insert into storage.objects (bucket_id, name, owner) values ('bundles', studio_index_snapshot() ->> 'name', auth.uid());
+  begin
+    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'index.json', auth.uid());
+    raise exception 'FALLITO: index.json della struttura precedente riscritto';
+  exception when insufficient_privilege then null; end;
 end $$;
 reset role;
 

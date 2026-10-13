@@ -11,7 +11,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { askRequestSchema, fallbackAnswer, type AskAnswer } from "../../../../lib/ask";
-import { ASK_MODEL, askGuide, bundleVersions, loadKnowledge, webSearchSupported } from "../../../../lib/ask-server";
+import { ASK_MODEL, askGuide, bundleVersions, GuideUnavailableError, loadKnowledge, webSearchSupported } from "../../../../lib/ask-server";
 import { DailyCounter, TtlCache, cacheKey, cacheable, webConfig } from "../../../../lib/ask-web";
 
 export const runtime = "nodejs";
@@ -85,7 +85,13 @@ export async function POST(request: Request): Promise<Response> {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
   if (askLimiter.hit(ip)) return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 429 });
 
-  const loaded = await loadKnowledge(req.destination, req.locale).catch(() => null);
+  let unavailable = false;
+  const loaded = await loadKnowledge(req.destination, req.locale).catch((e) => {
+    unavailable = e instanceof GuideUnavailableError;
+    return null;
+  });
+  // Contenuti dello Studio non raggiungibili: si dice, senza ripiegare su altri contenuti.
+  if (!loaded && unavailable) return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 503, headers: { "retry-after": "30" } });
   if (!loaded) return Response.json({ error: "destinazione sconosciuta" }, { status: 404 });
 
   // Cache: stessa domanda, stesso luogo, stessa versione dei contenuti, senza conversazione alle spalle.

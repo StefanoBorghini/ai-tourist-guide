@@ -29,6 +29,8 @@ insert into places (node_id, place_kind, location, importance, dwell_min) values
 insert into routes (id, pack_id, slug, duration_min, labels, access_tier) values
   ('c0000000-0000-0000-0000-00000000000a', 'it.test.alfa', 'giro-libero', 30, '{"it":{"name":"Giro"}}', 'free'),
   ('c0000000-0000-0000-0000-00000000000b', 'it.test.alfa', 'giro-premium', 60, '{"it":{"name":"Giro lungo"}}', 'premium');
+-- Percorso premium: dichiarato nell'accesso della destinazione (20261022000000), non più con access_tier.
+update packs set config = config || '{"access":{"explore":"free","introPlaces":[],"premiumRoutes":["giro-premium"]}}' where id = 'it.test.alfa';
 
 -- Il profilo nasce con l'account, con la lingua scelta alla registrazione.
 do $$ begin
@@ -70,7 +72,7 @@ do $$ begin
   exception when insufficient_privilege then null; end;
   -- Nessuno si concede un diritto di accesso da solo.
   begin
-    insert into products (slug, kind, route_id, status) values ('furbo', 'route_access', 'c0000000-0000-0000-0000-00000000000b', 'active');
+    insert into products (slug, kind, pack_id, route_id, status) values ('furbo', 'route', 'it.test.alfa', 'c0000000-0000-0000-0000-00000000000b', 'active');
     raise exception 'FALLITO: un turista non crea prodotti';
   exception when insufficient_privilege then null; end;
   if can_access_route('c0000000-0000-0000-0000-00000000000a') is not true then raise exception 'FALLITO: percorso gratuito accessibile'; end if;
@@ -159,9 +161,11 @@ begin
     raise exception 'FALLITO: un editor non carica file in un altro territorio';
   exception when insufficient_privilege then null; end;
   -- Bundle: chi pubblica un territorio ne scrive i file (20261020000000_publication.sql), non quelli di altri.
-  insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/it-full/manifest.json', 'a0000000-0000-0000-0000-000000000002');
+  -- Dal 20261023000000 (R2) manifest e contenuti stanno solo nella cartella di una pubblicazione in corso
+  -- (test 50 e 80); qui basta un media, che sta nella cartella della lingua.
+  insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/it-full/media/0123456789abcdef.jpg', 'a0000000-0000-0000-0000-000000000002');
   begin
-    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.beta/it-full/manifest.json', 'a0000000-0000-0000-0000-000000000002');
+    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.beta/it-full/media/0123456789abcdef.jpg', 'a0000000-0000-0000-0000-000000000002');
     raise exception 'FALLITO: un editor non scrive i bundle di un altro territorio';
   exception when insufficient_privilege then null; end;
 
@@ -222,8 +226,8 @@ do $$
 declare p uuid;
 begin
   if not exists (select 1 from nodes where pack_id = 'it.test.beta') then raise exception 'FALLITO: l''amministratore vede ogni territorio'; end if;
-  insert into products (slug, kind, route_id, status) values ('giro-premium', 'route_access', 'c0000000-0000-0000-0000-00000000000b', 'active') returning id into p;
-  insert into entitlements (user_id, product_id, source, note) values ('a0000000-0000-0000-0000-000000000004', p, 'grant', 'prova');
+  insert into products (slug, kind, pack_id, route_id, status) values ('giro-premium', 'route', 'it.test.alfa', 'c0000000-0000-0000-0000-00000000000b', 'active') returning id into p;
+  perform admin_grant_product('a0000000-0000-0000-0000-000000000004', p, 'prova');
 end $$;
 reset role;
 
@@ -232,8 +236,11 @@ set role authenticated;
 set request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000004';
 do $$ begin
   if can_access_route('c0000000-0000-0000-0000-00000000000b') is not true then raise exception 'FALLITO: diritto di accesso riconosciuto'; end if;
-  update entitlements set valid_until = now() + interval '1 year';
-  if found then raise exception 'FALLITO: un turista non modifica i propri diritti'; end if;
+  -- Nessuna scrittura diretta sui diritti (20261024000000): rifiutata, non solo senza effetto.
+  begin
+    update entitlements set valid_until = now() + interval '1 year';
+    raise exception 'FALLITO: un turista non modifica i propri diritti';
+  exception when insufficient_privilege then null; end;
 end $$;
 reset role;
 set role authenticated;
@@ -273,5 +280,9 @@ do $$ begin
     raise exception 'FALLITO: la cancellazione dell''account rimuove i dati personali';
   end if;
 end $$;
+
+-- Pulizia dei dati commerciali di prova: la revoca di 20261024000000, provata dopo i test, si ferma se ne trova.
+delete from products where pack_id = 'it.test.alfa';
+update packs set config = config - 'access' where id = 'it.test.alfa';
 
 select 'sicurezza della piattaforma: tutti i controlli superati' as esito;

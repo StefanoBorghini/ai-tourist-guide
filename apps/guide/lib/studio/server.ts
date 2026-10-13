@@ -10,7 +10,9 @@ import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { BUNDLES_BUCKET } from "../bundle-index";
+import { BUNDLES_BUCKET, currentIndexObject, INDEX_DIR, type BundleIndexEntry } from "../bundle-index";
+import { premiumBlockedByStatic } from "../static-bundles";
+import { staticDestinations } from "../static-index";
 import { MEDIA_BUCKET, readStudioConfig, type StudioConfig } from "./shared";
 
 export function studioConfig(): StudioConfig | null {
@@ -104,7 +106,14 @@ export async function checkReadiness(supabase: SupabaseClient, pack: string) {
   const target = snapshots.get(pack) as { media?: { file: string; poster?: string }[] } | null;
   const paths = (target?.media ?? []).flatMap((m) => [m.file, ...(m.poster ? [m.poster] : [])]).map((f) => `${pack}/${f}`);
   const stored = new Set((await signedMediaUrls(supabase, paths)).keys());
-  return assessReadiness(pack, snapshots, stored);
+  const result = assessReadiness(pack, snapshots, stored);
+  // Contenuti a pagamento su una destinazione con bundle statici: lo dice subito (lo ricontrolla la pubblicazione).
+  const access = (snapshots.get(pack) as { config?: { access?: { explore?: string; premiumRoutes?: string[] } } } | null)?.config?.access;
+  const blocked = access && (access.explore === "premium" || (access.premiumRoutes ?? []).length > 0)
+    ? premiumBlockedByStatic(pack, await staticDestinations())
+    : null;
+  if (!blocked) return result;
+  return { ...result, ok: false, errors: [...result.errors, { level: "error" as const, code: "STATIC_PREMIUM", pack, message: blocked }] };
 }
 
 // ---------------------------------------------------------------- pubblicazione
@@ -133,30 +142,73 @@ export interface PublicationResult {
   bundles: { locale: string; totalBytes: number; places: number; units: number }[];
 }
 
-/** Indice pubblico (index.json nel bucket «bundles») ricalcolato dal database: chi è in linea e con quale versione. */
+/**
+ * Indice pubblico ricalcolato dal database e caricato come nuova fotografia numerata (index/<numero>.json, mai
+ * sovrascritta): l'app legge quella col numero più alto (proxy.ts). Numero e contenuto li dà
+ * studio_index_snapshot in modo coerente: una fotografia caricata in ritardo da un processo sospeso ha un numero
+ * più basso di quelle prese dopo, quindi non torna mai in vigore.
+ */
 export async function refreshPublicIndex(supabase: SupabaseClient): Promise<string | null> {
   // L'indice di tutti lo riscrive solo lo staff della piattaforma (20261021000000_cms_hardening.sql).
   const allowed = await supabase.rpc("studio_can_publish_any");
   if (allowed.data !== true) return "l'indice dell'app lo aggiorna lo staff della piattaforma";
-  const { data, error } = await supabase.rpc("public_bundle_index");
+  const { data, error } = await supabase.rpc("studio_index_snapshot");
   if (error) return error.message;
-  const up = await supabase.storage.from(BUNDLES_BUCKET).upload("index.json", new TextEncoder().encode(JSON.stringify(data)), {
-    contentType: "application/json", upsert: true, cacheControl: MUTABLE,
+  const snap = data as { name?: string; index?: unknown } | null;
+  if (!snap?.name || !snap.index) return "fotografia dell'indice non valida";
+  const up = await supabase.storage.from(BUNDLES_BUCKET).upload(snap.name, new TextEncoder().encode(JSON.stringify(snap.index)), {
+    contentType: "application/json", upsert: false, cacheControl: MUTABLE,
   });
   return up.error ? up.error.message : null;
 }
 
+/** Indice in vigore, letto dal bucket come lo legge l'app (null se non si legge). */
+async function visibleIndex(supabase: SupabaseClient): Promise<BundleIndexEntry[] | null> {
+  const bucket = supabase.storage.from(BUNDLES_BUCKET);
+  const found = await currentIndexObject(() => bucket.list(INDEX_DIR, { limit: 1, sortBy: { column: "name", order: "desc" } }));
+  if (!found.ok) return null;
+  const { data } = await bucket.download(found.object);
+  if (!data) return null;
+  try {
+    const bundles = (JSON.parse(await data.text()) as { bundles?: unknown }).bundles;
+    return Array.isArray(bundles) ? (bundles as BundleIndexEntry[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Pipeline di pubblicazione, con la sessione di chi pubblica (le policy decidono cosa può scrivere):
- * istantanee → file media dal bucket «media» → compilazione e verifica → file nel bucket «bundles»
- * (prima quelli con l'impronta, poi i manifest) → esito nel database → indice pubblico.
+ * presa in carico (una pubblicazione alla volta per territorio) → istantanee → file media dal bucket «media» →
+ * compilazione nella cartella della pubblicazione → file nel bucket «bundles» (prima quelli con l'impronta, poi i
+ * manifest; nessuno si sovrascrive) → verifica che ci siano tutti → esito nel database → indice numerato → pulizia
+ * delle versioni morte. Prima di ogni manifest la presa in carico si rinnova; comunque il bucket accetta i file di
+ * una pubblicazione solo finché è in corso (R2, 20261023000000_bundles_storage.sql).
  * Se qualcosa va storto la pubblicazione risulta fallita e la versione in linea resta quella di prima.
  */
 export async function runPublication(supabase: SupabaseClient, pack: string): Promise<PublicationResult> {
-  const { compilePublication, mediaPaths } = await import("./publish");
+  const { compilePublication, mediaPaths, removeDeadVersions } = await import("./publish");
   const started = Date.now();
+  // Una pubblicazione alla volta per territorio: senza la presa in carico non si tocca il bucket.
+  const claim = await supabase.rpc("studio_publication_claim", { p_pack: pack });
+  if (claim.error) return { ok: false, errors: [`pubblicazione non avviata: ${claim.error.message}`], warnings: [], bundles: [] };
+  const claimed = claim.data as { ok?: boolean; publication?: string } | null;
+  if (claimed?.ok !== true || typeof claimed.publication !== "string") {
+    return { ok: false, errors: ["è già in corso un'altra pubblicazione di questo territorio: riprova tra qualche minuto"], warnings: [], bundles: [] };
+  }
+  // Ogni esito, riuscito o fallito, va alla pubblicazione presa in carico e a nessun'altra.
+  const publication = claimed.publication;
+  // Rinnovo della presa in carico, da chiedere subito prima di ogni operazione che cambia i file pubblicati: un
+  // controllo vale solo per l'operazione che lo segue. Un errore di rete conta come presa persa.
+  const stillHeld = async () => {
+    const { data, error } = await supabase.rpc("studio_publication_renew", { p_pack: pack, p_publication: publication });
+    return !error && data === true;
+  };
+  const LOST = "presa in carico della pubblicazione persa (scaduta o sostituita da un'altra pubblicazione): la pubblicazione si ferma senza toccare altri manifest o file";
   const fail = async (errors: string[], warnings: string[] = []): Promise<PublicationResult> => {
-    await supabase.rpc("studio_publication_finish", { p_pack: pack, p_ok: false, p_report: { errors, warnings, ms: Date.now() - started } });
+    await supabase.rpc("studio_publication_finish", {
+      p_pack: pack, p_ok: false, p_report: { errors, warnings, ms: Date.now() - started }, p_bundles: [], p_publication: publication,
+    });
     return { ok: false, errors, warnings, bundles: [] };
   };
   try {
@@ -166,45 +218,74 @@ export async function runPublication(supabase: SupabaseClient, pack: string): Pr
       const { data } = await supabase.storage.from(MEDIA_BUCKET).download(path);
       if (data) files.set(path, new Uint8Array(await data.arrayBuffer()));
     });
-    const compiled = compilePublication(pack, snapshots, files);
+    const compiled = compilePublication(pack, snapshots, files, await staticDestinations(), publication);
     if (!compiled.ok) return await fail(compiled.errors, compiled.warnings);
 
     const bucket = supabase.storage.from(BUNDLES_BUCKET);
     for (const b of compiled.bundles) {
-      // I file con l'impronta già presenti (pubblicazioni precedenti) non si ricaricano.
+      // Media condivisi (impronta nel nome): quelli già presenti non si ricaricano. I file della pubblicazione
+      // vanno nella sua cartella, sempre nuovi; nessun file si sovrascrive (upsert: false, e il bucket lo impone).
       const present = new Set<string>();
-      for (const dir of ["", "media"]) {
-        const { data } = await bucket.list(dir ? `${b.folder}/${dir}` : b.folder, { limit: 1000 });
-        for (const f of data ?? []) present.add(dir ? `${dir}/${f.name}` : f.name);
-      }
+      const { data: media } = await bucket.list(`${b.folder}/media`, { limit: 1000 });
+      for (const f of media ?? []) present.add(`media/${f.name}`);
       const uploads = [...b.immutable, ...b.stream].filter(([p]) => !present.has(p));
       const failures: string[] = [];
       await pool(uploads, 4, async ([path, data]) => {
         const up = await bucket.upload(`${b.folder}/${path}`, data, { contentType: contentType(path), upsert: false, cacheControl: IMMUTABLE });
-        if (up.error && !/exist|duplicate/i.test(up.error.message)) failures.push(`${b.folder}/${path}: ${up.error.message}`);
+        const shared = path.startsWith("media/") && /exist|duplicate/i.test(up.error?.message ?? "");
+        if (up.error && !shared) failures.push(`${b.folder}/${path}: ${up.error.message}`);
       });
       if (failures.length) return await fail(failures, compiled.warnings);
+      // Tiene viva la presa in carico di una pubblicazione lunga; persa, ci si ferma prima di altri caricamenti.
+      if (!(await stillHeld())) return await fail([LOST], compiled.warnings);
     }
-    // Manifest per ultimi: finché non cambiano, l'app continua a usare la versione precedente completa.
+    // Manifest per ultimi, nella cartella della pubblicazione. Finché la pubblicazione non va in linea (esito sotto)
+    // nessuno li legge: l'indice in vigore punta ancora alla versione precedente.
     for (const b of compiled.bundles) {
-      const up = await bucket.upload(`${b.folder}/manifest.json`, new TextEncoder().encode(b.manifestJson), {
-        contentType: "application/json", upsert: true, cacheControl: MUTABLE,
+      if (!(await stillHeld())) return await fail([LOST], compiled.warnings);
+      const up = await bucket.upload(`${b.folder}/${b.manifestPath}`, new TextEncoder().encode(b.manifestJson), {
+        contentType: "application/json", upsert: false, cacheControl: IMMUTABLE,
       });
-      if (up.error) return await fail([`${b.folder}/manifest.json: ${up.error.message}`], compiled.warnings);
+      if (up.error) return await fail([`${b.folder}/${b.manifestPath}: ${up.error.message}`], compiled.warnings);
     }
+    // Verifica prima di andare in linea: ogni file che il manifest e i video richiedono è nel bucket.
+    const missing: string[] = [];
+    for (const b of compiled.bundles) {
+      const dirs = new Map<string, Set<string>>();
+      for (const path of [b.manifestPath, ...b.immutable.keys(), ...b.stream.keys()]) {
+        const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+        if (!dirs.has(dir)) {
+          const { data } = await bucket.list(dir ? `${b.folder}/${dir}` : b.folder, { limit: 1000 });
+          dirs.set(dir, new Set((data ?? []).map((f) => f.name)));
+        }
+        if (!dirs.get(dir)!.has(path.slice(path.lastIndexOf("/") + 1))) missing.push(`${b.folder}/${path}`);
+      }
+    }
+    if (missing.length) return await fail([`file mancanti nel bucket: ${missing.slice(0, 5).join(", ")}`], compiled.warnings);
+    const warnings = [...compiled.warnings];
     const summary = compiled.bundles.map((b) => ({ locale: b.locale, totalBytes: b.manifest.totalBytes, places: b.places, units: b.units }));
+    // In linea: l'esito per identificativo (rifiutato se la presa in carico è stata persa) registra le nuove voci.
     const { error } = await supabase.rpc("studio_publication_finish", {
       p_pack: pack,
       p_ok: true,
-      p_report: { warnings: compiled.warnings, ms: Date.now() - started, bundles: summary },
+      p_report: { warnings, ms: Date.now() - started, bundles: summary },
       p_bundles: compiled.bundles.map((b) => ({ locale: b.locale, url: b.entry.manifest, manifest: b.manifest, entry: b.entry })),
+      p_publication: publication,
     });
-    if (error) return { ok: false, errors: [error.message], warnings: compiled.warnings, bundles: [] };
+    if (error) return { ok: false, errors: [error.message], warnings, bundles: [] };
     const indexError = await refreshPublicIndex(supabase);
+    if (!indexError) {
+      // Pulizia: solo versioni morte e non usate dall'indice in vigore (vedi removeDeadVersions). Non serve alla
+      // correttezza: se non riesce i file restano, orfani.
+      const visible = await visibleIndex(supabase);
+      const dead = await supabase.rpc("studio_publication_dead_ids", { p_pack: pack });
+      if (!visible || dead.error) warnings.push("versioni precedenti non cancellate (indice in vigore o pubblicazioni non leggibili)");
+      else warnings.push(...await removeDeadVersions(bucket, compiled.bundles.map((b) => b.folder), visible, (dead.data as string[] | null) ?? [], publication));
+    }
     return {
       ok: !indexError,
       errors: indexError ? [`bundle pubblicati ma indice non aggiornato: ${indexError}`] : [],
-      warnings: compiled.warnings,
+      warnings,
       bundles: summary,
     };
   } catch (e) {

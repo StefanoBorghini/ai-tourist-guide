@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TerritoryPack } from "@guide/domain";
 import { engineInputsFromPack, planTour } from "@guide/context-engine";
@@ -7,6 +8,7 @@ import { applyStopPlan, buildLibrary, emptyMemory, planStop, type TourMemory } f
 import { loadPacks } from "@guide/territory-pack";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
+  allowedPremiumParts,
   BundleBuildError,
   BundleIntegrityError,
   buildBundle,
@@ -14,6 +16,7 @@ import {
   libraryFromBundle,
   verifyBundle,
   type BuiltBundle,
+  type Right,
 } from "../src/index.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -199,6 +202,30 @@ describe("media", () => {
     expect(nc.originalUrl).toBe("https://example.org/torre-fittizia");
   });
 
+  it("i video restano fuori dal pacchetto offline, il loro poster no; la copertina è marcata", () => {
+    const copy = structuredClone(packs);
+    const pack = copy.get(D)!;
+    // Copia del pack in una cartella temporanea, con un finto video accanto alle immagini.
+    const dir = join(mkdtempSync(join(tmpdir(), "bundle-video-")), D);
+    cpSync(pack.dir, dir, { recursive: true });
+    const fakeVideo = new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]);
+    writeFileSync(join(dir, "media/files/porta.mp4"), fakeVideo);
+    pack.dir = dir;
+    const photo = pack.media.find((m) => m.id === "porta-del-borgo-foto")!;
+    photo.cover = true;
+    pack.media.push({ ...photo, id: "porta-video", kind: "video", file: "porta.mp4", poster: photo.file, cover: true });
+    const b = buildBundle(copy, { destination: D, locale: "it", allowFictional: true, readAsset });
+    const video = b.content.media.find((m) => m.ref === ref("porta-video"))!;
+    expect(video).toMatchObject({ kind: "video", cover: true });
+    expect(video.path).toMatch(/^media\/[0-9a-f]{16}\.mp4$/);
+    expect(b.streamFiles.get(video.path)).toEqual(fakeVideo);
+    expect(b.files.has(video.path)).toBe(false);
+    expect(b.manifest.files.map((f) => f.path)).not.toContain(video.path);
+    expect(b.manifest.files.map((f) => f.path)).toContain(video.poster);
+    expect(b.content.media.find((m) => m.ref === ref("porta-del-borgo-foto"))).toMatchObject({ cover: true });
+    expect(b.content.media.find((m) => m.ref === ref("porta-del-borgo-foto"))!.kind).toBeUndefined();
+  });
+
   it("è deterministico anche con le immagini", () => {
     expect(build({ readAsset }).manifest).toEqual(build({ readAsset }).manifest);
   });
@@ -246,5 +273,151 @@ describe("anteprima per i territori non ancora in produzione", () => {
 
   it("porta nei luoghi lo stato delle coordinate", () => {
     expect(build().content.places.every((p) => p.coordinateStatus === "field_verified")).toBe(true);
+  });
+});
+
+describe("contenuti a pagamento (config.access)", () => {
+  const withAccess = (access: NonNullable<TerritoryPack["config"]["access"]>) => {
+    const copy = structuredClone(packs);
+    copy.get(D)!.config.access = access;
+    return buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+  };
+  // Frasi che esistono solo nei racconti e nei fatti a pagamento del borgo di prova (i nomi dei nodi,
+  // come «Leggenda della sirena», restano pubblici: sono titoli, non contenuti).
+  const PREMIUM_TEXTS = ["cantasse", "1150", "1220", "sue poesie", "presidiata"];
+
+  it("senza configurazione tutto è pubblico e il bundle non cambia", () => {
+    const free = build();
+    const explicit = withAccess({ explore: "free", introPlaces: [], premiumRoutes: [] });
+    expect(free.premium).toEqual([]);
+    expect(free.content.locked).toBeUndefined();
+    expect(contentJson(explicit)).toBe(contentJson(free));
+  });
+
+  it("esplorazione a pagamento: pubbliche solo le aperture dei luoghi introduttivi e ciò che serve a capirle", () => {
+    const b = withAccess({ explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: [] });
+    expect(b.content.units.map((u) => u.ref)).toEqual(["it.test:repubblica-introduzione-it", ref("porta-apertura-it")]);
+    expect(b.content.assertions.map((a) => a.ref).sort()).toEqual(
+      ["it.test:repubblica-controllo-costa", ref("porta-funzione"), ref("porta-larghezza")].sort(),
+    );
+    // Mappa, luoghi e percorsi gratuiti restano.
+    expect(b.content.places).toHaveLength(5);
+    expect(b.content.routes.map((r) => r.ref)).toEqual([ref("giro-breve")]);
+    expect(b.content.locked).toEqual({ explore: true, routes: [] });
+    // Nessun testo a pagamento in nessun file pubblico.
+    const files = [...b.files.values()].filter((f): f is string => typeof f === "string").join("\n");
+    for (const text of PREMIUM_TEXTS) expect(files).not.toContain(text);
+    const premiumJson = JSON.stringify(b.premium);
+    for (const text of PREMIUM_TEXTS) expect(premiumJson).toContain(text);
+    // …ma nella parte a pagamento sì, con i loro fatti e le loro fonti.
+    const [explore] = b.premium;
+    expect(explore!.kind).toBe("explore");
+    expect(explore!.units.map((u) => u.ref)).toEqual([
+      ref("belvedere-ada-it"), ref("belvedere-leggenda-it"), ref("chiesa-datazione-it"), ref("torre-dettaglio-it"),
+    ]);
+    expect(explore!.assertions.map((a) => a.ref)).toContain(ref("sirena-racconto"));
+    expect(explore!.sources.map((s) => s.ref)).toContain(ref("racconto-orale-fittizio"));
+  });
+
+  it("percorso premium: fuori dal bundle pubblico, presentato solo con nome e durata", () => {
+    const b = withAccess({ explore: "free", introPlaces: [], premiumRoutes: ["giro-breve"] });
+    expect(b.content.routes).toEqual([]);
+    expect(b.content.locked).toEqual({ explore: false, routes: [{ ref: ref("giro-breve"), name: "Il borgo in 45 minuti", durationMin: 45 }] });
+    expect(b.premium).toHaveLength(1);
+    expect(b.premium[0]).toMatchObject({ kind: "route", ref: ref("giro-breve"), units: [] });
+    expect(b.premium[0]!.routes[0]!.stops).toHaveLength(4);
+    // Con l'esplorazione gratuita i racconti delle tappe restano pubblici.
+    expect(b.content.units.length).toBe(build().content.units.length);
+  });
+
+  it("percorso premium: la parte a pagamento è solo l'itinerario, nessun racconto dell'esplorazione", () => {
+    const b = withAccess({ explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: ["giro-breve"] });
+    const route = b.premium.find((p) => p.kind === "route")!;
+    expect(route.units).toEqual([]);
+    expect(route.assertions).toEqual([]);
+    expect(route.routes.map((r) => r.ref)).toEqual([ref("giro-breve")]);
+    // I racconti delle tappe restano solo nell'esplorazione completa: comprare il percorso non li sblocca.
+    const explore = b.premium.find((p) => p.kind === "explore")!;
+    expect(explore.units.map((u) => u.ref)).toContain(ref("torre-dettaglio-it"));
+    expect(contentJson(b)).not.toContain("\"stops\"");
+  });
+
+  it("nessun identificativo di racconti, fatti o fonti a pagamento negli artefatti pubblici", () => {
+    const b = withAccess({ explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: ["giro-breve"] });
+    const publicFiles = [...b.files.values()].filter((f): f is string => typeof f === "string").join("\n");
+    const explore = b.premium.find((p) => p.kind === "explore")!;
+    const publicSources = new Set(b.content.sources.map((s) => s.ref));
+    for (const u of explore.units) expect(publicFiles).not.toContain(`"${u.ref}"`);
+    for (const a of explore.assertions) expect(publicFiles).not.toContain(`"${a.ref}"`);
+    for (const s of explore.sources.filter((s) => !publicSources.has(s.ref))) expect(publicFiles).not.toContain(`"${s.ref}"`);
+    // Riferimenti indiretti: ogni fatto citato da un racconto pubblico è pubblico, ogni fonte citata anche.
+    const assertionRefs = new Set(b.content.assertions.map((a) => a.ref));
+    for (const u of b.content.units) for (const a of u.assertions) expect(assertionRefs.has(a)).toBe(true);
+    for (const a of b.content.assertions) for (const s of a.sources) expect(publicSources.has(s)).toBe(true);
+  });
+
+  it("i nodi citati solo dai racconti a pagamento non sono pubblici; quelli dei racconti gratuiti sì", () => {
+    const b = withAccess({ explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: [] });
+    const nodes = b.content.nodes.map((n) => n.ref);
+    expect(nodes).not.toContain(ref("leggenda-della-sirena"));
+    expect(nodes).not.toContain(ref("assedio-immaginario"));
+    expect(nodes).not.toContain("it.test:ada-inventata");
+    expect(nodes).toEqual(expect.arrayContaining(["it.test:difese-costiere", "it.test:repubblica-immaginaria"]));
+    expect(contentJson(b)).not.toContain("sirena");
+    // Senza esplorazione a pagamento i nodi restano tutti.
+    expect(build().content.nodes.map((n) => n.ref)).toContain(ref("leggenda-della-sirena"));
+  });
+
+  it("le note di curatela restano nelle anteprime gratuite e spariscono con i contenuti a pagamento", () => {
+    const copy = structuredClone(packs);
+    const dest = copy.get(D)!;
+    dest.manifest.releaseStage = "research";
+    dest.places[0]!.curation = { storyStatus: "da verificare", notes: ["Appunto della redazione sul racconto riservato"] };
+    const free = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+    expect(contentJson(free)).toContain("Appunto della redazione");
+    for (const access of [
+      { explore: "premium" as const, introPlaces: ["porta-del-borgo"], premiumRoutes: [] },
+      { explore: "free" as const, introPlaces: [], premiumRoutes: ["giro-breve"] },
+    ]) {
+      dest.config.access = access;
+      const paid = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+      expect(contentJson(paid)).not.toContain("Appunto della redazione");
+      expect(paid.content.places.every((p) => p.curation === undefined)).toBe(true);
+    }
+  });
+
+  it("il pianificatore narrativo funziona con il solo bundle pubblico", () => {
+    const b = withAccess({ explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: [] });
+    const library = libraryFromBundle(b.content);
+    const at = (slug: string) => planStop({ library, memory: emptyMemory(), placeRef: ref(slug), locale: "it", timeBudgetS: 120 });
+    expect(JSON.stringify(at("porta-del-borgo").items)).toContain(ref("porta-apertura-it"));
+    expect(at("torre-di-prova").items).toEqual([]);
+  });
+});
+
+describe("diritti e parti a pagamento", () => {
+  const parts = () => {
+    const copy = structuredClone(packs);
+    copy.get(D)!.config.access = { explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: ["giro-breve"] };
+    return buildBundle(copy, { destination: D, locale: "it", allowFictional: true }).premium;
+  };
+  const kinds = (rights: Right[]) => allowedPremiumParts(D, parts(), rights).map((p) => `${p.kind}:${p.ref ?? ""}`);
+
+  it("l'esplorazione completa non dà i percorsi premium", () => {
+    expect(kinds([{ scope: "explore", destination: D }])).toEqual(["explore:"]);
+  });
+
+  it("un percorso dà solo quel percorso, nessun racconto dell'esplorazione", () => {
+    expect(kinds([{ scope: "route", route: ref("giro-breve") }])).toEqual([`route:${ref("giro-breve")}`]);
+    expect(allowedPremiumParts(D, parts(), [{ scope: "route", route: ref("giro-breve") }]).flatMap((p) => p.units)).toEqual([]);
+  });
+
+  it("senza diritti, o con diritti di un'altra destinazione o di un altro percorso, niente", () => {
+    expect(kinds([])).toEqual([]);
+    expect(kinds([{ scope: "explore", destination: "altro.territorio" }, { scope: "route", route: ref("altro-giro") }])).toEqual([]);
+  });
+
+  it("esplorazione e percorso insieme: entrambe le parti", () => {
+    expect(kinds([{ scope: "explore", destination: D }, { scope: "route", route: ref("giro-breve") }])).toEqual(["explore:", `route:${ref("giro-breve")}`]);
   });
 });

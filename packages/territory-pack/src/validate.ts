@@ -34,6 +34,8 @@ interface Context {
   out: IssueCollector;
   /** Data di riferimento (AAAA-MM-GG) per le informazioni pratiche da ricontrollare. */
   today: string;
+  /** Esistenza di un file media (percorso completo): il disco, o il bucket per i territori del database. */
+  fileExists: (path: string) => boolean;
 }
 
 /**
@@ -41,10 +43,13 @@ interface Context {
  * qui si controllano integrità referenziale, ontologia, regole di verifica
  * e coerenza narrativa, anche tra pack diversi.
  */
-export function validatePacks(packs: Map<string, TerritoryPack>, options: { today?: string } = {}): PackIssue[] {
+export function validatePacks(
+  packs: Map<string, TerritoryPack>,
+  options: { today?: string; fileExists?: (path: string) => boolean } = {},
+): PackIssue[] {
   const out = new IssueCollector();
   const today = options.today ?? new Date().toISOString().slice(0, 10);
-  const ctx: Context = { packs, nodes: new Map(), sources: new Map(), reachable: new Map(), out, today };
+  const ctx: Context = { packs, nodes: new Map(), sources: new Map(), reachable: new Map(), out, today, fileExists: options.fileExists ?? existsSync };
 
   for (const pack of packs.values()) indexPack(pack, ctx);
   for (const pack of packs.values()) ctx.reachable.set(pack.manifest.id, resolveDependencies(pack, ctx));
@@ -56,6 +61,7 @@ export function validatePacks(packs: Map<string, TerritoryPack>, options: { toda
     checkAssertions(pack, ctx);
     checkUnits(pack, ctx);
     checkRoutes(pack, ctx);
+    checkAccess(pack, ctx);
     checkMedia(pack, ctx);
   }
   return out.issues;
@@ -600,6 +606,48 @@ function checkRoutes(pack: TerritoryPack, ctx: Context): void {
   }
 }
 
+// ------------------------------------------------------------------ accesso
+
+/** Contenuti a pagamento: luoghi introduttivi e percorsi premium devono esistere nella destinazione. */
+function checkAccess(pack: TerritoryPack, ctx: Context): void {
+  const access = pack.config.access;
+  if (!access) return;
+  const file = PACK_FILES.config.path;
+  const packId = pack.manifest.id;
+  if (pack.manifest.kind !== "destination") {
+    ctx.out.error({ code: "ACCESS_NOT_DESTINATION", packId, file, message: "l'accesso a pagamento si configura solo sulle destinazioni" });
+    return;
+  }
+  const places = new Set(pack.places.map((p) => p.id));
+  const routes = new Set(pack.routes.map((r) => r.id));
+  for (const [list, label] of [[access.introPlaces, "luogo introduttivo"], [access.premiumRoutes, "percorso premium"]] as const) {
+    if (new Set(list).size !== list.length) {
+      ctx.out.warning({ code: "ACCESS_DUPLICATE", packId, file, message: `${label} ripetuto` });
+    }
+  }
+  for (const id of access.introPlaces) {
+    if (!places.has(id)) ctx.out.error({ code: "ACCESS_INTRO_UNKNOWN", packId, file, item: id, message: `luogo introduttivo inesistente: ${id}` });
+  }
+  for (const id of access.premiumRoutes) {
+    if (!routes.has(id)) ctx.out.error({ code: "ACCESS_ROUTE_UNKNOWN", packId, file, item: id, message: `percorso premium inesistente: ${id}` });
+  }
+  if (access.explore !== "premium") return;
+  if (access.introPlaces.length === 0) {
+    ctx.out.warning({ code: "ACCESS_NO_INTRO", packId, file, message: "esplorazione a pagamento senza luoghi introduttivi: l'anteprima non avrà racconti" });
+  }
+  for (const id of access.introPlaces) {
+    if (!places.has(id)) continue;
+    for (const locale of pack.manifest.locales) {
+      const opening = pack.units.some(
+        (u) => u.unitType === "opening" && u.locale === locale && resolveRef(u.anchor, packId)?.packId === packId && resolveRef(u.anchor, packId)?.slug === id,
+      );
+      if (!opening) {
+        ctx.out.warning({ code: "ACCESS_INTRO_NO_OPENING", packId, file, item: id, message: `il luogo introduttivo ${id} non ha un racconto d'apertura in ${locale}` });
+      }
+    }
+  }
+}
+
 // -------------------------------------------------------------------- media
 
 function checkMedia(pack: TerritoryPack, ctx: Context): void {
@@ -612,8 +660,10 @@ function checkMedia(pack: TerritoryPack, ctx: Context): void {
     const where = { file, item: m.id };
     for (const raw of m.subjects) lookupNode(raw, pack, ctx, where);
 
-    if (!existsSync(join(pack.dir, MEDIA_FILES_DIR, m.file))) {
-      ctx.out.error({ code: "MEDIA_FILE_MISSING", packId, ...where, message: `file non trovato: ${MEDIA_FILES_DIR}/${m.file}` });
+    for (const f of [m.file, ...(m.poster ? [m.poster] : [])]) {
+      if (!ctx.fileExists(join(pack.dir, MEDIA_FILES_DIR, f))) {
+        ctx.out.error({ code: "MEDIA_FILE_MISSING", packId, ...where, message: `file non trovato: ${MEDIA_FILES_DIR}/${f}` });
+      }
     }
     const other = usedFiles.get(m.file);
     if (other) ctx.out.warning({ code: "MEDIA_FILE_REUSED", packId, ...where, message: `stesso file di ${other}` });

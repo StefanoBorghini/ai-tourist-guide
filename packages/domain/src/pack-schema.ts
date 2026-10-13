@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PACK_ID_PATTERN, REF_PATTERN, SLUG_PATTERN } from "./ids.ts";
 import {
+  ACCESS_TIERS,
   ANCHOR_KINDS,
   ASSERTION_STATUSES,
   ASSERTION_TYPES,
@@ -113,8 +114,22 @@ export const territoryConfigSchema = z.strictObject({
     })
     .default({ allowNonCommercial: false }),
   safetyNotes: z.array(z.strictObject({ id: slug, text: localized })).default([]),
+  /**
+   * Accesso ai contenuti (solo destinazioni). Assente = tutto gratuito, come prima.
+   * Con l'esplorazione a pagamento restano gratuiti mappa, luoghi, percorsi non premium e il racconto
+   * d'apertura dei luoghi introduttivi (al massimo 3, scelti dalla redazione); il resto non entra nel
+   * bundle pubblico. Un percorso premium non entra nel bundle pubblico in nessun caso.
+   */
+  access: z
+    .strictObject({
+      explore: z.enum(ACCESS_TIERS).default("free"),
+      introPlaces: z.array(slug).max(3).default([]),
+      premiumRoutes: z.array(slug).default([]),
+    })
+    .optional(),
 });
 export type TerritoryConfig = z.infer<typeof territoryConfigSchema>;
+export type AccessConfig = NonNullable<TerritoryConfig["access"]>;
 
 // --------------------------------------------------- geography/places.yaml
 
@@ -345,9 +360,14 @@ export type Route = z.infer<typeof routeSchema>;
 export const mediaSchema = z
   .strictObject({
     id: slug,
-    kind: z.enum(["image"]),
+    /** Immagine o breve video ambientale (senza audio, caricato solo quando serve, mai nel pacchetto offline). */
+    kind: z.enum(["image", "video"]).default("image"),
     /** File nella cartella del pack, relativo a media/files/. */
-    file: z.string().regex(/^[\w.-]+\.(jpe?g|png|webp)$/i, "nome file non valido (jpg, png, webp)"),
+    file: z.string().regex(/^[\w.-]+\.(jpe?g|png|webp|mp4|webm)$/i, "nome file non valido (jpg, png, webp, mp4, webm)"),
+    /** Per i video: immagine mostrata prima e al posto del video (stessa cartella). */
+    poster: z.string().regex(/^[\w.-]+\.(jpe?g|png|webp)$/i, "nome file non valido (jpg, png, webp)").optional(),
+    /** Immagine (o video) di copertina della destinazione, nella pagina iniziale. */
+    cover: z.boolean().optional(),
     /** Luoghi o nodi raffigurati. */
     subjects: z.array(ref).min(1),
     caption: localized.optional(),
@@ -367,6 +387,14 @@ export const mediaSchema = z
   .refine((m) => m.license === "public-domain" || m.author !== undefined, {
     message: "autore obbligatorio (salvo pubblico dominio)",
     path: ["author"],
+  })
+  .refine((m) => (m.kind === "video") === /\.(mp4|webm)$/i.test(m.file), {
+    message: "i video sono file mp4 o webm, le immagini jpg, png o webp",
+    path: ["file"],
+  })
+  .refine((m) => m.kind !== "video" || m.poster !== undefined, {
+    message: "un video richiede l'immagine poster",
+    path: ["poster"],
   })
   .refine((m) => m.license !== "licensed" || m.licenseNote !== undefined, {
     message: "una licenza concessa per iscritto richiede licenseNote",

@@ -341,3 +341,32 @@ describe("verifica cartografica delle coordinate", () => {
     expect(errorCodes(packs)).toContain("COORDINATES_NOT_VERIFIED");
   });
 });
+
+describe("accesso a pagamento", () => {
+  it("accetta luoghi introduttivi e percorsi premium della destinazione", () => {
+    const packs = loadSynthetic();
+    village(packs).config.access = { explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: ["giro-breve"] };
+    expect(errorCodes(packs)).toEqual([]);
+  });
+
+  it("rifiuta luoghi e percorsi inesistenti", () => {
+    const packs = loadSynthetic();
+    village(packs).config.access = { explore: "premium", introPlaces: ["nessun-luogo"], premiumRoutes: ["nessun-percorso"] };
+    expect(errorCodes(packs)).toEqual(expect.arrayContaining(["ACCESS_INTRO_UNKNOWN", "ACCESS_ROUTE_UNKNOWN"]));
+  });
+
+  it("rifiuta l'accesso su un pack che non è una destinazione", () => {
+    const packs = loadSynthetic();
+    packs.get(AREA)!.config.access = { explore: "premium", introPlaces: [], premiumRoutes: [] };
+    expect(errorCodes(packs)).toContain("ACCESS_NOT_DESTINATION");
+  });
+
+  it("avvisa se manca il racconto d'apertura di un luogo introduttivo o se non ce ne sono", () => {
+    const packs = loadSynthetic();
+    // La porta ha l'apertura in italiano e in inglese; la chiesa no.
+    village(packs).config.access = { explore: "premium", introPlaces: ["porta-del-borgo", "chiesa-di-san-test"], premiumRoutes: [] };
+    expect(warningCodes(packs)).toContain("ACCESS_INTRO_NO_OPENING");
+    village(packs).config.access = { explore: "premium", introPlaces: [], premiumRoutes: [] };
+    expect(warningCodes(packs)).toContain("ACCESS_NO_INTRO");
+  });
+});

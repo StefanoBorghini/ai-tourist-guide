@@ -21,7 +21,9 @@ import {
   type BundleNode,
   type BundlePlace,
   type BundleSource,
+  type BundleRoute,
   type BundleUnit,
+  type PremiumPart,
 } from "./format.ts";
 
 export class BundleBuildError extends Error {
@@ -45,6 +47,8 @@ export interface BuildOptions {
    * Senza questa funzione i media non vengono inclusi (la compilazione resta pura).
    */
   readAsset?: (packDir: string, relativePath: string) => Uint8Array;
+  /** Esistenza dei file media per il validatore (predefinito: il disco). Serve ai territori del database. */
+  fileExists?: (path: string) => boolean;
 }
 
 export interface BuiltBundle {
@@ -52,12 +56,36 @@ export interface BuiltBundle {
   content: BundleContent;
   /** File da scrivere, per percorso relativo alla cartella del bundle. */
   files: Map<string, string | Uint8Array>;
+  /**
+   * File da pubblicare accanto al bundle ma fuori dal manifest (video): non entrano nel pacchetto
+   * offline né nella verifica d'integrità, si scaricano solo quando l'app li mostra.
+   */
+  streamFiles: Map<string, Uint8Array>;
+  /** Parti a pagamento (config.access): non sono in `files` né in `content`. Vuoto se tutto è gratuito. */
+  premium: PremiumPart[];
 }
 
 const sha256 = (data: string | Uint8Array) =>
   typeof data === "string" ? createHash("sha256").update(data, "utf8").digest("hex") : createHash("sha256").update(data).digest("hex");
 const byteLength = (data: string | Uint8Array) => (typeof data === "string" ? Buffer.byteLength(data, "utf8") : data.byteLength);
 const byRef = <T extends { ref: string }>(a: T, b: T) => a.ref.localeCompare(b.ref);
+
+/** Aggiunge alle unità scelte quelle che introducono ciò che richiedono (anche a catena), prese da `pool`. */
+function withPrerequisites(start: readonly BundleUnit[], pool: readonly BundleUnit[]): BundleUnit[] {
+  const chosen = new Map(start.map((u) => [u.ref, u]));
+  for (let changed = true; changed; ) {
+    changed = false;
+    const introduced = new Set([...chosen.values()].flatMap((u) => u.introduces));
+    const needed = new Set([...chosen.values()].flatMap((u) => u.requires).filter((r) => !introduced.has(r)));
+    for (const u of pool) {
+      if (!chosen.has(u.ref) && u.introduces.some((r) => needed.has(r))) {
+        chosen.set(u.ref, u);
+        changed = true;
+      }
+    }
+  }
+  return [...chosen.values()];
+}
 
 /**
  * Un'affermazione è raccontabile se verificata e di un livello ammesso dal territorio di destinazione.
@@ -89,7 +117,7 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
 
   const scope = reachablePacks(destination, packs);
   const scopeIds = new Set(scope.map((p) => p.manifest.id));
-  const issues = validatePacks(new Map([...packs].filter(([id]) => scopeIds.has(id))));
+  const issues = validatePacks(new Map([...packs].filter(([id]) => scopeIds.has(id))), options.fileExists ? { fileExists: options.fileExists } : {});
   if (hasErrors(issues)) {
     throw new BundleBuildError(
       "il territorio ha errori di validazione: correggerli prima di compilare",
@@ -115,7 +143,11 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   const allSources = new Map<string, BundleSource>();
   const media: BundleMedia[] = [];
   const assetFiles = new Map<string, Uint8Array>();
+  const streamFiles = new Map<string, Uint8Array>();
   const allowNonCommercial = dest.config.media.allowNonCommercial;
+  // Contenuti a pagamento configurati (config.access della destinazione): cambiano ciò che è pubblico.
+  const access = dest.config.access;
+  const commercial = access !== undefined && (access.explore === "premium" || access.premiumRoutes.length > 0);
 
   for (const pack of scope) {
     const packId = pack.manifest.id;
@@ -140,7 +172,9 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
         ...(p.accessibility?.stairs !== undefined ? { stairs: p.accessibility.stairs } : {}),
         ...(p.walkable === false ? { walkable: false as const } : {}),
         coordinateStatus: p.coordinates.status,
-        ...(preview && p.curation
+        // Note di curatela: solo nelle anteprime gratuite (prove sul campo), mai con contenuti a pagamento:
+        // sono appunti della redazione e possono anticipare i racconti esclusi.
+        ...(preview && !commercial && p.curation
           ? { curation: { ...(p.curation.storyStatus ? { storyStatus: p.curation.storyStatus } : {}), notes: [...p.curation.notes] } }
           : {}),
         practical: p.practical.flatMap((info) => {
@@ -239,14 +273,22 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
       if (m.license === "all-rights-reserved" || (!rules.commercialUse && !allowNonCommercial)) continue;
       const alt = pick(m.alt, fallback);
       if (!alt) continue;
-      const data = options.readAsset!(pack.dir, `${MEDIA_FILES_DIR}/${m.file}`);
-      const ext = m.file.split(".").pop()!.toLowerCase();
-      const path = `media/${sha256(data).slice(0, 16)}.${ext}`;
-      assetFiles.set(path, data);
+      const store = (file: string, into: Map<string, Uint8Array>) => {
+        const data = options.readAsset!(pack.dir, `${MEDIA_FILES_DIR}/${file}`);
+        const path = `media/${sha256(data).slice(0, 16)}.${file.split(".").pop()!.toLowerCase()}`;
+        into.set(path, data);
+        return path;
+      };
+      const video = m.kind === "video";
+      const path = store(m.file, video ? streamFiles : assetFiles);
+      const poster = video && m.poster ? store(m.poster, assetFiles) : undefined;
       const caption = m.caption ? pick(m.caption, fallback)?.value : undefined;
       media.push({
         ref: formatNodeRef({ packId, slug: m.id }),
+        ...(video ? { kind: "video" as const } : {}),
         path,
+        ...(poster ? { poster } : {}),
+        ...(m.cover ? { cover: true as const } : {}),
         subjects: m.subjects.map(full).sort(),
         alt: alt.value,
         ...(caption ? { caption } : {}),
@@ -276,13 +318,67 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   // il validatore lo impedisce già, ma il bundle non deve mai contenere fatti non raccontabili).
   const included = new Set(assertions.map((a) => a.ref));
   const safeUnits = units.filter((u) => u.assertions.every((a) => included.has(a)));
+
+  // Contenuti a pagamento: fuori dal bundle pubblico.
+  const destRef = (slug: string) => formatNodeRef({ packId: destination, slug });
+  const explorePremium = access?.explore === "premium";
+  const premiumRouteRefs = new Set((access?.premiumRoutes ?? []).map(destRef));
+  const introPlaces = new Set((access?.introPlaces ?? []).map(destRef));
+  // Esplorazione a pagamento: pubbliche solo le aperture dei luoghi introduttivi, con ciò che serve a capirle.
+  const publicUnits = explorePremium
+    ? withPrerequisites(safeUnits.filter((u) => u.unitType === "opening" && introPlaces.has(u.anchor)), safeUnits)
+    : safeUnits;
+  const publicUnitRefs = new Set(publicUnits.map((u) => u.ref));
+  // I fatti dei racconti a pagamento non devono arrivare all'app (né alle risposte dell'AI) per altra via.
+  const assertionsOf = (list: readonly BundleUnit[]) => {
+    const refs = new Set(list.flatMap((u) => u.assertions));
+    return assertions.filter((a) => refs.has(a.ref));
+  };
+  const publicAssertions = explorePremium ? assertionsOf(publicUnits) : assertions;
+  const publicRoutes = routes.filter((r) => !premiumRouteRefs.has(r.ref));
+  const sourcesFor = (as: readonly BundleAssertion[], rs: readonly BundleRoute[], withPlaces: boolean) => {
+    const cited = new Set([
+      ...as.flatMap((a) => a.sources),
+      ...rs.flatMap((r) => r.sources),
+      ...(withPlaces ? places.flatMap((p) => p.practical.flatMap((i) => (i.source ? [i.source] : []))) : []),
+    ]);
+    return [...allSources.values()].filter((s) => cited.has(s.ref)).sort(byRef);
+  };
   // Fonti: solo quelle citate da affermazioni, percorsi e informazioni pratiche inclusi.
-  const cited = new Set([
-    ...assertions.flatMap((a) => a.sources),
-    ...routes.flatMap((r) => r.sources),
-    ...places.flatMap((p) => p.practical.flatMap((i) => (i.source ? [i.source] : []))),
-  ]);
-  const sources = [...allSources.values()].filter((s) => cited.has(s.ref));
+  const sources = sourcesFor(publicAssertions, publicRoutes, true);
+  // Nodi (persone, eventi, leggende…): con l'esplorazione a pagamento solo quelli citati da ciò che resta pubblico,
+  // perché anche un nome («Leggenda della sirena») anticipa un racconto escluso.
+  const publicNodes = explorePremium
+    ? (() => {
+        const used = new Set([
+          ...publicUnits.flatMap((u) => [u.anchor, ...u.introduces, ...u.requires, ...u.hooks.map((h) => h.target)]),
+          ...publicAssertions.flatMap((a) => [a.subject, ...(a.object ? [a.object] : [])]),
+          ...media.flatMap((m) => m.subjects),
+          ...places.flatMap((p) => (p.partOf ? [p.partOf] : [])),
+        ]);
+        return nodes.filter((n) => used.has(n.ref));
+      })()
+    : nodes;
+
+  const premium: PremiumPart[] = [];
+  const part = (kind: PremiumPart["kind"], partUnits: BundleUnit[], partRoutes: BundleRoute[], ref?: string): PremiumPart => {
+    const partAssertions = assertionsOf(partUnits).sort(byRef);
+    return {
+      kind,
+      ...(ref ? { ref } : {}),
+      units: partUnits.sort(byRef),
+      assertions: partAssertions,
+      routes: partRoutes,
+      sources: sourcesFor(partAssertions, partRoutes, false),
+    };
+  };
+  if (explorePremium) premium.push(part("explore", safeUnits.filter((u) => !publicUnitRefs.has(u.ref)), []));
+  // Percorso premium: solo l'itinerario (tappe, durata, fonti). I racconti delle tappe restano dove sono:
+  // pubblici se l'esplorazione è gratuita, nell'esplorazione completa se è a pagamento. Scelta prudente: un acquisto
+  // di percorso non sblocca racconti dell'esplorazione (vedi docs/v0.3-platform/ACCESSO-CONTENUTI.md, «Percorsi»).
+  for (const r of routes.filter((r) => premiumRouteRefs.has(r.ref)).sort(byRef)) {
+    premium.push(part("route", [], [r], r.ref));
+  }
 
   const content: BundleContent = {
     bundleSchemaVersion: BUNDLE_SCHEMA_VERSION,
@@ -301,12 +397,23 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
       .filter((n) => n.text),
     places: places.sort(byRef),
     anchors: anchors.sort(byRef),
-    nodes: nodes.sort(byRef),
-    sources: sources.sort(byRef),
-    assertions: assertions.sort(byRef),
-    units: safeUnits.sort(byRef),
-    routes: routes.sort(byRef),
+    nodes: publicNodes.sort(byRef),
+    sources,
+    assertions: publicAssertions.sort(byRef),
+    units: publicUnits.sort(byRef),
+    routes: publicRoutes.sort(byRef),
     media: media.sort(byRef),
+    ...(explorePremium || premiumRouteRefs.size > 0
+      ? {
+          locked: {
+            explore: explorePremium,
+            routes: routes
+              .filter((r) => premiumRouteRefs.has(r.ref))
+              .sort(byRef)
+              .map((r) => ({ ref: r.ref, name: r.name, durationMin: r.durationMin })),
+          },
+        }
+      : {}),
   };
 
   const contentJson = JSON.stringify(content);
@@ -329,5 +436,5 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     totalBytes: fileEntries.reduce((s, f) => s + f.bytes, 0),
   };
   files.set("manifest.json", JSON.stringify(manifest, null, 2));
-  return { manifest, content, files };
+  return { manifest, content, files, streamFiles, premium };
 }

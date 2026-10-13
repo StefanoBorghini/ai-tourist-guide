@@ -1,0 +1,713 @@
+-- Verifica delle migrazioni e delle regole di sicurezza su un progetto Supabase reale.
+-- Si incolla tutto nel SQL Editor del progetto e si esegue una volta (Run).
+--
+-- Crea dati di prova (territori, utenti, contenuti), prova ogni ruolo e alla fine ANNULLA tutto:
+-- nel database non resta nulla, nemmeno se un controllo fallisce.
+-- Esito: una tabella con «superato»; se qualcosa non va, un errore che inizia con «FALLITO».
+-- Colonne: esito, dati di prova rimasti (atteso 0), amministratori della piattaforma, controlli NON verificati
+-- (atteso «nessuno»: altrimenti l'elenco dice cosa va verificato a mano, e quei controlli non sono superati).
+-- Presuppone le migrazioni fino a 20261024000000 (22 → 23 → 24): senza, si ferma con «FALLITO: funzione assente».
+-- Non verificabile da SQL: lo scaricamento pubblico da /pub/ e la Storage API (qui si provano le regole sulle righe
+-- di storage.objects, non il servizio HTTP).
+-- Gli stessi controlli girano in locale con `npm run db:check` (10_platform_security.sql e seguenti).
+--
+-- Esiti: FALLITO = proprietà verificata e non rispettata (lo script si ferma con l'errore); controllo NON
+-- VERIFICATO = non eseguibile in sicurezza qui (elencato nell'ultima colonna, e l'esito diventa «incompleto», mai
+-- «superato»); «superato» = tutti i controlli eseguiti e rispettati.
+-- Verifiche che SQL non può fare e vanno fatte a parte: scaricamento pubblico da /pub/ e operazioni della Storage
+-- API (upload, elenco, cancellazione via HTTP); funzioni effettivamente esposte o nascoste da PostgREST via HTTP.
+do $$ begin perform set_config('remote_check.non_verificati', 'non eseguito', false); end $$;
+do $$
+declare
+  a uuid;
+  p uuid;
+  d jsonb;
+  r jsonb;
+  f record;
+  pub uuid := 'e0000000-0000-0000-0000-00000000000a';
+  x uuid := 'e0000000-0000-0000-0000-00000000000b';
+  w uuid := 'e0000000-0000-0000-0000-00000000000c';
+  z uuid := 'e0000000-0000-0000-0000-00000000000d';
+  ok boolean;
+  nv text[] := '{}';
+begin
+  begin
+    -- ------------------------------------------------------------ installazione
+    if not exists (select 1 from pg_extension where extname = 'postgis') then
+      raise exception 'FALLITO: estensione PostGIS assente';
+    end if;
+    if (select public from storage.buckets where id = 'media') is distinct from false then
+      raise exception 'FALLITO: bucket media assente o pubblico';
+    end if;
+    if (select public from storage.buckets where id = 'bundles') is distinct from true then
+      raise exception 'FALLITO: bucket bundles assente o non pubblico';
+    end if;
+    -- Migrazioni presupposte, nell'ordine 22 → 23 → 24: se ne manca una ci si ferma subito, dicendo quale.
+    for f in select * from (values
+        ('20261022000000_access', 'studio_set_access(text,jsonb)'),
+        ('20261023000000_bundles_storage', 'studio_publication_claim(text)'),
+        ('20261023000000_bundles_storage', 'studio_publication_renew(text,uuid)'),
+        ('20261023000000_bundles_storage', 'studio_publication_finish(text,boolean,jsonb,jsonb,uuid)'),
+        ('20261023000000_bundles_storage', 'studio_index_snapshot()'),
+        ('20261023000000_bundles_storage', 'studio_index_reflects(bigint)'),
+        ('20261024000000_entitlements', 'grant_product(uuid,uuid,text,uuid,text)'),
+        ('20261024000000_entitlements', 'can_access_explore(text)')
+      ) as t(migration, sig) loop
+      if to_regprocedure(f.sig) is null then
+        raise exception 'FALLITO: migrazione % non applicata (manca %)', f.migration, f.sig;
+      end if;
+    end loop;
+    for f in select * from (values
+        ('20261023000000_bundles_storage', 'bundles_files_publisher_read'),
+        ('20261023000000_bundles_storage', 'bundles_files_publisher_delete'),
+        ('20261023000000_bundles_storage', 'bundles_index_public_list')
+      ) as t(migration, pol) loop
+      if not exists (select 1 from pg_policy where polrelid = 'storage.objects'::regclass and polname = f.pol) then
+        raise exception 'FALLITO: migrazione % non applicata (manca la policy % su storage.objects)', f.migration, f.pol;
+      end if;
+    end loop;
+    if exists (select 1 from pg_policy where polrelid = 'storage.objects'::regclass and polname = 'bundles_public_read') then
+      raise exception 'FALLITO: migrazione 20261023000000_bundles_storage incompleta (resta la policy bundles_public_read)';
+    end if;
+    -- Pubblicazioni immutabili (R2): nessuna policy di aggiornamento sul bucket «bundles» (niente upsert).
+    if exists (select 1 from pg_policy where polrelid = 'storage.objects'::regclass and polname = 'bundles_files_publisher_update') then
+      raise exception 'FALLITO: migrazione 20261023000000_bundles_storage incompleta (resta la policy bundles_files_publisher_update: i file si sovrascriverebbero)';
+    end if;
+    if to_regclass('public.product_routes') is null
+       or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'entitlements' and column_name = 'scope') then
+      raise exception 'FALLITO: migrazione 20261024000000_entitlements incompleta (mancano product_routes o entitlements.scope)';
+    end if;
+    if exists (
+      select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity and c.relname <> 'spatial_ref_sys'
+    ) then
+      raise exception 'FALLITO: tabelle senza RLS: %', (
+        select string_agg(c.relname, ', ') from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity and c.relname <> 'spatial_ref_sys');
+    end if;
+
+    -- ------------------------------------------------------------ dati di prova
+    insert into organizations (id, kind, name) values ('00000000-0000-0000-0000-0000000000aa', 'platform', 'Prova');
+    insert into packs (id, kind, organization_id, default_locale, locales) values
+      ('it.test.alfa', 'destination', '00000000-0000-0000-0000-0000000000aa', 'it', '{it,en}'),
+      ('it.test.beta', 'destination', '00000000-0000-0000-0000-0000000000aa', 'it', '{it}');
+    insert into destinations (pack_id, slug) values ('it.test.alfa', 'alfa'), ('it.test.beta', 'beta');
+    insert into auth.users (id, email, raw_user_meta_data) values
+      ('a0000000-0000-0000-0000-000000000001', 'admin@prova.test', '{}'),
+      ('a0000000-0000-0000-0000-000000000002', 'editor-alfa@prova.test', '{}'),
+      ('a0000000-0000-0000-0000-000000000003', 'esperto-alfa@prova.test', '{}'),
+      ('a0000000-0000-0000-0000-000000000004', 'turista1@prova.test', '{"locale":"en"}'),
+      ('a0000000-0000-0000-0000-000000000005', 'turista2@prova.test', '{}');
+    insert into memberships (user_id, organization_id, role, pack_scope) values
+      ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000aa', 'platform_admin', null),
+      ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-0000000000aa', 'territory_editor', 'it.test.alfa'),
+      ('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-0000000000aa', 'expert', 'it.test.alfa');
+    insert into nodes (id, pack_id, slug, kind) values
+      ('b0000000-0000-0000-0000-00000000000a', 'it.test.alfa', 'luogo-a', 'place'),
+      ('b0000000-0000-0000-0000-00000000000b', 'it.test.beta', 'luogo-b', 'place');
+    insert into places (node_id, place_kind, location, importance, dwell_min) values
+      ('b0000000-0000-0000-0000-00000000000a', 'poi', 'SRID=4326;POINT(9.83 44.05)', 3, 5),
+      ('b0000000-0000-0000-0000-00000000000b', 'poi', 'SRID=4326;POINT(9.84 44.06)', 3, 5);
+    insert into routes (id, pack_id, slug, duration_min, labels, access_tier) values
+      ('c0000000-0000-0000-0000-00000000000a', 'it.test.alfa', 'giro-libero', 30, '{"it":{"name":"Giro"}}', 'free'),
+      ('c0000000-0000-0000-0000-00000000000b', 'it.test.alfa', 'giro-premium', 60, '{"it":{"name":"Giro lungo"}}', 'premium');
+    -- Percorso premium: dichiarato nell'accesso della destinazione (20261022000000), non più con access_tier.
+    update packs set config = config || '{"access":{"explore":"free","introPlaces":[],"premiumRoutes":["giro-premium"]}}' where id = 'it.test.alfa';
+
+    if (select preferred_locale from profiles where user_id = 'a0000000-0000-0000-0000-000000000004') is distinct from 'en' then
+      raise exception 'FALLITO: profilo creato con la lingua della registrazione';
+    end if;
+    if (select count(*) from profiles where user_id::text like 'a0000000-0000-0000-0000-00000000000_') <> 5 then
+      raise exception 'FALLITO: un profilo per ogni account';
+    end if;
+
+    -- ------------------------------------------------------------ anonimo
+    set local role anon;
+    perform set_config('request.jwt.claim.sub', '', true);
+    perform set_config('request.jwt.claims', '', true);
+    begin
+      if exists (select 1 from nodes) or exists (select 1 from assertions) or exists (select 1 from profiles) then
+        raise exception 'FALLITO: un anonimo non legge contenuti redazionali né profili';
+      end if;
+    exception when insufficient_privilege then null; end;
+    begin
+      if exists (select 1 from organizations) then
+        raise exception 'FALLITO: un anonimo non legge le organizzazioni';
+      end if;
+    exception when insufficient_privilege then null; end;
+    begin
+      insert into organizations (kind, name) values ('partner', 'Intruso');
+      raise exception 'FALLITO: un anonimo non scrive nel database';
+    exception when insufficient_privilege then null; end;
+    begin
+      update predicates set label_it = 'Intruso';
+      if found then raise exception 'FALLITO: un anonimo non modifica i vocabolari'; end if;
+    exception when insufficient_privilege then null; end;
+    begin
+      if exists (select 1 from storage.objects where bucket_id = 'media') then
+        raise exception 'FALLITO: un anonimo non legge gli originali dei media';
+      end if;
+    exception when insufficient_privilege then null; end;
+    reset role;
+
+    -- ------------------------------------------------------------ turista
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000004', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+    if exists (select 1 from nodes) then raise exception 'FALLITO: un turista non legge le bozze del CMS'; end if;
+    if (select count(*) from profiles) <> 1 then raise exception 'FALLITO: un turista vede solo il proprio profilo'; end if;
+    update profiles set display_name = 'Turista', listening = '{"mode":"ask","rate":1.25}' where user_id = 'a0000000-0000-0000-0000-000000000004';
+    if not found then raise exception 'FALLITO: il turista aggiorna il proprio profilo'; end if;
+    update profiles set display_name = 'Intruso' where user_id = 'a0000000-0000-0000-0000-000000000005';
+    if found then raise exception 'FALLITO: un turista non modifica il profilo altrui'; end if;
+    insert into favorites (user_id, pack_id, place_id) values ('a0000000-0000-0000-0000-000000000004', 'it.test.alfa', 'b0000000-0000-0000-0000-00000000000a');
+    insert into route_progress (user_id, route_id, reached) values ('a0000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-00000000000a', '{b0000000-0000-0000-0000-00000000000a}');
+    insert into consents (user_id, kind, granted, version) values ('a0000000-0000-0000-0000-000000000004', 'sync', true, '2026-10');
+    begin
+      insert into favorites (user_id, pack_id, place_id) values ('a0000000-0000-0000-0000-000000000005', 'it.test.alfa', 'b0000000-0000-0000-0000-00000000000a');
+      raise exception 'FALLITO: un turista non scrive preferiti per altri';
+    exception when insufficient_privilege then null; end;
+    begin
+      insert into products (slug, kind, pack_id, route_id, status) values ('furbo', 'route', 'it.test.alfa', 'c0000000-0000-0000-0000-00000000000b', 'active');
+      raise exception 'FALLITO: un turista non crea prodotti';
+    exception when insufficient_privilege then null; end;
+    if can_access_route('c0000000-0000-0000-0000-00000000000a') is not true then raise exception 'FALLITO: percorso gratuito accessibile'; end if;
+    if can_access_route('c0000000-0000-0000-0000-00000000000b') is not false then raise exception 'FALLITO: percorso premium senza diritto bloccato'; end if;
+    reset role;
+
+    -- L'altro turista non vede nulla del primo.
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000005', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+    if exists (select 1 from favorites) or exists (select 1 from route_progress) or exists (select 1 from consents) then
+      raise exception 'FALLITO: i dati di un turista sono invisibili agli altri';
+    end if;
+    reset role;
+
+    -- ------------------------------------------------------------ editor del territorio alfa
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+    update nodes set attributes = '{"categoria":"chiesa"}' where slug = 'luogo-a';
+    if not found then raise exception 'FALLITO: l''editor modifica il proprio territorio'; end if;
+    update nodes set attributes = '{"categoria":"intruso"}' where slug = 'luogo-b';
+    if found then raise exception 'FALLITO: l''editor non modifica un altro territorio'; end if;
+    if exists (select 1 from nodes where pack_id = 'it.test.beta') then raise exception 'FALLITO: l''editor non vede un altro territorio'; end if;
+    -- Coordinate: non con un UPDATE diretto (20261021000000_cms_hardening.sql), sì dallo Studio indicando il metodo.
+    begin
+      update places set location = 'SRID=4326;POINT(9.8301 44.0501)' where node_id = 'b0000000-0000-0000-0000-00000000000a';
+      raise exception 'FALLITO: coordinate cambiate senza passare dallo Studio';
+    exception when raise_exception then
+      if sqlerrm like 'FALLITO%' then raise; end if;
+    end;
+    perform studio_update_place('it.test.alfa', 'luogo-a', '{"location": [9.8301, 44.0501], "coordinateMethod": "rilievo GPS"}');
+    if (select coordinate_method from places where node_id = 'b0000000-0000-0000-0000-00000000000a') is distinct from 'rilievo GPS' then
+      raise exception 'FALLITO: l''editor corregge le coordinate del proprio territorio dallo Studio';
+    end if;
+
+    insert into assertions (pack_id, slug, subject_id, predicate_id, type, certainty, status, authored_by)
+    values ('it.test.alfa', 'fatto-1', 'b0000000-0000-0000-0000-00000000000a', 'described_as', 'fact', 'established', 'draft', 'chiunque')
+    returning id into a;
+    if (select authored_by from assertions where id = a) <> 'a0000000-0000-0000-0000-000000000002' then
+      raise exception 'FALLITO: l''autore è sempre l''utente reale, non quello dichiarato';
+    end if;
+    update assertions set status = 'in_review' where id = a;
+    begin
+      update assertions set status = 'verified' where id = a;
+      raise exception 'FALLITO: un editor non verifica un''affermazione';
+    exception when raise_exception then
+      if sqlerrm like 'FALLITO%' then raise; end if;
+    end;
+    begin
+      insert into assertions (pack_id, slug, subject_id, predicate_id, type, status, authored_by)
+      values ('it.test.alfa', 'leggenda-1', 'b0000000-0000-0000-0000-00000000000a', 'described_as', 'legend', 'verified', 'x');
+      raise exception 'FALLITO: un''affermazione non nasce verificata dal CMS';
+    exception when raise_exception then
+      if sqlerrm like 'FALLITO%' then raise; end if;
+    end;
+    begin
+      insert into assertions (pack_id, slug, subject_id, predicate_id, type, status, authored_by)
+      values ('it.test.beta', 'fatto-b', 'b0000000-0000-0000-0000-00000000000b', 'described_as', 'tradition', 'draft', 'x');
+      raise exception 'FALLITO: un editor non scrive affermazioni in un altro territorio';
+    exception when insufficient_privilege then null; end;
+
+    -- Il file c'è prima della registrazione (media_assets_guard).
+    insert into storage.objects (bucket_id, name, owner) values ('media', 'it.test.alfa/foto-1.jpg', 'a0000000-0000-0000-0000-000000000002');
+    insert into media_assets (pack_id, slug, kind, storage_path, sha256, source, author, license, mime_type, bytes)
+    values ('it.test.alfa', 'foto-1', 'image', 'it.test.alfa/foto-1.jpg', 'x', 'own_photo', 'Redazione', 'own', 'image/jpeg', 200000);
+    begin
+      insert into media_assets (pack_id, slug, kind, storage_path, sha256, source, author, license, mime_type, bytes)
+      values ('it.test.alfa', 'enorme', 'image', 'it.test.alfa/enorme.jpg', 'x', 'own_photo', 'Redazione', 'own', 'image/jpeg', 99000000);
+      raise exception 'FALLITO: immagini oltre il limite di dimensione rifiutate';
+    -- Rifiutata dal vincolo, o prima ancora perché il file non è nel bucket (media_assets_guard).
+    exception when check_violation or raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    begin
+      insert into media_assets (pack_id, slug, kind, storage_path, sha256, source, author, license, mime_type, bytes)
+      values ('it.test.alfa', 'formato', 'audio', 'it.test.alfa/x.exe', 'x', 'own_photo', 'Redazione', 'own', 'application/x-msdownload', 100);
+      raise exception 'FALLITO: formati non ammessi rifiutati';
+    -- Rifiutata dal vincolo, o prima ancora perché il file non è nel bucket (media_assets_guard).
+    exception when check_violation or raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    begin
+      insert into storage.objects (bucket_id, name, owner) values ('media', 'it.test.beta/intruso.jpg', 'a0000000-0000-0000-0000-000000000002');
+      raise exception 'FALLITO: un editor non carica file in un altro territorio';
+    exception when insufficient_privilege then null; end;
+    -- Bundle: chi pubblica un territorio ne carica i media, non quelli di altri; i manifest e i contenuti della
+    -- struttura precedente non si scrivono più (20261023000000: solo nella cartella della pubblicazione in corso).
+    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/it-full/media/0123456789abcdef.jpg', 'a0000000-0000-0000-0000-000000000002');
+    begin
+      insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/it-full/manifest.json', 'a0000000-0000-0000-0000-000000000002');
+      raise exception 'FALLITO: manifest scritto nella struttura precedente (sovrascrivibile)';
+    exception when insufficient_privilege then null; end;
+    begin
+      insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.beta/it-full/manifest.json', 'a0000000-0000-0000-0000-000000000002');
+      raise exception 'FALLITO: un editor non scrive i bundle di un altro territorio';
+    exception when insufficient_privilege then null; end;
+
+    -- Pubblicazione: non con UPDATE o INSERT diretti, solo dallo Studio con controllo e blocchi (20261021000000_cms_hardening.sql).
+    begin
+      update destinations set status = 'published' where pack_id = 'it.test.alfa';
+      raise exception 'FALLITO: stato «pubblicato» con un UPDATE diretto';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    begin
+      insert into publications (pack_id, requested_by) values ('it.test.alfa', 'a0000000-0000-0000-0000-000000000002');
+      raise exception 'FALLITO: richiesta di pubblicazione con un INSERT diretto';
+    exception when insufficient_privilege then null; end;
+    begin
+      perform studio_set_pack_status('it.test.alfa', 'in_review');
+      perform studio_set_pack_status('it.test.alfa', 'published', '{"ok": true}');
+      raise exception 'FALLITO: un territorio senza contenuti si pubblica';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    begin
+      insert into publications (pack_id, requested_by) values ('it.test.beta', 'a0000000-0000-0000-0000-000000000002');
+      raise exception 'FALLITO: nessuna pubblicazione su territori non autorizzati';
+    exception when insufficient_privilege then null; end;
+    begin
+      insert into memberships (user_id, organization_id, role, pack_scope)
+      values ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-0000000000aa', 'platform_admin', null);
+      raise exception 'FALLITO: un editor non si promuove amministratore';
+    exception when insufficient_privilege then null; end;
+    reset role;
+
+    -- ------------------------------------------------------------ esperto del territorio alfa
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000003', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+    update assertions set status = 'verified' where slug = 'fatto-1';
+    if not found then raise exception 'FALLITO: l''esperto verifica'; end if;
+    if (select verified_by from assertions where slug = 'fatto-1') <> 'a0000000-0000-0000-0000-000000000003' then
+      raise exception 'FALLITO: il verificatore registrato è l''utente reale';
+    end if;
+    reset role;
+
+    -- L'autore che modifica un fatto verificato lo riporta in revisione.
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+    update assertions set certainty = 'probable' where slug = 'fatto-1';
+    if (select status from assertions where slug = 'fatto-1') <> 'in_review' then
+      raise exception 'FALLITO: un fatto verificato modificato torna in revisione';
+    end if;
+    reset role;
+
+    -- ------------------------------------------------------------ amministratore
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000001', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+    if not exists (select 1 from nodes where pack_id = 'it.test.beta') then raise exception 'FALLITO: l''amministratore vede ogni territorio'; end if;
+    insert into products (slug, kind, pack_id, route_id, status) values ('giro-premium', 'route', 'it.test.alfa', 'c0000000-0000-0000-0000-00000000000b', 'active') returning id into p;
+    perform admin_grant_product('a0000000-0000-0000-0000-000000000004', p, 'prova');
+    reset role;
+
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000004', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+    if can_access_route('c0000000-0000-0000-0000-00000000000b') is not true then raise exception 'FALLITO: diritto di accesso riconosciuto'; end if;
+    -- Nessuna scrittura diretta sui diritti (20261024000000): rifiutata, non solo senza effetto.
+    begin
+      update entitlements set valid_until = now() + interval '1 year';
+      raise exception 'FALLITO: un turista non modifica i propri diritti';
+    exception when insufficient_privilege then null; end;
+    reset role;
+
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000005', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+    if can_access_route('c0000000-0000-0000-0000-00000000000b') then raise exception 'FALLITO: il diritto di un utente non vale per un altro'; end if;
+    reset role;
+
+    -- ------------------------------------------------------------ funzioni di 20261023000000 e 20261024000000
+    -- Esistono, chi può eseguirle (anon, authenticated, service_role; null = non rilevante) e, poiché girano con i
+    -- privilegi del proprietario, con search_path fissato.
+    for f in select * from (values
+        ('studio_publication_claim(text)', false, true, true),
+        ('studio_publication_renew(text,uuid)', false, true, true),
+        ('studio_publication_finish(text,boolean,jsonb,jsonb,uuid)', false, true, true),
+        ('studio_publication_finish(text,boolean,jsonb,jsonb)', false, true, true),
+        ('studio_publication_record(uuid,text,boolean,jsonb,jsonb)', false, false, null),
+        ('studio_index_snapshot()', false, true, true),
+        ('studio_index_issued(text)', false, true, true),
+        ('studio_publication_writable(text,text)', false, true, true),
+        ('studio_index_reflects(bigint)', false, true, true),
+        ('studio_publication_dead(text,text)', false, true, true),
+        ('studio_publication_dead_ids(text)', false, true, true),
+        ('studio_legacy_layout_dead(text)', false, true, true),
+        ('grant_product(uuid,uuid,text,uuid,text)', false, false, true),
+        ('revoke_purchase(uuid,text)', false, false, true),
+        ('admin_grant_product(uuid,uuid,text)', false, true, null),
+        ('has_active_right(text,text,uuid)', false, true, true),
+        ('can_access_explore(text)', null, true, null),
+        ('products_guard()', null, null, null),
+        ('product_routes_guard()', null, null, null),
+        ('entitlements_guard()', null, null, null)
+      ) as t(sig, anon_exec, auth_exec, service_exec) loop
+      if to_regprocedure(f.sig) is null then
+        raise exception 'FALLITO: funzione assente: % (applicate le migrazioni 22 → 23 → 24?)', f.sig;
+      end if;
+      if f.anon_exec is not null and has_function_privilege('anon', f.sig, 'execute') is distinct from f.anon_exec then
+        raise exception 'FALLITO: privilegi di %: anon %', f.sig, case when f.anon_exec then 'deve poterla eseguire' else 'non deve poterla eseguire' end;
+      end if;
+      if f.auth_exec is not null and has_function_privilege('authenticated', f.sig, 'execute') is distinct from f.auth_exec then
+        raise exception 'FALLITO: privilegi di %: authenticated %', f.sig, case when f.auth_exec then 'deve poterla eseguire' else 'non deve poterla eseguire' end;
+      end if;
+      if f.service_exec is not null and has_function_privilege('service_role', f.sig, 'execute') is distinct from f.service_exec then
+        raise exception 'FALLITO: privilegi di %: service_role %', f.sig, case when f.service_exec then 'deve poterla eseguire' else 'non deve poterla eseguire' end;
+      end if;
+      -- Tutte queste funzioni sono definite con SECURITY DEFINER e «set search_path = public»: si confronta il valore.
+      if not exists (select 1 from pg_proc where oid = to_regprocedure(f.sig) and prosecdef) then
+        raise exception 'FALLITO: % deve girare con i privilegi del proprietario (SECURITY DEFINER)', f.sig;
+      end if;
+      if (select proconfig from pg_proc where oid = to_regprocedure(f.sig)) is distinct from array['search_path=public'] then
+        raise exception 'FALLITO: search_path di % diverso da quello della migrazione (atteso search_path=public, trovato %)',
+          f.sig, coalesce((select array_to_string(proconfig, ', ') from pg_proc where oid = to_regprocedure(f.sig)), 'nessuno');
+      end if;
+    end loop;
+    -- Indice unico: tabella, unicità, colonne nell'ordine della migrazione e predicato (un acquisto concede ogni ambito
+    -- una volta sola).
+    select jsonb_build_object(
+             'unico', i.indisunique, 'tabella', i.indrelid::regclass::text,
+             'colonne', (select jsonb_agg(pg_get_indexdef(i.indexrelid, k, true) order by k) from generate_series(1, i.indnatts) k),
+             'predicato', pg_get_expr(i.indpred, i.indrelid))
+      into r
+    from pg_index i join pg_class c on c.oid = i.indexrelid where c.relname = 'entitlements_purchase_scope_key';
+    if r is null then raise exception 'FALLITO: indice entitlements_purchase_scope_key assente (un acquisto concederebbe due volte)'; end if;
+    if r is distinct from jsonb_build_object('unico', true, 'tabella', 'entitlements',
+         'colonne', jsonb_build_array('purchase_id', 'scope', 'COALESCE(route_id, ''00000000-0000-0000-0000-000000000000''::uuid)'),
+         'predicato', '(purchase_id IS NOT NULL)') then
+      raise exception 'FALLITO: indice entitlements_purchase_scope_key diverso dalla migrazione: %', r;
+    end if;
+    -- Trigger: presenti, attivi nelle sessioni normali (O = sempre tranne in replica, A = sempre; R e D non scattano),
+    -- legati alla funzione giusta, BEFORE INSERT OR UPDATE per riga (tgtype 23). Più sotto si prova che scattano.
+    for f in select * from (values ('products_guard_trg', 'products', 'products_guard()'),
+                                   ('product_routes_guard_trg', 'product_routes', 'product_routes_guard()'),
+                                   ('entitlements_guard_trg', 'entitlements', 'entitlements_guard()')) as t(tg, tab, fn) loop
+      if not exists (select 1 from pg_trigger where tgname = f.tg and tgrelid = f.tab::regclass and not tgisinternal) then
+        raise exception 'FALLITO: trigger % su % assente', f.tg, f.tab;
+      end if;
+      if (select tgenabled from pg_trigger where tgname = f.tg and tgrelid = f.tab::regclass) not in ('O', 'A') then
+        raise exception 'FALLITO: trigger % su % non attivo nelle sessioni normali (stato %)', f.tg, f.tab,
+          (select tgenabled from pg_trigger where tgname = f.tg and tgrelid = f.tab::regclass);
+      end if;
+      if (select tgfoid from pg_trigger where tgname = f.tg and tgrelid = f.tab::regclass) <> to_regprocedure(f.fn)
+         or (select tgtype from pg_trigger where tgname = f.tg and tgrelid = f.tab::regclass) <> 23 then
+        raise exception 'FALLITO: trigger % su % diverso dalla migrazione (funzione o eventi)', f.tg, f.tab;
+      end if;
+    end loop;
+    if has_table_privilege('authenticated', 'entitlements', 'insert') or has_table_privilege('authenticated', 'entitlements', 'update')
+       or has_table_privilege('authenticated', 'entitlements', 'delete') or has_table_privilege('anon', 'entitlements', 'insert') then
+      raise exception 'FALLITO: i client scrivono direttamente nella tabella dei diritti';
+    end if;
+
+    -- ------------------------------------------------------------ bucket «bundles» (20261023000000)
+    -- Due pubblicazioni di alfa: X fallita (morta), W in corso (dell'editor di alfa). Righe create qui (come
+    -- amministratore del database), poi si prova cosa ciascun ruolo vede, scrive e cancella.
+    insert into publications (id, pack_id, requested_by, status, report, finished_at) values
+      (x, 'it.test.alfa', 'a0000000-0000-0000-0000-000000000002', 'failed', '{}', now()),
+      (w, 'it.test.alfa', 'a0000000-0000-0000-0000-000000000002', 'building', '{}', null);
+    insert into storage.objects (bucket_id, name, owner) values
+      ('bundles', 'it.test.alfa/it-full/content.aaaaaaaaaaaaaaaa.json', null),
+      ('bundles', 'it.test.beta/it-full/content.bbbbbbbbbbbbbbbb.json', null),
+      ('bundles', 'it.test.alfa/it-full/' || x || '/content.cccccccccccccccc.json', null),
+      ('bundles', 'it.test.alfa/it-full/' || w || '/content.dddddddddddddddd.json', null),
+      ('bundles', 'index/00000000000000000000.json', null);
+    -- Elenco: anonimi e visitatori vedono solo gli indici numerati (per trovare il più recente), nient'altro.
+    set local role anon;
+    perform set_config('request.jwt.claim.sub', '', true);
+    perform set_config('request.jwt.claims', '', true);
+    begin
+      if exists (select 1 from storage.objects where bucket_id = 'bundles' and name !~ '^index/[0-9]{20}\.json$') then
+        raise exception 'FALLITO: un anonimo elenca i file dei bundle';
+      end if;
+      if not exists (select 1 from storage.objects where bucket_id = 'bundles' and name = 'index/00000000000000000000.json') then
+        raise exception 'FALLITO: un anonimo non trova gli indici numerati (l''app non saprebbe quale indice leggere)';
+      end if;
+    exception when insufficient_privilege then
+      raise exception 'FALLITO: un anonimo non può elencare gli indici numerati';
+    end;
+    reset role;
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000005', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+    if exists (select 1 from storage.objects where bucket_id = 'bundles' and name !~ '^index/[0-9]{20}\.json$') then
+      raise exception 'FALLITO: un visitatore elenca i file dei bundle';
+    end if;
+    reset role;
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+    if not exists (select 1 from storage.objects where bucket_id = 'bundles' and name = 'it.test.alfa/it-full/content.aaaaaaaaaaaaaaaa.json') then
+      raise exception 'FALLITO: chi pubblica non vede i file del proprio territorio';
+    end if;
+    if exists (select 1 from storage.objects where bucket_id = 'bundles' and name like 'it.test.beta/%') then
+      raise exception 'FALLITO: chi pubblica vede i file di un altro territorio';
+    end if;
+    -- Scritture: solo file nuovi, e nella cartella di una pubblicazione solo mentre è in corso e di chi la tiene.
+    insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/it-full/' || w || '/manifest.json', auth.uid());
+    begin
+      insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/it-full/' || x || '/manifest.json', auth.uid());
+      raise exception 'FALLITO: scrittura nella cartella di una pubblicazione non più in corso';
+    exception when insufficient_privilege then null; end;
+    begin
+      insert into storage.objects (bucket_id, name, owner) values ('bundles', 'index/' || lpad('1', 20, '0') || '.json', auth.uid());
+      raise exception 'FALLITO: un editor scrive l''indice pubblico';
+    exception when insufficient_privilege then null; end;
+    update storage.objects set name = name where bucket_id = 'bundles' and name = 'it.test.alfa/it-full/' || w || '/manifest.json';
+    if found then raise exception 'FALLITO: un file del bucket si può sovrascrivere (upsert)'; end if;
+    -- Cancellazione: solo cartelle di pubblicazioni morte (X), mai una in corso (W), mai i contenuti della struttura
+    -- precedente finché non c'è una pubblicazione nella struttura nuova. Se il progetto vieta le cancellazioni
+    -- dirette in SQL (le fa solo la Storage API), il controllo resta da verificare e lo si dice nell'esito.
+    ok := true;
+    begin
+      delete from storage.objects where bucket_id = 'bundles'
+        and name in ('it.test.alfa/it-full/' || x || '/content.cccccccccccccccc.json', 'it.test.alfa/it-full/' || w || '/content.dddddddddddddddd.json',
+                     'it.test.alfa/it-full/content.aaaaaaaaaaaaaaaa.json', 'it.test.beta/it-full/content.bbbbbbbbbbbbbbbb.json',
+                     'it.test.alfa/it-full/media/0123456789abcdef.jpg', 'index/00000000000000000000.json');
+    exception when others then
+      ok := false;
+      nv := nv || format('cancellazione nel bucket bundles (%s): verificarla dalla Storage API', sqlerrm);
+    end;
+    reset role;
+    if ok then
+      if exists (select 1 from storage.objects where name = 'it.test.alfa/it-full/' || x || '/content.cccccccccccccccc.json') then
+        raise exception 'FALLITO: chi pubblica non cancella la cartella di una pubblicazione morta';
+      end if;
+      if (select count(*) from storage.objects where name in ('it.test.alfa/it-full/' || w || '/content.dddddddddddddddd.json',
+            'it.test.alfa/it-full/content.aaaaaaaaaaaaaaaa.json', 'it.test.beta/it-full/content.bbbbbbbbbbbbbbbb.json',
+            'it.test.alfa/it-full/media/0123456789abcdef.jpg', 'index/00000000000000000000.json')) <> 5 then
+        raise exception 'FALLITO: cancellati file di una pubblicazione in corso, della struttura precedente, di un altro territorio, media o indici';
+      end if;
+      -- Z, di alfa, in linea nella struttura nuova: finché nessun indice caricato la contiene (numero > quello
+      -- registrato al suo esito), l'indice servito può ancora puntare alla struttura precedente, che non si cancella.
+      insert into publications (id, pack_id, requested_by, status, report, finished_at) values
+        (z, 'it.test.alfa', 'a0000000-0000-0000-0000-000000000002', 'published',
+         jsonb_build_object('entries', jsonb_build_array(jsonb_build_object('manifest', '/pub/it.test.alfa/it-full/' || z || '/manifest.json')),
+                            'indexGeneration', (select case when is_called then last_value else 0 end from public_index_generation)), now());
+      set local role authenticated;
+      perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);
+      perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+      delete from storage.objects where bucket_id = 'bundles' and name = 'it.test.alfa/it-full/content.aaaaaaaaaaaaaaaa.json';
+      reset role;
+      if not exists (select 1 from storage.objects where name = 'it.test.alfa/it-full/content.aaaaaaaaaaaaaaaa.json') then
+        raise exception 'FALLITO: cancellati contenuti che l''indice servito può ancora usare';
+      end if;
+    end if;
+
+    -- Indice numerato: solo lo staff della piattaforma, solo con un numero già emesso; numeri crescenti.
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000001', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+    r := studio_index_snapshot();
+    if (studio_index_snapshot() ->> 'generation')::bigint <= (r ->> 'generation')::bigint then
+      raise exception 'FALLITO: i numeri dell''indice non crescono';
+    end if;
+    if r ->> 'name' !~ '^index/[0-9]{20}\.json$' or jsonb_typeof(r -> 'index' -> 'bundles') <> 'array' then
+      raise exception 'FALLITO: fotografia dell''indice non valida: %', r;
+    end if;
+    insert into storage.objects (bucket_id, name, owner) values ('bundles', r ->> 'name', auth.uid());
+    begin
+      insert into storage.objects (bucket_id, name, owner) values ('bundles', 'index/99999999999999999999.json', auth.uid());
+      raise exception 'FALLITO: accettato un indice con un numero mai emesso (bloccherebbe l''indice per sempre)';
+    exception when insufficient_privilege then null; end;
+    reset role;
+
+    -- Ora un indice caricato contiene Z: i contenuti della struttura precedente di alfa si cancellano.
+    if ok then
+      set local role authenticated;
+      perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);
+      perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+      delete from storage.objects where bucket_id = 'bundles' and name = 'it.test.alfa/it-full/content.aaaaaaaaaaaaaaaa.json';
+      reset role;
+      if exists (select 1 from storage.objects where name = 'it.test.alfa/it-full/content.aaaaaaaaaaaaaaaa.json') then
+        raise exception 'FALLITO: contenuti della struttura precedente non cancellabili dopo un indice con la struttura nuova';
+      end if;
+    end if;
+    update publications set status = 'failed', finished_at = now() where id = w;
+
+    -- ------------------------------------------------------------ pubblicazione presa in carico (20261023000000)
+    insert into publications (id, pack_id, requested_by, status, report) values
+      (pub, 'it.test.alfa', 'a0000000-0000-0000-0000-000000000002', 'requested', '{"ok":true}');
+    set local role anon;
+    perform set_config('request.jwt.claim.sub', '', true);
+    perform set_config('request.jwt.claims', '', true);
+    begin
+      perform studio_publication_claim('it.test.alfa');
+      raise exception 'FALLITO: un anonimo prende in carico una pubblicazione';
+    exception when insufficient_privilege then null; end;
+    reset role;
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+    r := studio_publication_claim('it.test.alfa');
+    if (r ->> 'ok')::boolean is not true or (r ->> 'publication')::uuid is distinct from pub then
+      raise exception 'FALLITO: presa in carico della propria richiesta: %', r;
+    end if;
+    if studio_publication_renew('it.test.alfa', pub) is not true then raise exception 'FALLITO: rinnovo della propria presa in carico'; end if;
+    -- La forma senza identificativo non manda nulla in linea (R2: niente promozione senza presa in carico).
+    begin
+      perform studio_publication_finish('it.test.alfa', true, '{}', '[]');
+      raise exception 'FALLITO: la forma senza identificativo manda in linea una pubblicazione';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' or sqlerrm not like '%presa in carico%' then raise; end if; end;
+    -- La forma senza identificativo non chiude una pubblicazione presa in carico.
+    begin
+      perform studio_publication_finish('it.test.alfa', false, '{}');
+      raise exception 'FALLITO: la forma senza identificativo chiude una pubblicazione presa in carico';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    if (select status from publications where id = pub) <> 'building' then
+      raise exception 'FALLITO: la forma senza identificativo ha cambiato la pubblicazione presa in carico';
+    end if;
+    if studio_publication_finish('it.test.alfa', false, '{"errors":["verifica"]}', '[]', pub) ->> 'status' <> 'failed' then
+      raise exception 'FALLITO: esito per identificativo';
+    end if;
+    if studio_publication_renew('it.test.alfa', pub) is not false then raise exception 'FALLITO: rinnovo di una pubblicazione chiusa'; end if;
+    begin
+      perform studio_publication_finish('it.test.alfa', true, '{}', '[]', pub);
+      raise exception 'FALLITO: secondo esito sulla stessa pubblicazione';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    reset role;
+
+    -- ------------------------------------------------------------ diritti (20261024000000)
+    -- L'esplorazione a pagamento si apre solo con il diritto «explore», che non apre i percorsi premium.
+    update packs set config = jsonb_set(config, '{access,explore}', '"premium"') where id = 'it.test.alfa';
+    set local role anon;
+    perform set_config('request.jwt.claim.sub', '', true);
+    perform set_config('request.jwt.claims', '', true);
+    if can_access_explore('it.test.alfa') is not false then raise exception 'FALLITO: esplorazione a pagamento aperta a un anonimo'; end if;
+    if can_access_explore('it.test.beta') is not true then raise exception 'FALLITO: esplorazione gratuita chiusa a un anonimo'; end if;
+    reset role;
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000001', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+    insert into products (slug, kind, pack_id, status) values ('alfa-esplora', 'explore', 'it.test.alfa', 'active') returning id into a;
+    perform admin_grant_product('a0000000-0000-0000-0000-000000000005', a, 'verifica');
+    reset role;
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000005', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+    if can_access_explore('it.test.alfa') is not true then raise exception 'FALLITO: diritto «explore» non riconosciuto'; end if;
+    if can_access_route('c0000000-0000-0000-0000-00000000000b') then raise exception 'FALLITO: il diritto «explore» apre un percorso premium'; end if;
+    begin
+      perform grant_product('a0000000-0000-0000-0000-000000000005', a, 'grant');
+      raise exception 'FALLITO: un client chiama grant_product';
+    exception when insufficient_privilege then null; end;
+    reset role;
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000004', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+    if can_access_explore('it.test.alfa') then raise exception 'FALLITO: il diritto su un percorso apre l''esplorazione'; end if;
+    reset role;
+    -- Il server (service_role): un acquisto concede una volta sola; poi il prodotto acquistato non cambia percorso.
+    insert into purchases (id, user_id, product_id, provider, provider_ref, status) values
+      ('e0000000-0000-0000-0000-0000000000c1', 'a0000000-0000-0000-0000-000000000005', p, 'verifica', 'verifica-remote-check', 'completed');
+    ok := true;
+    begin
+      set local role service_role;
+    exception when others then
+      ok := false;
+      nv := nv || format('concessione da service_role (%s): verificarla con la chiave di servizio', sqlerrm);
+    end;
+    if ok then
+      if grant_product('a0000000-0000-0000-0000-000000000005', p, 'purchase', 'e0000000-0000-0000-0000-0000000000c1') <> 1
+         or grant_product('a0000000-0000-0000-0000-000000000005', p, 'purchase', 'e0000000-0000-0000-0000-0000000000c1') <> 0 then
+        raise exception 'FALLITO: lo stesso acquisto concede i diritti più di una volta';
+      end if;
+      -- Revoca di un acquisto: revoca i suoi diritti, conserva il motivo, e un evento ripetuto non li fa rivivere.
+      if revoke_purchase('e0000000-0000-0000-0000-0000000000c1', 'verifica') <> 1 then
+        raise exception 'FALLITO: revoke_purchase non revoca il diritto dell''acquisto';
+      end if;
+      if grant_product('a0000000-0000-0000-0000-000000000005', p, 'purchase', 'e0000000-0000-0000-0000-0000000000c1') <> 0 then
+        raise exception 'FALLITO: un evento ripetuto fa rivivere un diritto revocato';
+      end if;
+      reset role;
+      if exists (select 1 from entitlements where purchase_id = 'e0000000-0000-0000-0000-0000000000c1'
+                 and (status <> 'revoked' or coalesce(note, '') not like '%revocato: verifica%')) then
+        raise exception 'FALLITO: revoke_purchase lascia diritti attivi o senza motivo';
+      end if;
+      set local role authenticated;
+      perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000005', true);
+      perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
+      if can_access_route('c0000000-0000-0000-0000-00000000000b') then raise exception 'FALLITO: diritto revocato ancora valido'; end if;
+      begin
+        perform revoke_purchase('e0000000-0000-0000-0000-0000000000c1', 'intruso');
+        raise exception 'FALLITO: un client chiama revoke_purchase';
+      exception when insufficient_privilege then null; end;
+      reset role;
+    end if;
+    -- Trigger operativi (non solo presenti): rifiutano davvero ciò che devono rifiutare.
+    begin
+      update products set route_id = 'c0000000-0000-0000-0000-00000000000a' where id = p;
+      raise exception 'FALLITO: cambiato il percorso di un prodotto già acquistato (products_guard)';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    begin
+      insert into products (slug, kind, pack_id, route_id, status) values ('percorso-altrui', 'route', 'it.test.beta', 'c0000000-0000-0000-0000-00000000000a', 'draft');
+      raise exception 'FALLITO: prodotto con il percorso di un''altra destinazione (products_guard)';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    insert into products (slug, kind, pack_id, status) values ('pacchetto-verifica', 'bundle', 'it.test.beta', 'draft') returning id into a;
+    begin
+      insert into product_routes (product_id, route_id) values (a, 'c0000000-0000-0000-0000-00000000000a');
+      raise exception 'FALLITO: pacchetto con il percorso di un''altra destinazione (product_routes_guard)';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    begin
+      insert into product_routes (product_id, route_id) values (p, 'c0000000-0000-0000-0000-00000000000a');
+      raise exception 'FALLITO: percorsi aggiunti a un prodotto che non è un pacchetto (product_routes_guard)';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+
+    -- ------------------------------------------------------------ storico e cancellazione
+    if (select count(*) from content_revisions where table_name = 'assertions' and row_id = (select id::text from assertions where slug = 'fatto-1')) < 4 then
+      raise exception 'FALLITO: ogni modifica di un''affermazione resta nello storico';
+    end if;
+    if (select actor_id from content_revisions where table_name = 'nodes' and operation = 'UPDATE' order by id desc limit 1) is distinct from 'a0000000-0000-0000-0000-000000000002' then
+      raise exception 'FALLITO: lo storico registra chi ha modificato';
+    end if;
+
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000004', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+    d := export_my_data();
+    if jsonb_array_length(d -> 'favorites') <> 1 or jsonb_array_length(d -> 'entitlements') <> 1 then
+      raise exception 'FALLITO: esportazione completa dei propri dati';
+    end if;
+    perform delete_my_account();
+    reset role;
+    if exists (select 1 from auth.users where id = 'a0000000-0000-0000-0000-000000000004')
+       or exists (select 1 from profiles where user_id = 'a0000000-0000-0000-0000-000000000004')
+       or exists (select 1 from favorites where user_id = 'a0000000-0000-0000-0000-000000000004')
+       or exists (select 1 from route_progress where user_id = 'a0000000-0000-0000-0000-000000000004')
+       or exists (select 1 from entitlements where user_id = 'a0000000-0000-0000-0000-000000000004') then
+      raise exception 'FALLITO: la cancellazione dell''account rimuove i dati personali';
+    end if;
+
+    -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
+    -- l'elenco dei controlli non verificati.
+    raise exception 'VERIFICA_SUPERATA|%', array_to_string(nv, '; ');
+  exception when raise_exception then
+    if sqlerrm not like 'VERIFICA_SUPERATA|%' then raise; end if;
+    perform set_config('remote_check.non_verificati', coalesce(nullif(substr(sqlerrm, length('VERIFICA_SUPERATA|') + 1), ''), 'nessuno'), false);
+  end;
+end
+$$;
+
+-- Arriva qui solo se nessun controllo è FALLITO (i dati di prova sono già stati annullati). «superato» solo se
+-- tutti i controlli sono stati eseguiti; con controlli non verificati l'esito è «incompleto».
+select case current_setting('remote_check.non_verificati', true) when 'nessuno' then 'superato' else 'incompleto' end as esito,
+       (select count(*) from organizations where id = '00000000-0000-0000-0000-0000000000aa') as dati_di_prova_rimasti,
+       (select count(*) from memberships where role = 'platform_admin') as amministratori,
+       current_setting('remote_check.non_verificati', true) as non_verificati;

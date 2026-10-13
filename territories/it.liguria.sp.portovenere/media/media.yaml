@@ -1,0 +1,56 @@
+# Foto e video di Portovenere Experience (proprietario dei diritti; uso confermato dal titolare il 2026-10-10).
+# Fonte: repository portovenere-experiences (public/hero-config.jpg, public/images/sailing/…,
+# public/videos/Hero/…), ottimizzati per il web. Solo immagini che ritraggono con certezza luoghi del pack,
+# senza persone riconoscibili.
+- id: portovenere-canale
+  kind: video
+  file: portovenere-canale.mp4
+  poster: portovenere-canale-poster.jpg
+  cover: true
+  subjects: [palazzata-a-mare, san-pietro, palmaria]
+  alt:
+    it: Una barca a vela entra nel canale di Portovenere, tra la Palmaria e le case colorate della Palazzata; in fondo, la chiesa di San Pietro
+    en: A sailing boat enters the Portovenere channel, between Palmaria and the colourful houses of the Palazzata; at the end, the church of San Pietro
+  source: own_photo
+  author: Portovenere Experience
+  license: own
+- id: san-pietro-promontorio
+  kind: image
+  file: san-pietro-promontorio.jpg
+  subjects: [san-pietro]
+  alt:
+    it: La chiesa di San Pietro sul promontorio roccioso, vista dal mare
+    en: The church of San Pietro on its rocky promontory, seen from the sea
+  source: own_photo
+  author: Portovenere Experience
+  license: own
+- id: san-pietro-dal-mare
+  kind: image
+  file: san-pietro-dal-mare.jpg
+  subjects: [san-pietro]
+  alt:
+    it: San Pietro sullo scoglio, vista da una barca a vela nell'acqua turchese
+    en: San Pietro on its rock, seen from a sailing boat on turquoise water
+  source: own_photo
+  author: Portovenere Experience
+  license: own
+- id: san-pietro-mura
+  kind: image
+  file: san-pietro-mura.jpg
+  subjects: [san-pietro]
+  alt:
+    it: La chiesa di San Pietro e le mura sul promontorio, dalla prua di una barca
+    en: The church of San Pietro and the walls on the promontory, from the bow of a boat
+  source: own_photo
+  author: Portovenere Experience
+  license: own
+- id: san-pietro-notte
+  kind: image
+  file: san-pietro-notte.jpg
+  subjects: [san-pietro]
+  alt:
+    it: Il promontorio di San Pietro illuminato di notte, visto dal mare
+    en: The San Pietro promontory lit up at night, seen from the sea
+  source: own_photo
+  author: Portovenere Experience
+  license: own

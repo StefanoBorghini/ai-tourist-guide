@@ -5,10 +5,11 @@
  * mai dal client: chi fa la domanda non può aggiungere "fatti" alla base.
  */
 import { readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { verifyBundle, type BundleContent, type BundleManifest } from "@guide/bundle/client";
+import { BUNDLES_BUCKET, bundleBase, combineIndexes, currentIndexObject, fetchPublishedIndex, findEntry, listIndexObjects, PUB_PREFIX, publishedOrigin, pubToStorageUrl, type BundleIndexEntry, type PublishedIndexResult } from "./bundle-index";
+import { bundlesDir, readStaticIndex } from "./static-index";
 import {
   ANSWER_JSON_SCHEMA,
   SYSTEM_PROMPT,
@@ -38,12 +39,6 @@ import {
 
 export const ASK_MODEL = "claude-opus-5-5";
 
-/** Cartella dei bundle: la root del progetto Vercel può essere il monorepo o l'app. */
-function bundlesDir(): string {
-  const app = join(process.cwd(), "public", "bundles");
-  return existsSync(app) ? app : join(process.cwd(), "apps", "guide", "public", "bundles");
-}
-
 export interface Loaded {
   content: BundleContent;
   knowledge: string;
@@ -57,52 +52,100 @@ export interface BundleVersion {
   kbHash: string;
 }
 
-interface BundleIndex {
-  bundles: { destination: string; locale: string; manifest: string }[];
+/** Le destinazioni dello Studio non si leggono in questo momento: meglio dirlo che rispondere con altro. */
+export class GuideUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GuideUnavailableError";
+  }
 }
-const readIndex = async (dir: string) => JSON.parse(await readFile(join(dir, "index.json"), "utf8")) as BundleIndex;
-const readManifest = async (dir: string, url: string) =>
-  JSON.parse(await readFile(join(dir, url.replace(/^\/bundles\//, "")), "utf8")) as BundleManifest;
 
-let versions: Promise<BundleVersion[]> | null = null;
+/**
+ * Indice dei bundle pubblicati dallo Studio: dal bucket pubblico, ricontrollato ogni minuto.
+ * Un errore si ricorda per pochi secondi, poi si riprova.
+ */
+const PUBLISHED_TTL_MS = 60_000;
+const PUBLISHED_ERROR_TTL_MS = 10_000;
+let published: { at: number; result: Promise<PublishedIndexResult> } | null = null;
+let publishedOk = true;
+function publishedIndex(): Promise<PublishedIndexResult> {
+  const origin = publishedOrigin();
+  if (!origin) return Promise.resolve({ ok: true, entries: [] });
+  const ttl = publishedOk ? PUBLISHED_TTL_MS : PUBLISHED_ERROR_TTL_MS;
+  if (!published || Date.now() - published.at > ttl) {
+    // Lo stesso indice che serve /pub/index.json (proxy.ts): la fotografia numerata più alta.
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
+    const result = currentIndexObject(listIndexObjects(origin, anonKey))
+      .then((found): Promise<PublishedIndexResult> => found.ok
+        ? fetchPublishedIndex((url) => fetch(url, { cache: "no-store" }), `${origin}/storage/v1/object/public/${BUNDLES_BUCKET}/${found.object}`)
+        : Promise.resolve({ ok: false, error: found.error }))
+      .then((r) => {
+        publishedOk = r.ok;
+        return r;
+      });
+    published = { at: Date.now(), result };
+  }
+  return published.result;
+}
+
+/** Testo di un file del bundle: dal disco (bundle dei file) o dal bucket (bundle pubblicati). */
+async function readBundleFile(dir: string, url: string): Promise<string> {
+  if (url.startsWith(PUB_PREFIX)) {
+    const origin = publishedOrigin();
+    if (!origin) throw new Error("bundle pubblicato ma Supabase non configurato");
+    const r = await fetch(pubToStorageUrl(url, origin), { cache: "no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status} per ${url}`);
+    return r.text();
+  }
+  return readFile(join(dir, url.replace(/^\/bundles\//, "")), "utf8");
+}
+const readManifest = async (dir: string, url: string) => JSON.parse(await readBundleFile(dir, url)) as BundleManifest;
+
+/** Le stesse voci che vede l'app: bundle dei file, sostituiti da quelli pubblicati dallo Studio. */
+async function currentIndex(dir: string): Promise<{ entries: BundleIndexEntry[]; publishedOk: boolean }> {
+  return combineIndexes(await readStaticIndex(dir), await publishedIndex());
+}
+
+let versions: { at: number; value: Promise<BundleVersion[]> } | null = null;
 /** Versioni dei bundle che il server usa per rispondere (per verificare che la pubblicazione sia aggiornata). */
 export function bundleVersions(): Promise<BundleVersion[]> {
-  versions ??= (async () => {
-    const dir = bundlesDir();
-    const index = await readIndex(dir);
-    return Promise.all(
-      index.bundles.map(async (b) => ({ destination: b.destination, locale: b.locale, kbHash: (await readManifest(dir, b.manifest)).kbHash })),
-    );
-  })().catch((e: unknown) => {
-    versions = null;
-    throw e;
-  });
-  return versions;
+  if (!versions || (publishedOrigin() && Date.now() - versions.at > PUBLISHED_TTL_MS)) {
+    const value = (async () => {
+      const dir = bundlesDir();
+      const { entries } = await currentIndex(dir);
+      return Promise.all(entries.map(async (b) => ({ destination: b.destination, locale: b.locale, kbHash: (await readManifest(dir, b.manifest)).kbHash })));
+    })();
+    versions = { at: Date.now(), value };
+    value.catch(() => (versions = null));
+  }
+  return versions.value;
 }
-const cache = new Map<string, Promise<Loaded | null>>();
+const cache = new Map<string, { at: number; value: Promise<Loaded | null> }>();
 
-/** Contenuto verificato del bundle e testo della base di conoscenza, in memoria per istanza. */
+/**
+ * Contenuto verificato del bundle e testo della base di conoscenza, in memoria per istanza.
+ * Per i bundle pubblicati dallo Studio si ricontrolla l'indice ogni minuto (una ripubblicazione cambia il manifest).
+ */
 export function loadKnowledge(destination: string, locale: string): Promise<Loaded | null> {
   const key = `${destination}/${locale}`;
-  let hit = cache.get(key);
-  if (!hit) {
-    hit = (async () => {
-      const dir = bundlesDir();
-      const index = await readIndex(dir);
-      const entry = index.bundles.find((b) => b.destination === destination && b.locale === locale);
-      if (!entry) return null;
-      const rel = entry.manifest.replace(/^\/bundles\//, "");
-      const manifest = await readManifest(dir, entry.manifest);
-      const json = await readFile(join(dir, rel.replace(/manifest\.json$/, ""), manifest.content), "utf8");
-      const content = await verifyBundle(manifest, json);
-      return { content, knowledge: buildKnowledge(content), kbHash: manifest.kbHash };
-    })().catch((e: unknown) => {
-      cache.delete(key);
-      throw e;
-    });
-    cache.set(key, hit);
-  }
-  return hit;
+  const hit = cache.get(key);
+  if (hit && !(publishedOrigin() && Date.now() - hit.at > PUBLISHED_TTL_MS)) return hit.value;
+  const value = (async () => {
+    const dir = bundlesDir();
+    const found = findEntry(await currentIndex(dir), destination, locale);
+    // Destinazione dello Studio con l'indice pubblicato illeggibile: nessun ripiego sui file (non ce ne sono,
+    // e i bundle dei file non hanno mai contenuti a pagamento), errore temporaneo esplicito.
+    if ("unavailable" in found) throw new GuideUnavailableError(`${destination}: indice pubblicato non disponibile`);
+    if ("unknown" in found) return null;
+    const { entry } = found;
+    const manifest = await readManifest(dir, entry.manifest);
+    const json = await readBundleFile(dir, bundleBase(entry.manifest) + manifest.content);
+    const content = await verifyBundle(manifest, json);
+    return { content, knowledge: buildKnowledge(content), kbHash: manifest.kbHash };
+  })();
+  cache.set(key, { at: Date.now(), value });
+  value.catch(() => cache.delete(key));
+  return value;
 }
 
 export interface AskOutcome {

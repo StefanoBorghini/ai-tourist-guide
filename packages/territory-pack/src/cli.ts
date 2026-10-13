@@ -5,6 +5,12 @@
  *   guide-pack validate <cartella> [--pack <id>] [--strict] [--json]
  *   guide-pack photos <cartella-foto> [--territories <cartella-pack> --pack <id>]
  *   guide-pack field <rilievi.json> --territories <cartella-pack>
+ *   guide-pack db-sql <cartella> --pack <id> [--out <file.sql>]
+ *   guide-pack db-export <istantanea.json> --out <cartella> [--media <cartella-media>]
+ *
+ * "db-sql" scrive l'SQL che importa il pack (e i pack da cui dipende) nel database: si esegue nel
+ * SQL Editor di Supabase. "db-export" fa il contrario: dall'istantanea letta con pack_snapshot()
+ * ricrea la cartella del pack (i file media si copiano a parte, da Storage o da --media).
  *
  * "field" legge i rilievi esportati dall'app e stampa proposte per luogo: non modifica il pack.
  *
@@ -12,8 +18,10 @@
  * li valida e stampa errori e avvisi. Esce con codice 1 se ci sono errori
  * (o avvisi, con --strict).
  */
-import { readdirSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { MEDIA_FILES_DIR } from "@guide/domain";
+import { importSql, mediaFileInfo, packToSnapshot, snapshotToPack, writePackDir } from "./db.ts";
 import { argv, cwd, exit, stdout } from "node:process";
 import { hasErrors, type PackIssue } from "./issues.ts";
 import { loadPacks } from "./load.ts";
@@ -27,7 +35,9 @@ function usage(): never {
   stdout.write(
     "Uso:\n  guide-pack validate <cartella> [--pack <id>] [--strict] [--json]\n" +
       "  guide-pack photos <cartella-foto> [--territories <cartella-pack> --pack <id>]\n" +
-      "  guide-pack field <rilievi.json> --territories <cartella-pack>\n",
+      "  guide-pack field <rilievi.json> --territories <cartella-pack>\n" +
+      "  guide-pack db-sql <cartella> --pack <id> [--out <file.sql>]\n" +
+      "  guide-pack db-export <istantanea.json> --out <cartella> [--media <cartella-media>]\n",
   );
   exit(2);
 }
@@ -91,8 +101,80 @@ function field(fileArg: string, rest: string[]): number {
   return 0;
 }
 
+const option = (rest: string[], name: string) => {
+  const i = rest.indexOf(name);
+  return i >= 0 ? rest[i + 1] : undefined;
+};
+
+/** SQL di importazione del pack e delle sue dipendenze, nell'ordine giusto. Solo pack senza errori. */
+function dbSql(rootArg: string, rest: string[]): number {
+  const base = process.env.INIT_CWD ?? cwd();
+  const packId = option(rest, "--pack");
+  if (!packId) usage();
+  const loaded = loadPacks(resolve(base, rootArg));
+  const order: string[] = [];
+  const visit = (id: string) => {
+    if (order.includes(id)) return;
+    const pack = loaded.packs.get(id);
+    if (!pack) throw new Error(`pack non trovato: ${id}`);
+    pack.manifest.dependsOn.forEach(visit);
+    order.push(id);
+  };
+  visit(packId);
+  const errors = [...loaded.issues, ...validatePacks(loaded.packs)].filter((i) => i.level === "error" && order.includes(i.packId));
+  if (errors.length > 0) {
+    for (const e of errors) stdout.write(`ERRORE [${e.code}] ${e.packId}: ${e.message}\n`);
+    stdout.write("✗ il pack non è valido: niente SQL (correggere prima gli errori)\n");
+    return 1;
+  }
+  const sql = order.map((id) => {
+    const pack = loaded.packs.get(id)!;
+    const snapshot = packToSnapshot(pack, (file) => mediaFileInfo(readFileSync(join(pack.dir, MEDIA_FILES_DIR, file))));
+    return `-- ${id} ${pack.manifest.version}\n${importSql(snapshot)}`;
+  }).join("\n");
+  const out = option(rest, "--out");
+  if (out) {
+    writeFileSync(resolve(base, out), sql);
+    stdout.write(`✓ ${resolve(base, out)}: ${order.join(" → ")}\n`);
+  } else {
+    stdout.write(sql);
+  }
+  return 0;
+}
+
+/** Istantanea del database → cartella del pack. */
+function dbExport(fileArg: string, rest: string[]): number {
+  const base = process.env.INIT_CWD ?? cwd();
+  const out = option(rest, "--out");
+  if (!out) usage();
+  const dir = resolve(base, out);
+  const snapshot = JSON.parse(readFileSync(resolve(base, fileArg), "utf8")) as Record<string, unknown>;
+  const pack = snapshotToPack(snapshot, dir);
+  const written = writePackDir(pack, dir);
+  const mediaDir = option(rest, "--media");
+  let copied = 0;
+  if (mediaDir) {
+    mkdirSync(join(dir, MEDIA_FILES_DIR), { recursive: true });
+    for (const m of pack.media) {
+      for (const file of [m.file, ...(m.poster ? [m.poster] : [])]) {
+        const from = join(resolve(base, mediaDir), file);
+        if (!existsSync(from)) {
+          stdout.write(`⚠ file media mancante: ${file}\n`);
+          continue;
+        }
+        copyFileSync(from, join(dir, MEDIA_FILES_DIR, file));
+        copied++;
+      }
+    }
+  }
+  stdout.write(`✓ ${pack.manifest.id} → ${dir}: ${written.join(", ")}${mediaDir ? ` · ${copied} file media` : ""}\n`);
+  return 0;
+}
+
 function main(args: string[]): number {
   const [command, rootArg, ...rest] = args;
+  if (command === "db-sql" && rootArg) return dbSql(rootArg, rest);
+  if (command === "db-export" && rootArg) return dbExport(rootArg, rest);
   if (command === "photos" && rootArg) return photos(rootArg, rest);
   if (command === "field" && rootArg) return field(rootArg, rest);
   if (command !== "validate" || !rootArg) usage();

@@ -31,7 +31,9 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   guidati** (itinerari curati o su misura, tappe in ordine, GPS reale). Si passa dall'una all'altra in un tocco, nella
   stessa visita: la memoria del racconto resta, l'avanzamento delle tappe è del singolo percorso. `lib/runtime.ts` collega motore di contesto e narrazione (logica
   pura, testata: coda degli arrivi, niente interruzioni mentre la guida parla, luoghi rifiutati non riproposti per
-  15 minuti, luoghi vicini); `lib/gps-status.ts` stato del segnale; `components/PlaceCard.tsx` scheda del luogo; al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
+  15 minuti, luoghi vicini); `lib/gps-status.ts` stato del segnale; `components/PlaceCard.tsx` scheda del luogo (galleria, miniature: mai la
+  foto di un altro luogo al posto di quella mancante); `components/Icon.tsx` icone; `app/globals.css` design system
+  (font di sistema, nessun download: funziona offline); `app/manifest.ts` manifest della PWA; al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato; distanze e direzioni in linea d'aria le calcola il
   sistema dalla posizione, l'AI le riferisce soltanto), `lib/ask-web.ts` (approfondimento con ricerca web: quando
@@ -40,19 +42,33 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   (`ASK-EVAL.json` nel pack) e scrive un rapporto da rileggere;
   `components/DebugPanel.tsx` e `lib/field-points.ts` per il test sul campo (`?debug=1`);
   `components/MapView.tsx` e `lib/map-view.ts` per la mappa (Web Mercator, sfondo OpenStreetMap solo online e
-  solo per le prove: in produzione serve un fornitore di tile con licenza adeguata)
+  solo per le prove: in produzione serve un fornitore di tile con licenza adeguata);
+  `app/studio/` e `lib/studio/` lo Studio della redazione (`/studio`, Supabase Auth, funzioni `studio_*` del database con
+  l'identità dell'utente, nessuna chiave di servizio; `proxy.ts` solo per `/studio`; nuovi territori, stati, eliminazione (piano e copia
+  di sicurezza nel database) e controllo di pubblicazione in `lib/studio/readiness.ts`, vedi `docs/v0.3-platform/TERRITORI-DAL-CMS.md`; senza variabili dice di non essere
+  configurato e la guida funziona come prima)
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack
 - `packages/territory-pack` — caricamento, validazione e CLI `guide-pack` (`validate`, `photos`: coordinate dall'EXIF,
   `field`: revisione dei rilievi sul campo, formato `guide-field-points/2` in `packages/domain/src/field-points.ts`;
-  propone, non scrive mai nel pack)
+  propone, non scrive mai nel pack; `db-sql`/`db-export`: scambio con il database tramite `import_pack()` e
+  `pack_snapshot()`, `src/db.ts`)
 - `packages/context-engine` — motore di contesto sul dispositivo: geofence, movimento, pianificatore con ancora,
   monitor del tempo, istantanea per la narrazione. TypeScript puro, senza rete né AI; testato con tracce GPS simulate
 - `packages/narrative-planner` — decide cosa raccontare in ogni tappa (unità, prerequisiti, richiami, ganci) e
   aggiorna la memoria del tour. Deterministico: l'AI riceve il piano e rende solo i raccordi
 - `packages/bundle` — compila un Territory Pack in un bundle di runtime per lingua (solo affermazioni raccontabili,
-  deterministico, con hash) e lo rilegge sul dispositivo. L'app usa solo i bundle, mai il database
+  deterministico, con hash) e lo rilegge sul dispositivo. L'app usa solo i bundle, mai il database: quelli dei file
+  (`/bundles/`) e quelli pubblicati dallo Studio nel bucket `bundles` (`/pub/`, che li sostituiscono; `lib/bundle-index.ts`,
+  pipeline in `lib/studio/publish.ts`, vedi `docs/v0.3-platform/PUBBLICAZIONE.md`). I media
+  `video` (con `poster`) restano fuori dal pacchetto offline (`streamFiles`); `cover: true` indica la copertina
+  della destinazione, che l'indice dei bundle espone alla pagina iniziale; i contenuti a pagamento (`config.access` della destinazione:
+  esplorazione, luoghi introduttivi, percorsi premium) restano fuori dal bundle pubblico, vedi `docs/v0.3-platform/ACCESSO-CONTENUTI.md`;
+  solo le destinazioni elencate in `territories/static-bundles.json` hanno bundle dai file, e non possono avere contenuti a pagamento
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
-- `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime)
+- `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`
+  test delle migrazioni, delle policy e della parità pack ↔ database su un Postgres locale (`npm run db:check`;
+  `remote-check.sql` è la stessa verifica da incollare nel SQL Editor del progetto reale), `supabase/rollback/` revoche.
+  Architettura della piattaforma (CMS, account, pubblicazione, premium): `docs/v0.3-platform/PLATFORM-ARCHITECTURE.md`
 
 ## Comandi
 
@@ -60,6 +76,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 - `npm run packs:validate` — valida tutti i pack sotto `territories/`
 - `npm run bundles:build:test` — compila il bundle del territorio sintetico in `dist/bundles/`
 - `npm run dev` / `npm run build` — app
+- `npm run db:check` — migrazioni, policy RLS, revoca e riapplicazione su un Postgres 16 + PostGIS locale
 
 ## Convenzioni
 

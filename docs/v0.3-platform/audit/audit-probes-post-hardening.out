@@ -1,0 +1,20 @@
+                                    id                                     |                                               observed                                                
+---------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------
+ P1 (setup) ruolo platform_editor in un'organizzazione cliente             | negato: il ruolo platform_editor esiste solo nell'organizzazione della piattaforma
+ P1 platform_editor org B modifica pack org A                              | negato
+ P2 territory_editor org B ambito nullo modifica pack org A                | negato
+ P3 ambito gerarchico: editor org A modifica xa.audita.sub (org B)         | negato
+ P4 editor cambia organization_id del proprio pack (REST diretto)          | negato: solo l'amministratore della piattaforma cambia l'organizzazione di un territorio
+ P5 editor elimina affermazione verificata con DELETE diretto              | negato: un'affermazione verificata la elimina un esperto o la redazione
+ P6 editor sposta coordinate senza metodo (UPDATE diretto)                 | negato: le coordinate si cambiano dallo Studio, indicando come sono state ottenute
+ P7 territory_editor mette «published» senza controllo (UPDATE diretto)  | negato: lo stato di pubblicazione si cambia dallo Studio (controllo di pubblicazione e blocchi)
+ P8 editor scrive un file .html nel bucket pubblico bundles (a livello DB) | negato: new row violates row-level security policy for table "objects"
+ P9 editor org A vede le organizzazioni                                    | Org A (audit)
+ P10 editor org A vede content_revisions di altri pack                     | 0
+ P11 editor org A vede memberships altrui                                  | 0
+ P12 anonimo legge oggetti del bucket bundles (elenco)                     | 6
+ P13 anonimo legge packs / nodes / assertions                              | 0 / 0 / 0
+ P14 visitatore autenticato legge media / packs                            | 0 / 0
+ P15 limiti del bucket bundles (dimensione / MIME)                         | 52428800 / application/json,image/jpeg,image/png,image/webp,video/mp4,video/webm,audio/mpeg,audio/mp4
+(16 rows)
+

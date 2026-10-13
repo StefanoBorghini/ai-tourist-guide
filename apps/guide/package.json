@@ -20,13 +20,15 @@
     "@guide/context-engine": "0.1.0",
     "@guide/domain": "0.1.0",
     "@guide/narrative-planner": "0.1.0",
+    "@guide/territory-pack": "0.1.0",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.2",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@guide/territory-pack": "0.1.0",
     "@types/node": "22.20.5",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",

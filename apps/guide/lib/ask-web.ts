@@ -295,55 +295,6 @@ export function unsupportedNumbers(parsed: ParsedWebAnswer, blocks: ContentBlock
   return [...numbersIn(parsed.text)].filter((n) => !allowed.has(n));
 }
 
-// ------------------------------------------------------------------ costi
-
-/** Prezzi in dollari per milione di token (input, scrittura cache 5 min, lettura cache, output). */
-const PRICES: Record<string, { input: number; cacheWrite: number; cacheRead: number; output: number }> = {
-  "claude-opus-5-5": { input: 4, cacheWrite: 5, cacheRead: 0.2, output: 20 },
-  "claude-sonnet-5-5": { input: 2, cacheWrite: 2.5, cacheRead: 0.1, output: 10 },
-  "claude-haiku-5-5": { input: 0.1, cacheWrite: 0.125, cacheRead: 0.01, output: 0.5 },
-};
-export const WEB_SEARCH_USD = 0.01;
-
-export interface Usage {
-  input: number;
-  cacheWrite: number;
-  cacheRead: number;
-  output: number;
-  webSearches: number;
-}
-export const emptyUsage = (): Usage => ({ input: 0, cacheWrite: 0, cacheRead: 0, output: 0, webSearches: 0 });
-export function addUsage(a: Usage, b: Partial<Usage>): Usage {
-  return {
-    input: a.input + (b.input ?? 0),
-    cacheWrite: a.cacheWrite + (b.cacheWrite ?? 0),
-    cacheRead: a.cacheRead + (b.cacheRead ?? 0),
-    output: a.output + (b.output ?? 0),
-    webSearches: a.webSearches + (b.webSearches ?? 0),
-  };
-}
-
-/**
- * Riserva prudente per una domanda, da tenere libera nel budget prima di farla: risposta locale
- * (6.000 token di base scritti in cache, 3.000 in ingresso, 1.500 in uscita) più, se la ricerca è
- * attiva, una chiamata con ricerca (50.000 in ingresso, 6.000 in uscita = max_tokens, tutte le ricerche
- * consentite). Non è il massimo teorico: un turno sospeso e ripreso (pause_turn) può costare di più.
- */
-export function reserveUsd(localModel: string, web: WebConfig | null): number {
-  const local = estimateUsd(localModel, { input: 3000, cacheWrite: 6000, cacheRead: 0, output: 1500, webSearches: 0 }) ?? 0.1;
-  if (!web || !web.enabled) return local;
-  const search = estimateUsd(web.model, { input: 50_000, cacheWrite: 0, cacheRead: 0, output: 6000, webSearches: web.maxUses }) ?? 0.5;
-  return Math.round((local + search) * 1e4) / 1e4;
-}
-
-/** Stima del costo in dollari (listino pubblico; null se il modello non è in tabella). */
-export function estimateUsd(model: string, u: Usage): number | null {
-  const p = PRICES[model];
-  if (!p) return null;
-  const usd = (u.input * p.input + u.cacheWrite * p.cacheWrite + u.cacheRead * p.cacheRead + u.output * p.output) / 1e6 + u.webSearches * WEB_SEARCH_USD;
-  return Math.round(usd * 1e5) / 1e5;
-}
-
 // ------------------------------------------------------------------ cache delle risposte
 
 /**

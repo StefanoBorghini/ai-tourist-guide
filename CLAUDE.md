@@ -37,8 +37,10 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato; distanze e direzioni in linea d'aria le calcola il
   sistema dalla posizione, l'AI le riferisce soltanto), `lib/ask-web.ts` (approfondimento con ricerca web: quando
-  cercare, lettura di fonti e citazioni, cache, limiti, costi; puro e testato), `lib/ask-server.ts` (chiamate al
-  modello) e `app/api/guide/ask` per le domande all'AI; `npm run ask:eval` esegue le domande di prova di un territorio
+  cercare, lettura di fonti e citazioni, cache, limiti; puro e testato), `lib/ask-server.ts` (chiamate al
+  modello) e `app/api/guide/ask` per le domande all'AI; `lib/ask-cost.ts` listino, consumi e budget per domanda
+  (`ASK_MAX_USD_PER_QUESTION` obbligatoria, stime prima di ogni chiamata, nessun nuovo tentativo automatico; non è un tetto
+  assoluto, vedi `docs/v0.3-platform/COSTI-AI.md`); `npm run ask:eval` esegue le domande di prova di un territorio
   (`ASK-EVAL.json` nel pack) e scrive un rapporto da rileggere;
   `components/DebugPanel.tsx` e `lib/field-points.ts` per il test sul campo (`?debug=1`);
   `components/MapView.tsx` e `lib/map-view.ts` per la mappa (Web Mercator, sfondo OpenStreetMap solo online e

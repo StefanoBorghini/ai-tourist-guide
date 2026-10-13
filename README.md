@@ -100,6 +100,7 @@ Variabili d'ambiente (tutte facoltative tranne la chiave):
 | Variabile | Default | Effetto |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | obbligatoria per le domande (solo lato server) |
+| `ASK_MAX_USD_PER_QUESTION` | — | obbligatoria per le domande: dollari massimi **stimati** per domanda (es. `0.15`, con il punto). Assente o non valida: domande spente. Non è un tetto assoluto: vedi `docs/v0.3-platform/COSTI-AI.md` |
 | `ASK_WEB_ENABLED` | `1` | `0` spegne la ricerca web (resta la base locale) |
 | `ASK_WEB_MAX_USES` | `3` | ricerche massime per domanda (1–10) |
 | `ASK_WEB_MODEL` | `claude-opus-5-5` | modello della risposta con ricerca (es. `claude-sonnet-5-5` per spendere meno) |
@@ -111,10 +112,15 @@ Variabili d'ambiente (tutte facoltative tranne la chiave):
 | `ASK_WEB_TIMEOUT_MS` | `50000` | tempo massimo della risposta con ricerca |
 
 I limiti per indirizzo e per giorno valgono per singola istanza del server: sono argini, non quote globali.
-Il tetto di spesa mensile affidabile si imposta nella Console Anthropic (limite di spesa del workspace a cui
-appartiene la chiave). `GET /api/guide/ask` dice se la ricerca è attiva e se il modello la supporta (Models API).
-Prove di qualità: `npm run ask:eval -w @guide/app -- --file ../../territories/<id>/ASK-EVAL.json --out rapporto.md`
-(chiama davvero l'API: serve la chiave e ha un costo; `--dry` mostra solo cosa sa la base locale). Prima di ogni
-domanda tiene libera una riserva prudente e non parte se supererebbe `--max-usd`; `--no-web` per la sola base,
-`--web-model` per scegliere il modello della ricerca, `--json` per salvare i risultati e confrontare due esecuzioni
-con `npm run ask:compare -w @guide/app -- a.json b.json --out confronto.md` (nessun costo).
+Ogni chiamata al modello passa dal budget per domanda (stima prima, costo reale dopo, `max_tokens` e ricerche ridotti
+al residuo, nessun nuovo tentativo automatico): riduce il rischio ma non è un tetto assoluto, perché i token dei
+risultati della prima ricerca non si conoscono prima della risposta. Il tetto di spesa affidabile si imposta nella
+Console Anthropic (limite di spesa del workspace a cui appartiene la chiave). `GET /api/guide/ask` dice se le domande
+sono disponibili, se il budget è configurato, se la ricerca è attiva e se il modello la supporta (Models API).
+Prove di qualità e costo: `npm run ask:eval -w @guide/app -- --file ../../territories/<id>/ASK-EVAL.json --out rapporto.md`
+(chiama davvero l'API: serve la chiave, un budget per domanda — `--max-usd-per-question` o `ASK_MAX_USD_PER_QUESTION` —
+e ha un costo; `--dry` mostra solo cosa sa la base locale). Prima di ogni domanda tiene libero l'intero budget per
+domanda e non parte se supererebbe `--max-usd`; `--file` si può ripetere, `--no-web` per la sola base, `--web-model`
+e `--web-max-uses` per le varianti della ricerca, `--json` per salvare i risultati e confrontare due esecuzioni con
+`npm run ask:compare -w @guide/app -- a.json b.json --out confronto.md` (nessun costo; `--blind` per la valutazione alla
+cieca). Protocollo del confronto e rubrica: `docs/v0.3-platform/COSTI-AI.md`.

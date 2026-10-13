@@ -22,22 +22,28 @@ import {
   type AskMeter,
   type AskRequest,
 } from "./ask";
+import { WEB_SYSTEM_PROMPT, buildWebAddendum, needsWeb, parseWebAnswer, unsupportedNumbers, type ContentBlockLike, type ParsedWebAnswer, type WebConfig } from "./ask-web";
 import {
-  WEB_SYSTEM_PROMPT,
   addUsage,
-  buildWebAddendum,
   emptyUsage,
-  estimateUsd,
-  needsWeb,
-  parseWebAnswer,
-  unsupportedNumbers,
-  type ContentBlockLike,
-  type ParsedWebAnswer,
+  estimateInputTokens,
+  nextContextTokens,
+  type BudgetSummary,
+  type CallRecord,
+  type CostQuality,
+  type QuestionBudget,
   type Usage,
-  type WebConfig,
-} from "./ask-web";
+} from "./ask-cost";
 
 export const ASK_MODEL = "claude-opus-5-5";
+
+/** Token massimi in uscita (ragionamento compreso) e minimi utili, per chiamata. */
+export const LOCAL_MAX_TOKENS = 4000;
+export const LOCAL_MIN_TOKENS = 1000;
+export const WEB_MAX_TOKENS = 6000;
+export const WEB_MIN_TOKENS = 1500;
+/** Giri massimi della chiamata con ricerca (ripresa dopo `pause_turn`). */
+export const WEB_MAX_ROUNDS = 3;
 
 export interface Loaded {
   content: BundleContent;
@@ -154,44 +160,76 @@ export interface AskOutcome {
   rejected?: string;
   /** Consumi della risposta locale e di quella con ricerca, se ci sono state. */
   usage: { local?: Usage; web?: Usage };
-  /** Stima in dollari (listino pubblico). */
-  costUsd: number | null;
+  /** Dollari scalati dal budget (listino sui consumi reali; stime dove i consumi mancano). */
+  costUsd: number;
+  /** Quanto è affidabile costUsd. */
+  costQuality: CostQuality;
+  /** Budget della domanda: limite, speso, eventuale arresto. */
+  budget: BudgetSummary;
+  /** Ogni chiamata al modello, con piano, esito e costo (per i log, nessun segreto). */
+  calls: CallRecord[];
   /** Diagnostica della ricerca web, per i log (nessun segreto). */
-  web?: { attempted: boolean; error?: string; searches: number; sources: string[]; unknownRefs?: string[]; searchErrors?: string[] };
+  web?: { attempted: boolean; error?: string; searches: number; rounds: number; sources: string[]; unknownRefs?: string[]; searchErrors?: string[] };
 }
 
-type LocalResult = { answer: AskAnswer; rejected?: string; usage: Usage; model: string };
+type LocalResult = { answer: AskAnswer; rejected?: string; usage: Usage | null; model: string };
 
-const toUsage = (u: Anthropic.Beta.Messages.BetaUsage): Usage => ({
-  input: u.input_tokens,
-  cacheWrite: u.cache_creation_input_tokens ?? 0,
-  cacheRead: u.cache_read_input_tokens ?? 0,
-  output: u.output_tokens,
-  webSearches: u.server_tool_use?.web_search_requests ?? 0,
-});
+/** Un rifiuto HTTP 4xx dell'API vuol dire richiesta non eseguita; tutto il resto può aver consumato. */
+function failureInfo(error: unknown): { message: string; rejectedByApi: boolean } {
+  if (error instanceof Anthropic.APIError) {
+    const status = typeof error.status === "number" ? error.status : undefined;
+    return { message: `API ${status ?? "?"}: ${error.message}`, rejectedByApi: status !== undefined && status >= 400 && status < 500 };
+  }
+  return { message: (error as Error)?.message ?? String(error), rejectedByApi: false };
+}
 
-/** Livello A: risposta dalla sola base verificata, con controllo rigoroso di citazioni e numeri. */
-export async function askLocal(client: Anthropic, loaded: Loaded, req: AskRequest): Promise<LocalResult> {
-  const response = await client.beta.messages.create(
-    {
-      model: ASK_MODEL,
-      max_tokens: 4000,
-      // Se il modello declina, l'API ripete la richiesta sul modello di ripiego consigliato.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      // Risposte da leggere a voce: poca riflessione, latenza bassa.
-      output_config: { effort: "low", format: { type: "json_schema", schema: ANSWER_JSON_SCHEMA } },
-      system: [
-        { type: "text", text: SYSTEM_PROMPT },
-        { type: "text", text: loaded.knowledge, cache_control: { type: "ephemeral" } },
-      ],
-      messages: [{ role: "user", content: buildQuestionMessage(loaded.content, req) }],
-    },
-    { timeout: 25_000 },
-  );
-  const usage = toUsage(response.usage);
+/** Piano della risposta locale (anche solo per sapere quanto tenere da parte per un ripiego). */
+function planLocal(loaded: Loaded, req: AskRequest, budget: QuestionBudget, maxTokens = LOCAL_MAX_TOKENS) {
+  return budget.plan({
+    model: ASK_MODEL,
+    inputTokens: estimateInputTokens(SYSTEM_PROMPT, loaded.knowledge, buildQuestionMessage(loaded.content, req), JSON.stringify(ANSWER_JSON_SCHEMA)),
+    maxTokens,
+    minTokens: LOCAL_MIN_TOKENS,
+  });
+}
+
+/**
+ * Livello A: risposta dalla sola base verificata, con controllo rigoroso di citazioni e numeri.
+ * Se il budget non basta nemmeno per la risposta minima, nessuna chiamata: risposta "non disponibile".
+ */
+export async function askLocal(client: Anthropic, loaded: Loaded, req: AskRequest, budget: QuestionBudget): Promise<LocalResult> {
+  const plan = planLocal(loaded, req, budget);
+  if (!plan.ok) {
+    budget.stopped(`risposta locale non avviata: ${plan.reason}`);
+    return { answer: fallbackAnswer(req.locale, "unavailable"), usage: null, model: ASK_MODEL };
+  }
+  let response: Anthropic.Beta.Messages.BetaMessage;
+  try {
+    response = await client.beta.messages.create(
+      {
+        model: ASK_MODEL,
+        max_tokens: plan.maxTokens,
+        // Se il modello declina, l'API ripete la richiesta sul modello di ripiego consigliato.
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        // Risposte da leggere a voce: poca riflessione, latenza bassa.
+        output_config: { effort: "low", format: { type: "json_schema", schema: ANSWER_JSON_SCHEMA } },
+        system: [
+          { type: "text", text: SYSTEM_PROMPT },
+          { type: "text", text: loaded.knowledge, cache_control: { type: "ephemeral" } },
+        ],
+        messages: [{ role: "user", content: buildQuestionMessage(loaded.content, req) }],
+      },
+      // Nessun nuovo tentativo automatico: un tempo scaduto può essere già stato pagato.
+      { timeout: 25_000, maxRetries: 0 },
+    );
+  } catch (error) {
+    budget.recordFailure("local", plan, failureInfo(error));
+    throw error;
+  }
   // Il modello che ha risposto davvero (con il ripiego automatico può non essere ASK_MODEL).
   const model = response.model || ASK_MODEL;
+  const usage = budget.recordSuccess("local", plan, response.usage, model).usage!;
 
   if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") {
     const reason = response.stop_reason === "refusal" ? "il modello ha rifiutato la richiesta" : "risposta troncata (limite di lunghezza)";
@@ -204,63 +242,79 @@ export async function askLocal(client: Anthropic, loaded: Loaded, req: AskReques
 }
 
 type WebResult =
-  | { ok: true; parsed: ParsedWebAnswer; blocks: ContentBlockLike[]; usage: Usage; model: string }
-  | { ok: false; reason: string; usage: Usage; model: string };
+  | { ok: true; parsed: ParsedWebAnswer; blocks: ContentBlockLike[]; usage: Usage; model: string; rounds: number }
+  | { ok: false; reason: string; usage: Usage; model: string; rounds: number };
 
 /**
  * Livello B: il modello riceve la base, la risposta locale e lo strumento di ricerca web ufficiale.
- * Gestisce pause_turn (turni lunghi sospesi dal server) rimandando il messaggio così com'è.
+ * Gestisce pause_turn (turni lunghi sospesi dal server) rimandando il messaggio così com'è, al massimo
+ * WEB_MAX_ROUNDS giri. Prima di ogni giro il budget decide quante ricerche e quanti token concedere
+ * (tenendo da parte `keepUsd` per un eventuale ripiego sulla base locale); se non basta, si ferma.
+ * Gli errori dell'API non escono da qui: diventano un esito non riuscito, con i consumi già fatti.
  */
-export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest, local: AskAnswer | null, config: WebConfig): Promise<WebResult> {
+export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest, local: AskAnswer | null, config: WebConfig, budget: QuestionBudget, keepUsd = 0): Promise<WebResult> {
   const started = Date.now();
   let usage = emptyUsage();
   // Modello che ha risposto davvero (dalla risposta dell'API): serve a stimare il costo giusto.
   let model = config.model;
-  const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
-    { role: "user", content: buildQuestionMessage(loaded.content, req) + "\n" + buildWebAddendum(local, req) },
-  ];
+  const first = buildQuestionMessage(loaded.content, req) + "\n" + buildWebAddendum(local, req);
+  const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: "user", content: first }];
   const blocks: ContentBlockLike[] = [];
-  for (let round = 0; round < 3; round++) {
+  let contextTokens = estimateInputTokens(WEB_SYSTEM_PROMPT, loaded.knowledge, first);
+  for (let round = 1; round <= WEB_MAX_ROUNDS; round++) {
     const remainingMs = config.timeoutMs - (Date.now() - started);
     const remainingSearches = config.maxUses - usage.webSearches;
-    if (remainingMs < 5_000 || remainingSearches < 1) return { ok: false, reason: "tempo o ricerche esauriti durante la pausa", usage, model };
+    if (remainingMs < 5_000 || remainingSearches < 1) return { ok: false, reason: "tempo o ricerche esauriti durante la pausa", usage, model, rounds: round - 1 };
+    const plan = budget.plan({ model: config.model, inputTokens: contextTokens, maxTokens: WEB_MAX_TOKENS, minTokens: WEB_MIN_TOKENS, searches: remainingSearches, minSearches: 1, keepUsd });
+    if (!plan.ok) {
+      budget.stopped(`ricerca, giro ${round}, non avviata: ${plan.reason}`);
+      return { ok: false, reason: "budget della domanda esaurito", usage, model, rounds: round - 1 };
+    }
     const tool: Anthropic.Beta.Messages.BetaWebSearchTool20260318 = {
       type: "web_search_20260318",
       name: "web_search",
-      max_uses: remainingSearches,
-      // I risultati già filtrati dal codice non tornano nella risposta: meno token in uscita.
+      max_uses: plan.searches,
+      // Riduce i blocchi restituiti nella risposta; i risultati letti dal modello si pagano comunque.
       response_inclusion: "excluded",
       ...(config.blockedDomains.length > 0 ? { blocked_domains: config.blockedDomains } : {}),
     };
-    const response = await client.beta.messages.create(
-      {
-        model: config.model,
-        max_tokens: 6000,
-        output_config: { effort: config.effort },
-        tools: [tool],
-        system: [
-          { type: "text", text: WEB_SYSTEM_PROMPT },
-          { type: "text", text: loaded.knowledge, cache_control: { type: "ephemeral" } },
-        ],
-        messages,
-      },
-      // Niente nuovi tentativi automatici: raddoppierebbero costi e attesa.
-      { timeout: remainingMs, maxRetries: 0 },
-    );
-    usage = addUsage(usage, toUsage(response.usage));
+    let response: Anthropic.Beta.Messages.BetaMessage;
+    try {
+      response = await client.beta.messages.create(
+        {
+          model: config.model,
+          max_tokens: plan.maxTokens,
+          output_config: { effort: config.effort },
+          tools: [tool],
+          system: [
+            { type: "text", text: WEB_SYSTEM_PROMPT },
+            { type: "text", text: loaded.knowledge, cache_control: { type: "ephemeral" } },
+          ],
+          messages,
+        },
+        // Niente nuovi tentativi automatici: raddoppierebbero costi e attesa.
+        { timeout: remainingMs, maxRetries: 0 },
+      );
+    } catch (error) {
+      const info = failureInfo(error);
+      budget.recordFailure("web", plan, info, round);
+      return { ok: false, reason: info.message.slice(0, 300), usage, model, rounds: round };
+    }
     model = response.model || model;
+    usage = addUsage(usage, budget.recordSuccess("web", plan, response.usage, model, round).usage!);
+    contextTokens = nextContextTokens(response.usage);
     blocks.push(...(response.content as ContentBlockLike[]));
     if (response.stop_reason === "pause_turn") {
       messages.push({ role: "assistant", content: response.content });
       continue;
     }
-    if (response.stop_reason === "refusal") return { ok: false, reason: "il modello ha rifiutato la richiesta", usage, model };
-    if (response.stop_reason === "max_tokens") return { ok: false, reason: "risposta troncata (limite di lunghezza)", usage, model };
+    if (response.stop_reason === "refusal") return { ok: false, reason: "il modello ha rifiutato la richiesta", usage, model, rounds: round };
+    if (response.stop_reason === "max_tokens") return { ok: false, reason: "risposta troncata (limite di lunghezza)", usage, model, rounds: round };
     const parsed = parseWebAnswer(blocks, loaded.content, req);
-    if (!parsed.text) return { ok: false, reason: "risposta vuota", usage, model };
-    return { ok: true, parsed, blocks, usage, model };
+    if (!parsed.text) return { ok: false, reason: "risposta vuota", usage, model, rounds: round };
+    return { ok: true, parsed, blocks, usage, model, rounds: round };
   }
-  return { ok: false, reason: "troppe pause del server", usage, model };
+  return { ok: false, reason: "troppe pause del server", usage, model, rounds: WEB_MAX_ROUNDS };
 }
 
 /** Risposta locale con la dichiarazione del limite della ricerca online. */
@@ -284,28 +338,36 @@ export interface WebGate {
  * Approfondimento («Approfondisci»): la base locale ha già risposto alla stessa domanda, quindi si va
  * diretti alla ricerca (la base è comunque nel contesto) e la si interroga di nuovo solo se la
  * ricerca non è disponibile o non produce fonti. Così non si paga due volte la stessa risposta locale.
+ *
+ * Budget: ogni chiamata passa da `budget` (stima prima, costo reale dopo). Nell'approfondimento la
+ * ricerca lascia da parte il costo della risposta locale minima, così il ripiego resta possibile.
  */
-export async function askGuide(client: Anthropic, loaded: Loaded, req: AskRequest, gate: WebGate | null = null): Promise<AskOutcome> {
+export async function askGuide(client: Anthropic, loaded: Loaded, req: AskRequest, gate: WebGate | null, budget: QuestionBudget): Promise<AskOutcome> {
   let local: LocalResult | null = null;
-  const getLocal = async () => (local ??= await askLocal(client, loaded, req));
+  const getLocal = async () => (local ??= await askLocal(client, loaded, req, budget));
   const webOn = gate !== null && gate.config.enabled && gate.supported !== false;
   let permitted: boolean | undefined;
   const permit = () => (permitted ??= gate!.permitted());
 
-  let webModel = gate?.config.model ?? "";
   const done = (answer: AskAnswer, web?: AskOutcome["web"], webUsage?: Usage): AskOutcome => {
-    const parts: [string, Usage][] = [];
-    if (local) parts.push([local.model, local.usage]);
-    if (webUsage) parts.push([webModel, webUsage]);
-    const total = parts.reduce((acc, [, u]) => addUsage(acc, u), emptyUsage());
-    const costs = parts.map(([m, u]) => estimateUsd(m, u));
-    const costUsd = costs.some((c) => c === null) ? null : Math.round(costs.reduce((a, c) => a! + c!, 0)! * 1e5) / 1e5;
-    const meter: AskMeter = { models: [...new Set(parts.map(([m]) => m))], calls: parts.length, ...total, costUsd };
+    const used = budget.calls.reduce((acc, c) => (c.usage ? addUsage(acc, c.usage) : acc), emptyUsage());
+    const summary = budget.summary();
+    const meter: AskMeter = {
+      models: [...new Set(budget.calls.filter((c) => c.outcome === "ok").flatMap((c) => c.models))],
+      calls: budget.calls.length,
+      ...used,
+      costUsd: summary.spentUsd,
+      costQuality: summary.quality,
+    };
+    const l = local as LocalResult | null;
     return {
       answer: { ...answer, meter },
-      ...(local?.rejected && answer.origin !== "web" ? { rejected: local.rejected } : {}),
-      usage: { ...(local ? { local: local.usage } : {}), ...(webUsage ? { web: webUsage } : {}) },
-      costUsd,
+      ...(l?.rejected && answer.origin !== "web" ? { rejected: l.rejected } : {}),
+      usage: { ...(l?.usage ? { local: l.usage } : {}), ...(webUsage ? { web: webUsage } : {}) },
+      costUsd: summary.spentUsd,
+      costQuality: summary.quality,
+      budget: summary,
+      calls: [...budget.calls],
       ...(web ? { web } : {}),
     };
   };
@@ -318,29 +380,34 @@ export async function askGuide(client: Anthropic, loaded: Loaded, req: AskReques
   };
 
   const direct = req.depth === "deep" && webOn && permit();
-  if (!direct) {
+  let keepUsd = 0;
+  if (direct) {
+    // Il ripiego sulla base locale (risposta minima) deve restare pagabile anche se la ricerca usa tutto il resto.
+    const reserve = planLocal(loaded, req, budget, LOCAL_MIN_TOKENS);
+    keepUsd = reserve.ok ? reserve.worstUsd : 0;
+  } else {
     const l = await getLocal();
     if (!gate || !gate.config.enabled || !needsWeb(l.answer, req)) return done(l.answer);
     if (gate.supported === false || !permit()) {
-      return done(withWebNote(l.answer, req.locale, "webUnavailable"), { attempted: false, error: gate.supported === false ? "modello senza ricerca web" : "limite di uso raggiunto", searches: 0, sources: [] });
+      return done(withWebNote(l.answer, req.locale, "webUnavailable"), { attempted: false, error: gate.supported === false ? "modello senza ricerca web" : "limite di uso raggiunto", searches: 0, rounds: 0, sources: [] });
     }
   }
 
   let web: WebResult;
   try {
-    web = await askWeb(client, loaded, req, local ? (local as LocalResult).answer : null, gate!.config);
-    webModel = web.model;
+    web = await askWeb(client, loaded, req, local ? (local as LocalResult).answer : null, gate!.config, budget, keepUsd);
   } catch (error) {
-    const message = error instanceof Anthropic.APIError ? `API ${error.status ?? "?"}: ${error.message}` : (error as Error).message;
-    return fallback("webUnavailable", { attempted: true, error: message.slice(0, 300), searches: 0, sources: [] });
+    return fallback("webUnavailable", { attempted: true, error: failureInfo(error).message.slice(0, 300), searches: 0, rounds: 0, sources: [] });
   }
   if (!web.ok) {
-    return fallback("webUnavailable", { attempted: true, error: web.reason, searches: web.usage.webSearches, sources: [] }, web.usage);
+    const webUsed = budget.calls.some((c) => c.kind === "web" && c.usage !== null);
+    return fallback("webUnavailable", { attempted: web.rounds > 0, error: web.reason, searches: web.usage.webSearches, rounds: web.rounds, sources: [] }, webUsed ? web.usage : undefined);
   }
   const { parsed } = web;
   const diag = {
     attempted: true,
     searches: web.usage.webSearches,
+    rounds: web.rounds,
     sources: parsed.sources.map((s) => s.url),
     ...(parsed.unknownRefs.length > 0 ? { unknownRefs: parsed.unknownRefs } : {}),
     ...(parsed.searchErrors.length > 0 ? { searchErrors: parsed.searchErrors } : {}),

@@ -1,0 +1,85 @@
+{
+  "$comment": "Domande aggiuntive per il confronto della ricerca web (ASK_WEB_MAX_USES 1 contro 3), da eseguire insieme ad ASK-EVAL.json: npm run ask:eval -w @guide/app -- --file ../../territories/it.liguria.sp.portovenere/ASK-EVAL.json --file ../../territories/it.liguria.sp.portovenere/ASK-EVAL-RICERCA.json --web-max-uses 1 --json a.json (poi 3 → b.json). Chiama davvero l'API: serve un'approvazione e un tetto di spesa. 'check' dice cosa valutare: sono criteri di comportamento, non risposte di riferimento; i fatti si verificano sulle fonti citate.",
+  "destination": "it.liguria.sp.portovenere",
+  "locale": "it",
+  "questions": [
+    {
+      "id": "pr-orari-san-pietro",
+      "category": "Informazioni pratiche",
+      "question": "A che ora apre la chiesa di San Pietro?",
+      "selected": "san-pietro",
+      "expect": "web",
+      "check": "Non inventa orari. Se ne riporta, solo da una fonte ufficiale con la data della pagina; altrimenti dice di non averli verificati e rimanda ai canali ufficiali."
+    },
+    {
+      "id": "pr-biglietto-castello",
+      "category": "Informazioni pratiche",
+      "question": "Si paga un biglietto per visitare il Castello Doria?",
+      "selected": "castello-doria",
+      "expect": "web",
+      "check": "Nessun prezzo senza fonte ufficiale datata; segnala che prezzi e aperture cambiano e vanno verificati."
+    },
+    {
+      "id": "pr-grotta-byron-sicurezza",
+      "category": "Informazioni pratiche",
+      "question": "Si può scendere alla Grotta Byron? È sicuro?",
+      "selected": "grotta-byron",
+      "expect": "web",
+      "check": "Nessuna indicazione di percorso o di sicurezza inventata; se esistono avvisi o divieti, solo con fonte ufficiale e data."
+    },
+    {
+      "id": "agg-restauri-castello",
+      "category": "Informazioni aggiornate",
+      "question": "Ci sono lavori o restauri in corso al Castello Doria?",
+      "selected": "castello-doria",
+      "expect": "web",
+      "check": "Riporta la data delle fonti; se non trova notizie recenti lo dice, senza dedurre che i lavori non ci siano."
+    },
+    {
+      "id": "agg-eventi",
+      "category": "Informazioni aggiornate",
+      "question": "Quali eventi culturali ci sono a Portovenere in questo periodo?",
+      "expect": "web",
+      "check": "Solo eventi con fonte e data; nessun evento generico o di anni passati presentato come attuale."
+    },
+    {
+      "id": "disc-nome",
+      "category": "Fonti discordanti",
+      "question": "Da dove viene il nome Portovenere?",
+      "expect": "web",
+      "check": "Presenta le ipotesi come ipotesi, ciascuna con la sua fonte; non ne sceglie una come certa se le fonti non lo fanno."
+    },
+    {
+      "id": "disc-fondazione",
+      "category": "Fonti discordanti",
+      "question": "In che anno è stata fondata Portovenere?",
+      "expect": "web",
+      "check": "Distingue prime attestazioni documentate, fondazioni o ricostruzioni e tradizioni; ogni data con fonte; segnala se le fonti non concordano."
+    },
+    {
+      "id": "multi-doria-fortificazioni",
+      "category": "Più ricerche necessarie",
+      "question": "Chi erano i Doria e che ruolo ebbero nelle fortificazioni di Portovenere?",
+      "selected": "castello-doria",
+      "expect": "web",
+      "check": "Copre entrambe le parti (chi erano, che ruolo ebbero qui) con fonti pertinenti; segnala se una delle due resta senza fonte."
+    },
+    {
+      "id": "multi-tino-venerio",
+      "category": "Più ricerche necessarie",
+      "question": "Cosa lega l'isola del Tino a San Venerio e cosa resta oggi del monastero?",
+      "selected": "tino",
+      "expect": "web",
+      "check": "Due domande in una (storia e stato attuale): risponde a entrambe o dichiara quale manca; lo stato attuale con fonte datata."
+    },
+    {
+      "id": "multi-palmaria-cave",
+      "category": "Più ricerche necessarie",
+      "question": "Approfondisci la storia delle cave della Palmaria e del marmo che vi si estraeva.",
+      "selected": "palmaria",
+      "depth": "deep",
+      "expect": "web",
+      "check": "Approfondimento ordinato con fonti per periodi e materiale; nessun dettaglio tecnico o data senza fonte."
+    }
+  ]
+}

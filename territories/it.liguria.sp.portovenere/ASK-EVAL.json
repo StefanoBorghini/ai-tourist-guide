@@ -1,5 +1,5 @@
 {
-  "$comment": "Domande di prova per le risposte ibride (base locale + ricerca web). Si eseguono con: npm run ask:eval -w @guide/app -- --file ../../territories/it.liguria.sp.portovenere/ASK-EVAL.json (serve ANTHROPIC_API_KEY; ha un costo). 'expect' è l'esito atteso: local = basta la base, web = serve la ricerca, none = nessuna ricerca (fuori tema). 'check' dice cosa deve verificare chi legge il rapporto.",
+  "$comment": "Domande di prova per le risposte ibride (base locale + ricerca web). Si eseguono con: npm run ask:eval -w @guide/app -- --file ../../territories/it.liguria.sp.portovenere/ASK-EVAL.json (serve ANTHROPIC_API_KEY e un budget per domanda, --max-usd-per-question o ASK_MAX_USD_PER_QUESTION; ha un costo; per il confronto della ricerca si esegue insieme ad ASK-EVAL-RICERCA.json). 'expect' è l'esito atteso: local = basta la base, web = serve la ricerca, none = nessuna ricerca (fuori tema). 'check' dice cosa deve verificare chi legge il rapporto.",
   "destination": "it.liguria.sp.portovenere",
   "locale": "it",
   "questions": [

@@ -354,6 +354,8 @@ Nomi esatti e segnaposto li fornisco al momento. **Non incollare mai i valori in
 1. Applicazione dell'hardening in Preview e verifica.
 2. `accessTier` nel formato dei pack e pipeline pubblico/protetto, senza prezzi: i test dimostrano che il bundle pubblico non contiene testi premium. **Fatto sul branch `commercio`** con la configurazione `access` del territorio al posto di `accessTier` per contenuto: `ACCESSO-CONTENUTI.md`.
 3. Account nella PWA: email e password, poi Google, poi Apple; profilo, «I miei acquisti» (vuoto), cancellazione.
+   **Fatto sul branch `commercio`** (2026-10-14): email e password completi, Google e Apple predisposti e spenti;
+   configurazione e prove in `ACCOUNT.md`.
 4. Catalogo nello Studio (prezzi in bozza e pubblicati) e `public_catalog()`.
 5. Checkout, webhook e diritti in modalità test; licenza offline; collaudo in Preview con le carte di test di Stripe.
 6. **Crediti AI** (migrazione 5): registro, prenotazione atomica e regolazione, route delle domande con account e

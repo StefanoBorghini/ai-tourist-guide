@@ -719,7 +719,16 @@ export function GuideApp() {
             </section>
           )}
         </div>
-        <footer className="home-foot muted small">AI Guide{cover?.credit ? ` · ${t.photo}: ${cover.credit}` : ""}</footer>
+        <footer className="home-foot muted small">
+          AI Guide{cover?.credit ? ` · ${t.photo}: ${cover.credit}` : ""}
+          {/* Account solo dove sono attivi (lib/account/shared.ts): servono per acquistare, non per visitare. */}
+          {process.env.NEXT_PUBLIC_ACCOUNTS_ENABLED === "1" && online && (
+            <>
+              {" · "}
+              <a href="/account" className="home-account">{t.account}</a>
+            </>
+          )}
+        </footer>
       </main>
     );
   }

@@ -28,7 +28,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
             </label>
             <button className="st-btn st-primary" type="submit">Accedi</button>
           </form>
-          <p className="st-hint">Gli account dello staff li crea l'amministratore. Non c'è registrazione libera.</p>
+          <p className="st-hint">L'accesso allo Studio lo abilita l'amministratore: un account visitatore della guida non basta.</p>
         </>
       )}
     </main>

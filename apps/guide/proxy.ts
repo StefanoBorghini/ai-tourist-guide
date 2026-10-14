@@ -1,12 +1,13 @@
 /**
- * Per /studio: rinnova la sessione Supabase nei cookie e manda all'accesso chi non è autenticato.
- * È un controllo ottimistico; quello vero lo fa ogni pagina e ogni azione (lib/studio/server.ts).
- * La guida turistica non passa di qui.
+ * Per /studio e per l'account dei visitatori (/account, /auth): rinnova la sessione Supabase nei cookie e manda
+ * all'accesso chi non è autenticato. È un controllo ottimistico; quello vero lo fa ogni pagina e ogni azione
+ * (lib/studio/server.ts, lib/account/server.ts). La guida turistica non passa di qui.
  */
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { BUNDLES_BUCKET, currentIndexObject, listIndexObjects, PUB_INDEX_URL, publishedOrigin, pubToStorageUrl } from "./lib/bundle-index";
 import { readStudioConfig } from "./lib/studio/shared";
+import { accountEnv, readAccountConfig, requiresSession, SIGN_IN } from "./lib/account/shared";
 
 /**
  * File pubblicati dallo Studio (/pub/, riscritti verso il bucket «bundles»): sono dati, mai pagine. Niente script
@@ -38,6 +39,43 @@ async function publishedIndexResponse(origin: string): Promise<NextResponse> {
   return response;
 }
 
+/** Client Supabase che rinnova la sessione: i cookie aggiornati finiscono nella risposta restituita. */
+function sessionClient(request: NextRequest, url: string, anonKey: string) {
+  const state = { response: NextResponse.next({ request }) };
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll: (list, headers) => {
+        for (const { name, value } of list) request.cookies.set(name, value);
+        state.response = NextResponse.next({ request });
+        for (const { name, value, options } of list) state.response.cookies.set(name, value, options);
+        for (const [key, value] of Object.entries(headers ?? {})) state.response.headers.set(key, value);
+      },
+    },
+  });
+  return { supabase, state };
+}
+
+/** Account dei visitatori: senza configurazione le pagine dicono che non sono disponibili; altrimenti sessione e accesso. */
+async function accountProxy(request: NextRequest): Promise<NextResponse> {
+  const setup = readAccountConfig(accountEnv());
+  if (!setup.ok) return withNoIndex(NextResponse.next());
+  const { supabase, state } = sessionClient(request, setup.config.supabase.url, setup.config.supabase.anonKey);
+  const { data } = await supabase.auth.getUser();
+  if (!data.user && requiresSession(request.nextUrl.pathname)) {
+    const to = new URL(SIGN_IN, request.url);
+    to.searchParams.set("next", request.nextUrl.pathname);
+    return withNoIndex(NextResponse.redirect(to));
+  }
+  return withNoIndex(state.response);
+}
+
+function withNoIndex(response: NextResponse): NextResponse {
+  response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
+}
+
 export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/pub/")) {
     // La riscrittura verso il bucket la fa qui (non in next.config): così le intestazioni restano sulla risposta.
@@ -48,6 +86,7 @@ export async function proxy(request: NextRequest) {
     for (const [k, v] of Object.entries(PUB_HEADERS)) response.headers.set(k, v);
     return response;
   }
+  if (/^\/(account|auth)(\/|$)/.test(request.nextUrl.pathname)) return accountProxy(request);
   const config = readStudioConfig({
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -74,5 +113,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/studio", "/studio/:path*", "/pub/:path*"],
+  matcher: ["/studio", "/studio/:path*", "/pub/:path*", "/account", "/account/:path*", "/auth/:path*"],
 };

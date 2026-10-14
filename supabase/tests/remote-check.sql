@@ -468,9 +468,11 @@ begin
       insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/it-full/' || x || '/manifest.json', auth.uid());
       raise exception 'FALLITO: scrittura nella cartella di una pubblicazione non più in corso';
     exception when insufficient_privilege then null; end;
+    -- Un numero mai emesso (il più alto possibile): in un progetto che ha già pubblicato i numeri bassi sono emessi
+    -- davvero e scriverli è permesso a chi pubblica; qui si prova che nessuno si prenota un numero futuro.
     begin
-      insert into storage.objects (bucket_id, name, owner) values ('bundles', 'index/' || lpad('1', 20, '0') || '.json', auth.uid());
-      raise exception 'FALLITO: un editor scrive l''indice pubblico';
+      insert into storage.objects (bucket_id, name, owner) values ('bundles', 'index/' || repeat('9', 20) || '.json', auth.uid());
+      raise exception 'FALLITO: un editor scrive un indice pubblico con un numero mai emesso';
     exception when insufficient_privilege then null; end;
     update storage.objects set name = name where bucket_id = 'bundles' and name = 'it.test.alfa/it-full/' || w || '/manifest.json';
     if found then raise exception 'FALLITO: un file del bucket si può sovrascrivere (upsert)'; end if;

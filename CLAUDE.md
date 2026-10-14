@@ -51,7 +51,10 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   configurato e la guida funziona come prima); `app/account/`, `app/auth/` e `lib/account/` gli account dei visitatori
   (solo per acquistare; spenti senza `NEXT_PUBLIC_ACCOUNTS_ENABLED` e testi legali; esiti nell'indirizzo solo come codici,
   redirect solo interni, consensi registrati al primo accesso; vedi `docs/v0.3-platform/ACCOUNT.md`); `app/studio/[pack]/catalogo/` e `lib/studio/catalog.ts` il catalogo
-  (prodotti e prezzi in bozza/pubblicati, solo amministratore; listino pubblico `public_catalog()`; vedi `docs/v0.3-platform/CATALOGO.md`)
+  (prodotti e prezzi in bozza/pubblicati, solo amministratore; listino pubblico `public_catalog()`; vedi `docs/v0.3-platform/CATALOGO.md`);
+  `lib/payments/` e `app/api/checkout`, `app/api/stripe/webhook`, `app/account/acquista`, `app/account/ordine` gli acquisti con Stripe
+  (solo modalità test; il browser invia solo il prodotto, prezzo dal database; diritti solo dal webhook firmato, che usa la
+  chiave di servizio solo per le funzioni `payment_*`; vedi `docs/v0.3-platform/PAGAMENTI.md`)
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack
 - `packages/territory-pack` — caricamento, validazione e CLI `guide-pack` (`validate`, `photos`: coordinate dall'EXIF,
   `field`: revisione dei rilievi sul campo, formato `guide-field-points/2` in `packages/domain/src/field-points.ts`;

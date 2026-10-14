@@ -39,3 +39,8 @@
 .acc .notice.error { background: var(--danger-soft); color: var(--danger); }
 .acc .card.danger { border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
 .button.danger { background: var(--danger); border-color: var(--danger); color: #1a0d0c; }
+.acc-product { display: flex; flex-direction: column; gap: 8px; }
+.acc-price { font-size: 22px; font-weight: 600; }
+.acc-orders { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.acc-orders li { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.acc-orders a { color: var(--sea-bright); }

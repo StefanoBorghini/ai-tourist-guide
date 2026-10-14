@@ -101,6 +101,7 @@ Variabili d'ambiente (tutte facoltative tranne la chiave):
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | obbligatoria per le domande (solo lato server) |
 | `NEXT_PUBLIC_ACCOUNTS_ENABLED`, `NEXT_PUBLIC_TERMS_URL`, `NEXT_PUBLIC_PRIVACY_URL`, `NEXT_PUBLIC_LEGAL_VERSION`, `NEXT_PUBLIC_AUTH_PROVIDERS` | — | account dei visitatori (servono per acquistare, non per visitare): spenti finché non ci sono tutte le prime quattro; configurazione di Supabase in `docs/v0.3-platform/ACCOUNT.md` |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` | — | acquisti con Stripe, **solo modalità test** (una chiave live li spegne); solo server; configurazione in `docs/v0.3-platform/PAGAMENTI.md` |
 | `ASK_MAX_USD_PER_QUESTION` | — | obbligatoria per le domande: dollari massimi **stimati** per domanda (es. `0.15`, con il punto). Assente o non valida: domande spente. Non è un tetto assoluto: vedi `docs/v0.3-platform/COSTI-AI.md` |
 | `ASK_WEB_ENABLED` | `1` | `0` spegne la ricerca web (resta la base locale) |
 | `ASK_WEB_MAX_USES` | `3` | ricerche massime per domanda (1–10) |

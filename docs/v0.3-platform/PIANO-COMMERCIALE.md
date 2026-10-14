@@ -360,6 +360,10 @@ Nomi esatti e segnaposto li fornisco al momento. **Non incollare mai i valori in
    **Fatto sul branch `commercio`** (2026-10-14), migrazione non ancora applicata al database reale: `CATALOGO.md`.
    «Esplorazione + AI» e ricariche restano al passo 6.
 5. Checkout, webhook e diritti in modalità test; licenza offline; collaudo in Preview con le carte di test di Stripe.
+   **Fatti sul branch `commercio`** (2026-10-14) checkout, webhook, ordini e diritti in modalità test, provati in
+   locale con Stripe simulato: `PAGAMENTI.md`. Restano il collaudo in Preview con Stripe vero, i contenuti protetti
+   (bucket `premium`, §6) e la licenza offline: chi compra riceve il diritto, ma i racconti a pagamento arrivano
+   nell'app solo con quel passo.
 6. **Crediti AI** (migrazione 5): registro, prenotazione atomica e regolazione, route delle domande con account e
    saldo, pagina «Crediti AI» nello Studio, saldo e ricarica nella PWA; test di concorrenza.
 7. **Misura dei costi reali** (`COSTI-AI.md`, con approvazione e tetto di spesa) e solo dopo: crediti per tipo di

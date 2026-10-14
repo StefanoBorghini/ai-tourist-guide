@@ -53,7 +53,9 @@ begin
         ('20261024000000_entitlements', 'grant_product(uuid,uuid,text,uuid,text)'),
         ('20261024000000_entitlements', 'can_access_explore(text)'),
         ('20261025000000_catalog', 'studio_prices_publish(text)'),
-        ('20261025000000_catalog', 'public_catalog(text)')
+        ('20261025000000_catalog', 'public_catalog(text)'),
+        ('20261026000000_orders', 'checkout_open(uuid)'),
+        ('20261026000000_orders', 'payment_paid(uuid,text,text,text,integer,text)')
       ) as t(migration, sig) loop
       if to_regprocedure(f.sig) is null then
         raise exception 'FALLITO: migrazione % non applicata (manca %)', f.migration, f.sig;
@@ -723,6 +725,82 @@ begin
       raise exception 'FALLITO: un anonimo legge i prezzi in bozza';
     end if;
     reset role;
+
+    -- ------------------------------------------------------------ ordini (20261026000000)
+    -- Il checkout copia il prezzo pubblicato; nessuno scrive ordini o diritti dall'API; il webhook (service_role)
+    -- concede una volta sola.
+    for f in select * from (values
+        ('checkout_open(uuid)', false, true, null),
+        ('checkout_attach(uuid,text)', false, true, null),
+        ('checkout_abandon(uuid)', false, true, null),
+        ('order_already_owned(uuid,uuid)', false, false, null),
+        ('payment_event_begin(text,text)', false, false, true),
+        ('payment_event_end(text,text,uuid,text)', false, false, true),
+        ('grant_order(uuid)', false, false, true),
+        ('payment_paid(uuid,text,text,text,integer,text)', false, false, true),
+        ('payment_unpaid(uuid,text)', false, false, true),
+        ('payment_refunded(text,integer)', false, false, true),
+        ('payment_dispute(text,text)', false, false, true)
+      ) as t(sig, anon_exec, auth_exec, service_exec) loop
+      if f.anon_exec is not null and has_function_privilege('anon', f.sig, 'execute') is distinct from f.anon_exec then
+        raise exception 'FALLITO: privilegi di %: anon %', f.sig, case when f.anon_exec then 'deve poterla eseguire' else 'non deve poterla eseguire' end;
+      end if;
+      if f.auth_exec is not null and has_function_privilege('authenticated', f.sig, 'execute') is distinct from f.auth_exec then
+        raise exception 'FALLITO: privilegi di %: authenticated %', f.sig, case when f.auth_exec then 'deve poterla eseguire' else 'non deve poterla eseguire' end;
+      end if;
+      if f.service_exec is not null and has_function_privilege('service_role', f.sig, 'execute') is distinct from f.service_exec then
+        raise exception 'FALLITO: privilegi di %: service_role %', f.sig, case when f.service_exec then 'deve poterla eseguire' else 'non deve poterla eseguire' end;
+      end if;
+    end loop;
+    if has_table_privilege('authenticated', 'purchases', 'insert') or has_table_privilege('authenticated', 'purchases', 'update') then
+      raise exception 'FALLITO: authenticated può scrivere gli ordini';
+    end if;
+    a := (select id from products where slug = 'alfa-esplora');
+    insert into auth.users (id, email, raw_user_meta_data) values ('a0000000-0000-0000-0000-000000000006', 'cliente@prova.test', '{}');
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000006', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+    begin
+      perform checkout_open(a);
+      raise exception 'FALLITO: venduta una destinazione non pubblicata';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    reset role;
+    update destinations set status = 'published' where pack_id = 'it.test.alfa';
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000006', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+    perform set_config('remote_check.ordine', checkout_open(a) ->> 'order', true);
+    if (select unit_amount from purchases where id = current_setting('remote_check.ordine')::uuid) is distinct from 499 then
+      raise exception 'FALLITO: l''ordine non copia il prezzo pubblicato';
+    end if;
+    begin
+      update purchases set status = 'completed' where id = current_setting('remote_check.ordine')::uuid;
+      raise exception 'FALLITO: un cliente segna pagato il proprio ordine';
+    exception when insufficient_privilege then null; end;
+    begin
+      perform payment_paid(current_setting('remote_check.ordine')::uuid, 'cs_test_remotecheck', 'pi_remotecheck', null, 499, 'eur');
+      raise exception 'FALLITO: un cliente chiama le funzioni del webhook';
+    exception when insufficient_privilege then null; end;
+    reset role;
+    ok := true;
+    begin
+      set local role service_role;
+    exception when others then
+      ok := false;
+      nv := nv || format('pagamento da service_role (%s): verificarlo con un pagamento di prova di Stripe', sqlerrm);
+    end;
+    if ok then
+      if payment_paid(current_setting('remote_check.ordine')::uuid, 'cs_test_remotecheck', 'pi_remotecheck', null, 499, 'eur') ->> 'status' <> 'completed'
+         or (payment_paid(current_setting('remote_check.ordine')::uuid, 'cs_test_remotecheck', 'pi_remotecheck', null, 499, 'eur') ->> 'changed')::boolean then
+        raise exception 'FALLITO: pagamento non applicato o applicato due volte';
+      end if;
+      reset role;
+      set local role authenticated;
+      perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000006', true);
+      perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+      if can_access_explore('it.test.alfa') is not true then raise exception 'FALLITO: esplorazione pagata ma chiusa'; end if;
+      reset role;
+    end if;
 
     -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
     -- l'elenco dei controlli non verificati.

@@ -133,6 +133,12 @@ export const ERRORS = {
   "conferma-eliminazione": "Per eliminare l'account scrivi ELIMINA nel campo di conferma.",
   "nome": "Il nome può avere al massimo 80 caratteri.",
   "servizio": "Il servizio non risponde: riprova tra poco.",
+  "gia-acquistato": "Hai già acquistato questo contenuto: lo trovi in «I miei acquisti».",
+  "esaurito": "Questo contenuto al momento non è acquistabile.",
+  "non-pubblicata": "Questa destinazione non è ancora disponibile per gli acquisti.",
+  "non-in-vendita": "Questo contenuto non è in vendita.",
+  "acquisti-spenti": "Gli acquisti non sono ancora attivi.",
+  "pagamento-in-corso": "C'è un pagamento appena concluso per questo contenuto: attendi la conferma in «I miei acquisti».",
 } as const;
 export type MessageCode = keyof typeof MESSAGES;
 export type ErrorCode = keyof typeof ERRORS;

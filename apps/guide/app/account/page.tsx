@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { accountSetup, requireVisitor } from "../../lib/account/server";
 import { PROVIDER_LABEL } from "../../lib/account/shared";
+import { ORDER_STATUS_LABELS, orderPath, SHOWN_ORDER_STATUSES, shopPath } from "../../lib/payments/shared";
+import { formatEuro } from "../../lib/studio/catalog";
 import { linkProvider, signOut, updateProfile } from "./actions";
 import { AccountPage, NotAvailable, one, Outcome, type SearchParams } from "./ui";
 
@@ -13,6 +15,21 @@ export default async function AccountHome({ searchParams }: { searchParams: Sear
   const { data: profile } = await supabase.from("profiles").select("display_name, preferred_locale").eq("user_id", user.id).maybeSingle();
   const methods = [...new Set((user.identities ?? []).map((i) => i.provider))];
   const linkable = config.providers.filter((p) => !methods.includes(p));
+  const [{ data: orderRows }, { data: productRows }] = await Promise.all([
+    supabase.from("purchases").select("id, status, unit_amount, product_snapshot, created_at").eq("user_id", user.id)
+      .in("status", SHOWN_ORDER_STATUSES).order("created_at", { ascending: false }).limit(50),
+    // Prodotti in vendita (la policy mostra solo quelli attivi): un collegamento al listino di ogni destinazione.
+    supabase.from("products").select("pack_id, labels, kind").eq("status", "active").order("kind").limit(100),
+  ]);
+  const orders = (orderRows ?? []) as { id: string; status: string; unit_amount: number | null; product_snapshot: { labels?: { it?: { name?: string } } } | null }[];
+  // Una voce per destinazione, con il nome dell'esplorazione se c'è.
+  const shopMap = new Map<string, { pack: string; name: string }>();
+  for (const p of productRows ?? []) {
+    const name = p.kind === "explore" ? (p.labels as { it?: { name?: string } })?.it?.name : undefined;
+    const prev = shopMap.get(p.pack_id as string);
+    if (!prev || (name && prev.name === prev.pack)) shopMap.set(p.pack_id as string, { pack: p.pack_id as string, name: name ?? (p.pack_id as string) });
+  }
+  const shops = [...shopMap.values()];
 
   return (
     <AccountPage title="Il tuo account">
@@ -39,7 +56,28 @@ export default async function AccountHome({ searchParams }: { searchParams: Sear
 
       <section className="card flat">
         <h2>I miei acquisti</h2>
-        <p className="muted small">Nessun acquisto. Gli acquisti saranno disponibili con il catalogo della guida.</p>
+        {orders.length === 0 && <p className="muted small">Nessun acquisto.</p>}
+        {orders.length > 0 && (
+          <ul className="acc-orders small">
+            {orders.map((o) => (
+              <li key={o.id}>
+                <Link href={orderPath(o.id)}>{o.product_snapshot?.labels?.it?.name ?? "Contenuto"}</Link>
+                <span className="muted">
+                  {o.unit_amount ? formatEuro(o.unit_amount) : ""} · {ORDER_STATUS_LABELS[o.status] ?? o.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {shops.length > 0 && (
+          <div className="acc-links">
+            {shops.map((s) => (
+              <Link key={s.pack} href={shopPath(s.pack)}>
+                Contenuti in vendita: {s.name}
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="card flat">

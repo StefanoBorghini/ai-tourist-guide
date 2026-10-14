@@ -64,7 +64,7 @@ async function accountProxy(request: NextRequest): Promise<NextResponse> {
   const { data } = await supabase.auth.getUser();
   if (!data.user && requiresSession(request.nextUrl.pathname)) {
     const to = new URL(SIGN_IN, request.url);
-    to.searchParams.set("next", request.nextUrl.pathname);
+    to.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
     return withNoIndex(NextResponse.redirect(to));
   }
   return withNoIndex(state.response);

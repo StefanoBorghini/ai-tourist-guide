@@ -75,7 +75,7 @@ completa se è a pagamento. Così un acquisto di percorso non sblocca racconti d
 
 | Prodotto | Diritti creati | Cosa sblocca |
 |---|---|---|
-| `explore` (es. 0,99 €) | uno, ambito `explore` sulla destinazione | i racconti dell'esplorazione completa; **non** i percorsi premium |
+| `explore` (prezzo da definire, vedi `PIANO-COMMERCIALE.md` §0) | uno, ambito `explore` sulla destinazione | i racconti dell'esplorazione completa; **non** i percorsi premium |
 | `route` | uno, ambito `route` sul percorso | solo quel percorso |
 | `bundle` (pacchetto) | un `route` per ogni percorso del pacchetto **al momento della concessione** | solo quei percorsi; se il pacchetto cambia dopo, chi l'ha comprato non riceve né perde nulla |
 | catalogo delle attività locali | nessuno | gratuito, non è un prodotto |

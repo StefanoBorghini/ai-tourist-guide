@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { checkReadiness, refreshPublicIndex, requireStaff, rpc, runPublication, signedMediaUrls, studioClient, studioConfig, type PublicationResult } from "../../lib/studio/server";
 import { copyRepoMedia } from "../../lib/studio/repo-media";
+import { formatEuro, parseEuro, priceProblem } from "../../lib/studio/catalog";
 import { premiumBlockedByStatic } from "../../lib/static-bundles";
 import { staticDestinations } from "../../lib/static-index";
 import { afterDeleteHref, checkMediaRights, checkStops, DELETE_KINDS, filesInPack, friendlyError, isDeleteKind, MEDIA_BUCKET, MEDIA_LICENSES, MEDIA_SOURCES } from "../../lib/studio/shared";
@@ -249,6 +250,55 @@ export async function setAccess(form: FormData) {
   if (error) back(path, { errore: friendlyError(error) });
   revalidatePath("/studio", "layout");
   back(path, { ok: "Accesso salvato. Nell'app cambia alla prossima pubblicazione." });
+}
+
+// ---------------------------------------------------------------- catalogo (solo amministratore, regole nel database)
+
+export async function saveProduct(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/catalogo`;
+  const id = text(form, "id");
+  const p = {
+    ...(id ? { id } : { kind: text(form, "kind"), route: text(form, "route") || undefined }),
+    name: { it: text(form, "name_it"), en: text(form, "name_en") },
+    description: { it: text(form, "description_it"), en: text(form, "description_en") },
+    status: text(form, "status") || "draft",
+    availability: text(form, "availability") || "available",
+    sortOrder: Number(text(form, "sort_order") || "0") || 0,
+    // Solo i pacchetti hanno un elenco di percorsi (anche vuoto, se si tolgono tutti).
+    ...(form.get("bundle") === "1" || (!id && text(form, "kind") === "bundle") ? { routes: list(form, "routes") } : {}),
+  };
+  const { error } = await rpc(supabase, "studio_product_save", { p_pack: pack, p });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(path);
+  back(path, { ok: p.status === "active" ? "Prodotto salvato e attivo." : "Prodotto salvato." });
+}
+
+export async function setDraftPrice(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/catalogo`;
+  const clear = form.get("clear") === "1";
+  const cents = clear ? null : parseEuro(text(form, "price"));
+  if (!clear) {
+    const problem = priceProblem(cents);
+    if (problem) back(path, { errore: problem });
+  }
+  const { error } = await rpc(supabase, "studio_price_draft", { p_product: text(form, "product"), p_amount: cents });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(path);
+  back(path, { ok: clear ? "Bozza del prezzo tolta." : `Prezzo in bozza: ${formatEuro(cents!)}. Vale solo dopo «Pubblica i prezzi».` });
+}
+
+export async function publishPrices(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/catalogo`;
+  const { data, error } = await rpc<number>(supabase, "studio_prices_publish", { p_pack: pack });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(path);
+  back(path, { ok: `Pubblicati ${data} prezzi: il listino pubblico li mostra subito. Gli acquisti arriveranno con Stripe.` });
 }
 
 /** Cambio di stato. Per pubblicare rifà il controllo completo sul server e lo registra con la richiesta. */

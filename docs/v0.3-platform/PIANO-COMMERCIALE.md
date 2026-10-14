@@ -357,6 +357,8 @@ Nomi esatti e segnaposto li fornisco al momento. **Non incollare mai i valori in
    **Fatto sul branch `commercio`** (2026-10-14): email e password completi, Google e Apple predisposti e spenti;
    configurazione e prove in `ACCOUNT.md`.
 4. Catalogo nello Studio (prezzi in bozza e pubblicati) e `public_catalog()`.
+   **Fatto sul branch `commercio`** (2026-10-14), migrazione non ancora applicata al database reale: `CATALOGO.md`.
+   «Esplorazione + AI» e ricariche restano al passo 6.
 5. Checkout, webhook e diritti in modalità test; licenza offline; collaudo in Preview con le carte di test di Stripe.
 6. **Crediti AI** (migrazione 5): registro, prenotazione atomica e regolazione, route delle domande con account e
    saldo, pagina «Crediti AI» nello Studio, saldo e ricarica nella PWA; test di concorrenza.

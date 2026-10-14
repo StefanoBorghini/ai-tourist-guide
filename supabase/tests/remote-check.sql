@@ -51,7 +51,9 @@ begin
         ('20261023000000_bundles_storage', 'studio_index_snapshot()'),
         ('20261023000000_bundles_storage', 'studio_index_reflects(bigint)'),
         ('20261024000000_entitlements', 'grant_product(uuid,uuid,text,uuid,text)'),
-        ('20261024000000_entitlements', 'can_access_explore(text)')
+        ('20261024000000_entitlements', 'can_access_explore(text)'),
+        ('20261025000000_catalog', 'studio_prices_publish(text)'),
+        ('20261025000000_catalog', 'public_catalog(text)')
       ) as t(migration, sig) loop
       if to_regprocedure(f.sig) is null then
         raise exception 'FALLITO: migrazione % non applicata (manca %)', f.migration, f.sig;
@@ -694,6 +696,31 @@ begin
        or exists (select 1 from entitlements where user_id = 'a0000000-0000-0000-0000-000000000004') then
       raise exception 'FALLITO: la cancellazione dell''account rimuove i dati personali';
     end if;
+
+    -- ------------------------------------------------------------ catalogo (20261025000000)
+    -- L'amministratore pubblica un prezzo; la storia dei prezzi non si riscrive; il listino è pubblico, le bozze no.
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000001', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+    a := (select id from products where slug = 'alfa-esplora');
+    perform studio_price_draft(a, 499);
+    perform studio_prices_publish('it.test.alfa');
+    perform studio_price_draft(a, 599);
+    begin
+      update product_prices set unit_amount = 1 where product_id = a and status = 'published';
+      raise exception 'FALLITO: cambiato l''importo di un prezzo pubblicato (product_prices_guard)';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    reset role;
+    set local role anon;
+    perform set_config('request.jwt.claim.sub', '', true);
+    perform set_config('request.jwt.claims', '', true);
+    if not public_catalog('it.test.alfa') @> '[{"slug":"alfa-esplora","price":{"amount":499}}]' then
+      raise exception 'FALLITO: prezzo pubblicato assente dal catalogo pubblico';
+    end if;
+    if exists (select 1 from product_prices where product_id = a and status <> 'published') then
+      raise exception 'FALLITO: un anonimo legge i prezzi in bozza';
+    end if;
+    reset role;
 
     -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
     -- l'elenco dei controlli non verificati.

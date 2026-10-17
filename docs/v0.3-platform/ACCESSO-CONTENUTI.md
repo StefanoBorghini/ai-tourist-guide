@@ -103,7 +103,7 @@ completa se è a pagamento. Così un acquisto di percorso non sblocca racconti d
 - Il database lo impone anche alle richieste dirette (`packs_guard`): nessun editor, nemmeno di un'organizzazione cliente,
   può cambiare o creare la configurazione.
 - Un luogo introduttivo o un percorso premium **non si elimina né si rinomina** finché è nella configurazione (D11):
-  prima si toglie dalla scheda Accesso.
+  prima si toglie dalla scheda Vendita (punto 1).
 
 ## File
 
@@ -112,7 +112,7 @@ completa se è a pagamento. Così un acquisto di percorso non sblocca racconti d
 | Formato e validatore | `packages/domain/src/pack-schema.ts` (`access`), `vocabulary.ts` (`ACCESS_TIERS`), `packages/territory-pack/src/validate.ts` (`checkAccess`) |
 | Compilazione | `packages/bundle/src/build.ts` (separazione, `withPrerequisites`), `format.ts` (`locked`, `PremiumPart`) |
 | Database | `supabase/migrations/20261022000000_access.sql` (+ revoca), test `supabase/tests/70_access.sql` |
-| Studio | `apps/guide/app/studio/[pack]/accesso/page.tsx`, azione `setAccess` |
+| Studio | `apps/guide/app/studio/[pack]/vendita/access-section.tsx` (scheda «Vendita»), azione `setAccess` |
 
 ## Verifiche
 

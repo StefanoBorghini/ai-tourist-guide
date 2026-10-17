@@ -108,3 +108,15 @@ Migrazione `supabase/migrations/20261019000000_studio_delete.sql` (revoca in `su
   compilati nell'app pubblicata (si includono solo con `GUIDE_INCLUDE_FICTIONAL=true`).
 
 Prove: `supabase/tests/40_delete.sql` in `npm run db:check`; prova nel browser su stack locale (17 controlli).
+
+## Studio più semplice (2026-10-17)
+
+- **Controllo di pubblicazione in parole semplici** (`lib/studio/explain.ts`, test in `test/explain.test.ts`): i problemi
+  del validatore sono raggruppati per tipo, con il numero, una frase comprensibile, cosa fare e il pulsante per aprire la
+  sezione dove correggere. Prima ciò che blocca la pubblicazione, poi (chiusi) gli avvisi che non bloccano; il codice e il
+  dettaglio tecnico restano a richiesta. Una fonte citata con il codice di un altro territorio (es.
+  `it.liguria:unesco-826`) rimanda al collegamento «Fa parte di» della Panoramica: senza, le sue fonti non sono raggiungibili.
+- **Passi della pubblicazione** nella Panoramica: controlla → manda in revisione → approva e pubblica.
+- **Schede nell'ordine di lavoro:** Panoramica, Luoghi, Fonti, Fatti (le affermazioni), Racconti, Percorsi, Foto, Vendita.
+- **Vendita** unisce Accesso e Catalogo in due passi: 1. cosa è a pagamento, 2. prodotti e prezzi. I vecchi indirizzi
+  `/accesso` e `/catalogo` rimandano a `/vendita`. Regole e funzioni del database invariate.

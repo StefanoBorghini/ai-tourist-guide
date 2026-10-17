@@ -61,7 +61,7 @@ export default async function StudioHome({ searchParams }: { searchParams: Searc
                 {p.places} luoghi · {p.units} racconti · {p.routes} percorsi · {p.media} foto
               </span>
               <span className="st-meta">
-                {Object.entries(p.assertions).map(([s, n]) => `${n} ${STATUS_LABELS[s]?.toLowerCase() ?? s}`).join(" · ") || "nessuna affermazione"}
+                {Object.entries(p.assertions).map(([s, n]) => `${n} ${STATUS_LABELS[s]?.toLowerCase() ?? s}`).join(" · ") || "nessun fatto"}
               </span>
               <span className="st-badges">
                 {p.canEdit && <span className="st-badge">modifica</span>}

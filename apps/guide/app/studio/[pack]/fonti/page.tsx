@@ -128,7 +128,7 @@ export default async function SourcesPage({ params, searchParams }: { params: Pr
               <td>{KINDS[s.kind] ?? s.kind}</td>
               <td>{s.reliability}</td>
               <td>
-                {s.uses} affermazioni
+                {s.uses} fatti
                 {k.data?.canEdit && (
                   <span className="st-meta"><Link className="st-delete-link" href={deleteHref(pack, "source", s.slug)}>Elimina…</Link></span>
                 )}

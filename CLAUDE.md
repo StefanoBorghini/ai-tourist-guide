@@ -47,10 +47,10 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   solo per le prove: in produzione serve un fornitore di tile con licenza adeguata);
   `app/studio/` e `lib/studio/` lo Studio della redazione (`/studio`, Supabase Auth, funzioni `studio_*` del database con
   l'identità dell'utente, nessuna chiave di servizio; `proxy.ts` per `/studio`, `/account`, `/auth` e `/pub/`; nuovi territori, stati, eliminazione (piano e copia
-  di sicurezza nel database) e controllo di pubblicazione in `lib/studio/readiness.ts`, vedi `docs/v0.3-platform/TERRITORI-DAL-CMS.md`; senza variabili dice di non essere
+  di sicurezza nel database) e controllo di pubblicazione in `lib/studio/readiness.ts` (spiegato in parole semplici, con la sezione dove correggere, da `lib/studio/explain.ts`), vedi `docs/v0.3-platform/TERRITORI-DAL-CMS.md`; senza variabili dice di non essere
   configurato e la guida funziona come prima); `app/account/`, `app/auth/` e `lib/account/` gli account dei visitatori
   (solo per acquistare; spenti senza `NEXT_PUBLIC_ACCOUNTS_ENABLED` e testi legali; esiti nell'indirizzo solo come codici,
-  redirect solo interni, consensi registrati al primo accesso; vedi `docs/v0.3-platform/ACCOUNT.md`); `app/studio/[pack]/catalogo/` e `lib/studio/catalog.ts` il catalogo
+  redirect solo interni, consensi registrati al primo accesso; vedi `docs/v0.3-platform/ACCOUNT.md`); `app/studio/[pack]/vendita/` (scheda «Vendita»: cosa è a pagamento e catalogo) e `lib/studio/catalog.ts` il catalogo
   (prodotti e prezzi in bozza/pubblicati, solo amministratore; listino pubblico `public_catalog()`; vedi `docs/v0.3-platform/CATALOGO.md`);
   `lib/payments/` e `app/api/checkout`, `app/api/stripe/webhook`, `app/account/acquista`, `app/account/ordine` gli acquisti con Stripe
   (solo modalità test; il browser invia solo il prodotto, prezzo dal database; diritti solo dal webhook firmato, che usa la

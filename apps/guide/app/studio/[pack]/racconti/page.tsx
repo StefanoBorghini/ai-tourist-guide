@@ -42,15 +42,15 @@ export default async function UnitsPage({ params, searchParams }: { params: Prom
       <PackTabs pack={pack} current="racconti" />
       <h1>Racconti</h1>
       <p className="st-hint">
-        Un racconto è il testo che la guida legge in un luogo. Si appoggia su affermazioni: la guida lo usa solo se tutte sono
-        verificate{k.data?.releaseStage !== "production" ? " (in anteprima anche se in revisione, dichiarato all'utente)" : ""}; mai su bozze.
+        Un racconto è il testo che la guida legge in un luogo. Si appoggia su fatti: la guida lo usa solo se sono tutti
+        verificati{k.data?.releaseStage !== "production" ? " (in anteprima anche se in revisione, dichiarato all'utente)" : ""}; mai su bozze.
       </p>
       <Notice ok={one(q.ok)} errore={one(q.errore) ?? (error ? friendlyError(error) : undefined)} />
       {k.data?.canEdit && (
         <details className="st-create" open={units.length === 0}>
           <summary>Scrivi un racconto</summary>
           {(places.data ?? []).length === 0 || usable.length === 0 ? (
-            <p className="st-hint">Servono prima almeno un luogo e un'affermazione (con la sua fonte).</p>
+            <p className="st-hint">Servono prima almeno un luogo e un fatto (con la sua fonte).</p>
           ) : (
             <form action={createUnit} className="st-form">
               <input type="hidden" name="pack" value={pack} />
@@ -86,7 +86,7 @@ export default async function UnitsPage({ params, searchParams }: { params: Prom
               </div>
               <label>
                 Testo
-                <textarea name="text" rows={4} required maxLength={2000} placeholder="Scrivi solo ciò che le affermazioni collegate sostengono." />
+                <textarea name="text" rows={4} required maxLength={2000} placeholder="Scrivi solo ciò che i fatti collegati sostengono." />
               </label>
               <label>
                 Affermazioni su cui si basa

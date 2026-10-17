@@ -235,7 +235,7 @@ export async function updatePack(form: FormData) {
 export async function setAccess(form: FormData) {
   const { supabase } = await requireStaff();
   const pack = text(form, "pack");
-  const path = `${packPath(pack)}/accesso`;
+  const path = `${packPath(pack)}/vendita`;
   const explore = text(form, "explore") === "premium" ? "premium" : "free";
   const introPlaces = list(form, "introPlaces");
   const premiumRoutes = list(form, "premiumRoutes");
@@ -257,7 +257,7 @@ export async function setAccess(form: FormData) {
 export async function saveProduct(form: FormData) {
   const { supabase } = await requireStaff();
   const pack = text(form, "pack");
-  const path = `${packPath(pack)}/catalogo`;
+  const path = `${packPath(pack)}/vendita`;
   const id = text(form, "id");
   const p = {
     ...(id ? { id } : { kind: text(form, "kind"), route: text(form, "route") || undefined }),
@@ -278,7 +278,7 @@ export async function saveProduct(form: FormData) {
 export async function setDraftPrice(form: FormData) {
   const { supabase } = await requireStaff();
   const pack = text(form, "pack");
-  const path = `${packPath(pack)}/catalogo`;
+  const path = `${packPath(pack)}/vendita`;
   const clear = form.get("clear") === "1";
   const cents = clear ? null : parseEuro(text(form, "price"));
   if (!clear) {
@@ -294,11 +294,11 @@ export async function setDraftPrice(form: FormData) {
 export async function publishPrices(form: FormData) {
   const { supabase } = await requireStaff();
   const pack = text(form, "pack");
-  const path = `${packPath(pack)}/catalogo`;
+  const path = `${packPath(pack)}/vendita`;
   const { data, error } = await rpc<number>(supabase, "studio_prices_publish", { p_pack: pack });
   if (error) back(path, { errore: friendlyError(error) });
   revalidatePath(path);
-  back(path, { ok: `Pubblicati ${data} prezzi: il listino pubblico li mostra subito. Gli acquisti arriveranno con Stripe.` });
+  back(path, { ok: `Pubblicati ${data} prezzi: il listino pubblico li mostra subito.` });
 }
 
 /** Cambio di stato. Per pubblicare rifà il controllo completo sul server e lo registra con la richiesta. */

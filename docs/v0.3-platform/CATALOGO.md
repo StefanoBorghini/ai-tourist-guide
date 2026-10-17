@@ -1,7 +1,7 @@
 # Catalogo e prezzi nello Studio (2026-10-14)
 
 Passo 4 del piano (`PIANO-COMMERCIALE.md` §2, §3 e §11). Cosa si vende di una destinazione e a quale prezzo, gestito
-dall'amministratore della piattaforma nella scheda **Catalogo** dello Studio; il listino pubblico lo legge chiunque con
+dall'amministratore della piattaforma nella scheda **Vendita** dello Studio (punto 2, «Prodotti e prezzi»; fino al 2026-10-17 era la scheda «Catalogo»); il listino pubblico lo legge chiunque con
 `public_catalog()`. **Gli acquisti non ci sono ancora**: arriveranno con Stripe (passo 5).
 
 Migrazione `supabase/migrations/20261025000000_catalog.sql`, revoca `supabase/rollback/20261025000000_catalog.down.sql`,

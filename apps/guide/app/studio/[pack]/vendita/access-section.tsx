@@ -1,3 +1,5 @@
+import { premiumBlockedByStatic } from "../../../../lib/static-bundles";
+import { staticDestinations } from "../../../../lib/static-index";
 import { rpc, type StudioSession } from "../../../../lib/studio/server";
 import { friendlyError } from "../../../../lib/studio/shared";
 import { Notice } from "../../ui";
@@ -25,11 +27,22 @@ export async function AccessSection({ pack, session }: { pack: string; session: 
   const premiumRoutes = new Set(a?.premiumRoutes ?? []);
   const missingOpenings = (p: AccessState["places"][number]) => (a?.locales ?? []).filter((l) => !p.openings.includes(l));
   const editable = Boolean(a?.canEdit && a.isDestination);
+  // Destinazione distribuita anche dai file dell'app: lo si dice subito, invece di rifiutare al salvataggio.
+  const staticBlock = a?.isDestination ? premiumBlockedByStatic(pack, await staticDestinations()) : null;
 
   return (
     <section aria-labelledby="accesso">
       <h2 id="accesso" className="st-section-title">1. Cosa è a pagamento</h2>
       {error && <Notice errore={friendlyError(error)} />}
+      {staticBlock && (
+        <div className="st-notice st-warn" role="note">
+          <strong>Per ora questa destinazione non può avere contenuti a pagamento.</strong> Una sua copia completa è
+          dentro l&apos;app stessa (i file con cui l&apos;app viene costruita), quindi chiunque la scaricherebbe gratis.
+          Per venderla serve togliere la copia dall&apos;app: dopo, l&apos;app riceve la destinazione solo dallo Studio,
+          quindi deve essere pubblicata dallo Studio con il controllo superato. È una modifica al codice: chiedila
+          allo sviluppatore.
+        </div>
+      )}
       <p className="st-hint">
         Gratuiti restano sempre la mappa, l&apos;elenco dei luoghi e i percorsi gratuiti. Con l&apos;esplorazione a
         pagamento sono gratuiti anche i racconti d&apos;apertura dei luoghi introduttivi (al massimo 3); gli altri racconti,
@@ -54,7 +67,7 @@ export async function AccessSection({ pack, session }: { pack: string; session: 
               sono nell&apos;app pubblica
             </label>
             <label className="st-inline">
-              <input type="radio" name="explore" value="premium" defaultChecked={a.explore === "premium"} /> A pagamento: gratuiti solo
+              <input type="radio" name="explore" value="premium" defaultChecked={a.explore === "premium"} disabled={Boolean(staticBlock) && a.explore !== "premium"} /> A pagamento: gratuiti solo
               i racconti d&apos;apertura dei luoghi introduttivi
             </label>
           </fieldset>
@@ -76,7 +89,7 @@ export async function AccessSection({ pack, session }: { pack: string; session: 
             {a.routes.length === 0 && <p className="st-hint">Nessun percorso.</p>}
             {a.routes.map((r) => (
               <label key={r.slug} className="st-inline">
-                <input type="checkbox" name="premiumRoutes" value={r.slug} defaultChecked={premiumRoutes.has(r.slug)} /> {r.name} ({r.durationMin} min)
+                <input type="checkbox" name="premiumRoutes" value={r.slug} defaultChecked={premiumRoutes.has(r.slug)} disabled={Boolean(staticBlock) && !premiumRoutes.has(r.slug)} /> {r.name} ({r.durationMin} min)
               </label>
             ))}
           </fieldset>

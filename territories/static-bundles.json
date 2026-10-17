@@ -1,4 +1,4 @@
 {
   "_nota": "Destinazioni distribuite anche come bundle compilati da questi file (public/bundles/, al build dell'app). Una destinazione non elencata non ha bundle statici: l'app la riceve solo dallo Studio (/pub/). Le destinazioni elencate non possono avere contenuti a pagamento: config.access è vietato nei file e lo Studio rifiuta di pubblicarle con contenuti a pagamento. Per vendere una destinazione elencata, toglierla da qui e ridistribuire l'app. Vedi docs/v0.3-platform/ACCESSO-CONTENUTI.md.",
-  "destinations": ["it.liguria.sp.portovenere"]
+  "destinations": []
 }

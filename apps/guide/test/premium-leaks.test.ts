@@ -45,10 +45,14 @@ function studioSnapshots(access?: TerritoryPack["config"]["access"]) {
 const textOf = (data: Uint8Array | string) => (typeof data === "string" ? data : new TextDecoder().decode(data));
 
 describe("bundle compilati dai file (P1)", () => {
-  it("l'elenco reale distribuisce dai file solo Portovenere, come prima", () => {
+  it("l'elenco reale non distribuisce più nulla dai file: Portovenere arriva solo dallo Studio (dal 2026-10-17)", () => {
     const plan = staticBuildPlan(real(), STATIC_LIST, false);
     expect(plan.errors).toEqual([]);
-    expect(plan.build).toEqual(["it.liguria.sp.portovenere"]);
+    expect(plan.build).toEqual([]);
+  });
+
+  it("una destinazione elencata si compila dai file", () => {
+    expect(staticBuildPlan(real(), { destinations: ["it.liguria.sp.portovenere"] }, false).build).toEqual(["it.liguria.sp.portovenere"]);
   });
 
   it("una destinazione non elencata non ha bundle statici, anche senza contenuti a pagamento nei file", () => {
@@ -63,7 +67,7 @@ describe("bundle compilati dai file (P1)", () => {
   it("rifiuta una destinazione elencata con contenuti a pagamento nei file, inesistente o non destinazione", () => {
     const packs = real();
     packs.get("it.liguria.sp.portovenere")!.config.access = { explore: "free", introPlaces: [], premiumRoutes: [] };
-    expect(staticBuildPlan(packs, STATIC_LIST, false).errors.join()).toMatch(/non può dichiarare l'accesso/);
+    expect(staticBuildPlan(packs, { destinations: ["it.liguria.sp.portovenere"] }, false).errors.join()).toMatch(/non può dichiarare l'accesso/);
     expect(staticBuildPlan(real(), { destinations: ["zz.inesistente"] }, false).errors.join()).toMatch(/non esiste/);
     expect(staticBuildPlan(real(), { destinations: ["it.liguria"] }, false).errors.join()).toMatch(/non è una destinazione/);
   });

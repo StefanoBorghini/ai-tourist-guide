@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { verifyBundle, type BundleContent, type BundleManifest } from "@guide/bundle/client";
 import { bearingDeg, distanceM, type Fix, type LngLat } from "@guide/context-engine";
 import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeKind, type RuntimeState, type TourOptions } from "../lib/runtime";
@@ -28,7 +28,8 @@ const PUBLISHED = publishedOrigin({ NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_P
 /** Indice: bundle dei file più quelli pubblicati. Se l'indice pubblicato non si legge lo si dice (publishedOk). */
 const loadIndex = () => loadIndexes((url) => fetch(url), STATIC_INDEX_URL, PUBLISHED ? PUB_INDEX_URL : null);
 
-type Screen = "home" | "setup" | "walk";
+/** Schede della barra in basso. La visita in corso (esplorazione o percorso) vive nella sua scheda. */
+type Tab = "home" | "esplora" | "percorsi" | "profilo";
 const BUDGETS = [20, 30, 45, 60, 90];
 /** Giro salvato per riprenderlo se il telefono chiude o ricarica la pagina (es. dopo aver usato la fotocamera). */
 const SAVED_TOUR_KEY = "guide-tour/1";
@@ -75,7 +76,10 @@ export function GuideApp() {
   const [error, setError] = useState<string | null>(null);
   /** Indice pubblicato non leggibile: alcune destinazioni mancano per ora (nessun ripiego su altri contenuti). */
   const [indexPartial, setIndexPartial] = useState(false);
-  const [screen, setScreen] = useState<Screen>("home");
+  const [tab, setTab] = useState<Tab>("home");
+  /** Visita in corso (GPS, racconti): resta attiva anche passando alle altre schede. */
+  const [walking, setWalking] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [content, setContent] = useState<BundleContent | null>(null);
   const [bundleBase, setBundleBase] = useState("");
   const [opened, setOpened] = useState<{ url: string; manifest: BundleManifest } | null>(null);
@@ -94,7 +98,6 @@ export function GuideApp() {
   const [askFocus, setAskFocus] = useState(0);
   const [flash, setFlash] = useState<string | null>(null);
   const [pausedNotice, setPausedNotice] = useState(false);
-  const [itinerariesOpen, setItinerariesOpen] = useState(false);
   const hiddenAtRef = useRef<number | null>(null);
   const [fixSource, setFixSource] = useState<PositionSource | null>(null);
   const [savedTour, setSavedTour] = useState<SavedTour | null>(null);
@@ -143,9 +146,15 @@ export function GuideApp() {
     } catch {
       // memoria non disponibile
     }
+    // Destinazione aperta ma nessuna visita in corso: la si riapre nella lingua scelta, se c'è.
+    const current = openedEntryRef.current;
+    if (current && current.locale !== l && !runtimeRef.current) {
+      const other = entries.find((e) => e.destination === current.destination && e.locale === l);
+      if (other) void loadBundle(other).catch((e: Error) => setError(e.message));
+    }
   };
-  // Nella pagina iniziale vale la lingua scelta; dentro un territorio, quella del suo bundle.
-  const locale = screen === "home" ? uiLocale : (content?.locale ?? uiLocale);
+  // Nella pagina iniziale e nel profilo vale la lingua scelta; dentro un territorio, quella del suo bundle.
+  const locale = tab === "home" || tab === "profilo" ? uiLocale : (content?.locale ?? uiLocale);
   const [view, setView] = useState<"map" | "list">("map");
   const [openRoute, setOpenRoute] = useState<string | null>(null);
   // Il video ambientale parte solo se il dispositivo non chiede movimento ridotto o risparmio dati.
@@ -229,7 +238,8 @@ export function GuideApp() {
   const openBundle = async (entry: BundleEntry) => {
     try {
       await loadBundle(entry);
-      setScreen("setup");
+      setTab("esplora");
+      window.scrollTo(0, 0);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -291,7 +301,7 @@ export function GuideApp() {
     if (!state && current && current.content === tourContent && current.memory.visitedPlaces.length > 0) {
       current.mode = tourMode;
       reorganize(options, start);
-      setScreen("walk");
+      setWalking(true);
       return;
     }
     const runtime = new GuideRuntime(tourContent, tourMode);
@@ -316,7 +326,8 @@ export function GuideApp() {
     setComplete(false);
     setSelected(null);
     setFlash(null);
-    setScreen("walk");
+    setWalking(true);
+    setTab(options ? "percorsi" : "esplora");
     saveTour();
   };
 
@@ -346,6 +357,7 @@ export function GuideApp() {
     setSelected(null);
     stopSimulation();
     setFlash(t.switchKeeps);
+    setTab(options ? "percorsi" : "esplora");
     saveTour();
     rerender();
   };
@@ -554,11 +566,6 @@ export function GuideApp() {
     return () => clearInterval(id);
   }, [gps, rerender]);
 
-  // Tornando dai percorsi guidati la pagina si apre su di loro.
-  useEffect(() => {
-    if (screen === "setup" && itinerariesOpen) document.getElementById("guided")?.scrollIntoView({ block: "start" });
-  }, [screen, itinerariesOpen]);
-
   useEffect(() => {
     if (!flash) return;
     const id = setTimeout(() => setFlash(null), 6000);
@@ -606,17 +613,89 @@ export function GuideApp() {
     </div>
   );
 
-  if (screen === "home") {
-    const byDestination = new Map<string, BundleEntry[]>();
-    for (const e of entries) byDestination.set(e.destination, [...(byDestination.get(e.destination) ?? []), e]);
-    const groups = [...byDestination.values()];
-    const pick = (group: BundleEntry[]) => group.find((e) => e.locale === uiLocale) ?? group[0]!;
-    const real = groups.filter((g) => !g[0]!.fictional).map(pick);
-    const demo = groups.filter((g) => g[0]!.fictional).map(pick);
-    const featured = real.find((e) => e.cover) ?? real[0] ?? demo[0];
+  const byDestination = new Map<string, BundleEntry[]>();
+  for (const e of entries) byDestination.set(e.destination, [...(byDestination.get(e.destination) ?? []), e]);
+  const groups = [...byDestination.values()];
+  const pick = (group: BundleEntry[]) => group.find((e) => e.locale === uiLocale) ?? group[0]!;
+  const real = groups.filter((g) => !g[0]!.fictional).map(pick);
+  const demo = groups.filter((g) => g[0]!.fictional).map(pick);
+  const featured = real.find((e) => e.cover) ?? real[0] ?? demo[0];
+  const languages = (destination: string) => (byDestination.get(destination) ?? []).map((e) => (e.locale === "it" ? "Italiano" : "English")).join(" · ");
+
+  /** La visita in corso vive nella scheda del suo tipo: esplorazione libera o percorso. */
+  const sessionTab: Tab | null = walking && runtime ? (runtime.kind === "tour" ? "percorsi" : "esplora") : null;
+
+  /**
+   * Cambio di scheda. Esplora e Percorsi hanno bisogno di una destinazione, e il Profilo la offre per l'uso
+   * offline: senza, si apre quella in evidenza.
+   */
+  const goTab = async (next: Tab) => {
+    if (next !== "home" && !content && featured) {
+      setOpening(true);
+      setTab(next);
+      try {
+        await loadBundle(featured);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setOpening(false);
+      }
+      return;
+    }
+    setTab(next);
+    window.scrollTo(0, 0);
+  };
+
+  const TABS: { id: Tab; icon: "home" | "compass" | "route" | "user"; label: string }[] = [
+    { id: "home", icon: "home", label: t.tabs.home },
+    { id: "esplora", icon: "compass", label: t.tabs.explore },
+    { id: "percorsi", icon: "route", label: sessionTab === "percorsi" ? t.inProgress : t.tabs.routes },
+    { id: "profilo", icon: "user", label: t.tabs.profile },
+  ];
+  const tabbar = (
+    <nav className="tabbar" aria-label={t.tabsLabel}>
+      {TABS.map((item) => (
+        <button key={item.id} className={tab === item.id ? "on" : ""} aria-current={tab === item.id ? "page" : undefined} onClick={() => void goTab(item.id)}>
+          <span className="tab-icon">
+            <Icon name={item.icon} size={22} />
+            {sessionTab === item.id && <span className="tab-live" aria-label={t.inProgress} />}
+          </span>
+          <span className="tab-label">{item.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+
+  // Lettore sempre a portata di pollice mentre la guida parla, in qualunque scheda.
+  const speaking = speech.state !== "idle";
+  const player = speaking && runtime && (
+    <div className={`player ${speech.state === "paused" ? "paused" : ""}`} role="region" aria-label={t.nowPlaying}>
+      <span className="eq" aria-hidden="true"><i /><i /><i /></span>
+      <span className="what">
+        <strong>{currentSegment ? runtime.name(currentSegment.placeRef) : (speech.title ?? t.nowPlaying)}</strong>
+        <span>{t.nowPlaying}</span>
+      </span>
+      <span className="actions">
+        <button className="round-btn main" onClick={() => voiceRef.current?.toggle()} aria-label={speech.state === "paused" ? t.play : t.pause}>
+          <Icon name={speech.state === "paused" ? "play" : "pause"} />
+        </button>
+        <button className="round-btn" onClick={() => voiceRef.current?.skip()} aria-label={t.skip}>
+          <Icon name="skip" />
+        </button>
+      </span>
+    </div>
+  );
+  const shell = (view: ReactNode) => (
+    <div className="app-shell">
+      {view}
+      {player}
+      {tabbar}
+    </div>
+  );
+
+  if (tab === "home") {
     const cover = featured?.cover;
-    const languages = (destination: string) => (byDestination.get(destination) ?? []).map((e) => (e.locale === "it" ? "Italiano" : "English")).join(" · ");
-    return (
+    return shell(
       <main className="home">
         <section className="hero">
           {cover && (
@@ -638,7 +717,14 @@ export function GuideApp() {
             )}
             <h1>{t.heroTitle}</h1>
             <p className="lede">{t.heroLede}</p>
-            {featured && (
+            {sessionTab && runtime ? (
+              <div className="hero-cta">
+                {/* Visita in corso: la home riporta lì invece di ricominciare. */}
+                <button className="button primary xl" onClick={() => goTab(sessionTab)}>
+                  {t.resume}: {runtime.content.name} <Icon name="forward" />
+                </button>
+              </div>
+            ) : featured && (
               <div className="hero-cta">
                 <button className="button primary xl" onClick={() => openBundle(featured)}>
                   {t.exploreStart} <Icon name="forward" />
@@ -721,15 +807,88 @@ export function GuideApp() {
         </div>
         <footer className="home-foot muted small">
           AI Guide{cover?.credit ? ` · ${t.photo}: ${cover.credit}` : ""}
-          {/* Account solo dove sono attivi (lib/account/shared.ts): servono per acquistare, non per visitare. */}
-          {process.env.NEXT_PUBLIC_ACCOUNTS_ENABLED === "1" && online && (
-            <>
-              {" · "}
-              <a href="/account" className="home-account">{t.account}</a>
-            </>
-          )}
         </footer>
-      </main>
+      </main>,
+    );
+  }
+
+  if (tab === "profilo") {
+    // Account solo dove sono attivi (lib/account/shared.ts): servono per acquistare, non per visitare.
+    const accounts = process.env.NEXT_PUBLIC_ACCOUNTS_ENABLED === "1";
+    return shell(
+      <main className="profile">
+        <h1>{t.profileTitle}</h1>
+        <section className="card">
+          <h2>{t.language}</h2>
+          <div className="segmented wide" role="group" aria-label={t.language}>
+            {(["it", "en"] as const).map((l) => (
+              <button key={l} aria-pressed={uiLocale === l} onClick={() => chooseLocale(l)} lang={l}>
+                {l === "it" ? "Italiano" : "English"}
+              </button>
+            ))}
+          </div>
+        </section>
+        <section className="card">
+          <h2>{t.guideSettings}</h2>
+          <p className="muted small">{t.mode}</p>
+          <div className="segmented wide stack" role="group" aria-label={t.mode}>
+            {(["ask", "auto", "silent"] as const).map((m) => (
+              <button key={m} aria-pressed={mode === m} onClick={() => { setMode(m); if (runtimeRef.current) runtimeRef.current.mode = m; }}>
+                {t.modes[m]}
+              </button>
+            ))}
+          </div>
+          <p className="muted small">{t.voiceSpeed}</p>
+          <div className="segmented wide" role="group" aria-label={t.voiceSpeed}>
+            {[0.75, 1, 1.25, 1.5].map((r) => (
+              <button key={r} aria-pressed={rate === r} onClick={() => { setRate(r); voiceRef.current?.setRate(r); }}>
+                {r}×
+              </button>
+            ))}
+          </div>
+          <label className="check">
+            <input type="checkbox" checked={avoidStairs} onChange={(e) => setAvoidStairs(e.target.checked)} />
+            {t.avoidStairs}
+          </label>
+        </section>
+        <section className="card">
+          <h2>{t.offlineTitle}</h2>
+          {!offlineSupported() || !opened || !content ? (
+            <p className="muted small">{t.offlineNone}</p>
+          ) : offline === "yes" ? (
+            <p className="ok"><Icon name="check" /> {content.name}: {t.offlineReady}</p>
+          ) : (
+            <div className="offline-box">
+              <button className="button quiet" disabled={offline === "downloading" || !online} onClick={saveOffline}>
+                <Icon name="download" /> {t.offlineDownload}: {content.name} ({Math.ceil(opened.manifest.totalBytes / 1024)} KB)
+              </button>
+              {offline === "downloading" && <p className="muted small">{Math.round(progress * 100)}%</p>}
+              {offline === "error" && <p className="error small">{t.offlineError}</p>}
+              <p className="muted small">{t.offlineHint}</p>
+            </div>
+          )}
+        </section>
+        {accounts && (
+          <section className="card">
+            <h2>{t.accountTitle}</h2>
+            <p className="muted small">{t.accountHint}</p>
+            {online ? (
+              <a className="button primary block" href="/account">{t.accountOpen} <Icon name="forward" /></a>
+            ) : (
+              <p className="muted small"><Icon name="wifiOff" /> {t.accountOffline}</p>
+            )}
+          </section>
+        )}
+        <p className="muted small home-foot">AI Guide</p>
+      </main>,
+    );
+  }
+
+  if (!content) {
+    return shell(
+      <main className="tab-empty">
+        <p className="notice">{opening ? t.opening : error ? (online ? error : t.offlineNoBundle) : t.noDestination}</p>
+      </main>,
     );
   }
 
@@ -752,23 +911,52 @@ export function GuideApp() {
   };
   const placeName = (c: BundleContent, ref: string) => c.places.find((p) => p.ref === ref)?.name ?? ref;
 
-  if (screen === "setup" && content) {
-    const anchor = content.anchors[0];
-    const visitInProgress = runtimeRef.current?.content === content && runtimeRef.current.memory.visitedPlaces.length > 0;
-    const heroCover = destinationCover(content);
-    return (
+  const anchor = content.anchors[0];
+  const visitInProgress = runtimeRef.current?.content === content && runtimeRef.current.memory.visitedPlaces.length > 0;
+  const heroCover = destinationCover(content);
+  const resumeBox = visitInProgress && !walking && (
+    <div className="resume light">
+      <span>{t.continueVisit(runtimeRef.current!.memory.visitedPlaces.length)}</span>
+      <div className="row">
+        <button className="button ghost" onClick={() => { runtimeRef.current = null; clearSavedTour(); setSavedTour(null); setWalking(false); rerender(); }}>
+          {t.restart}
+        </button>
+      </div>
+    </div>
+  );
+  const destinationNotices = (
+    <>
+      {content.preview && (
+        <p className="notice preview">
+          <Icon name="info" /> {t.previewNote}
+        </p>
+      )}
+      {content.fictional && (
+        <p className="notice">
+          <Icon name="info" /> {t.fictionalNote}
+        </p>
+      )}
+    </>
+  );
+  const changeDestination = groups.length > 1 && (
+    <button className="back-btn" onClick={() => void goTab("home")}>
+      <Icon name="back" /> {t.changeDestination}
+    </button>
+  );
+  const showSession = walking && runtime?.content === content && tab === sessionTab;
+
+  if (tab === "esplora" && !showSession) {
+    return shell(
       <main className="hub">
         <section className="hub-hero">
           {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
           {heroCover && <img src={heroCover.src} alt={heroCover.alt} />}
           <div className="hero-top">
-            <button className="back-btn" onClick={() => setScreen("home")}>
-              <Icon name="back" /> {t.back}
-            </button>
+            {changeDestination || <span />}
             {brand}
           </div>
           <div className="hub-title">
-            <p className="eyebrow" style={{ color: "rgba(255,255,255,.8)" }}>{t.howToVisit}</p>
+            <p className="eyebrow" style={{ color: "rgba(255,255,255,.8)" }}>{t.exploreTitle}</p>
             <h1>{content.name}</h1>
             <div className="row wrap">
               {content.preview && <span className="badge on-photo">{t.previewBadge}</span>}
@@ -776,92 +964,46 @@ export function GuideApp() {
             </div>
           </div>
         </section>
-
-        <div className="hub-body">
-          {visitInProgress && (
-            <div className="resume light">
-              <span>{t.continueVisit(runtimeRef.current!.memory.visitedPlaces.length)}</span>
-              <div className="row">
-                <button className="button ghost" onClick={() => { runtimeRef.current = null; clearSavedTour(); setSavedTour(null); rerender(); }}>
-                  {t.restart}
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="hub-grid">
-            <div className="stack" style={{ gap: 22 }}>
-              <section className="mode-explore">
-                <h2>{t.exploreTitle}</h2>
-                <p className="muted">{t.exploreHint}</p>
-                <ul className="feature-list">
-                  {t.exploreFeatures.map((f, i) => (
-                    <li key={f}>
-                      <Icon name={(["map", "volume", "chat"] as const)[i]!} /> {f}
-                    </li>
-                  ))}
-                </ul>
-                <button className="button primary xl block" onClick={startExploring}>
-                  {t.exploreStart} <Icon name="forward" />
-                </button>
-                <p className="muted small">{t.backgroundNote}</p>
-              </section>
-
-              <section className="card prefs">
-                <h3>{t.preferences}</h3>
-                <p className="muted small">{t.mode}</p>
-                <div className="segmented wide" role="group" aria-label={t.mode}>
-                  {(["ask", "auto", "silent"] as const).map((m) => (
-                    <button key={m} aria-pressed={mode === m} onClick={() => setMode(m)}>
-                      {t.modes[m]}
-                    </button>
-                  ))}
-                </div>
-                <label className="check">
-                  <input type="checkbox" checked={avoidStairs} onChange={(e) => setAvoidStairs(e.target.checked)} />
-                  {t.avoidStairs}
-                </label>
-                {offlineSupported() && opened && (
-                  <div className="offline-box">
-                    {offline === "yes" ? (
-                      <p className="ok"><Icon name="check" /> {t.offlineReady}</p>
-                    ) : (
-                      <>
-                        <button className="button quiet" disabled={offline === "downloading" || !online} onClick={saveOffline}>
-                          <Icon name="download" /> {t.offlineDownload} ({Math.ceil(opened.manifest.totalBytes / 1024)} KB)
-                        </button>
-                        {offline === "downloading" && <p className="muted small">{Math.round(progress * 100)}%</p>}
-                        {offline === "error" && <p className="error small">{t.offlineError}</p>}
-                        <p className="muted small">{t.offlineHint}</p>
-                      </>
-                    )}
-                  </div>
-                )}
-              </section>
-              {content.preview && (
-                <p className="notice preview">
-                  <Icon name="info" /> {t.previewNote}
-                </p>
-              )}
-              {content.fictional && (
-                <p className="notice">
-                  <Icon name="info" /> {t.fictionalNote}
-                </p>
-              )}
-              {content.safetyNotes.map((n) => (
-                <p key={n.id} className="notice">
-                  <Icon name="info" /> {n.text}
-                </p>
+        <div className="hub-body tab-body">
+          {resumeBox}
+          <section className="mode-explore">
+            <p className="muted">{t.exploreHint}</p>
+            <ul className="feature-list">
+              {t.exploreFeatures.map((f, i) => (
+                <li key={f}>
+                  <Icon name={(["map", "volume", "chat"] as const)[i]!} /> {f}
+                </li>
               ))}
-            </div>
+            </ul>
+            <button className="button primary xl block" onClick={startExploring}>
+              {walking && runtime?.content === content ? t.switchToExplore : t.exploreStart} <Icon name="forward" />
+            </button>
+            <p className="muted small">{t.backgroundNote}</p>
+          </section>
+          {destinationNotices}
+          {content.safetyNotes.map((n) => (
+            <p key={n.id} className="notice">
+              <Icon name="info" /> {n.text}
+            </p>
+          ))}
+        </div>
+      </main>,
+    );
+  }
 
-            <section className="section" id="guided">
-              <div className="section-intro">
-                <h2>{t.itinerariesTitle}</h2>
-                <p className="muted small">{t.itinerariesHint}</p>
-              </div>
+  if (tab === "percorsi" && !showSession) {
+    return shell(
+      <main className="hub routes-tab">
+        <header className="tab-head">
+          {changeDestination}
+          <h1>{t.tabs.routes}</h1>
+          <p className="muted">{t.routesIntro(content.name)}</p>
+        </header>
+        <div className="hub-body tab-body">
+          {resumeBox}
+          <section className="section" id="guided">
               {content.routes.map((r) => {
-                const open = openRoute === r.ref || (itinerariesOpen && openRoute === null && routeRef === r.ref);
+                const open = openRoute === r.ref || (openRoute === null && routeRef === r.ref);
                 const stops = r.stops.map((s) => s.place);
                 const cover = routeCover(content, stops);
                 return (
@@ -935,9 +1077,9 @@ export function GuideApp() {
                 )}
               </article>
             </section>
-          </div>
+          {destinationNotices}
         </div>
-      </main>
+      </main>,
     );
   }
 
@@ -955,17 +1097,17 @@ export function GuideApp() {
   const tourRoute = !exploring && tourOptionsRef.current?.route ? content.routes.find((r) => r.ref === tourOptionsRef.current!.route) : undefined;
   const planStops = runtime.plan?.stops.map((s) => s.placeId) ?? [];
   const doneCount = planStops.filter((ref) => runtime.visited.includes(ref)).length;
+  /** Fine della visita sullo schermo: si spengono GPS e voce, la memoria del racconto resta («Continua»). */
   const leave = () => {
     stopSimulation();
     stopGps();
     voiceRef.current?.stop();
-    // Da un itinerario si torna con gli itinerari aperti: è lì che si era.
-    if (!exploring) setItinerariesOpen(true);
-    setScreen("setup");
+    setWalking(false);
+    window.scrollTo(0, 0);
   };
   const openItineraries = () => {
-    setItinerariesOpen(true);
     leave();
+    setTab("percorsi");
   };
   const choosePlace = (ref: string) => {
     setSelected(ref);
@@ -1005,7 +1147,6 @@ export function GuideApp() {
     </p>
   ) : null;
 
-  const speaking = speech.state !== "idle";
   const nowPlaying = (
     <section className="card now-playing" aria-live="polite">
       <p className="eyebrow">{speaking ? t.listening : runtime.currentPlaceRef ? `${t.here}: ${runtime.name(runtime.currentPlaceRef)}` : " "}</p>
@@ -1034,25 +1175,6 @@ export function GuideApp() {
         </button>
       )}
     </section>
-  );
-
-  // Lettore sempre a portata di pollice mentre la guida parla.
-  const player = speaking && (
-    <div className={`player ${speech.state === "paused" ? "paused" : ""}`} role="region" aria-label={t.nowPlaying}>
-      <span className="eq" aria-hidden="true"><i /><i /><i /></span>
-      <span className="what">
-        <strong>{currentSegment ? runtime.name(currentSegment.placeRef) : (speech.title ?? t.nowPlaying)}</strong>
-        <span>{t.nowPlaying}</span>
-      </span>
-      <span className="actions">
-        <button className="round-btn main" onClick={() => voiceRef.current?.toggle()} aria-label={speech.state === "paused" ? t.play : t.pause}>
-          <Icon name={speech.state === "paused" ? "play" : "pause"} />
-        </button>
-        <button className="round-btn" onClick={() => voiceRef.current?.skip()} aria-label={t.skip}>
-          <Icon name="skip" />
-        </button>
-      </span>
-    </div>
   );
 
   const map = (
@@ -1248,7 +1370,7 @@ export function GuideApp() {
     </details>
   );
 
-  return (
+  return shell(
     <main className={`walk ${exploring ? "explore" : "tour"}`}>
       <header className="topbar">
         <button className="round-btn" onClick={leave} aria-label={t.back}><Icon name="back" /></button>
@@ -1325,8 +1447,7 @@ export function GuideApp() {
           )}
         </div>
       </div>
-      {player}
-    </main>
+    </main>,
   );
 }
 

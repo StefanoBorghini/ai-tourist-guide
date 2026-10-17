@@ -1038,3 +1038,58 @@ details.card[open] > summary::after { content: "–"; }
   .hero-copy { padding-bottom: 56px; }
   .hero-copy .lede { font-size: 20px; }
 }
+
+/* Barra di navigazione in basso: Home, Esplora, Percorsi, Profilo (come un'app). */
+:root { --tabbar-h: 64px; }
+.app-shell { min-height: 100dvh; padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 70;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+}
+.tabbar button {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-height: 52px;
+  padding: 4px 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tabbar .tab-icon { position: relative; display: grid; place-items: center; width: 56px; height: 30px; border-radius: 999px; transition: background 0.2s var(--ease); }
+.tabbar .tab-label { font-size: 12px; line-height: 1.1; }
+.tabbar button.on { color: var(--ivory); font-weight: 600; }
+.tabbar button.on .tab-icon { background: var(--sea-soft); }
+.tabbar .tab-live { position: absolute; top: 2px; right: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--ok); border: 2px solid var(--surface); }
+.tabbar button:focus-visible { outline: 2px solid var(--sand); outline-offset: -2px; border-radius: 12px; }
+.app-shell .player { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 10px); }
+@media (min-width: 900px) {
+  .tabbar { left: 50%; right: auto; transform: translateX(-50%); width: min(520px, calc(100% - 24px)); bottom: 12px; border: 1px solid var(--line); border-radius: 22px; padding-bottom: 6px; }
+  .app-shell { padding-bottom: calc(var(--tabbar-h) + 28px); }
+  .app-shell .player { bottom: calc(var(--tabbar-h) + 26px); }
+}
+.tab-head { max-width: 1100px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) var(--gutter) 0; display: flex; flex-direction: column; gap: 6px; }
+.tab-head h1 { font-family: var(--font-display); font-weight: 500; font-size: 32px; line-height: 1.15; margin: 4px 0 0; }
+.tab-head .back-btn { align-self: flex-start; }
+.tab-empty { padding: 48px var(--gutter); }
+.profile { max-width: 640px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) var(--gutter) 24px; display: flex; flex-direction: column; gap: 16px; }
+.profile h1 { font-family: var(--font-display); font-weight: 500; font-size: 32px; line-height: 1.15; margin: 8px 0 0; }
+.profile h2 { font-size: 17px; margin: 0; }
+.profile .card { display: flex; flex-direction: column; gap: 12px; }
+.hub-body.tab-body { margin-top: 18px; }
+/* Opzioni lunghe (modalità della guida): una per riga invece di tre colonne strette. */
+.segmented.stack { flex-direction: column; border-radius: 22px; }
+.segmented.stack button { border-radius: 16px; min-height: 44px; }

@@ -21,7 +21,7 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   if (!accountSetup().ok) return <NotAvailable />;
   const q = await searchParams;
   const pack = one(q.destinazione) ?? "";
-  const { supabase, user } = await requireVisitor(PACK_RE.test(pack) ? shopPath(pack) : "/account");
+  const { supabase, user } = await requireVisitor(PACK_RE.test(pack) ? shopPath(pack, one(q.prodotto)) : "/account");
   if (!PACK_RE.test(pack)) {
     return (
       <AccountPage title="Contenuti in vendita" back={{ href: "/account", label: "Il tuo account" }}>
@@ -35,7 +35,10 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
     supabase.from("purchases").select("product_id").eq("user_id", user.id).in("status", ["completed", "partially_refunded", "disputed"]),
     supabase.from("entitlements").select("product_id").eq("user_id", user.id).eq("status", "active"),
   ]);
-  const items = (catalog.data ?? []) as CatalogItem[];
+  const all = (catalog.data ?? []) as CatalogItem[];
+  // Arrivo dall'app con un contenuto scelto: si mostra solo quello.
+  const focus = one(q.prodotto);
+  const items = focus && all.some((i) => i.id === focus) ? all.filter((i) => i.id === focus) : all;
   const owned = new Set([...(purchases.data ?? []), ...(rights.data ?? [])].map((r) => r.product_id as string));
 
   return (
@@ -77,6 +80,8 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         );
       })}
       <div className="acc-links">
+        {items.length < all.length && <Link href={shopPath(pack)}>Tutti i contenuti in vendita</Link>}
+        <Link href="/">Torna alla guida</Link>
         <Link href="/account">I miei acquisti</Link>
       </div>
     </AccountPage>

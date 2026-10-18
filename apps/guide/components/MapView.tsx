@@ -56,6 +56,8 @@ export function MapView(props: {
   selected?: string | null;
   onSelect?: (ref: string | null) => void;
   tall?: boolean;
+  /** Luoghi a pagamento: spillo attenuato. */
+  locked?: ReadonlySet<string>;
 }) {
   const { content, runtime, debug, online, simulated, t } = props;
   const explore = runtime.kind === "explore";
@@ -285,6 +287,7 @@ export function MapView(props: {
                 p.ref === selected ? "selected" : "",
                 p.ref === runtime.currentPlaceRef ? "here" : "",
                 runtime.wasNarrated(p.ref) ? "heard" : "",
+                props.locked?.has(p.ref) ? "locked" : "",
               ].join(" ");
               return (
                 <g

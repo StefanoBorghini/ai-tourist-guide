@@ -31,7 +31,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   guidati** (itinerari curati o su misura, tappe in ordine, GPS reale). Si passa dall'una all'altra in un tocco, nella
   stessa visita: la memoria del racconto resta, l'avanzamento delle tappe è del singolo percorso. L'app è organizzata come un'app nativa, con una barra in basso a quattro schede (Home, Esplora, Percorsi, Profilo; `components/GuideApp.tsx`): la visita in corso resta attiva cambiando scheda, la sua scheda mostra un punto verde, e il Profilo raccoglie lingua, modalità e velocità della guida, uso offline e account. `lib/runtime.ts` collega motore di contesto e narrazione (logica
   pura, testata: coda degli arrivi, niente interruzioni mentre la guida parla, luoghi rifiutati non riproposti per
-  15 minuti, luoghi vicini); `lib/gps-status.ts` stato del segnale; `components/PlaceCard.tsx` scheda del luogo (galleria, miniature: mai la
+  15 minuti, luoghi vicini); `lib/gps-status.ts` stato del segnale; `components/InstallPrompt.tsx` invito a installare l'app a ogni apertura (finché non è installata; «Non ora» vale per la sessione); `components/PlaceCard.tsx` scheda del luogo (galleria, miniature: mai la
   foto di un altro luogo al posto di quella mancante); `components/Icon.tsx` icone; `app/globals.css` design system
   (font di sistema, nessun download: funziona offline); `app/manifest.ts` manifest della PWA; al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
@@ -52,7 +52,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   (solo per acquistare; spenti senza `NEXT_PUBLIC_ACCOUNTS_ENABLED` e testi legali; esiti nell'indirizzo solo come codici,
   redirect solo interni, consensi registrati al primo accesso; vedi `docs/v0.3-platform/ACCOUNT.md`); `app/studio/[pack]/vendita/` (scheda «Vendita»: cosa è a pagamento e catalogo) e `lib/studio/catalog.ts` il catalogo
   (prodotti e prezzi in bozza/pubblicati, solo amministratore; listino pubblico `public_catalog()`; vedi `docs/v0.3-platform/CATALOGO.md`);
-  `lib/payments/` e `app/api/checkout`, `app/api/stripe/webhook`, `app/account/acquista`, `app/account/ordine` gli acquisti con Stripe
+  `lib/payments/` e `app/api/checkout`, `app/api/stripe/webhook`, `app/account/acquista`, `app/account/ordine` gli acquisti con Stripe, che partono anche dalla guida (schede Percorsi ed Esplora: `lib/shop.ts`, listino da `app/api/catalog`)
   (solo modalità test; il browser invia solo il prodotto, prezzo dal database; diritti solo dal webhook firmato, che usa la
   chiave di servizio solo per le funzioni `payment_*`; vedi `docs/v0.3-platform/PAGAMENTI.md`)
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack

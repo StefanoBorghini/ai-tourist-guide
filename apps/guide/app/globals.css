@@ -1093,3 +1093,50 @@ details.card[open] > summary::after { content: "–"; }
 /* Opzioni lunghe (modalità della guida): una per riga invece di tre colonne strette. */
 .segmented.stack { flex-direction: column; border-radius: 22px; }
 .segmented.stack button { border-radius: 16px; min-height: 44px; }
+
+/* Contenuti a pagamento nella guida: percorso bloccato e acquisto diretto. */
+.route-card.locked .route-cover { display: grid; place-items: center; background: var(--surface-2, #1e1e1e); color: var(--sand); }
+.meta-line .paid { color: var(--sand); font-weight: 600; }
+.buy-form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.buy-form .muted.small { margin: 0; }
+.paid-explore { margin-top: 16px; }
+.paid-explore h2 { font-family: var(--font-display); font-weight: 500; margin: 4px 0; }
+
+/* Luoghi e percorsi a pagamento: immagine scurita e banda diagonale «Sblocca». */
+.lock-wrap { position: relative; display: block; overflow: hidden; flex: none; }
+.route-cover.lock-wrap { display: grid; place-items: center; }
+.route-cover.lock-wrap img { width: 100%; height: 100%; object-fit: cover; }
+.locked .lock-wrap::after,
+.place-media.locked::after { content: ""; position: absolute; inset: 0; background: rgba(8, 8, 8, 0.55); pointer-events: none; }
+.lock-band {
+  position: absolute; z-index: 1; top: 50%; left: 50%; width: 160%;
+  transform: translate(-50%, -50%) rotate(-24deg);
+  background: var(--sand); color: var(--on-ivory, #0c0c0c);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; text-align: center;
+  padding: 3px 0; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); pointer-events: none;
+}
+.place-media.locked { position: relative; }
+.place-media.locked .lock-band { font-size: 15px; padding: 6px 0; width: 140%; }
+.tile.locked .tile-name, .place-row.locked .name { color: var(--muted); }
+.place-actions.locked { display: flex; flex-direction: column; gap: 8px; }
+.map-pin.locked { opacity: 0.45; }
+
+/* Invito a installare l'app: foglio in basso, sopra la barra delle schede. */
+.install-sheet {
+  position: fixed; z-index: 75; left: 12px; right: 12px;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 10px);
+  max-width: 520px; margin: 0 auto;
+  background: var(--surface); border: 1px solid var(--line-strong, var(--line)); border-radius: 22px;
+  padding: 16px; display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  animation: install-in 0.35s var(--ease, ease) both;
+}
+@keyframes install-in { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .install-sheet { animation: none; } }
+.install-head { display: flex; gap: 12px; align-items: flex-start; }
+.install-head > div { flex: 1; }
+.install-head p { margin: 2px 0 0; }
+.install-icon img { border-radius: 10px; display: block; }
+.install-close { appearance: none; background: none; border: 0; color: var(--muted); padding: 4px; cursor: pointer; }
+.install-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+@media (min-width: 900px) { .install-sheet { bottom: calc(var(--tabbar-h) + 30px); } }

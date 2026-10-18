@@ -51,7 +51,9 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 /** Id di una destinazione (come nei Territory Pack). */
 export const PACK_RE = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$/;
 
-export const shopPath = (pack: string) => `/account/acquista?destinazione=${encodeURIComponent(pack)}`;
+/** Pagina d'acquisto di una destinazione; con `product` mostra solo quel contenuto (arrivo dall'app). */
+export const shopPath = (pack: string, product?: string) =>
+  `/account/acquista?destinazione=${encodeURIComponent(pack)}${product && UUID_RE.test(product) ? `&prodotto=${product}` : ""}`;
 export const orderPath = (order: string) => `/account/ordine?id=${order}`;
 
 /** Durata di una sessione di pagamento (il minimo che Stripe accetta). */

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { BundleContent, BundleMedia } from "@guide/bundle/client";
 import { bearingDeg, distanceM, type Fix } from "@guide/context-engine";
 import { compass, formatDistance } from "../lib/format";
@@ -52,6 +53,8 @@ export function PlaceCard(props: {
   onAsk: () => void;
   onHere: () => void;
   onClose?: () => void;
+  /** Luogo a pagamento: overlay con «Sblocca» e, al posto di ascolto e domande, l'acquisto. */
+  locked?: ReactNode;
 }) {
   const { content, placeRef, base, fix, isHere, heard, canAsk, t } = props;
   const place = content.places.find((p) => p.ref === placeRef);
@@ -61,7 +64,8 @@ export function PlaceCard(props: {
   const verified = place.coordinateStatus === "field_verified";
   return (
     <section className="card place-card" aria-label={place.name}>
-      <div className="place-media">
+      <div className={`place-media ${props.locked ? "locked" : ""}`}>
+        {props.locked && <span className="lock-band" aria-hidden="true">{t.unlock}</span>}
         {props.onClose && (
           <button className="place-close" onClick={props.onClose} aria-label={t.close}>
             <Icon name="close" />
@@ -113,6 +117,9 @@ export function PlaceCard(props: {
             <Icon name="check" size={18} /> {t.heard}
           </span>
         )}
+        {props.locked ? (
+          <div className="place-actions locked">{props.locked}</div>
+        ) : (
         <div className="place-actions">
           <button className="button primary big" onClick={props.onListen}>
             <Icon name="play" /> {heard ? t.listenAgain : t.listen}
@@ -128,6 +135,7 @@ export function PlaceCard(props: {
             </button>
           )}
         </div>
+        )}
         <p className={`place-status ${verified ? "good" : ""}`}>
           <span className="dot" />
           {verified ? t.map.verified : place.coordinateStatus === "map_verified" ? t.map.mapVerified : t.map.provisional}

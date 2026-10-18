@@ -34,7 +34,8 @@ export async function POST(request: Request) {
   if (!account.ok || !payments.ok) return see(`${shopPath(pack)}&errore=acquisti-spenti`, origin);
   const supabase = await accountClient(account.config);
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return see(`${SIGN_IN}?errore=sessione&next=${encodeURIComponent(shopPath(pack))}`, origin);
+  // Senza accesso: login, poi di nuovo il contenuto scelto (un tocco su «Acquista» e si paga).
+  if (!data.user) return see(`${SIGN_IN}?next=${encodeURIComponent(shopPath(pack, productId))}`, origin);
 
   try {
     const { redirect } = await startCheckout(

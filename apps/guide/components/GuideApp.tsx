@@ -11,12 +11,14 @@ import { simulateWalk, type SimStop } from "../lib/simulator";
 import { GuideVoice, type SpeechState } from "../lib/speech";
 import { uiFor, type UiText } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
+import { formatPrice, lockedPlaceRefs, offersFor, type CatalogItem, type Offer } from "../lib/shop";
 import { AskBox } from "./AskBox";
 import { bundleBase as bundleBaseOf, loadIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndexEntry } from "../lib/bundle-index";
 import { DebugPanel } from "./DebugPanel";
 import { MapView } from "./MapView";
 import { Carousel } from "./Carousel";
 import { Icon } from "./Icon";
+import { InstallPrompt } from "./InstallPrompt";
 import { PlaceCard, PlacePhoto, PlaceThumb, placeMedia, thumbSrc } from "./PlaceCard";
 
 type BundleEntry = BundleIndexEntry;
@@ -71,6 +73,9 @@ function clock(ms: number, locale: string): string {
   return new Date(ms).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
 }
 
+/** Account (e quindi acquisti) attivi in questa installazione: lib/account/shared.ts. */
+const ACCOUNTS = process.env.NEXT_PUBLIC_ACCOUNTS_ENABLED === "1";
+
 export function GuideApp() {
   const [entries, setEntries] = useState<BundleEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +91,8 @@ export function GuideApp() {
   const [offline, setOffline] = useState<"no" | "downloading" | "yes" | "error">("no");
   const [progress, setProgress] = useState(0);
   const [online, setOnline] = useState(true);
+  // Listino pubblico della destinazione aperta (solo se ha contenuti a pagamento e gli acquisti sono attivi).
+  const [catalog, setCatalog] = useState<{ pack: string; enabled: boolean; items: CatalogItem[] } | null>(null);
   const [askAvailable, setAskAvailable] = useState(false);
   /** Impronte dei bundle con cui risponde il server delle domande (per il debug). */
   const [webAvailable, setWebAvailable] = useState(false);
@@ -192,6 +199,22 @@ export function GuideApp() {
       })
       .catch(() => setAskAvailable(false));
   }, [online]);
+
+  // Prezzi dei contenuti a pagamento: solo online, con acquisti attivi e se la destinazione ne ha.
+  const lockedPack = content?.locked ? content.destination : null;
+  useEffect(() => {
+    if (!ACCOUNTS || !online || !lockedPack) return;
+    let alive = true;
+    fetch(`/api/catalog?destinazione=${encodeURIComponent(lockedPack)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { enabled?: boolean; items?: CatalogItem[] }) => {
+        if (alive) setCatalog({ pack: lockedPack, enabled: d.enabled === true, items: Array.isArray(d.items) ? d.items : [] });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [lockedPack, online]);
 
   // Si invita a fare domande solo quando si possono davvero fare.
   useEffect(() => {
@@ -689,6 +712,8 @@ export function GuideApp() {
     <div className="app-shell">
       {view}
       {player}
+      {/* Sempre montato (non perde l'evento d'installazione cambiando scheda); nascosto mentre la guida parla. */}
+      <InstallPrompt t={t} hidden={Boolean(player)} />
       {tabbar}
     </div>
   );
@@ -814,7 +839,7 @@ export function GuideApp() {
 
   if (tab === "profilo") {
     // Account solo dove sono attivi (lib/account/shared.ts): servono per acquistare, non per visitare.
-    const accounts = process.env.NEXT_PUBLIC_ACCOUNTS_ENABLED === "1";
+    const accounts = ACCOUNTS;
     return shell(
       <main className="profile">
         <h1>{t.profileTitle}</h1>
@@ -944,6 +969,33 @@ export function GuideApp() {
     </button>
   );
   const showSession = walking && runtime?.content === content && tab === sessionTab;
+  // Contenuti a pagamento: prezzo dal listino pubblico e acquisto diretto (il server decide utente e importo;
+  // senza accesso porta prima al login e poi alla pagina d'acquisto).
+  const shopOn = ACCOUNTS && catalog?.pack === content.destination && catalog.enabled;
+  const offers = offersFor(content.locked, shopOn ? catalog.items : [], content.locale);
+  const lockedPlaces = lockedPlaceRefs(content);
+  // Immagine per i percorsi a pagamento (il bundle pubblico non ne descrive le tappe): la copertina della destinazione.
+  const lockedCover = (() => {
+    const cover = content.media.find((m) => m.cover && m.kind !== "video") ?? content.media.find((m) => m.kind !== "video");
+    return cover ? thumbSrc(cover, bundleBase) : null;
+  })();
+  const buy = (offer: Offer | null | undefined) =>
+    !ACCOUNTS ? null : !online ? (
+      <p className="muted small">{t.buyOffline}</p>
+    ) : !offer ? (
+      <p className="muted small">{t.notOnSale}</p>
+    ) : (
+      <form action="/api/checkout" method="post" className="buy-form">
+        <input type="hidden" name="prodotto" value={offer.productId} />
+        <input type="hidden" name="destinazione" value={content.destination} />
+        <button className="button primary big block" type="submit">
+          <Icon name="lock" /> {t.buy} · {formatPrice(offer.amount, content.locale)}
+        </button>
+        {offer.bundle && <p className="muted small">{t.inBundle(offer.name)}</p>}
+        <p className="muted small">{t.testPayment}</p>
+      </form>
+    );
+
 
   if (tab === "esplora" && !showSession) {
     return shell(
@@ -980,6 +1032,14 @@ export function GuideApp() {
             </button>
             <p className="muted small">{t.backgroundNote}</p>
           </section>
+          {content.locked?.explore && (
+            <section className="mode-explore paid-explore">
+              <p className="eyebrow"><Icon name="lock" size={15} /> {t.paidRoutes}</p>
+              <h2>{t.fullExplore}</h2>
+              <p className="muted">{t.fullExploreHint}</p>
+              {buy(offers.explore)}
+            </section>
+          )}
           {destinationNotices}
           {content.safetyNotes.map((n) => (
             <p key={n.id} className="notice">
@@ -1039,6 +1099,38 @@ export function GuideApp() {
                         <button className="button primary big block" onClick={() => startTour(r.ref)}>
                           {t.startItinerary} <Icon name="forward" />
                         </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+
+              {(content.locked?.routes ?? []).map((r) => {
+                const open = openRoute === r.ref;
+                return (
+                  <article key={r.ref} className={`route-card locked ${open ? "open" : ""}`}>
+                    <button className="route-head" aria-expanded={open} onClick={() => setOpenRoute(open ? "" : r.ref)}>
+                      <span className="route-cover lock-wrap">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- copertina della destinazione */}
+                        {lockedCover ? <img src={lockedCover} alt="" loading="lazy" /> : <Icon name="lock" size={28} />}
+                        <span className="lock-band" aria-hidden="true">{t.unlock}</span>
+                      </span>
+                      <span>
+                        <span className="route-title">{r.name}</span>
+                        <span className="meta-line">
+                          <span><Icon name="clock" size={15} /> {r.durationMin} {t.minutes}</span>
+                          <span className="paid">
+                            {t.paidRoutes}
+                            {offers.routes.get(r.ref) ? ` · ${formatPrice(offers.routes.get(r.ref)!.amount, content.locale)}` : ""}
+                          </span>
+                        </span>
+                      </span>
+                      <Icon name="forward" className="chev" />
+                    </button>
+                    {open && (
+                      <div className="route-body">
+                        <p className="muted">{t.paidRouteHint}</p>
+                        {buy(offers.routes.get(r.ref))}
                       </div>
                     )}
                   </article>
@@ -1140,6 +1232,7 @@ export function GuideApp() {
       onAsk={() => { setSelected(cardRef); setAskFocus((n) => n + 1); }}
       onHere={() => arriveHere(cardRef)}
       {...(selected ? { onClose: () => setSelected(null) } : {})}
+      {...(lockedPlaces.has(cardRef) ? { locked: <><p className="muted">{t.lockedPlaceHint}</p>{buy(offers.explore)}</> } : {})}
     />
   ) : exploring ? (
     <p className="notice">
@@ -1188,6 +1281,7 @@ export function GuideApp() {
       selected={selected}
       onSelect={(ref) => (ref ? choosePlace(ref) : setSelected(null))}
       tall={exploring}
+      locked={lockedPlaces}
     />
   );
 
@@ -1244,8 +1338,11 @@ export function GuideApp() {
             ) : (
               <Carousel className="nearby" label={t.nearbyTitle} prevLabel={t.carouselPrev} nextLabel={t.carouselNext}>
                 {nearby.map((p) => (
-                  <button key={p.ref} role="listitem" className={`tile ${p.ref === cardRef ? "on" : ""}`} onClick={() => choosePlace(p.ref)}>
-                    <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="tile-img" />
+                  <button key={p.ref} role="listitem" className={`tile ${p.ref === cardRef ? "on" : ""} ${lockedPlaces.has(p.ref) ? "locked" : ""}`} onClick={() => choosePlace(p.ref)}>
+                    <span className="lock-wrap">
+                      <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="tile-img" />
+                      {lockedPlaces.has(p.ref) && <span className="lock-band" aria-label={t.paidRoutes}>{t.unlock}</span>}
+                    </span>
                     <span className="tile-body">
                       <span className="tile-name">{p.ref === runtime.currentPlaceRef ? "📍 " : ""}{p.name}</span>
                       <span className="dist">
@@ -1263,8 +1360,11 @@ export function GuideApp() {
         <ul className="places">
           {allPlaces.map(({ p, d }) => (
             <li key={p.ref}>
-              <button className={`place-row ${p.ref === cardRef ? "on" : ""}`} onClick={() => choosePlace(p.ref)}>
-                <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="thumb" />
+              <button className={`place-row ${p.ref === cardRef ? "on" : ""} ${lockedPlaces.has(p.ref) ? "locked" : ""}`} onClick={() => choosePlace(p.ref)}>
+                <span className="lock-wrap">
+                  <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="thumb" />
+                  {lockedPlaces.has(p.ref) && <span className="lock-band" aria-label={t.paidRoutes}>{t.unlock}</span>}
+                </span>
                 <span>
                   <span className="name">{p.name}</span>
                   {p.short && <span className="short">{p.short}</span>}

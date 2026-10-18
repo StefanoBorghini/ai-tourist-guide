@@ -79,6 +79,22 @@ Database:
 
 Libreria: `stripe` 22.6.2, versione fissata.
 
+## Acquisto dalla guida (2026-10-18)
+
+- I contenuti a pagamento di una destinazione pubblicata (`content.locked` del bundle) compaiono nell'app: i percorsi a
+  pagamento nella scheda **Percorsi** (lucchetto, durata, prezzo) e l'esplorazione completa nella scheda **Esplora**.
+- Il prezzo viene dal listino pubblico tramite `GET /api/catalog?destinazione=…` (`public_catalog`, nessuna sessione;
+  con account o pagamenti spenti risponde `enabled: false` e i pulsanti non compaiono). L'abbinamento contenuto →
+  prodotto è in `lib/shop.ts` (percorso singolo, altrimenti il pacchetto più economico; test in `test/shop.test.ts`).
+- «Acquista» invia il modulo direttamente a `/api/checkout`, come la pagina d'acquisto: il server decide utente e
+  importo. Senza accesso si passa dal login e si torna a `/account/acquista?…&prodotto=…`, che mostra solo il contenuto
+  scelto. Con l'accesso, un tocco porta al pagamento.
+- Attivi solo i contenuti gratuiti: i percorsi a pagamento e, con l'esplorazione a pagamento, i luoghi senza racconti
+  pubblici (`lockedPlaceRefs`) hanno l'immagine scurita e una banda diagonale «Sblocca»; i loro spilli sulla mappa sono
+  attenuati e la scheda del luogo mostra l'acquisto al posto di «Ascolta». La guida non li propone (non hanno racconti).
+- Limite ancora aperto: dopo l'acquisto il contenuto resta bloccato nell'app finché non arriva la consegna dei contenuti
+  protetti (bucket `premium`); l'acquisto resta registrato nell'account.
+
 ## Configurazione (da fare tu, solo modalità test)
 
 **Non incollare mai i valori in chat.** Le variabili sono tutte solo server: nessuna è `NEXT_PUBLIC_`.

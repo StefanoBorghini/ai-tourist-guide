@@ -40,7 +40,8 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
    copia sul dispositivo (se valida), poi convalida online: scarica ciò che manca verificando l'impronta, cancella ciò
    che non è più concesso (rimborso), unisce con `mergePremium`. Una visita in corso non cambia a metà. La pagina
    dell'ordine riuscito ha «Apri nella guida». Mappa dell'esplorazione libera: solo luoghi gratuiti o acquistati;
-   elenco e «Vicino a te» mostrano anche quelli a pagamento, con «Sblocca». La scheda di un luogo bloccato offre
+   elenco e «Vicino a te» mostrano anche quelli a pagamento, con «Sblocca». A pagamento sono solo i luoghi che hanno
+   racconti a pagamento (`content.locked.places`): un luogo introduttivo, o senza racconti, si mostra gratuito. La scheda di un luogo bloccato offre
    «Solo questo luogo» (se il luogo è in vendita) e «Tutti i luoghi» (l'esplorazione completa); un luogo comprato da
    solo si sblocca ovunque, gli altri restano bloccati.
 

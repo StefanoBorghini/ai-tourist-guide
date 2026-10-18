@@ -206,6 +206,11 @@ export interface BundleLocked {
   explore: boolean;
   /** Percorsi premium: solo nome e durata, per presentarli. */
   routes: { ref: string; name: string; durationMin: number }[];
+  /**
+   * Con l'esplorazione a pagamento, i luoghi che hanno racconti a pagamento (mai gli introduttivi, mai quelli senza
+   * racconti): solo questi si mostrano bloccati. Assente nei bundle precedenti al 2026-10-18.
+   */
+  places?: string[];
 }
 
 /**

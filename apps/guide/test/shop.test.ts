@@ -54,6 +54,15 @@ describe("vendita nell'app", () => {
     expect(offersFor(locked, items, "it").places.size).toBe(0);
   });
 
+  it("luoghi introduttivi o senza racconti: gratuiti, anche se non hanno racconti nel bundle pubblico", () => {
+    const content = {
+      locked: { explore: true, routes: [], places: ["b:torre"] },
+      places: [{ ref: "b:porta" }, { ref: "b:torre" }, { ref: "b:vuoto" }],
+      units: [],
+    } as unknown as BundleContent;
+    expect([...lockedPlaceRefs(content)]).toEqual(["b:torre"]);
+  });
+
   it("luogo comprato da solo: si sblocca quel luogo, gli altri restano a pagamento", () => {
     const content = {
       locked: { explore: true, routes: [] },

@@ -423,6 +423,12 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
               .filter((r) => premiumRouteRefs.has(r.ref))
               .sort(byRef)
               .map((r) => ({ ref: r.ref, name: r.name, durationMin: r.durationMin })),
+            ...(explorePremium
+              ? (() => {
+                  const paid = new Set(safeUnits.filter((u) => !publicUnitRefs.has(u.ref)).map((u) => u.anchor));
+                  return { places: places.filter((p) => paid.has(p.ref)).map((p) => p.ref).sort() };
+                })()
+              : {}),
           },
         }
       : {}),

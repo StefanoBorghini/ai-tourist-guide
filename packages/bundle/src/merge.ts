@@ -33,6 +33,8 @@ export function mergePremium(content: BundleContent, parts: readonly PremiumPart
     assertions,
     sources,
     routes,
-    ...(explore || lockedRoutes.length > 0 ? { locked: { explore, routes: lockedRoutes } } : {}),
+    ...(explore || lockedRoutes.length > 0
+      ? { locked: { explore, routes: lockedRoutes, ...(explore && content.locked?.places ? { places: content.locked.places } : {}) } }
+      : {}),
   };
 }

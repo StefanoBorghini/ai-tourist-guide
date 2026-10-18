@@ -305,7 +305,8 @@ describe("contenuti a pagamento (config.access)", () => {
     // Mappa, luoghi e percorsi gratuiti restano.
     expect(b.content.places).toHaveLength(5);
     expect(b.content.routes.map((r) => r.ref)).toEqual([ref("giro-breve")]);
-    expect(b.content.locked).toEqual({ explore: true, routes: [] });
+    // Bloccati solo i luoghi con racconti a pagamento: non la porta (introduttiva), non il carrugio (senza racconti).
+    expect(b.content.locked).toEqual({ explore: true, routes: [], places: [ref("belvedere"), ref("chiesa-di-san-test"), ref("torre-di-prova")] });
     // Nessun testo a pagamento in nessun file pubblico.
     const files = [...b.files.values()].filter((f): f is string => typeof f === "string").join("\n");
     for (const text of PREMIUM_TEXTS) expect(files).not.toContain(text);
@@ -455,7 +456,7 @@ describe("unione dei contenuti acquistati (mergePremium)", () => {
     const route = b.premium.find((p) => p.kind === "route")!;
     const merged = mergePremium(b.content, [route]);
     expect(merged.routes.map((r) => r.ref)).toContain(ref("giro-breve"));
-    expect(merged.locked).toEqual({ explore: true, routes: [] });
+    expect(merged.locked).toEqual({ explore: true, routes: [], places: b.content.locked!.places });
     // I luoghi delle tappe ora hanno i loro racconti nel contenuto: l'esplorazione libera li racconta.
     for (const st of route.routes[0]!.stops) {
       if (route.units.some((u) => u.anchor === st.place)) expect(told(merged).has(st.place)).toBe(true);

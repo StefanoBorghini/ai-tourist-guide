@@ -88,5 +88,8 @@ export const formatPrice = (cents: number, locale: string) =>
 export function lockedPlaceRefs(content: Pick<BundleContent, "locked" | "places" | "units">): Set<string> {
   if (!content.locked?.explore) return new Set();
   const told = new Set(content.units.map((u) => u.anchor));
-  return new Set(content.places.filter((p) => !told.has(p.ref)).map((p) => p.ref));
+  // Solo i luoghi con racconti a pagamento (il bundle li elenca): un luogo introduttivo, o senza racconti, è gratuito.
+  // I bundle precedenti non hanno l'elenco: allora bloccato è ogni luogo senza racconti pubblici.
+  const paid = content.locked.places ? new Set(content.locked.places) : null;
+  return new Set(content.places.filter((p) => !told.has(p.ref) && (paid ? paid.has(p.ref) : true)).map((p) => p.ref));
 }

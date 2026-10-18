@@ -373,9 +373,8 @@ export function MapView(props: {
           {scale.label}
         </div>
         {showTiles && loadedTiles > 0 && (
-          <a className="map-attrib" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
-            © OpenStreetMap
-          </a>
+          // Attribuzione richiesta dalla licenza dei dati (ODbL): solo testo, senza link (decisione del 2026-10-18).
+          <span className="map-attrib">© OpenStreetMap</span>
         )}
       </div>
       {sel && !controlled && (

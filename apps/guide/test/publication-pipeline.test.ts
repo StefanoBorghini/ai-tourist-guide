@@ -28,7 +28,7 @@ const LOCALES = ["it", "en"];
 const folder = (loc: string) => `${VILLAGE}/${loc}-full`;
 const UUID = /^[^/]+\/[a-z]{2}-full\/([0-9a-f-]{36})\/(manifest\.json|content\.[0-9a-f]+\.json)$/;
 /** Cartella di una pubblicazione nel bucket privato «premium». */
-const PREMIUM_NS = /^[^/]+\/[a-z]{2}\/([0-9a-f-]{36})\/(explore|route-[a-z0-9-]+)\.[0-9a-f]{16,64}\.json$/;
+const PREMIUM_NS = /^[^/]+\/[a-z]{2}\/([0-9a-f-]{36})\/(explore|(?:route|place)-[a-z0-9-]+)\.[0-9a-f]{16,64}\.json$/;
 
 function snapshots() {
   const packs = structuredClone(loadPacks(TERRITORIES).packs);
@@ -319,8 +319,11 @@ describe("pipeline di pubblicazione immutabile (R2)", () => {
     // A (sostituita) è morta e non più nell'indice: tolta; B resta.
     expect([...w.files.keys()].some((k) => k.includes(`/${A}/`))).toBe(false);
     expect([...w.files.keys()].filter((k) => k.includes(`/${B}/`) && !k.startsWith("premium::")).length).toBe(LOCALES.length * 2);
-    // Anche nel bucket privato: via le parti a pagamento di A, restano quelle di B (esplorazione e percorso, per lingua).
-    expect([...w.files.keys()].filter((k) => k.startsWith("premium::") && k.includes(`/${B}/`)).length).toBe(LOCALES.length * 2);
+    // Anche nel bucket privato: via le parti a pagamento di A, restano quelle di B (esplorazione e percorso per lingua,
+    // più i singoli luoghi in vendita).
+    const premiumB = [...w.files.keys()].filter((k) => k.startsWith("premium::") && k.includes(`/${B}/`));
+    expect(premiumB.filter((k) => /\/(explore|route-[a-z0-9-]+)\./.test(k)).length).toBe(LOCALES.length * 2);
+    expect(premiumB.some((k) => /\/place-[a-z0-9-]+\./.test(k))).toBe(true);
   });
 
   it("tre pubblicazioni di fila: l'indice servito va solo avanti e punta sempre a file completi", async () => {

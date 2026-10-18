@@ -7,7 +7,7 @@ import { AccountPage, NotAvailable, one, Outcome, type SearchParams } from "../u
 
 interface CatalogItem {
   id: string;
-  kind: "explore" | "route" | "bundle";
+  kind: "explore" | "route" | "bundle" | "place";
   labels: { it?: { name?: string; description?: string } };
   price: { amount: number; currency: string };
   available: boolean;
@@ -48,8 +48,8 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         <p className="notice" role="note">
           <span>
           <strong>Modalità di prova:</strong> nessun addebito reale. Per pagare usa la carta di prova 4242 4242 4242 4242, una
-          data di scadenza futura e un CVC qualsiasi. I contenuti acquistati si sbloccheranno nell&apos;app con il prossimo
-          aggiornamento: per ora l&apos;acquisto resta registrato nel tuo account.
+          data di scadenza futura e un CVC qualsiasi. I contenuti acquistati si sbloccano nella guida appena torni
+          all&apos;app.
           </span>
         </p>
       ) : (

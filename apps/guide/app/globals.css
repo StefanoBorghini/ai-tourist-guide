@@ -49,7 +49,8 @@
 
 /* ------------------------------------------------------------------ base */
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+/* Niente zoom con due dita né doppio tocco sulla pagina; la mappa (.map-box, touch-action: none) gestisce il suo. */
+html { -webkit-text-size-adjust: 100%; touch-action: pan-x pan-y; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); }
 body {
   font-family: var(--font-ui);
@@ -964,7 +965,7 @@ details.card[open] > summary::after { content: "–"; }
   gap: 4px;
 }
 .map-scale span { display: inline-block; height: 4px; border: 1.5px solid var(--ink); border-top: none; }
-.map-attrib { position: absolute; right: 6px; bottom: 6px; font-size: 9px; color: #333; background: rgba(255, 255, 255, 0.85); padding: 1px 5px; border-radius: 4px; }
+.map-attrib { position: absolute; right: 6px; bottom: 6px; font-size: 9px; color: #333; background: rgba(255, 255, 255, 0.85); padding: 1px 5px; border-radius: 4px; pointer-events: none; text-decoration: none; }
 .map-info { margin: 0; font-size: 14px; }
 .map-foot { gap: 6px 12px; justify-content: space-between; font-size: 13px; }
 .map-foot .check { min-height: 36px; font-size: 13px; }

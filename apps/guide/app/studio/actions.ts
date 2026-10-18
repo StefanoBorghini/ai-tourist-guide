@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { checkReadiness, refreshPublicIndex, requireStaff, rpc, runPublication, signedMediaUrls, studioClient, studioConfig, type PublicationResult } from "../../lib/studio/server";
 import { copyRepoMedia } from "../../lib/studio/repo-media";
-import { formatEuro, parseEuro, priceProblem } from "../../lib/studio/catalog";
+import { formatEuro, parseEuro, PLACE_DEFAULT_CENTS, priceProblem } from "../../lib/studio/catalog";
 import { premiumBlockedByStatic } from "../../lib/static-bundles";
 import { staticDestinations } from "../../lib/static-index";
 import { afterDeleteHref, checkMediaRights, checkStops, DELETE_KINDS, filesInPack, friendlyError, isDeleteKind, MEDIA_BUCKET, MEDIA_LICENSES, MEDIA_SOURCES } from "../../lib/studio/shared";
@@ -289,6 +289,22 @@ export async function setDraftPrice(form: FormData) {
   if (error) back(path, { errore: friendlyError(error) });
   revalidatePath(path);
   back(path, { ok: clear ? "Bozza del prezzo tolta." : `Prezzo in bozza: ${formatEuro(cents!)}. Vale solo dopo «Pubblica i prezzi».` });
+}
+
+/** Crea i prodotti dei singoli luoghi vendibili ancora senza prodotto, con il prezzo in bozza indicato (0,50 € se vuoto). */
+export async function placesOnSale(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/vendita`;
+  const cents = text(form, "price") ? parseEuro(text(form, "price")) : PLACE_DEFAULT_CENTS;
+  const problem = priceProblem(cents);
+  if (problem) back(path, { errore: problem });
+  const { data, error } = await rpc<number>(supabase, "studio_places_on_sale", { p_pack: pack, p_amount: cents });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(path);
+  back(path, {
+    ok: data ? `Creati ${data} prodotti «Luogo» a ${formatEuro(cents!)} in bozza: valgono dopo «Pubblica i prezzi».` : "Tutti i luoghi vendibili hanno già un prodotto.",
+  });
 }
 
 export async function publishPrices(form: FormData) {

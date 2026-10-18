@@ -1,13 +1,15 @@
 import {
-  AVAILABILITY_LABELS, formatEuro, onSale, PRODUCT_KIND_LABELS, PRODUCT_STATUS_LABELS, type CatalogProduct, type CatalogState,
+  AVAILABILITY_LABELS, formatEuro, onSale, PLACE_DEFAULT_CENTS, placesWithoutProduct, PRODUCT_KIND_LABELS, PRODUCT_STATUS_LABELS,
+  type CatalogProduct, type CatalogState,
 } from "../../../../lib/studio/catalog";
 import { rpc, type StudioSession } from "../../../../lib/studio/server";
 import { friendlyError } from "../../../../lib/studio/shared";
-import { publishPrices, saveProduct, setDraftPrice } from "../../actions";
+import { placesOnSale, publishPrices, saveProduct, setDraftPrice } from "../../actions";
 import { Notice } from "../../ui";
 
 /**
- * Catalogo di una destinazione: prodotti (esplorazione, percorsi premium, pacchetti) e prezzi in bozza o pubblicati.
+ * Catalogo di una destinazione: prodotti (esplorazione, percorsi premium, pacchetti, singoli luoghi) e prezzi in bozza
+ * o pubblicati.
  * Solo l'amministratore della piattaforma; le regole stanno nel database (supabase/migrations/20261025000000_catalog.sql):
  * un prodotto si attiva solo se il contenuto è davvero a pagamento nell'Accesso, un prezzo pubblicato non si modifica
  * (se ne pubblica uno nuovo e il vecchio resta nello storico). Gli acquisti arriveranno con Stripe.
@@ -20,6 +22,9 @@ export async function CatalogSection({ pack, session }: { pack: string; session:
   const hasExplore = (c?.products ?? []).some((p) => p.kind === "explore" && p.status !== "retired");
   const routesWithProduct = new Set((c?.products ?? []).filter((p) => p.kind === "route" && p.status !== "retired").map((p) => p.route?.slug));
   const freeRoutes = (c?.routes ?? []).filter((r) => !routesWithProduct.has(r.slug));
+  const placeName = new Map((c?.places ?? []).map((pl) => [pl.slug, pl.name]));
+  const placesToSell = c ? placesWithoutProduct(c) : [];
+  const defaultPlacePrice = formatEuro(PLACE_DEFAULT_CENTS).replace(" €", "");
 
   return (
     <section aria-labelledby="prezzi">
@@ -28,7 +33,8 @@ export async function CatalogSection({ pack, session }: { pack: string; session:
       {!session.me.admin && <p className="st-hint">Prodotti e prezzi li gestisce l&apos;amministratore della piattaforma.</p>}
       {session.me.admin && (
         <p className="st-hint">
-          Un prodotto è ciò che il visitatore compra (l&apos;esplorazione completa, un percorso, un pacchetto di percorsi).
+          Un prodotto è ciò che il visitatore compra (l&apos;esplorazione completa, un percorso, un pacchetto di percorsi,
+          un singolo luogo).
           Si attiva solo se il contenuto è a pagamento al punto 1. Il prezzo si scrive in bozza e vale dopo «Pubblica i
           prezzi»; un prezzo pubblicato non si cambia: se ne pubblica uno nuovo e il precedente resta nello storico.
           Gli acquisti per ora sono in modalità di prova (Stripe test): nessun pagamento reale.
@@ -51,11 +57,30 @@ export async function CatalogSection({ pack, session }: { pack: string; session:
             {c.drafts === 0 && <span className="st-hint">Nessun prezzo in bozza.</span>}
           </form>
 
+          {c.explore === "premium" && (
+            <div className="st-review" aria-labelledby="luoghi-singoli">
+              <h3 id="luoghi-singoli">Luoghi singoli</h3>
+              <p className="st-hint">
+                Con l&apos;esplorazione a pagamento ogni luogo (tranne gli introduttivi, già gratuiti) si può comprare anche da
+                solo. {placesToSell.length > 0
+                  ? `${placesToSell.length} luoghi non hanno ancora un prodotto: il pulsante li crea tutti, attivi, con il prezzo in bozza.`
+                  : "Tutti i luoghi vendibili hanno già un prodotto: il prezzo di ciascuno si cambia nella sua scheda qui sotto."}
+              </p>
+              {placesToSell.length > 0 && (
+                <form action={placesOnSale} className="st-reject">
+                  <input type="hidden" name="pack" value={pack} />
+                  <input name="price" inputMode="decimal" defaultValue={defaultPlacePrice} aria-label="Prezzo in bozza di ogni luogo, in euro" required />
+                  <button className="st-btn" type="submit">Metti in vendita i luoghi</button>
+                </form>
+              )}
+            </div>
+          )}
+
           <h3>Prodotti</h3>
           {c.products.length === 0 && <p className="st-hint">Nessun prodotto.</p>}
           <ul className="st-assertions">
             {c.products.map((p) => (
-              <ProductCard key={p.id} pack={pack} p={p} routes={c.routes} routeName={routeName} />
+              <ProductCard key={p.id} pack={pack} p={p} routes={c.routes} routeName={routeName} placeName={placeName} />
             ))}
           </ul>
 
@@ -90,11 +115,12 @@ export async function CatalogSection({ pack, session }: { pack: string; session:
   );
 }
 
-function ProductCard({ pack, p, routes, routeName }: {
-  pack: string; p: CatalogProduct; routes: CatalogState["routes"]; routeName: Map<string, string>;
+function ProductCard({ pack, p, routes, routeName, placeName }: {
+  pack: string; p: CatalogProduct; routes: CatalogState["routes"]; routeName: Map<string, string>; placeName: Map<string, string>;
 }) {
   const name = p.labels.it?.name ?? p.slug;
   const what = p.kind === "route" && p.route ? `: ${routeName.get(p.route.slug) ?? p.route.slug}`
+    : p.kind === "place" && p.place ? `: ${placeName.get(p.place.slug) ?? p.place.slug}`
     : p.kind === "bundle" ? `: ${p.routes.map((r) => routeName.get(r) ?? r).join(", ") || "nessun percorso"}` : "";
   const retired = p.status === "retired";
   return (

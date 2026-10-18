@@ -40,6 +40,35 @@ describe("vendita nell'app", () => {
     expect(offersFor(undefined, [item({ id: "e", kind: "explore" })], "it").explore).toBeNull();
   });
 
+  it("singoli luoghi: offerta solo per i luoghi bloccati della destinazione, e solo con l'esplorazione a pagamento", () => {
+    const items = [
+      item({ id: "e", kind: "explore" }),
+      item({ id: "p1", kind: "place", place: "torre", price: { amount: 50, currency: "EUR" } }),
+      item({ id: "p2", kind: "place", place: "chiesa", available: false }),
+    ];
+    const places = { destination: "it.test.borgo", refs: ["it.test.borgo:torre", "it.test.borgo:chiesa", "altro.pack:torre"] };
+    const o = offersFor(locked, items, "it", places);
+    expect([...o.places.keys()]).toEqual(["it.test.borgo:torre"]);
+    expect(o.places.get("it.test.borgo:torre")).toEqual({ productId: "p1", name: "Prodotto p1", amount: 50, bundle: false });
+    expect(offersFor({ explore: false, routes: [] }, items, "it", places).places.size).toBe(0);
+    expect(offersFor(locked, items, "it").places.size).toBe(0);
+  });
+
+  it("luogo comprato da solo: si sblocca quel luogo, gli altri restano a pagamento", () => {
+    const content = {
+      locked: { explore: true, routes: [] },
+      places: [{ ref: "b:porta" }, { ref: "b:torre" }, { ref: "b:chiesa" }],
+      units: [{ ref: "b:porta-apertura", anchor: "b:porta" }],
+      assertions: [], sources: [], routes: [],
+    } as unknown as BundleContent;
+    const place = {
+      kind: "place", ref: "b:torre", units: [{ ref: "b:torre-racconto", anchor: "b:torre" }], assertions: [], sources: [], routes: [],
+    } as unknown as PremiumPart;
+    const merged = mergePremium(content, [place]);
+    expect([...lockedPlaceRefs(merged)]).toEqual(["b:chiesa"]);
+    expect(merged.locked?.explore).toBe(true);
+  });
+
   it("prezzo nella lingua dell'app", () => {
     expect(formatPrice(499, "it").replace(/\s/g, " ")).toBe("4,99 €");
     expect(formatPrice(499, "en")).toBe("€4.99");

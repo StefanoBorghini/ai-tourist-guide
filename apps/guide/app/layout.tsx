@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { NoPinchZoom } from "../components/NoPinchZoom";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,6 +12,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Niente zoom con due dita sull'app (la mappa ha il suo): vedi components/NoPinchZoom.tsx.
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   themeColor: "#0c0c0c",
   colorScheme: "dark",
@@ -23,7 +27,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* Con i cookie: dietro una protezione d'accesso il manifest resta leggibile (vedi app/manifest.webmanifest). */}
         <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
       </head>
-      <body>{children}</body>
+      <body>
+        <NoPinchZoom />
+        {children}
+      </body>
     </html>
   );
 }

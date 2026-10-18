@@ -31,19 +31,25 @@ export function formatEuro(cents: number): string {
   return `${Math.floor(cents / 100)},${String(cents % 100).padStart(2, "0")} €`;
 }
 
-export const PRODUCT_KIND_LABELS: Record<string, string> = { explore: "Esplorazione", route: "Percorso", bundle: "Pacchetto di percorsi" };
+export const PRODUCT_KIND_LABELS: Record<string, string> = {
+  explore: "Esplorazione", route: "Percorso", bundle: "Pacchetto di percorsi", place: "Luogo",
+};
+/** Prezzo predefinito di un singolo luogo: il minimo che Stripe accetta (decisione del 2026-10-18). */
+export const PLACE_DEFAULT_CENTS = PRICE_MIN_CENTS;
 export const PRODUCT_STATUS_LABELS: Record<string, string> = { draft: "Bozza", active: "In vendita", retired: "Ritirato" };
 export const AVAILABILITY_LABELS: Record<string, string> = { available: "Disponibile", hidden: "Nascosto", sold_out: "Esaurito" };
 
 export interface CatalogProduct {
   id: string;
   slug: string;
-  kind: "explore" | "route" | "bundle";
+  kind: "explore" | "route" | "bundle" | "place";
   labels: { it?: { name?: string; description?: string }; en?: { name?: string; description?: string } };
   status: "draft" | "active" | "retired";
   availability: "available" | "hidden" | "sold_out";
   sortOrder: number;
   route: { id: string; slug: string } | null;
+  /** Luogo, per i prodotti «place» (migrazione 20261028000000). */
+  place?: { id: string; slug: string } | null;
   routes: string[];
   published: { amount: number; at: string } | null;
   draft: { amount: number } | null;
@@ -55,8 +61,16 @@ export interface CatalogState {
   isDestination: boolean;
   explore: "free" | "premium";
   routes: { id: string; slug: string; name: string; premium: boolean }[];
+  /** Luoghi della destinazione; «sellable» se si possono vendere da soli (esplorazione a pagamento, non introduttivi). */
+  places?: { id: string; slug: string; name: string; sellable: boolean }[];
   products: CatalogProduct[];
   drafts: number;
+}
+
+/** Luoghi vendibili che non hanno ancora un prodotto (non ritirato): quelli che «Metti in vendita i luoghi» crea. */
+export function placesWithoutProduct(c: Pick<CatalogState, "places" | "products">): NonNullable<CatalogState["places"]> {
+  const withProduct = new Set(c.products.filter((p) => p.kind === "place" && p.status !== "retired").map((p) => p.place?.slug));
+  return (c.places ?? []).filter((pl) => pl.sellable && !withProduct.has(pl.slug));
 }
 
 /** In vendita davvero: attivo, non nascosto, con un prezzo pubblicato e coerente con l'accesso (come public_catalog). */

@@ -9,9 +9,11 @@ type BundleLocked = NonNullable<BundleContent["locked"]>;
 
 export interface CatalogItem {
   id: string;
-  kind: "explore" | "route" | "bundle";
+  kind: "explore" | "route" | "bundle" | "place";
   labels: Record<string, { name?: string; description?: string } | undefined>;
   route?: string | null;
+  /** Luogo (slug), per i prodotti «place» (migrazione 20261028000000). */
+  place?: string | null;
   routes?: string[];
   price: { amount: number; currency: string };
   available: boolean;
@@ -29,6 +31,8 @@ export interface Offers {
   explore: Offer | null;
   /** Per riferimento del percorso (`pack:slug`). */
   routes: Map<string, Offer>;
+  /** Singoli luoghi bloccati in vendita, per riferimento del luogo (`pack:slug`). */
+  places: Map<string, Offer>;
 }
 
 const slugOf = (ref: string) => ref.slice(ref.lastIndexOf(":") + 1);
@@ -40,9 +44,17 @@ const offer = (item: CatalogItem, locale: string): Offer => ({
   bundle: item.kind === "bundle",
 });
 
-/** Per ogni contenuto bloccato, il prodotto acquistabile: il percorso singolo se c'è, altrimenti il pacchetto più economico. */
-export function offersFor(locked: BundleLocked | undefined, items: CatalogItem[], locale: string): Offers {
-  const result: Offers = { explore: null, routes: new Map() };
+/**
+ * Per ogni contenuto bloccato, il prodotto acquistabile: il percorso singolo se c'è, altrimenti il pacchetto più
+ * economico; per i luoghi bloccati (solo quelli della destinazione) il prodotto di quel luogo.
+ */
+export function offersFor(
+  locked: BundleLocked | undefined,
+  items: CatalogItem[],
+  locale: string,
+  places?: { destination: string; refs: Iterable<string> },
+): Offers {
+  const result: Offers = { explore: null, routes: new Map(), places: new Map() };
   if (!locked) return result;
   const buyable = items.filter((i) => i.available && i.price.currency === "EUR");
   const explore = buyable.find((i) => i.kind === "explore");
@@ -54,6 +66,13 @@ export function offersFor(locked: BundleLocked | undefined, items: CatalogItem[]
     const best = single ?? packs[0];
     if (best) result.routes.set(r.ref, offer(best, locale));
   }
+  if (locked.explore && places) {
+    for (const ref of places.refs) {
+      if (!ref.startsWith(`${places.destination}:`)) continue;
+      const single = buyable.find((i) => i.kind === "place" && i.place === slugOf(ref));
+      if (single) result.places.set(ref, offer(single, locale));
+    }
+  }
   return result;
 }
 
@@ -63,7 +82,8 @@ export const formatPrice = (cents: number, locale: string) =>
 
 /**
  * Luoghi a pagamento: con l'esplorazione a pagamento, quelli senza racconti nel bundle pubblico (restano sulla
- * mappa e nell'elenco, ma la guida non li racconta finché non si acquista l'esplorazione completa).
+ * elenco, ma la guida non li racconta finché non si acquista il luogo o l'esplorazione completa). Un luogo comprato da
+ * solo ha i suoi racconti nel contenuto unito (mergePremium) e quindi non è più fra questi.
  */
 export function lockedPlaceRefs(content: Pick<BundleContent, "locked" | "places" | "units">): Set<string> {
   if (!content.locked?.explore) return new Set();

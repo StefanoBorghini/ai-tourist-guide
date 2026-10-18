@@ -10,6 +10,7 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
 | Percorso a pagamento | Itinerario completo (tappe e ordine) **più i racconti delle sue tappe**, anche offline: un'esperienza autonoma, non una traccia muta. |
 | Doppio pagamento | **Risolto (2026-10-18):** i racconti di un percorso acquistato valgono in tutta la guida: i luoghi del percorso compaiono sbloccati anche nell'esplorazione libera. L'unione dei contenuti comprati con quelli pubblici (`mergePremium`, `packages/bundle/src/merge.ts`, testata) non duplica mai un racconto e dà lo stesso risultato in qualunque ordine arrivino gli acquisti. Il prezzo dell'esplorazione per chi ha già dei percorsi resta una scelta commerciale nello Studio (per esempio un pacchetto). |
 | Uso senza rete | 30 giorni dall'ultima convalida online, rinnovati a ogni ritorno online se il diritto è ancora valido. Dopo rimborso o revoca il server nega l'accesso e l'app cancella la copia alla prima riconnessione. Una copia su un dispositivo che resta offline non si può cancellare prima della scadenza locale. |
+| Singolo luogo | **(2026-10-18)** Con l'esplorazione a pagamento ogni luogo non introduttivo si può comprare anche da solo. Il prezzo si decide nello Studio; quello proposto è **0,50 €**, il minimo che Stripe accetta (lo 0,19 € inizialmente richiesto non è addebitabile); prezzo pieno, nessuno sconto automatico su un acquisto successivo dell'esplorazione. |
 | Domande all'AI | Per ora solo sui contenuti pubblici. In una fase successiva anche sui contenuti comprati, verificando i diritti sul server prima di leggere qualsiasi contenuto protetto. |
 
 ## Come funziona
@@ -17,11 +18,14 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
 1. **Compilazione** (`packages/bundle/src/build.ts`): il bundle pubblico non contiene i contenuti a pagamento; a parte
    escono le parti a pagamento: «esplorazione completa» e una per ogni percorso a pagamento (itinerario + racconti delle
    tappe non già pubblici, con i racconti che servono a capirli). Con l'esplorazione gratuita il file del percorso ha
-   solo l'itinerario, perché i racconti sono già pubblici.
+   solo l'itinerario, perché i racconti sono già pubblici. Con l'esplorazione a pagamento esce anche una parte per ogni
+   luogo non introduttivo che ha racconti (i suoi racconti, con quelli che servono a capirli).
 2. **Bucket privato `premium`** (migrazione `20261027000000_premium_storage.sql`), senza tabelle nuove:
-   - nomi `<destinazione>/<lingua>/<pubblicazione>/explore.<impronta>.json` e `…/route-<percorso>.<impronta>.json`;
+   - nomi `<destinazione>/<lingua>/<pubblicazione>/explore.<impronta>.json`, `…/route-<percorso>.<impronta>.json` e
+     `…/place-<luogo>.<impronta>.json` (questi ultimi dalla migrazione `20261028000000_place_products.sql`);
    - **lettura** (`premium_object_readable`): `explore` solo con il diritto «explore» attivo e valido ora su quella
-     destinazione; `route-<percorso>` solo con il diritto «route» su quel percorso. Un contenuto tornato gratuito è già
+     destinazione; `route-<percorso>` solo con il diritto «route» su quel percorso; `place-<luogo>` solo con il diritto
+     «place» su quel luogo (`has_place_right`). Un contenuto tornato gratuito è già
      nel bundle pubblico: il file a pagamento rimasto resta riservato a chi l'aveva comprato;
    - **scrittura**: solo chi pubblica il territorio, solo nella cartella della propria pubblicazione in corso, nessuna
      sovrascrittura; **cancellazione** solo delle pubblicazioni superate (stessa regola dei bundle);
@@ -36,10 +40,21 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
    copia sul dispositivo (se valida), poi convalida online: scarica ciò che manca verificando l'impronta, cancella ciò
    che non è più concesso (rimborso), unisce con `mergePremium`. Una visita in corso non cambia a metà. La pagina
    dell'ordine riuscito ha «Apri nella guida». Mappa dell'esplorazione libera: solo luoghi gratuiti o acquistati;
-   elenco e «Vicino a te» mostrano anche quelli a pagamento, con «Sblocca».
+   elenco e «Vicino a te» mostrano anche quelli a pagamento, con «Sblocca». La scheda di un luogo bloccato offre
+   «Solo questo luogo» (se il luogo è in vendita) e «Tutti i luoghi» (l'esplorazione completa); un luogo comprato da
+   solo si sblocca ovunque, gli altri restano bloccati.
 
 Prova completa sullo stack locale (Studio, pubblicazione, acquisto con Stripe simulato, sblocco, uso senza rete,
 rimborso): 16/16. Da provare in Preview: indirizzi firmati della Storage API reale.
+
+## Singoli luoghi: migrazione 28
+
+`supabase/migrations/20261028000000_place_products.sql` (revoca in `supabase/rollback/`, test `supabase/tests/98_places.sql`
+L1–L5 e blocco «singolo luogo» di `remote-check.sql`). Nessuna tabella nuova: colonne `place_id` in `products` ed
+`entitlements`, tipo di prodotto e ambito di diritto «place», `has_place_right`, catalogo, ordini e lettura dei file
+`place-<luogo>`. Nello Studio, scheda Vendita: «Metti in vendita i luoghi» crea un prodotto «Luogo» attivo per ogni
+luogo vendibile senza prodotto, con il prezzo in bozza (0,50 € proposto), che vale dopo «Pubblica i prezzi». I file dei
+luoghi escono alla prossima «Ripubblica». La revoca si ferma se esistono già prodotti o diritti sui luoghi.
 
 ## Verifiche richieste prima di applicare la migrazione al database reale
 

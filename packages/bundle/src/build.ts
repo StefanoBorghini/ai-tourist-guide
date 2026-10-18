@@ -382,6 +382,15 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     const stopUnits = withPrerequisites(safeUnits.filter((u) => stops.has(u.anchor)), safeUnits).filter((u) => !publicUnitRefs.has(u.ref));
     premium.push(part("route", stopUnits, [r], r.ref));
   }
+  // Singolo luogo (migrazione 20261028000000): con l'esplorazione a pagamento, ogni luogo della destinazione che non è
+  // introduttivo ha la sua parte con i propri racconti e ciò che serve a capirli. Si può comprare da solo; chi ha
+  // l'esplorazione completa ha già tutto.
+  if (explorePremium) {
+    for (const p of places.filter((p) => p.ref.startsWith(`${destination}:`) && !introPlaces.has(p.ref)).sort(byRef)) {
+      const placeUnits = withPrerequisites(safeUnits.filter((u) => u.anchor === p.ref), safeUnits).filter((u) => !publicUnitRefs.has(u.ref));
+      if (placeUnits.length > 0) premium.push(part("place", placeUnits, [], p.ref));
+    }
+  }
 
   const content: BundleContent = {
     bundleSchemaVersion: BUNDLE_SCHEMA_VERSION,

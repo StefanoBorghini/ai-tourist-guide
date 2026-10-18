@@ -1014,14 +1014,19 @@ export function GuideApp() {
   // Contenuti a pagamento: prezzo dal listino pubblico e acquisto diretto (il server decide utente e importo;
   // senza accesso porta prima al login e poi alla pagina d'acquisto).
   const shopOn = ACCOUNTS && catalog?.pack === content.destination && catalog.enabled;
-  const offers = offersFor(content.locked, shopOn ? catalog.items : [], content.locale);
   const lockedPlaces = lockedPlaceRefs(content);
+  // Un luogo si offre da solo solo se la pubblicazione ha il suo file a pagamento (altrimenti non riceverebbe nulla).
+  const placeParts = new Set((opened?.manifest.premium ?? []).flatMap((f) => (f.kind === "place" && f.ref ? [f.ref] : [])));
+  const offers = offersFor(content.locked, shopOn ? catalog.items : [], content.locale, {
+    destination: content.destination,
+    refs: [...lockedPlaces].filter((r) => placeParts.has(r)),
+  });
   // Immagine per i percorsi a pagamento (il bundle pubblico non ne descrive le tappe): la copertina della destinazione.
   const lockedCover = (() => {
     const cover = content.media.find((m) => m.cover && m.kind !== "video") ?? content.media.find((m) => m.kind !== "video");
     return cover ? thumbSrc(cover, bundleBase) : null;
   })();
-  const buy = (offer: Offer | null | undefined) =>
+  const buy = (offer: Offer | null | undefined, label: string = t.buy) =>
     !ACCOUNTS ? null : !online ? (
       <p className="muted small">{t.buyOffline}</p>
     ) : !offer ? (
@@ -1031,7 +1036,7 @@ export function GuideApp() {
         <input type="hidden" name="prodotto" value={offer.productId} />
         <input type="hidden" name="destinazione" value={content.destination} />
         <button className="button primary big block" type="submit">
-          <Icon name="lock" /> {t.buy} · {formatPrice(offer.amount, content.locale)}
+          <Icon name="lock" /> {label} · {formatPrice(offer.amount, content.locale)}
         </button>
         {offer.bundle && <p className="muted small">{t.inBundle(offer.name)}</p>}
         <p className="muted small">{t.testPayment}</p>
@@ -1274,7 +1279,19 @@ export function GuideApp() {
       onAsk={() => { setSelected(cardRef); setAskFocus((n) => n + 1); }}
       onHere={() => arriveHere(cardRef)}
       {...(selected ? { onClose: () => setSelected(null) } : {})}
-      {...(lockedPlaces.has(cardRef) ? { locked: <><p className="muted">{t.lockedPlaceHint}</p>{buy(offers.explore)}</> } : {})}
+      {...(lockedPlaces.has(cardRef)
+        ? {
+            locked: offers.places.has(cardRef) ? (
+              <>
+                <p className="muted">{t.lockedPlaceBuyHint}</p>
+                {buy(offers.places.get(cardRef), t.buyPlace)}
+                {offers.explore && buy(offers.explore, t.buyAllPlaces)}
+              </>
+            ) : (
+              <><p className="muted">{t.lockedPlaceHint}</p>{buy(offers.explore)}</>
+            ),
+          }
+        : {})}
     />
   ) : exploring ? (
     <p className="notice">

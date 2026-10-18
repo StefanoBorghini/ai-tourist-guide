@@ -5,6 +5,7 @@
  * Regola (decisione del 2026-10-18): i racconti di un percorso acquistato valgono in tutta la guida, anche
  * nell'esplorazione libera, non solo dentro il percorso. Così chi ha comprato un percorso ritrova quei luoghi
  * sbloccati quando esplora, e un acquisto successivo dell'esplorazione non gli ridà gli stessi racconti come nuovi.
+ * Un luogo comprato da solo (parte "place") porta i suoi racconti: l'esplorazione resta bloccata, quel luogo no.
  */
 import type { BundleContent, PremiumPart } from "./format.ts";
 

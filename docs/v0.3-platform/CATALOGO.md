@@ -15,6 +15,10 @@ test `supabase/tests/95_catalog.sql` e blocco «catalogo» in `remote-check.sql`
 | Esplorazione | L'esplorazione completa della destinazione (uno solo non ritirato per destinazione) | nell'Accesso l'esplorazione è a pagamento |
 | Percorso | Un percorso premium (uno solo non ritirato per percorso) | il percorso è premium nell'Accesso |
 | Pacchetto | Più percorsi della stessa destinazione | ha almeno un percorso e sono tutti premium |
+| Luogo | Un singolo luogo (uno solo non ritirato per luogo; migrazione `20261028000000_place_products.sql`) | l'esplorazione è a pagamento e il luogo non è introduttivo |
+
+I prodotti «Luogo» si creano tutti insieme con **«Metti in vendita i luoghi»** (prezzo in bozza proposto: 0,50 €, il
+minimo di Stripe; decisione del 2026-10-18), poi il prezzo di ciascuno si cambia nella sua scheda.
 
 - **Stati:** bozza → in vendita → ritirato. Un prodotto ritirato non torna indietro; uno con acquisti non si elimina.
 - **Disponibilità:** disponibile, nascosto (fuori dal listino), esaurito (nel listino, non acquistabile).

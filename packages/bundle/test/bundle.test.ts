@@ -425,6 +425,12 @@ describe("diritti e parti a pagamento", () => {
     expect(got.some((p) => p.kind === "explore")).toBe(false);
   });
 
+  it("un luogo dà solo quel luogo, mai l'esplorazione né un percorso", () => {
+    const place = parts().find((p) => p.kind === "place")!;
+    expect(kinds([{ scope: "place", place: place.ref! }])).toEqual([`place:${place.ref}`]);
+    expect(kinds([{ scope: "place", place: ref("luogo-inesistente") }])).toEqual([]);
+  });
+
   it("senza diritti, o con diritti di un'altra destinazione o di un altro percorso, niente", () => {
     expect(kinds([])).toEqual([]);
     expect(kinds([{ scope: "explore", destination: "altro.territorio" }, { scope: "route", route: ref("altro-giro") }])).toEqual([]);
@@ -469,6 +475,29 @@ describe("unione dei contenuti acquistati (mergePremium)", () => {
     expect(both.locked).toBeUndefined();
     // Stesso risultato in qualunque ordine arrivino le parti.
     expect(mergePremium(b.content, [explore, route])).toEqual(both);
+  });
+
+  it("parti dei singoli luoghi: mai per il luogo introduttivo; un luogo comprato si sblocca, l'esplorazione resta bloccata", () => {
+    const b = built();
+    const places = b.premium.filter((p) => p.kind === "place");
+    expect(places.length).toBeGreaterThan(0);
+    expect(places.some((p) => p.ref === ref("porta-del-borgo"))).toBe(false);
+    const one = places[0]!;
+    expect(told(b.content).has(one.ref!)).toBe(false);
+    const merged = mergePremium(b.content, [one]);
+    expect(told(merged).has(one.ref!)).toBe(true);
+    expect(merged.locked?.explore).toBe(true);
+    // Gli altri luoghi in vendita restano senza racconti.
+    for (const other of places.slice(1)) {
+      if (!other.units.some((u) => one.units.some((x) => x.ref === u.ref && u.anchor === other.ref))) {
+        expect(told(merged).has(other.ref!)).toBe(false);
+      }
+    }
+    // Esplorazione comprata dopo il luogo: nessun racconto doppio.
+    const explore = b.premium.find((p) => p.kind === "explore")!;
+    const all = mergePremium(merged, [explore]);
+    expect(new Set(all.units.map((u) => u.ref)).size).toBe(all.units.length);
+    expect(all.locked).toEqual({ explore: false, routes: [{ ref: ref("giro-breve"), name: expect.any(String), durationMin: expect.any(Number) }] });
   });
 
   it("senza parti il contenuto resta identico", () => {

@@ -6,7 +6,7 @@
 -- Esito: una tabella con «superato»; se qualcosa non va, un errore che inizia con «FALLITO».
 -- Colonne: esito, dati di prova rimasti (atteso 0), amministratori della piattaforma, controlli NON verificati
 -- (atteso «nessuno»: altrimenti l'elenco dice cosa va verificato a mano, e quei controlli non sono superati).
--- Presuppone le migrazioni fino a 20261027000000 (… → 26 → 27): senza, si ferma con «FALLITO: funzione assente».
+-- Presuppone le migrazioni fino a 20261028000000 (… → 27 → 28): senza, si ferma con «FALLITO: funzione assente».
 -- Non verificabile da SQL: lo scaricamento pubblico da /pub/ e la Storage API (qui si provano le regole sulle righe
 -- di storage.objects, non il servizio HTTP).
 -- Gli stessi controlli girano in locale con `npm run db:check` (10_platform_security.sql e seguenti).
@@ -56,7 +56,9 @@ begin
         ('20261025000000_catalog', 'public_catalog(text)'),
         ('20261026000000_orders', 'checkout_open(uuid)'),
         ('20261026000000_orders', 'payment_paid(uuid,text,text,text,integer,text)'),
-        ('20261027000000_premium_storage', 'premium_object_readable(text)')
+        ('20261027000000_premium_storage', 'premium_object_readable(text)'),
+        ('20261028000000_place_products', 'has_place_right(text,uuid)'),
+        ('20261028000000_place_products', 'studio_places_on_sale(text,integer)')
       ) as t(migration, sig) loop
       if to_regprocedure(f.sig) is null then
         raise exception 'FALLITO: migrazione % non applicata (manca %)', f.migration, f.sig;
@@ -850,6 +852,36 @@ begin
     else
       nv := nv || 'lettura dei file a pagamento con diritto e dopo il rimborso: serve service_role (vedi sopra)'::text;
     end if;
+    -- Singolo luogo (20261028000000): il diritto su un luogo apre solo il file di quel luogo, il rimborso lo richiude.
+    if has_function_privilege('anon', 'has_place_right(text,uuid)', 'execute') then
+      raise exception 'FALLITO: anon può eseguire has_place_right';
+    end if;
+    insert into storage.objects (bucket_id, name, owner) values
+      ('premium', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/place-luogo-a.cccccccccccccccc.json', null);
+    insert into narrative_units (pack_id, slug, anchor_node_id, unit_type, locale, duration_s, text) values
+      ('it.test.alfa', 'remote-check-luogo-a', 'b0000000-0000-0000-0000-00000000000a', 'opening', 'it', 20, 'Prova.');
+    insert into products (id, slug, kind, pack_id, place_id, status) values
+      ('e0000000-0000-0000-0000-0000000000f1', 'remote-check-luogo-a', 'place', 'it.test.alfa', 'b0000000-0000-0000-0000-00000000000a', 'active');
+    insert into purchases (id, user_id, product_id, provider, provider_ref, status) values
+      ('e0000000-0000-0000-0000-0000000000f2', 'a0000000-0000-0000-0000-000000000007', 'e0000000-0000-0000-0000-0000000000f1',
+       'verifica', 'verifica-remote-check-luogo', 'completed');
+    perform grant_product('a0000000-0000-0000-0000-000000000007', 'e0000000-0000-0000-0000-0000000000f1', 'purchase',
+                          'e0000000-0000-0000-0000-0000000000f2', null);
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000007', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
+    if (select array_agg(name order by name) from storage.objects where bucket_id = 'premium')
+       is distinct from array['it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/place-luogo-a.cccccccccccccccc.json'] then
+      raise exception 'FALLITO: con il diritto su un luogo si vedono i file sbagliati';
+    end if;
+    if can_access_explore('it.test.alfa') then raise exception 'FALLITO: il diritto su un luogo apre l''esplorazione'; end if;
+    reset role;
+    perform revoke_purchase('e0000000-0000-0000-0000-0000000000f2', 'verifica remote-check');
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000007', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
+    if exists (select 1 from storage.objects where bucket_id = 'premium') then raise exception 'FALLITO: dopo il rimborso il luogo resta leggibile'; end if;
+    reset role;
     -- Un file a pagamento non entra nel bucket pubblico, nemmeno da chi pubblica.
     set local role authenticated;
     perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);

@@ -32,7 +32,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   stessa visita: la memoria del racconto resta, l'avanzamento delle tappe è del singolo percorso. L'app è organizzata come un'app nativa, con una barra in basso a quattro schede (Home, Esplora, Percorsi, Profilo; `components/GuideApp.tsx`): la visita in corso resta attiva cambiando scheda, la sua scheda mostra un punto verde, e il Profilo raccoglie lingua, modalità e velocità della guida, uso offline e account. `lib/runtime.ts` collega motore di contesto e narrazione (logica
   pura, testata: coda degli arrivi, niente interruzioni mentre la guida parla, luoghi rifiutati non riproposti per
   15 minuti, luoghi vicini); `lib/gps-status.ts` stato del segnale; `components/InstallPrompt.tsx` invito a installare l'app a ogni apertura (finché non è installata; «Non ora» vale per la sessione); `components/PlaceCard.tsx` scheda del luogo (galleria, miniature: mai la
-  foto di un altro luogo al posto di quella mancante); `components/Icon.tsx` icone; `app/globals.css` design system
+  foto di un altro luogo al posto di quella mancante); `components/Icon.tsx` icone; `components/NoPinchZoom.tsx` con viewport e `touch-action` del CSS: niente zoom con due dita sulla pagina, solo sulla mappa; `app/globals.css` design system
   (font di sistema, nessun download: funziona offline); `app/manifest.webmanifest/route.ts` manifest della PWA (link con `crossorigin="use-credentials"` nel layout); al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato; distanze e direzioni in linea d'aria le calcola il
@@ -44,7 +44,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   (`ASK-EVAL.json` nel pack) e scrive un rapporto da rileggere;
   `components/DebugPanel.tsx` e `lib/field-points.ts` per il test sul campo (`?debug=1`);
   `components/MapView.tsx` e `lib/map-view.ts` per la mappa (Web Mercator, sfondo OpenStreetMap solo online e
-  solo per le prove: in produzione serve un fornitore di tile con licenza adeguata);
+  solo per le prove, attribuzione come solo testo senza link: in produzione serve un fornitore di tile con licenza adeguata);
   `app/studio/` e `lib/studio/` lo Studio della redazione (`/studio`, Supabase Auth, funzioni `studio_*` del database con
   l'identità dell'utente, nessuna chiave di servizio; `proxy.ts` per `/studio`, `/account`, `/auth` e `/pub/`; nuovi territori, stati, eliminazione (piano e copia
   di sicurezza nel database) e controllo di pubblicazione in `lib/studio/readiness.ts` (spiegato in parole semplici, con la sezione dove correggere, da `lib/studio/explain.ts`), vedi `docs/v0.3-platform/TERRITORI-DAL-CMS.md`; senza variabili dice di non essere
@@ -72,7 +72,8 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   della destinazione, che l'indice dei bundle espone alla pagina iniziale; i contenuti a pagamento (`config.access` della destinazione:
   esplorazione, luoghi introduttivi, percorsi premium) restano fuori dal bundle pubblico, vedi `docs/v0.3-platform/ACCESSO-CONTENUTI.md`;
   le parti a pagamento (un percorso comprende i racconti delle sue tappe) vanno nel bucket privato `premium`, leggibile solo con il diritto
-  (migrazione `20261027000000_premium_storage.sql`, vedi `docs/v0.3-platform/CONSEGNA-CONTENUTI.md`);
+  (migrazione `20261027000000_premium_storage.sql`, vedi `docs/v0.3-platform/CONSEGNA-CONTENUTI.md`); con l'esplorazione a pagamento
+  ogni luogo non introduttivo ha anche la sua parte e si compra da solo (prodotto «place», migrazione `20261028000000_place_products.sql`);
   solo le destinazioni elencate in `territories/static-bundles.json` hanno bundle dai file, e non possono avere contenuti a pagamento
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`

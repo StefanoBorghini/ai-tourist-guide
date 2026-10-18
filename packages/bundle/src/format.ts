@@ -210,11 +210,12 @@ export interface BundleLocked {
 
 /**
  * Parte a pagamento di un bundle: mai nei file pubblici. "explore" contiene i racconti dell'esplorazione
- * completa; "route" un percorso premium con i racconti delle sue tappe che non sono già pubblici.
+ * completa; "route" un percorso premium con i racconti delle sue tappe che non sono già pubblici; "place" i racconti
+ * di un singolo luogo (solo con l'esplorazione a pagamento, per i luoghi non introduttivi).
  */
 export interface PremiumPart {
-  kind: "explore" | "route";
-  /** Percorso, per le parti "route". */
+  kind: "explore" | "route" | "place";
+  /** Percorso per le parti "route", luogo per le parti "place". */
   ref?: string;
   units: BundleUnit[];
   assertions: BundleAssertion[];
@@ -249,9 +250,9 @@ export interface BundleManifest {
 
 export interface PremiumFile {
   kind: PremiumPart["kind"];
-  /** Percorso, per i file «route». */
+  /** Percorso per i file «route», luogo per i file «place». */
   ref?: string;
-  /** Percorso nel bucket «premium»: `<destinazione>/<lingua>/<pubblicazione>/(explore|route-<percorso>).<impronta>.json`. */
+  /** Percorso nel bucket «premium»: `<destinazione>/<lingua>/<pubblicazione>/(explore|route-<percorso>|place-<luogo>).<impronta>.json`. */
   path: string;
   sha256: string;
   bytes: number;

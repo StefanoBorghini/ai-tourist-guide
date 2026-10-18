@@ -10,7 +10,7 @@ import type { TerritoryPack } from "@guide/domain";
 import { loadPacks, packToSnapshot } from "@guide/territory-pack";
 import { describe, expect, it } from "vitest";
 import { bundleBase, combineIndexes, currentIndexObject, fetchPublishedIndex, findEntry, loadIndexes, manifestPublication, mergeIndexes, type BundleIndexEntry } from "../lib/bundle-index";
-import { verifyBundle, verifyPremiumPart } from "@guide/bundle/client";
+import { verifyBundle, verifyPremiumPart, type PremiumPart } from "@guide/bundle/client";
 import { parseStaticList, premiumBlockedByStatic, staticBuildPlan } from "../lib/static-bundles";
 import { compilePublication, removeDeadVersions, type CleanupBucket } from "../lib/studio/publish";
 
@@ -283,18 +283,39 @@ describe("pubblicazioni immutabili (R2)", () => {
 
 describe("parti a pagamento nel bucket privato (consegna, migrazione 20261027000000)", () => {
   // Stesso nome che le policy del bucket «premium» accettano (premium_object_name_ok).
-  const NAME = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*\/[a-z]{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(explore|route-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;
+  const NAME = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*\/[a-z]{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(explore|(route|place)-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;
   const PUB = "0a0b0c0d-0000-4000-8000-000000000001";
 
-  it("con l'esplorazione e un percorso a pagamento escono due file per lingua, con nomi validi per il bucket", () => {
+  it("con l'esplorazione e un percorso a pagamento: un file per l'esplorazione, uno per il percorso e uno per ogni luogo in vendita", () => {
     const r = compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set(), PUB);
     expect(r.errors).toEqual([]);
     for (const b of r.bundles) {
       const names = [...b.premium.keys()];
-      expect(names).toHaveLength(2);
       for (const n of names) expect(n).toMatch(NAME);
-      expect(names.some((n) => n.includes(`/${b.locale}/${PUB}/explore.`))).toBe(true);
-      expect(names.some((n) => n.includes(`/${b.locale}/${PUB}/route-giro-breve.`))).toBe(true);
+      expect(names.filter((n) => n.includes(`/${b.locale}/${PUB}/explore.`))).toHaveLength(1);
+      expect(names.filter((n) => n.includes(`/${b.locale}/${PUB}/route-giro-breve.`))).toHaveLength(1);
+      // Singoli luoghi (migrazione 20261028000000): mai quello introduttivo, che è già gratuito.
+      const places = names.filter((n) => n.includes(`/${b.locale}/${PUB}/place-`));
+      if (b.locale === "it") expect(places.length).toBeGreaterThan(0);
+      expect(places.some((n) => n.includes("/place-porta-del-borgo."))).toBe(false);
+      expect(names).toHaveLength(2 + places.length);
+    }
+  });
+
+  it("il file di un luogo contiene solo i racconti di quel luogo (con ciò che serve a capirli), mai l'esplorazione intera", () => {
+    const r = compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set(), PUB);
+    const b = r.bundles.find((x) => x.locale === "it")!;
+    const listed = b.manifest.premium ?? [];
+    const explore = JSON.parse(textOf(b.premium.get(listed.find((f) => f.kind === "explore")!.path)!)) as PremiumPart;
+    const exploreUnits = new Set(explore.units.map((u) => u.ref));
+    for (const f of listed.filter((f) => f.kind === "place")) {
+      const part = JSON.parse(textOf(b.premium.get(f.path)!)) as PremiumPart;
+      expect(part.ref).toBe(f.ref);
+      expect(part.routes).toEqual([]);
+      expect(part.units.some((u) => u.anchor === f.ref)).toBe(true);
+      // Solo unità del luogo o suoi prerequisiti: tutte comprese nell'esplorazione, e meno di essa.
+      for (const u of part.units) expect(exploreUnits.has(u.ref)).toBe(true);
+      expect(part.units.length).toBeLessThan(explore.units.length);
     }
   });
 

@@ -178,10 +178,12 @@ export function compilePublication(
         const listed: PremiumFile[] = [];
         for (const part of built.premium) {
           const slug = part.ref ? part.ref.slice(part.ref.lastIndexOf(":") + 1) : "";
-          if (part.kind === "route" && !SLUG.test(slug)) throw new BundleBuildError(`percorso a pagamento con un identificativo non valido: ${part.ref}`);
+          if (part.kind !== "explore" && !SLUG.test(slug)) {
+            throw new BundleBuildError(`${part.kind === "route" ? "percorso" : "luogo"} a pagamento con un identificativo non valido: ${part.ref}`);
+          }
           const data = new TextEncoder().encode(JSON.stringify(part));
           const hash = sha256(data);
-          const path = `${target}/${locale}/${publication}/${part.kind === "explore" ? "explore" : `route-${slug}`}.${hash.slice(0, 16)}.json`;
+          const path = `${target}/${locale}/${publication}/${part.kind === "explore" ? "explore" : `${part.kind}-${slug}`}.${hash.slice(0, 16)}.json`;
           premium.set(path, data);
           listed.push({ kind: part.kind, ...(part.ref ? { ref: part.ref } : {}), path, sha256: hash, bytes: data.byteLength });
         }
@@ -294,4 +296,4 @@ export async function removeDeadPremium(
   }
   return warnings;
 }
-const PREMIUM_FILE = /^(explore|route-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;
+const PREMIUM_FILE = /^(explore|(route|place)-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;

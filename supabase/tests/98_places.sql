@@ -15,7 +15,8 @@ insert into nodes (id, pack_id, slug, kind) values
   ('98000000-0000-0000-0000-0000000000a2', 'zl.lambda', 'torre', 'place'),
   ('98000000-0000-0000-0000-0000000000a3', 'zl.lambda', 'chiesa', 'place'),
   ('98000000-0000-0000-0000-0000000000a4', 'zl.lambda', 'vicolo', 'place');
--- Racconti: la porta (introduttiva), la torre e la chiesa; il vicolo non ne ha e non si vende.
+-- Racconti: la porta (introduttiva), la torre e la chiesa; il vicolo non ne ha ancora, ma si vende lo stesso
+-- (migrazione 20261030000000: conta solo la scelta dello Studio).
 insert into narrative_units (pack_id, slug, anchor_node_id, unit_type, locale, duration_s, text) values
   ('zl.lambda', 'porta-apertura', '98000000-0000-0000-0000-0000000000a1', 'opening', 'it', 20, 'Porta.'),
   ('zl.lambda', 'torre-apertura', '98000000-0000-0000-0000-0000000000a2', 'opening', 'it', 20, 'Torre.'),
@@ -38,9 +39,9 @@ do $$
 declare n integer;
 begin
   n := studio_places_on_sale('zl.lambda');
-  if n <> 2 then raise exception 'FALLITO L1: messi in vendita % luoghi, attesi 2 (torre, chiesa; la porta è introduttiva, il vicolo senza racconti)', n; end if;
-  if exists (select 1 from products where kind = 'place' and place_id = '98000000-0000-0000-0000-0000000000a4') then
-    raise exception 'FALLITO L1: in vendita un luogo senza racconti';
+  if n <> 3 then raise exception 'FALLITO L1: messi in vendita % luoghi, attesi 3 (torre, chiesa, vicolo; la porta è introduttiva)', n; end if;
+  if not exists (select 1 from products where kind = 'place' and place_id = '98000000-0000-0000-0000-0000000000a4') then
+    raise exception 'FALLITO L1: non in vendita il luogo ancora senza racconti';
   end if;
   if studio_places_on_sale('zl.lambda') <> 0 then raise exception 'FALLITO L1: un secondo «Metti in vendita» crea doppioni'; end if;
   if exists (select 1 from products where kind = 'place' and place_id = '98000000-0000-0000-0000-0000000000a1') then
@@ -64,8 +65,8 @@ end $$;
 reset role;
 set role anon;
 do $$ begin
-  if (select count(*) from jsonb_array_elements(public_catalog('zl.lambda')) x where x ->> 'kind' = 'place') <> 2 then
-    raise exception 'FALLITO L1: il catalogo pubblico non elenca i due luoghi';
+  if (select count(*) from jsonb_array_elements(public_catalog('zl.lambda')) x where x ->> 'kind' = 'place') <> 3 then
+    raise exception 'FALLITO L1: il catalogo pubblico non elenca i tre luoghi';
   end if;
   if not exists (select 1 from jsonb_array_elements(public_catalog('zl.lambda')) x where x ->> 'place' = 'torre' and (x #>> '{price,amount}')::int = 50) then
     raise exception 'FALLITO L1: la torre non è in vendita a 0,50 €';

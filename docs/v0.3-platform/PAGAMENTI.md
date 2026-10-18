@@ -89,8 +89,8 @@ Libreria: `stripe` 22.6.2, versione fissata.
 - «Acquista» invia il modulo direttamente a `/api/checkout`, come la pagina d'acquisto: il server decide utente e
   importo. Senza accesso si passa dal login e si torna a `/account/acquista?…&prodotto=…`, che mostra solo il contenuto
   scelto. Con l'accesso, un tocco porta al pagamento.
-- Attivi solo i contenuti gratuiti: i percorsi a pagamento e, con l'esplorazione a pagamento, i luoghi senza racconti
-  pubblici (`lockedPlaceRefs`) hanno l'immagine scurita e una banda diagonale «Sblocca»; i loro spilli sulla mappa sono
+- Attivi solo i contenuti gratuiti: i percorsi a pagamento e, con l'esplorazione a pagamento, i luoghi a pagamento
+  secondo lo Studio (`lockedPlaceRefs`, da `content.locked.places`) hanno l'immagine scurita e una banda diagonale «Sblocca»; i loro spilli sulla mappa sono
   attenuati e la scheda del luogo mostra l'acquisto al posto di «Ascolta». La guida non li propone (non hanno racconti).
 - Limite ancora aperto: dopo l'acquisto il contenuto resta bloccato nell'app finché non arriva la consegna dei contenuti
   protetti (bucket `premium`); l'acquisto resta registrato nell'account.

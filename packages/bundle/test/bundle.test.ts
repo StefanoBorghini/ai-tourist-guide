@@ -305,8 +305,12 @@ describe("contenuti a pagamento (config.access)", () => {
     // Mappa, luoghi e percorsi gratuiti restano.
     expect(b.content.places).toHaveLength(5);
     expect(b.content.routes.map((r) => r.ref)).toEqual([ref("giro-breve")]);
-    // Bloccati solo i luoghi con racconti a pagamento: non la porta (introduttiva), non il carrugio (senza racconti).
-    expect(b.content.locked).toEqual({ explore: true, routes: [], places: [ref("belvedere"), ref("chiesa-di-san-test"), ref("torre-di-prova")] });
+    // Bloccati i luoghi a pagamento secondo lo Studio: tutti tranne la porta (introduttiva), anche il carrugio, che
+    // non ha ancora racconti (decisione del 2026-10-18).
+    expect(b.content.locked).toEqual({
+      explore: true, routes: [],
+      places: [ref("belvedere"), ref("carrugio-centrale"), ref("chiesa-di-san-test"), ref("torre-di-prova")],
+    });
     // Nessun testo a pagamento in nessun file pubblico.
     const files = [...b.files.values()].filter((f): f is string => typeof f === "string").join("\n");
     for (const text of PREMIUM_TEXTS) expect(files).not.toContain(text);
@@ -456,7 +460,10 @@ describe("unione dei contenuti acquistati (mergePremium)", () => {
     const route = b.premium.find((p) => p.kind === "route")!;
     const merged = mergePremium(b.content, [route]);
     expect(merged.routes.map((r) => r.ref)).toContain(ref("giro-breve"));
-    expect(merged.locked).toEqual({ explore: true, routes: [], places: b.content.locked!.places });
+    // Le tappe del percorso comprato escono dai luoghi bloccati; gli altri restano.
+    const stops = new Set(route.routes[0]!.stops.map((st) => st.place));
+    expect(merged.locked).toEqual({ explore: true, routes: [], places: b.content.locked!.places!.filter((r) => !stops.has(r)) });
+    expect(merged.locked!.places!.length).toBeGreaterThan(0);
     // I luoghi delle tappe ora hanno i loro racconti nel contenuto: l'esplorazione libera li racconta.
     for (const st of route.routes[0]!.stops) {
       if (route.units.some((u) => u.anchor === st.place)) expect(told(merged).has(st.place)).toBe(true);
@@ -488,6 +495,8 @@ describe("unione dei contenuti acquistati (mergePremium)", () => {
     const merged = mergePremium(b.content, [one]);
     expect(told(merged).has(one.ref!)).toBe(true);
     expect(merged.locked?.explore).toBe(true);
+    expect(merged.locked?.places).not.toContain(one.ref);
+    expect(merged.locked?.places?.length).toBe(b.content.locked!.places!.length - 1);
     // Gli altri luoghi in vendita restano senza racconti.
     for (const other of places.slice(1)) {
       if (!other.units.some((u) => one.units.some((x) => x.ref === u.ref && u.anchor === other.ref))) {

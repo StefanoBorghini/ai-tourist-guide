@@ -388,12 +388,14 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     premium.push(part("route", stopUnits, [r], r.ref));
   }
   // Singolo luogo (migrazione 20261028000000): con l'esplorazione a pagamento, ogni luogo della destinazione che non è
-  // introduttivo ha la sua parte con i propri racconti e ciò che serve a capirli. Si può comprare da solo; chi ha
+  // introduttivo né gratuito ha la sua parte con i propri racconti e ciò che serve a capirli. Si può comprare da solo; chi ha
   // l'esplorazione completa ha già tutto.
   if (explorePremium) {
     for (const p of places.filter((p) => p.ref.startsWith(`${destination}:`) && !introPlaces.has(p.ref) && !freePlaces.has(p.ref)).sort(byRef)) {
+      // Anche senza racconti (decisione del 2026-10-18): chi compra il luogo ha il diritto, e i racconti aggiunti dopo
+      // entrano in questo file alla pubblicazione successiva.
       const placeUnits = withPrerequisites(safeUnits.filter((u) => u.anchor === p.ref), safeUnits).filter((u) => !publicUnitRefs.has(u.ref));
-      if (placeUnits.length > 0) premium.push(part("place", placeUnits, [], p.ref));
+      premium.push(part("place", placeUnits, [], p.ref));
     }
   }
 
@@ -428,11 +430,15 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
               .filter((r) => premiumRouteRefs.has(r.ref))
               .sort(byRef)
               .map((r) => ({ ref: r.ref, name: r.name, durationMin: r.durationMin })),
+            // Luoghi a pagamento: lo decide lo Studio (decisione del 2026-10-18), non la presenza di racconti. Tutti i
+            // luoghi della destinazione tranne gli introduttivi e i gratuiti, anche quelli ancora senza racconti.
             ...(explorePremium
-              ? (() => {
-                  const paid = new Set(safeUnits.filter((u) => !publicUnitRefs.has(u.ref)).map((u) => u.anchor));
-                  return { places: places.filter((p) => paid.has(p.ref)).map((p) => p.ref).sort() };
-                })()
+              ? {
+                  places: places
+                    .filter((p) => p.ref.startsWith(`${destination}:`) && !introPlaces.has(p.ref) && !freePlaces.has(p.ref))
+                    .map((p) => p.ref)
+                    .sort(),
+                }
               : {}),
           },
         }

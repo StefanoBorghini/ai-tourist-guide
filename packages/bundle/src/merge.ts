@@ -26,6 +26,11 @@ export function mergePremium(content: BundleContent, parts: readonly PremiumPart
   const owned = new Set(parts.flatMap((p) => (p.kind === "route" && p.ref ? [p.ref] : [])));
   const explore = (content.locked?.explore ?? false) && !parts.some((p) => p.kind === "explore");
   const lockedRoutes = (content.locked?.routes ?? []).filter((r) => !owned.has(r.ref));
+  // Luoghi sbloccati dagli acquisti: quelli comprati da soli e le tappe dei percorsi comprati.
+  const ownedPlaces = new Set(
+    parts.flatMap((p) => (p.kind === "place" && p.ref ? [p.ref] : p.kind === "route" ? p.routes.flatMap((r) => r.stops.map((s) => s.place)) : [])),
+  );
+  const lockedPlaces = content.locked?.places?.filter((ref) => !ownedPlaces.has(ref));
   const { locked: _locked, ...rest } = content;
   return {
     ...rest,
@@ -34,7 +39,7 @@ export function mergePremium(content: BundleContent, parts: readonly PremiumPart
     sources,
     routes,
     ...(explore || lockedRoutes.length > 0
-      ? { locked: { explore, routes: lockedRoutes, ...(explore && content.locked?.places ? { places: content.locked.places } : {}) } }
+      ? { locked: { explore, routes: lockedRoutes, ...(explore && lockedPlaces ? { places: lockedPlaces } : {}) } }
       : {}),
   };
 }

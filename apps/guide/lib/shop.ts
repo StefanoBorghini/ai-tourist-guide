@@ -82,14 +82,17 @@ export const formatPrice = (cents: number, locale: string) =>
 
 /**
  * Luoghi a pagamento: con l'esplorazione a pagamento, quelli senza racconti nel bundle pubblico (restano sulla
- * elenco, ma la guida non li racconta finché non si acquista il luogo o l'esplorazione completa). Un luogo comprato da
- * solo ha i suoi racconti nel contenuto unito (mergePremium) e quindi non è più fra questi.
+ * elenco, ma la guida non li racconta finché non si acquista il luogo o l'esplorazione completa). Quali siano lo
+ * decide lo Studio (introduttivi e gratuiti esclusi); un luogo comprato non è più fra questi.
  */
 export function lockedPlaceRefs(content: Pick<BundleContent, "locked" | "places" | "units">): Set<string> {
   if (!content.locked?.explore) return new Set();
+  // Il bundle elenca i luoghi a pagamento secondo lo Studio, già senza quelli acquistati (mergePremium).
+  if (content.locked.places) {
+    const paid = new Set(content.locked.places);
+    return new Set(content.places.filter((p) => paid.has(p.ref)).map((p) => p.ref));
+  }
+  // Bundle precedenti senza l'elenco: bloccato ogni luogo senza racconti pubblici.
   const told = new Set(content.units.map((u) => u.anchor));
-  // Solo i luoghi con racconti a pagamento (il bundle li elenca): un luogo introduttivo, o senza racconti, è gratuito.
-  // I bundle precedenti non hanno l'elenco: allora bloccato è ogni luogo senza racconti pubblici.
-  const paid = content.locked.places ? new Set(content.locked.places) : null;
-  return new Set(content.places.filter((p) => !told.has(p.ref) && (paid ? paid.has(p.ref) : true)).map((p) => p.ref));
+  return new Set(content.places.filter((p) => !told.has(p.ref)).map((p) => p.ref));
 }

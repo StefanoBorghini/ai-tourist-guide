@@ -19,7 +19,9 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
    escono le parti a pagamento: «esplorazione completa» e una per ogni percorso a pagamento (itinerario + racconti delle
    tappe non già pubblici, con i racconti che servono a capirli). Con l'esplorazione gratuita il file del percorso ha
    solo l'itinerario, perché i racconti sono già pubblici. Con l'esplorazione a pagamento esce anche una parte per ogni
-   luogo non introduttivo che ha racconti (i suoi racconti, con quelli che servono a capirli).
+   luogo a pagamento (né introduttivo né gratuito), anche se non ha ancora racconti: i suoi racconti, con quelli che
+   servono a capirli; quelli aggiunti dopo entrano alla pubblicazione successiva (migrazione 20261030000000: anche
+   un luogo senza racconti si mette in vendita).
 2. **Bucket privato `premium`** (migrazione `20261027000000_premium_storage.sql`), senza tabelle nuove:
    - nomi `<destinazione>/<lingua>/<pubblicazione>/explore.<impronta>.json`, `…/route-<percorso>.<impronta>.json` e
      `…/place-<luogo>.<impronta>.json` (questi ultimi dalla migrazione `20261028000000_place_products.sql`);
@@ -42,8 +44,9 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
    copia sul dispositivo (se valida), poi convalida online: scarica ciò che manca verificando l'impronta, cancella ciò
    che non è più concesso (rimborso), unisce con `mergePremium`. Una visita in corso non cambia a metà. La pagina
    dell'ordine riuscito ha «Apri nella guida». Mappa dell'esplorazione libera: solo luoghi gratuiti o acquistati;
-   elenco e «Vicino a te» mostrano anche quelli a pagamento, con «Sblocca». A pagamento sono solo i luoghi che hanno
-   racconti a pagamento (`content.locked.places`): un luogo introduttivo, o senza racconti, si mostra gratuito. La scheda di un luogo bloccato offre
+   elenco e «Vicino a te» mostrano anche quelli a pagamento, con «Sblocca». Quali luoghi sono a pagamento lo decide lo
+   Studio (`content.locked.places`): tutti quelli della destinazione tranne gli introduttivi e i gratuiti, anche se
+   non hanno ancora racconti; dopo un acquisto escono dall'elenco il luogo comprato e le tappe dei percorsi comprati. La scheda di un luogo bloccato offre
    «Solo questo luogo» (se il luogo è in vendita) e «Tutti i luoghi» (l'esplorazione completa); un luogo comprato da
    solo si sblocca ovunque, gli altri restano bloccati.
 

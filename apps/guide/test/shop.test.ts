@@ -54,13 +54,28 @@ describe("vendita nell'app", () => {
     expect(offersFor(locked, items, "it").places.size).toBe(0);
   });
 
-  it("luoghi introduttivi o senza racconti: gratuiti, anche se non hanno racconti nel bundle pubblico", () => {
+  it("decide lo Studio: bloccati i luoghi elencati, anche senza racconti; introduttivi e gratuiti no", () => {
     const content = {
-      locked: { explore: true, routes: [], places: ["b:torre"] },
-      places: [{ ref: "b:porta" }, { ref: "b:torre" }, { ref: "b:vuoto" }],
-      units: [],
+      locked: { explore: true, routes: [], places: ["b:torre", "b:vuoto"] },
+      places: [{ ref: "b:porta" }, { ref: "b:torre" }, { ref: "b:vuoto" }, { ref: "b:gratis" }],
+      units: [{ anchor: "b:torre" }],
     } as unknown as BundleContent;
-    expect([...lockedPlaceRefs(content)]).toEqual(["b:torre"]);
+    expect([...lockedPlaceRefs(content)]).toEqual(["b:torre", "b:vuoto"]);
+  });
+
+  it("con l'elenco dello Studio: luogo o percorso comprati escono dai bloccati, gli altri restano", () => {
+    const content = {
+      locked: { explore: true, routes: [{ ref: "b:giro", name: "Giro", durationMin: 30 }], places: ["b:torre", "b:chiesa", "b:vuoto"] },
+      places: [{ ref: "b:porta" }, { ref: "b:torre" }, { ref: "b:chiesa" }, { ref: "b:vuoto" }],
+      units: [], assertions: [], sources: [], routes: [],
+    } as unknown as BundleContent;
+    const place = { kind: "place", ref: "b:torre", units: [], assertions: [], sources: [], routes: [] } as unknown as PremiumPart;
+    const route = {
+      kind: "route", ref: "b:giro", units: [], assertions: [], sources: [],
+      routes: [{ ref: "b:giro", name: "Giro", durationMin: 30, stops: [{ place: "b:chiesa" }] }],
+    } as unknown as PremiumPart;
+    expect([...lockedPlaceRefs(mergePremium(content, [place]))]).toEqual(["b:chiesa", "b:vuoto"]);
+    expect([...lockedPlaceRefs(mergePremium(content, [place, route]))]).toEqual(["b:vuoto"]);
   });
 
   it("luogo comprato da solo: si sblocca quel luogo, gli altri restano a pagamento", () => {

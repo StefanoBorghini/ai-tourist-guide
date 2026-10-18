@@ -37,6 +37,11 @@ export async function GET(request: Request) {
   }
   const parts: PremiumGrant["parts"] = [];
   for (const entry of premiumEntries(manifest, target)) {
+    // Solo con un diritto (premium_object_readable, migrazioni 27–28). Le policy del bucket lasciano leggere i file
+    // anche a chi pubblica il territorio (serve alla pipeline): senza questo controllo la redazione, collegata
+    // con lo stesso account anche nella guida, vedeva sbloccato tutto come se l'avesse comprato.
+    const { data: entitled } = await supabase.rpc("premium_object_readable", { p_name: entry.path });
+    if (entitled !== true) continue;
     const { data } = await supabase.storage.from(PREMIUM_BUCKET).createSignedUrl(entry.path, SIGNED_URL_SECONDS);
     if (data?.signedUrl) parts.push({ entry, url: data.signedUrl });
   }

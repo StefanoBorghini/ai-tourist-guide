@@ -34,8 +34,10 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
 3. **Pubblicazione** (`lib/studio/publish.ts`, `server.ts`): «Ripubblica» carica le parti nel bucket privato, nella
    cartella della pubblicazione, prima del manifest; il manifest pubblico ne elenca solo nomi e impronte
    (`premium`); la pulizia toglie le parti delle pubblicazioni superate.
-4. **`/api/premium`**: con la sessione dell'utente, indirizzi firmati di 5 minuti per i soli file che le policy
-   concedono, più la scadenza dell'uso offline (30 giorni). Regole pure in `lib/premium.ts`.
+4. **`/api/premium`**: con la sessione dell'utente, indirizzi firmati di 5 minuti per i soli file per cui ha un diritto
+   (`premium_object_readable`), più la scadenza dell'uso offline (30 giorni). Regole pure in `lib/premium.ts`. Le policy
+   del bucket lasciano leggere i file anche a chi pubblica il territorio (serve alla pipeline): fino al 2026-10-18
+   questo bastava a sbloccare tutto nella guida della redazione, ora conta solo il diritto.
 5. **App** (`lib/premium-client.ts`, `GuideApp`): all'apertura di un bundle con contenuti a pagamento usa subito la
    copia sul dispositivo (se valida), poi convalida online: scarica ciò che manca verificando l'impronta, cancella ciò
    che non è più concesso (rimborso), unisce con `mergePremium`. Una visita in corso non cambia a metà. La pagina

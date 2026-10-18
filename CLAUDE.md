@@ -33,7 +33,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   pura, testata: coda degli arrivi, niente interruzioni mentre la guida parla, luoghi rifiutati non riproposti per
   15 minuti, luoghi vicini); `lib/gps-status.ts` stato del segnale; `components/InstallPrompt.tsx` invito a installare l'app a ogni apertura (finché non è installata; «Non ora» vale per la sessione); `components/PlaceCard.tsx` scheda del luogo (galleria, miniature: mai la
   foto di un altro luogo al posto di quella mancante); `components/Icon.tsx` icone; `app/globals.css` design system
-  (font di sistema, nessun download: funziona offline); `app/manifest.ts` manifest della PWA; al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
+  (font di sistema, nessun download: funziona offline); `app/manifest.webmanifest/route.ts` manifest della PWA (link con `crossorigin="use-credentials"` nel layout); al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato; distanze e direzioni in linea d'aria le calcola il
   sistema dalla posizione, l'AI le riferisce soltanto), `lib/ask-web.ts` (approfondimento con ricerca web: quando
@@ -71,6 +71,8 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   `video` (con `poster`) restano fuori dal pacchetto offline (`streamFiles`); `cover: true` indica la copertina
   della destinazione, che l'indice dei bundle espone alla pagina iniziale; i contenuti a pagamento (`config.access` della destinazione:
   esplorazione, luoghi introduttivi, percorsi premium) restano fuori dal bundle pubblico, vedi `docs/v0.3-platform/ACCESSO-CONTENUTI.md`;
+  le parti a pagamento (un percorso comprende i racconti delle sue tappe) vanno nel bucket privato `premium`, leggibile solo con il diritto
+  (migrazione `20261027000000_premium_storage.sql`, vedi `docs/v0.3-platform/CONSEGNA-CONTENUTI.md`);
   solo le destinazioni elencate in `territories/static-bundles.json` hanno bundle dai file, e non possono avere contenuti a pagamento
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`

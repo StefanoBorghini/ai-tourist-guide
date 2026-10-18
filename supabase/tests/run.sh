@@ -42,6 +42,14 @@ grep -q "REVOCA DIRITTI interrotta, nulla è stato modificato" "$DATA/guard.err"
 "${PSQL[@]}" -f "$HERE/rollback/entitlements_guard_check.sql"
 # Due sessioni reali in parallelo: presa in carico delle pubblicazioni (R2) e revoca con scritture concorrenti (R6).
 TMPDIR_CONC="$DATA" PGHOST="$DATA" PGPORT="$PORT" PGUSER=postgres PGDATABASE=postgres bash "$HERE/concurrent.sh"
+# La revoca del bucket «premium» non cancella mai contenuti: con file presenti si ferma senza cambiare nulla.
+PREM=20261027000000_premium_storage
+echo "test revoca $PREM con file presenti"
+"${PSQL[@]}" -c "insert into storage.objects (bucket_id, name) values ('premium', 'zz.prova/it/00000000-0000-0000-0000-000000000000/explore.0000000000000000.json')"
+if "${PSQL[@]}" -f "$ROOT/rollback/$PREM.down.sql" 2>"$DATA/prem.err"; then echo "la revoca del bucket premium doveva fermarsi"; exit 1; fi
+grep -q "REVOCA PREMIUM interrotta, nulla è stato modificato" "$DATA/prem.err" || { cat "$DATA/prem.err"; exit 1; }
+"${PSQL[@]}" -At -c "select count(*) from pg_policies where policyname like 'premium_files_%'" | grep -qx 4 || { echo "revoca premium: policy toccate"; exit 1; }
+"${PSQL[@]}" -c "delete from storage.objects where bucket_id = 'premium'"
 for f in $(ls "$ROOT"/rollback/*.down.sql 2>/dev/null | sort -r); do
   echo "revoca $(basename "$f")"
   "${PSQL[@]}" -f "$f"

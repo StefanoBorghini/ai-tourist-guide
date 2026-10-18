@@ -19,6 +19,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="it">
+      <head>
+        {/* Con i cookie: dietro una protezione d'accesso il manifest resta leggibile (vedi app/manifest.webmanifest). */}
+        <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
+      </head>
       <body>{children}</body>
     </html>
   );

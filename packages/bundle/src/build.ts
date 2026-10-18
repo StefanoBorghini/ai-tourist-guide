@@ -373,11 +373,14 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     };
   };
   if (explorePremium) premium.push(part("explore", safeUnits.filter((u) => !publicUnitRefs.has(u.ref)), []));
-  // Percorso premium: solo l'itinerario (tappe, durata, fonti). I racconti delle tappe restano dove sono:
-  // pubblici se l'esplorazione è gratuita, nell'esplorazione completa se è a pagamento. Scelta prudente: un acquisto
-  // di percorso non sblocca racconti dell'esplorazione (vedi docs/v0.3-platform/ACCESSO-CONTENUTI.md, «Percorsi»).
+  // Percorso premium (decisione del 2026-10-18): itinerario completo più i racconti delle sue tappe, con ciò che
+  // serve a capirli, così il percorso è un'esperienza autonoma anche senza l'esplorazione. Solo i racconti non già
+  // pubblici: con l'esplorazione gratuita il file del percorso contiene solo l'itinerario.
+  // Vedi docs/v0.3-platform/ACCESSO-CONTENUTI.md, «Percorsi».
   for (const r of routes.filter((r) => premiumRouteRefs.has(r.ref)).sort(byRef)) {
-    premium.push(part("route", [], [r], r.ref));
+    const stops = new Set(r.stops.map((st) => st.place));
+    const stopUnits = withPrerequisites(safeUnits.filter((u) => stops.has(u.anchor)), safeUnits).filter((u) => !publicUnitRefs.has(u.ref));
+    premium.push(part("route", stopUnits, [r], r.ref));
   }
 
   const content: BundleContent = {

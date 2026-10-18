@@ -62,14 +62,11 @@ concedere subito dopo il pagamento; una copia immutabile del contenuto acquistat
 
 ## Percorsi premium (P6)
 
-**Regola tecnica adottata (prudente):** l'acquisto di un percorso sblocca **solo l'itinerario** (tappe, durate, fonti
-del percorso). I racconti delle tappe restano dove sono: pubblici se l'esplorazione è gratuita, nell'esplorazione
-completa se è a pagamento. Così un acquisto di percorso non sblocca racconti dell'esplorazione, nemmeno in parte.
-
-**Decisione commerciale aperta.** Alternative possibili, da scegliere prima di vendere percorsi:
-1. solo itinerario (regola attuale);
-2. itinerario più i racconti delle sue tappe (si sovrappone all'esplorazione: chi compra entrambi paga due volte gli stessi racconti);
-3. itinerario più racconti scritti apposta per il percorso (serve un campo nuovo nel formato).
+**Decisione (2026-10-18):** l'acquisto di un percorso sblocca l'itinerario completo **e i racconti delle sue tappe**
+(con quelli che servono a capirli), anche senza l'esplorazione completa. Con l'esplorazione gratuita quei racconti sono
+già pubblici e il file del percorso contiene solo l'itinerario. Regola commerciale aperta: chi compra poi anche
+l'esplorazione non deve pagare due volte gli stessi racconti (da risolvere prima di attivare le vendite). Consegna e
+verifiche: `CONSEGNA-CONTENUTI.md`.
 
 ## Diritti (P5)
 

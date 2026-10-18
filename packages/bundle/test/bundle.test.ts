@@ -330,15 +330,24 @@ describe("contenuti a pagamento (config.access)", () => {
     expect(b.content.units.length).toBe(build().content.units.length);
   });
 
-  it("percorso premium: la parte a pagamento è solo l'itinerario, nessun racconto dell'esplorazione", () => {
+  it("percorso premium: la parte a pagamento ha l'itinerario e i racconti delle sue tappe (decisione 2026-10-18)", () => {
     const b = withAccess({ explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: ["giro-breve"] });
     const route = b.premium.find((p) => p.kind === "route")!;
-    expect(route.units).toEqual([]);
-    expect(route.assertions).toEqual([]);
-    expect(route.routes.map((r) => r.ref)).toEqual([ref("giro-breve")]);
-    // I racconti delle tappe restano solo nell'esplorazione completa: comprare il percorso non li sblocca.
     const explore = b.premium.find((p) => p.kind === "explore")!;
-    expect(explore.units.map((u) => u.ref)).toContain(ref("torre-dettaglio-it"));
+    const stops = new Set(route.routes[0]!.stops.map((st) => st.place));
+    expect(route.routes.map((r) => r.ref)).toEqual([ref("giro-breve")]);
+    // Racconti delle tappe, con i loro fatti e fonti: il percorso si ascolta senza l'esplorazione.
+    expect(route.units.length).toBeGreaterThan(0);
+    expect(route.units.filter((u) => stops.has(u.anchor)).length).toBeGreaterThan(0);
+    for (const u of route.units) for (const a of u.assertions) expect(route.assertions.map((x) => x.ref)).toContain(a);
+    // Nessun racconto già pubblico, e nessuno dei luoghi fuori dal percorso se non serve a capire le tappe.
+    const publicRefs = new Set(b.content.units.map((u) => u.ref));
+    for (const u of route.units) expect(publicRefs.has(u.ref)).toBe(false);
+    const exploreRefs = new Set(explore.units.map((u) => u.ref));
+    for (const u of route.units) expect(exploreRefs.has(u.ref)).toBe(true);
+    // Ogni racconto del percorso è di una tappa o serve a capire una tappa (prerequisito introdotto altrove).
+    const stopRequires = new Set(route.units.filter((u) => stops.has(u.anchor)).flatMap((u) => u.requires));
+    for (const u of route.units) expect(stops.has(u.anchor) || u.introduces.some((c) => stopRequires.has(c))).toBe(true);
     expect(contentJson(b)).not.toContain("\"stops\"");
   });
 
@@ -407,9 +416,11 @@ describe("diritti e parti a pagamento", () => {
     expect(kinds([{ scope: "explore", destination: D }])).toEqual(["explore:"]);
   });
 
-  it("un percorso dà solo quel percorso, nessun racconto dell'esplorazione", () => {
+  it("un percorso dà solo quel percorso, con i racconti delle sue tappe ma non l'esplorazione completa", () => {
     expect(kinds([{ scope: "route", route: ref("giro-breve") }])).toEqual([`route:${ref("giro-breve")}`]);
-    expect(allowedPremiumParts(D, parts(), [{ scope: "route", route: ref("giro-breve") }]).flatMap((p) => p.units)).toEqual([]);
+    const got = allowedPremiumParts(D, parts(), [{ scope: "route", route: ref("giro-breve") }]);
+    expect(got.flatMap((p) => p.units).length).toBeGreaterThan(0);
+    expect(got.some((p) => p.kind === "explore")).toBe(false);
   });
 
   it("senza diritti, o con diritti di un'altra destinazione o di un altro percorso, niente", () => {

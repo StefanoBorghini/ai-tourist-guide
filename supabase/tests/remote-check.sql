@@ -6,7 +6,7 @@
 -- Esito: una tabella con «superato»; se qualcosa non va, un errore che inizia con «FALLITO».
 -- Colonne: esito, dati di prova rimasti (atteso 0), amministratori della piattaforma, controlli NON verificati
 -- (atteso «nessuno»: altrimenti l'elenco dice cosa va verificato a mano, e quei controlli non sono superati).
--- Presuppone le migrazioni fino a 20261024000000 (22 → 23 → 24): senza, si ferma con «FALLITO: funzione assente».
+-- Presuppone le migrazioni fino a 20261027000000 (… → 26 → 27): senza, si ferma con «FALLITO: funzione assente».
 -- Non verificabile da SQL: lo scaricamento pubblico da /pub/ e la Storage API (qui si provano le regole sulle righe
 -- di storage.objects, non il servizio HTTP).
 -- Gli stessi controlli girano in locale con `npm run db:check` (10_platform_security.sql e seguenti).
@@ -55,7 +55,8 @@ begin
         ('20261025000000_catalog', 'studio_prices_publish(text)'),
         ('20261025000000_catalog', 'public_catalog(text)'),
         ('20261026000000_orders', 'checkout_open(uuid)'),
-        ('20261026000000_orders', 'payment_paid(uuid,text,text,text,integer,text)')
+        ('20261026000000_orders', 'payment_paid(uuid,text,text,text,integer,text)'),
+        ('20261027000000_premium_storage', 'premium_object_readable(text)')
       ) as t(migration, sig) loop
       if to_regprocedure(f.sig) is null then
         raise exception 'FALLITO: migrazione % non applicata (manca %)', f.migration, f.sig;
@@ -64,7 +65,9 @@ begin
     for f in select * from (values
         ('20261023000000_bundles_storage', 'bundles_files_publisher_read'),
         ('20261023000000_bundles_storage', 'bundles_files_publisher_delete'),
-        ('20261023000000_bundles_storage', 'bundles_index_public_list')
+        ('20261023000000_bundles_storage', 'bundles_index_public_list'),
+        ('20261027000000_premium_storage', 'premium_files_entitled_read'),
+        ('20261027000000_premium_storage', 'premium_files_publisher_insert')
       ) as t(migration, pol) loop
       if not exists (select 1 from pg_policy where polrelid = 'storage.objects'::regclass and polname = f.pol) then
         raise exception 'FALLITO: migrazione % non applicata (manca la policy % su storage.objects)', f.migration, f.pol;
@@ -801,6 +804,61 @@ begin
       if can_access_explore('it.test.alfa') is not true then raise exception 'FALLITO: esplorazione pagata ma chiusa'; end if;
       reset role;
     end if;
+
+    -- ------------------------------------------------------------ contenuti a pagamento (20261027000000)
+    -- V1 senza diritti nessun file; V2 un diritto non apre altro; V4 il rimborso chiude; V5 bucket privato, nessuno
+    -- scrive tranne la pipeline, niente file a pagamento nel bucket pubblico. (V3, i racconti nel file del percorso,
+    -- è una proprietà della compilazione: test del bundle.)
+    if (select public from storage.buckets where id = 'premium') is distinct from false then
+      raise exception 'FALLITO: bucket premium assente o pubblico';
+    end if;
+    if has_function_privilege('anon', 'premium_object_readable(text)', 'execute') then
+      raise exception 'FALLITO: anon può eseguire premium_object_readable';
+    end if;
+    insert into storage.objects (bucket_id, name, owner) values
+      ('premium', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/explore.aaaaaaaaaaaaaaaa.json', null),
+      ('premium', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/route-giro-premium.bbbbbbbbbbbbbbbb.json', null);
+    set local role anon;
+    if exists (select 1 from storage.objects where bucket_id = 'premium') then raise exception 'FALLITO: un anonimo vede file a pagamento'; end if;
+    reset role;
+    insert into auth.users (id, email, raw_user_meta_data) values ('a0000000-0000-0000-0000-000000000007', 'senza-diritti@prova.test', '{}');
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000007', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
+    if exists (select 1 from storage.objects where bucket_id = 'premium') then raise exception 'FALLITO: un visitatore senza diritti vede file a pagamento'; end if;
+    begin
+      insert into storage.objects (bucket_id, name) values ('premium', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/explore.cccccccccccccccc.json');
+      raise exception 'FALLITO: un visitatore scrive nel bucket premium';
+    exception when insufficient_privilege then null; end;
+    reset role;
+    if ok then
+      -- Chi ha pagato l'esplorazione (sopra) vede solo il file dell'esplorazione, non quello del percorso.
+      set local role authenticated;
+      perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000006', true);
+      perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+      if (select array_agg(name order by name) from storage.objects where bucket_id = 'premium')
+         is distinct from array['it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/explore.aaaaaaaaaaaaaaaa.json'] then
+        raise exception 'FALLITO: con il diritto sull''esplorazione si vedono i file sbagliati';
+      end if;
+      reset role;
+      perform revoke_purchase(current_setting('remote_check.ordine')::uuid, 'verifica remote-check');
+      set local role authenticated;
+      perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000006', true);
+      perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+      if exists (select 1 from storage.objects where bucket_id = 'premium') then raise exception 'FALLITO: dopo il rimborso il file resta leggibile'; end if;
+      reset role;
+    else
+      nv := nv || 'lettura dei file a pagamento con diritto e dopo il rimborso: serve service_role (vedi sopra)'::text;
+    end if;
+    -- Un file a pagamento non entra nel bucket pubblico, nemmeno da chi pubblica.
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+    begin
+      insert into storage.objects (bucket_id, name) values ('bundles', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/explore.dddddddddddddddd.json');
+      raise exception 'FALLITO: un file a pagamento entra nel bucket pubblico';
+    exception when insufficient_privilege then null; end;
+    reset role;
 
     -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
     -- l'elenco dei controlli non verificati.

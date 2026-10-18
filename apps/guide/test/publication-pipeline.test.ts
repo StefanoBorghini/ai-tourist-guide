@@ -14,6 +14,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/static-index", () => ({ staticDestinations: async () => new Set<string>() }));
 const { runPublication } = await import("../lib/studio/server");
+const { uploadRetrying } = await import("../lib/studio/publish");
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TERRITORIES = resolve(here, "../../../territories");
@@ -51,6 +52,8 @@ interface Hooks {
   /** Prima di eseguire il caricamento di un file. */
   onUpload?: (path: string) => Promise<void>;
   failUpload?: (path: string) => boolean;
+  /** Errore temporaneo dello Storage (sovraccarico) per i primi N tentativi di quel file. */
+  busyUpload?: (path: string) => number;
   /** Caricamento che risponde «riuscito» ma il file non c'è (lo si scopre solo rileggendo il bucket). */
   loseUpload?: (path: string) => boolean;
   renewError?: boolean;
@@ -59,6 +62,7 @@ interface Hooks {
 /** Database e bucket finti condivisi da più pipeline (A, B, …): ogni presa in carico riceve il prossimo id. */
 function world(claims: string[], hooks: Hooks = {}) {
   const files = new Map<string, string>();
+  const attempts = new Map<string, number>();
   // Versione in linea all'inizio: struttura precedente (manifest unico e index.json).
   for (const loc of LOCALES) {
     files.set(`${folder(loc)}/${LEGACY_CONTENT}`, "{}");
@@ -91,6 +95,10 @@ function world(claims: string[], hooks: Hooks = {}) {
       async upload(path: string, data: Uint8Array, opts: { upsert?: boolean }) {
         await hooks.onUpload?.(path);
         if (hooks.failUpload?.(path)) return { data: null, error: { message: "caricamento non riuscito" } };
+        const busy = hooks.busyUpload?.(path) ?? 0;
+        if (busy > 0 && (attempts.set(key(path), (attempts.get(key(path)) ?? 0) + 1), attempts.get(key(path))!) <= busy) {
+          return { data: null, error: { message: "Too many connections issued to the database" } };
+        }
         const deny = (why: string) => { log.rejected.push(path); return { data: null, error: { message: why } }; };
         if (name !== "bundles" && name !== "premium") return deny("bucket");
         if (opts.upsert) return deny("upsert non ammesso (nessuna policy di aggiornamento)");
@@ -296,6 +304,24 @@ describe("pipeline di pubblicazione immutabile (R2)", () => {
     }
   });
 
+  it("Storage sovraccarico («Too many connections»): si riprova e la pubblicazione va in linea", async () => {
+    const w = world([A], { busyUpload: (p) => (/\/content\.|\/place-|manifest\.json$/.test(p) ? 1 : 0) });
+    const r = await runPublication(w.supabase, VILLAGE);
+    expect(r.errors).toEqual([]);
+    expect(r.ok).toBe(true);
+    expect(JSON.stringify(w.served())).toContain(A);
+    expect(w.servedIsComplete()).toBe(true);
+  });
+
+  it("Storage sempre sovraccarico: dopo i tentativi la pubblicazione si ferma e la versione in linea resta", async () => {
+    const w = world([A], { busyUpload: (p) => (/\/content\./.test(p) ? 99 : 0) });
+    const before = JSON.stringify(w.served());
+    const r = await runPublication(w.supabase, VILLAGE);
+    expect(r.ok).toBe(false);
+    expect(r.errors.join(" ")).toMatch(/Too many connections/);
+    expect(JSON.stringify(w.served())).toBe(before);
+  }, 30000);
+
   it("un file risulta caricato ma nel bucket non c'è: la pubblicazione non va in linea", async () => {
     const w = world([A], { loseUpload: (p) => p === `${folder("en")}/${A}/manifest.json` });
     const before = JSON.stringify(w.served());
@@ -333,5 +359,35 @@ describe("pipeline di pubblicazione immutabile (R2)", () => {
       expect(JSON.stringify(w.served())).toContain(id);
       expect(w.servedIsComplete()).toBe(true);
     }
+  });
+});
+
+describe("nuovi tentativi di caricamento (uploadRetrying)", () => {
+  const busy = { error: { message: "Too many connections issued to the database" } };
+  const run = (answers: { error: { message: string } | null }[]) => {
+    let i = 0;
+    const waits: number[] = [];
+    const call = () => Promise.resolve(answers[Math.min(i++, answers.length - 1)]!);
+    return { result: uploadRetrying(call, [1, 2, 3], async (ms) => { waits.push(ms); }), waits, calls: () => i };
+  };
+
+  it("riprova solo gli errori temporanei, con attese crescenti", async () => {
+    const ok = run([busy, busy, { error: null }]);
+    expect((await ok.result).error).toBeNull();
+    expect(ok.waits).toEqual([1, 2]);
+    const denied = run([{ error: { message: "new row violates row-level security policy" } }]);
+    expect((await denied.result).error?.message).toMatch(/row-level/);
+    expect(denied.calls()).toBe(1);
+  });
+
+  it("file già presente dopo un errore temporaneo: il tentativo precedente era arrivato; al primo tentativo invece è un errore", async () => {
+    expect((await run([busy, { error: { message: "The resource already exists" } }]).result).error).toBeNull();
+    expect((await run([{ error: { message: "The resource already exists" } }]).result).error).not.toBeNull();
+  });
+
+  it("dopo l'ultimo tentativo resta l'errore", async () => {
+    const r = run([busy]);
+    expect((await r.result).error?.message).toMatch(/Too many connections/);
+    expect(r.calls()).toBe(4);
   });
 });

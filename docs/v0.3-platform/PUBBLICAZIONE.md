@@ -15,7 +15,9 @@ Un territorio pubblicato dallo Studio arriva nell'app subito, senza un nuovo dep
    territorio; se un'altra è in corso si ferma) e ne riceve l'identificativo. Poi carica nel bucket pubblico `bundles`,
    sempre senza sovrascrivere (`upsert: false`): foto e video in `<territorio>/<lingua>-full/media/` (quelli già presenti
    non si ricaricano), il contenuto in `<territorio>/<lingua>-full/<id pubblicazione>/` e, per ultimi, i `manifest.json`
-   nella stessa cartella. Rinnova la presa in carico dopo i caricamenti di ogni lingua e prima di ogni manifest
+   nella stessa cartella. Al massimo tre caricamenti insieme; gli errori temporanei dello Storage (sovraccarico, per
+   esempio «Too many connections issued to the database», tempi scaduti) si riprovano fino a tre volte con attese
+   crescenti (`uploadRetrying` in `lib/studio/publish.ts`), gli altri errori no. Rinnova la presa in carico dopo i caricamenti di ogni lingua e prima di ogni manifest
    (`studio_publication_renew`); se l'ha persa (scade dopo 15 minuti senza rinnovo) si ferma. Indipendentemente dalla
    pipeline, il bucket accetta file nella cartella di una pubblicazione solo da chi l'ha presa in carico e solo finché
    è in corso.

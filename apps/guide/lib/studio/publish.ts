@@ -297,3 +297,28 @@ export async function removeDeadPremium(
   return warnings;
 }
 const PREMIUM_FILE = /^(explore|(route|place)-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;
+
+/**
+ * Errori temporanei dello Storage di Supabase (sovraccarico: «Too many connections issued to the database», tempi
+ * scaduti, 503/504): il caricamento si riprova, con attese crescenti. Gli altri errori (policy, file già presente al
+ * primo tentativo) no. Se dopo un errore temporaneo il nuovo tentativo trova il file già presente, il tentativo
+ * precedente era arrivato: i file di una pubblicazione hanno nomi che non si ripetono (impronta o cartella della
+ * pubblicazione), quindi è lo stesso contenuto e il caricamento è riuscito.
+ */
+const TRANSIENT_STORAGE = /too many connections|timed? ?out|temporarily unavailable|rate limit|\b50[234]\b|ECONNRESET|fetch failed/i;
+export const UPLOAD_RETRY_WAITS_MS = [500, 1500, 4000];
+
+export async function uploadRetrying(
+  upload: () => Promise<{ error: { message: string } | null }>,
+  waits: readonly number[] = UPLOAD_RETRY_WAITS_MS,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<{ error: { message: string } | null }> {
+  let result = await upload();
+  for (const ms of waits) {
+    if (!result.error || !TRANSIENT_STORAGE.test(result.error.message)) return result;
+    await sleep(ms);
+    result = await upload();
+    if (result.error && /exist|duplicate/i.test(result.error.message)) return { error: null };
+  }
+  return result;
+}

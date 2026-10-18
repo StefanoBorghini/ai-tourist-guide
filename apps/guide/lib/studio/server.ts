@@ -187,7 +187,7 @@ async function visibleIndex(supabase: SupabaseClient): Promise<BundleIndexEntry[
  * Se qualcosa va storto la pubblicazione risulta fallita e la versione in linea resta quella di prima.
  */
 export async function runPublication(supabase: SupabaseClient, pack: string): Promise<PublicationResult> {
-  const { compilePublication, mediaPaths, PREMIUM_BUCKET, removeDeadPremium, removeDeadVersions } = await import("./publish");
+  const { compilePublication, mediaPaths, PREMIUM_BUCKET, removeDeadPremium, removeDeadVersions, uploadRetrying } = await import("./publish");
   const started = Date.now();
   // Una pubblicazione alla volta per territorio: senza la presa in carico non si tocca il bucket.
   const claim = await supabase.rpc("studio_publication_claim", { p_pack: pack });
@@ -230,14 +230,16 @@ export async function runPublication(supabase: SupabaseClient, pack: string): Pr
       for (const f of media ?? []) present.add(`media/${f.name}`);
       const uploads = [...b.immutable, ...b.stream].filter(([p]) => !present.has(p));
       const failures: string[] = [];
-      await pool(uploads, 4, async ([path, data]) => {
-        const up = await bucket.upload(`${b.folder}/${path}`, data, { contentType: contentType(path), upsert: false, cacheControl: IMMUTABLE });
+      // Pochi caricamenti insieme e nuovi tentativi sugli errori temporanei: lo Storage di Supabase, sovraccarico,
+      // risponde «Too many connections issued to the database» (successo il 2026-10-18 con i file dei singoli luoghi).
+      await pool(uploads, 3, async ([path, data]) => {
+        const up = await uploadRetrying(() => bucket.upload(`${b.folder}/${path}`, data, { contentType: contentType(path), upsert: false, cacheControl: IMMUTABLE }));
         const shared = path.startsWith("media/") && /exist|duplicate/i.test(up.error?.message ?? "");
         if (up.error && !shared) failures.push(`${b.folder}/${path}: ${up.error.message}`);
       });
       // Parti a pagamento: nel bucket privato, mai in quello pubblico (le policy leggono solo con il diritto).
-      await pool([...b.premium], 4, async ([path, data]) => {
-        const up = await supabase.storage.from(PREMIUM_BUCKET).upload(path, data, { contentType: "application/json", upsert: false });
+      await pool([...b.premium], 3, async ([path, data]) => {
+        const up = await uploadRetrying(() => supabase.storage.from(PREMIUM_BUCKET).upload(path, data, { contentType: "application/json", upsert: false }));
         if (up.error) failures.push(`premium ${path}: ${up.error.message}`);
       });
       if (failures.length) return await fail(failures, compiled.warnings);
@@ -248,9 +250,9 @@ export async function runPublication(supabase: SupabaseClient, pack: string): Pr
     // nessuno li legge: l'indice in vigore punta ancora alla versione precedente.
     for (const b of compiled.bundles) {
       if (!(await stillHeld())) return await fail([LOST], compiled.warnings);
-      const up = await bucket.upload(`${b.folder}/${b.manifestPath}`, new TextEncoder().encode(b.manifestJson), {
+      const up = await uploadRetrying(() => bucket.upload(`${b.folder}/${b.manifestPath}`, new TextEncoder().encode(b.manifestJson), {
         contentType: "application/json", upsert: false, cacheControl: IMMUTABLE,
-      });
+      }));
       if (up.error) return await fail([`${b.folder}/${b.manifestPath}: ${up.error.message}`], compiled.warnings);
     }
     // Verifica prima di andare in linea: ogni file che il manifest e i video richiedono è nel bucket.

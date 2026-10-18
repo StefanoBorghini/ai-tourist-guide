@@ -5,6 +5,7 @@ import type { ReadinessReport } from "../../../../lib/studio/readiness";
 import { deleteHref, friendlyError } from "../../../../lib/studio/shared";
 import { republishPack, setPackStatus, updatePack } from "../../actions";
 import { KIND_LABELS, Notice, one, PackStatus, PackTabs, STAGE_LABELS, StudioHeader, type SearchParams } from "../../ui";
+import { formatStudioTime } from "../../../../lib/format";
 
 interface PackDetail {
   id: string;
@@ -122,7 +123,7 @@ export default async function OverviewPage({ params, searchParams }: { params: P
               <p className="st-hint">Le modifiche fatte dopo arrivano nell&apos;app solo con «Ripubblica con le modifiche».</p>
               {live ? (
                 <p className="st-live">
-                  <strong>Nell'app</strong> dal {new Date(live.createdAt).toLocaleString("it-IT")}
+                  <strong>Nell'app</strong> dal {formatStudioTime(live.createdAt)}
                   {live.report?.pipeline?.bundles?.length
                     ? ` · ${live.report.pipeline.bundles.map((b) => `${b.locale}: ${b.places} luoghi, ${b.units} racconti, ${(b.totalBytes / 1024 / 1024).toFixed(1)} MB`).join(" · ")}`
                     : ""}
@@ -133,7 +134,7 @@ export default async function OverviewPage({ params, searchParams }: { params: P
               )}
               {lastFailed && (
                 <div className="st-notice st-error">
-                  Ultima pubblicazione non riuscita ({new Date(lastFailed.createdAt).toLocaleString("it-IT")}):{" "}
+                  Ultima pubblicazione non riuscita ({formatStudioTime(lastFailed.createdAt)}):{" "}
                   {(lastFailed.report?.pipeline?.errors ?? []).slice(0, 5).join("; ") || "errore sconosciuto"}
                 </div>
               )}

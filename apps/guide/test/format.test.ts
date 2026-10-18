@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compass, formatDistance } from "../lib/format.ts";
+import { compass, formatDistance, formatStudioTime } from "../lib/format.ts";
 
 describe("formattazione", () => {
   it("distanze leggibili", () => {
@@ -16,5 +16,12 @@ describe("formattazione", () => {
     expect(compass(44, w)).toBe("NE");
     expect(compass(180, w)).toBe("S");
     expect(compass(-90, w)).toBe("W");
+  });
+});
+
+describe("ora dello Studio", () => {
+  it("in ora italiana anche se il server è in UTC (estate +2, inverno +1)", () => {
+    expect(formatStudioTime("2026-10-18T16:07:13Z")).toBe("18/10/2026, 18:07:13");
+    expect(formatStudioTime("2026-12-01T09:00:00Z")).toBe("01/12/2026, 10:00:00");
   });
 });

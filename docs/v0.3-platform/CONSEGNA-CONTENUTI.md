@@ -8,7 +8,7 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
 | Punto | Decisione |
 |---|---|
 | Percorso a pagamento | Itinerario completo (tappe e ordine) **più i racconti delle sue tappe**, anche offline: un'esperienza autonoma, non una traccia muta. |
-| Doppio pagamento | Chi ha già comprato un percorso e poi compra l'esplorazione completa **non deve pagare due volte** gli stessi racconti. Soluzione tecnica e tariffaria **da definire prima di attivare le vendite** (aperta). |
+| Doppio pagamento | **Risolto (2026-10-18):** i racconti di un percorso acquistato valgono in tutta la guida: i luoghi del percorso compaiono sbloccati anche nell'esplorazione libera. L'unione dei contenuti comprati con quelli pubblici (`mergePremium`, `packages/bundle/src/merge.ts`, testata) non duplica mai un racconto e dà lo stesso risultato in qualunque ordine arrivino gli acquisti. Il prezzo dell'esplorazione per chi ha già dei percorsi resta una scelta commerciale nello Studio (per esempio un pacchetto). |
 | Uso senza rete | 30 giorni dall'ultima convalida online, rinnovati a ogni ritorno online se il diritto è ancora valido. Dopo rimborso o revoca il server nega l'accesso e l'app cancella la copia alla prima riconnessione. Una copia su un dispositivo che resta offline non si può cancellare prima della scadenza locale. |
 | Domande all'AI | Per ora solo sui contenuti pubblici. In una fase successiva anche sui contenuti comprati, verificando i diritti sul server prima di leggere qualsiasi contenuto protetto. |
 
@@ -30,7 +30,7 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
 3. **Da fare dopo la revisione della migrazione:** pipeline di pubblicazione (caricamento delle parti nel bucket
    privato, elenco con impronte nel manifest pubblico: solo nomi e impronte, nessun testo), `/api/premium` (indirizzi
    firmati per i contenuti comprati e data di scadenza dell'uso offline), app (scarica, verifica l'impronta, unisce al
-   contenuto pubblico, conserva per 30 giorni, cancella dopo una revoca), pagina dell'ordine con «Apri nella guida».
+   contenuto pubblico con `mergePremium`: i luoghi di un percorso comprato si sbloccano anche nell'esplorazione libera, conserva per 30 giorni, cancella dopo una revoca), pagina dell'ordine con «Apri nella guida».
 
 ## Verifiche richieste prima di applicare la migrazione al database reale
 

@@ -1,3 +1,4 @@
+import { mergePremium, type BundleContent, type PremiumPart } from "@guide/bundle/client";
 import { describe, expect, it } from "vitest";
 import { formatPrice, lockedPlaceRefs, offersFor, type CatalogItem } from "../lib/shop";
 
@@ -50,5 +51,22 @@ describe("vendita nell'app", () => {
     expect([...lockedPlaceRefs({ locked: { explore: true, routes: [] }, places, units })]).toEqual(["b:torre", "b:chiesa"]);
     expect(lockedPlaceRefs({ locked: { explore: false, routes: [] }, places, units }).size).toBe(0);
     expect(lockedPlaceRefs({ places, units } as never).size).toBe(0);
+  });
+
+  it("percorso acquistato: i suoi luoghi si sbloccano anche nell'esplorazione libera", () => {
+    const content = {
+      locked: { explore: true, routes: [{ ref: "b:giro", name: "Giro", durationMin: 30 }] },
+      places: [{ ref: "b:porta" }, { ref: "b:torre" }, { ref: "b:chiesa" }],
+      units: [{ ref: "b:porta-apertura", anchor: "b:porta" }],
+      assertions: [], sources: [], routes: [],
+    } as unknown as BundleContent;
+    const route = {
+      kind: "route", ref: "b:giro", units: [{ ref: "b:torre-racconto", anchor: "b:torre" }], assertions: [], sources: [],
+      routes: [{ ref: "b:giro", name: "Giro", durationMin: 30, stops: [{ place: "b:torre" }] }],
+    } as unknown as PremiumPart;
+    expect([...lockedPlaceRefs(content)]).toEqual(["b:torre", "b:chiesa"]);
+    const merged = mergePremium(content, [route]);
+    expect([...lockedPlaceRefs(merged)]).toEqual(["b:chiesa"]);
+    expect(merged.locked?.routes).toEqual([]);
   });
 });

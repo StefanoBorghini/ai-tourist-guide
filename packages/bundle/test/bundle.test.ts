@@ -9,6 +9,8 @@ import { loadPacks } from "@guide/territory-pack";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
   allowedPremiumParts,
+  mergePremium,
+  type BundleContent,
   BundleBuildError,
   BundleIntegrityError,
   buildBundle,
@@ -430,5 +432,47 @@ describe("diritti e parti a pagamento", () => {
 
   it("esplorazione e percorso insieme: entrambe le parti", () => {
     expect(kinds([{ scope: "explore", destination: D }, { scope: "route", route: ref("giro-breve") }])).toEqual(["explore:", `route:${ref("giro-breve")}`]);
+  });
+});
+
+describe("unione dei contenuti acquistati (mergePremium)", () => {
+  const ACCESS = { explore: "premium" as const, introPlaces: ["porta-del-borgo"], premiumRoutes: ["giro-breve"] };
+  const built = () => {
+    const copy = structuredClone(packs);
+    copy.get(D)!.config.access = ACCESS;
+    return buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+  };
+  const told = (c: BundleContent) => new Set(c.units.map((u) => u.anchor));
+
+  it("percorso acquistato: il percorso si apre e i racconti delle sue tappe valgono anche nell'esplorazione libera", () => {
+    const b = built();
+    const route = b.premium.find((p) => p.kind === "route")!;
+    const merged = mergePremium(b.content, [route]);
+    expect(merged.routes.map((r) => r.ref)).toContain(ref("giro-breve"));
+    expect(merged.locked).toEqual({ explore: true, routes: [] });
+    // I luoghi delle tappe ora hanno i loro racconti nel contenuto: l'esplorazione libera li racconta.
+    for (const st of route.routes[0]!.stops) {
+      if (route.units.some((u) => u.anchor === st.place)) expect(told(merged).has(st.place)).toBe(true);
+    }
+    // Nessun racconto dell'esplorazione completa che non sia del percorso.
+    const extra = merged.units.filter((u) => !b.content.units.some((x) => x.ref === u.ref));
+    expect(extra.map((u) => u.ref).sort()).toEqual(route.units.map((u) => u.ref).sort());
+  });
+
+  it("esplorazione acquistata dopo il percorso: nessun racconto duplicato, tutto sbloccato tranne i percorsi non comprati", () => {
+    const b = built();
+    const route = b.premium.find((p) => p.kind === "route")!;
+    const explore = b.premium.find((p) => p.kind === "explore")!;
+    const both = mergePremium(mergePremium(b.content, [route]), [explore]);
+    const refs = both.units.map((u) => u.ref);
+    expect(new Set(refs).size).toBe(refs.length);
+    expect(both.locked).toBeUndefined();
+    // Stesso risultato in qualunque ordine arrivino le parti.
+    expect(mergePremium(b.content, [explore, route])).toEqual(both);
+  });
+
+  it("senza parti il contenuto resta identico", () => {
+    const b = built();
+    expect(mergePremium(b.content, [])).toBe(b.content);
   });
 });

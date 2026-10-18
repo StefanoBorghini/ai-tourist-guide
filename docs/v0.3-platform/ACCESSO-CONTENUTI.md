@@ -14,6 +14,7 @@ Ogni destinazione ha una configurazione «accesso» (`config.yaml` → `access`,
 |---|---|---|
 | `explore` | `free` (predefinito) / `premium` | `premium`: dei racconti restano solo le **aperture dei luoghi introduttivi**, più i racconti di contesto che servono a capirle; i fatti citati solo dai racconti esclusi non entrano |
 | `introPlaces` | fino a 3 luoghi della destinazione | i luoghi i cui racconti d'apertura restano gratuiti |
+| `freePlaces` | luoghi della destinazione, senza limite (dal 2026-10-18, migrazione 20261029000000) | i luoghi con tutti i racconti gratuiti; non si vendono da soli |
 | `premiumRoutes` | percorsi della destinazione | non entrano nel bundle pubblico; l'app ne riceve solo nome e durata (`locked.routes`) |
 
 Restano sempre pubblici: mappa, elenco e schede dei luoghi, nomi dei nodi, percorsi non premium, foto, note di sicurezza.

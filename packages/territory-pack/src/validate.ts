@@ -620,13 +620,16 @@ function checkAccess(pack: TerritoryPack, ctx: Context): void {
   }
   const places = new Set(pack.places.map((p) => p.id));
   const routes = new Set(pack.routes.map((r) => r.id));
-  for (const [list, label] of [[access.introPlaces, "luogo introduttivo"], [access.premiumRoutes, "percorso premium"]] as const) {
+  for (const [list, label] of [[access.introPlaces, "luogo introduttivo"], [access.freePlaces ?? [], "luogo gratuito"], [access.premiumRoutes, "percorso premium"]] as const) {
     if (new Set(list).size !== list.length) {
       ctx.out.warning({ code: "ACCESS_DUPLICATE", packId, file, message: `${label} ripetuto` });
     }
   }
   for (const id of access.introPlaces) {
     if (!places.has(id)) ctx.out.error({ code: "ACCESS_INTRO_UNKNOWN", packId, file, item: id, message: `luogo introduttivo inesistente: ${id}` });
+  }
+  for (const id of access.freePlaces ?? []) {
+    if (!places.has(id)) ctx.out.error({ code: "ACCESS_FREE_UNKNOWN", packId, file, item: id, message: `luogo gratuito inesistente: ${id}` });
   }
   for (const id of access.premiumRoutes) {
     if (!routes.has(id)) ctx.out.error({ code: "ACCESS_ROUTE_UNKNOWN", packId, file, item: id, message: `percorso premium inesistente: ${id}` });

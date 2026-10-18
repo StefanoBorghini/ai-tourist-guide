@@ -324,9 +324,14 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   const explorePremium = access?.explore === "premium";
   const premiumRouteRefs = new Set((access?.premiumRoutes ?? []).map(destRef));
   const introPlaces = new Set((access?.introPlaces ?? []).map(destRef));
-  // Esplorazione a pagamento: pubbliche solo le aperture dei luoghi introduttivi, con ciò che serve a capirle.
+  const freePlaces = new Set((access?.freePlaces ?? []).map(destRef));
+  // Esplorazione a pagamento: pubbliche solo le aperture dei luoghi introduttivi e tutti i racconti dei luoghi
+  // gratuiti, con ciò che serve a capirli.
   const publicUnits = explorePremium
-    ? withPrerequisites(safeUnits.filter((u) => u.unitType === "opening" && introPlaces.has(u.anchor)), safeUnits)
+    ? withPrerequisites(
+        safeUnits.filter((u) => freePlaces.has(u.anchor) || (u.unitType === "opening" && introPlaces.has(u.anchor))),
+        safeUnits,
+      )
     : safeUnits;
   const publicUnitRefs = new Set(publicUnits.map((u) => u.ref));
   // I fatti dei racconti a pagamento non devono arrivare all'app (né alle risposte dell'AI) per altra via.
@@ -386,7 +391,7 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   // introduttivo ha la sua parte con i propri racconti e ciò che serve a capirli. Si può comprare da solo; chi ha
   // l'esplorazione completa ha già tutto.
   if (explorePremium) {
-    for (const p of places.filter((p) => p.ref.startsWith(`${destination}:`) && !introPlaces.has(p.ref)).sort(byRef)) {
+    for (const p of places.filter((p) => p.ref.startsWith(`${destination}:`) && !introPlaces.has(p.ref) && !freePlaces.has(p.ref)).sort(byRef)) {
       const placeUnits = withPrerequisites(safeUnits.filter((u) => u.anchor === p.ref), safeUnits).filter((u) => !publicUnitRefs.has(u.ref));
       if (placeUnits.length > 0) premium.push(part("place", placeUnits, [], p.ref));
     }

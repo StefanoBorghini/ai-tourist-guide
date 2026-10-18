@@ -501,6 +501,17 @@ describe("unione dei contenuti acquistati (mergePremium)", () => {
     expect(all.locked).toEqual({ explore: false, routes: [{ ref: ref("giro-breve"), name: expect.any(String), durationMin: expect.any(Number) }] });
   });
 
+  it("luogo gratuito: tutti i suoi racconti nel bundle pubblico, nessuna parte a pagamento, mai bloccato", () => {
+    const copy = structuredClone(packs);
+    copy.get(D)!.config.access = { ...ACCESS, freePlaces: ["belvedere"] };
+    const b = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+    const belvedere = b.content.units.filter((u) => u.anchor === ref("belvedere"));
+    expect(belvedere.length).toBeGreaterThan(1);
+    expect(b.premium.some((p) => p.kind === "place" && p.ref === ref("belvedere"))).toBe(false);
+    expect(b.content.locked?.places).not.toContain(ref("belvedere"));
+    expect(b.premium.find((p) => p.kind === "explore")!.units.some((u) => u.anchor === ref("belvedere"))).toBe(false);
+  });
+
   it("senza parti il contenuto resta identico", () => {
     const b = built();
     expect(mergePremium(b.content, [])).toBe(b.content);

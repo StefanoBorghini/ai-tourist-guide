@@ -57,6 +57,16 @@ L1–L5 e blocco «singolo luogo» di `remote-check.sql`). Nessuna tabella nuova
 luogo vendibile senza prodotto, con il prezzo in bozza (0,50 € proposto), che vale dopo «Pubblica i prezzi». I file dei
 luoghi escono alla prossima «Ripubblica». La revoca si ferma se esistono già prodotti o diritti sui luoghi.
 
+## Luoghi gratuiti: migrazione 29
+
+Decisione del 2026-10-18: nella scheda Vendita ogni luogo si sceglie fra **A pagamento** (si sblocca con
+l'esplorazione completa o comprandolo da solo), **Introduttivo** (gratuito il racconto d'apertura, al massimo 3) e
+**Gratuito** (tutti i suoi racconti nell'app pubblica; non si vende). L'elenco sta in `config.access.freePlaces`
+(nessuna tabella nuova); `supabase/migrations/20261029000000_free_places.sql` aggiorna `studio_access`,
+`studio_set_access`, la protezione dei luoghi in uso e `catalog_problem_place` (un luogo gratuito non si vende).
+Test `supabase/tests/99_free_places.sql` (G1–G4); la revoca si ferma se esistono luoghi gratuiti. Cambia nell'app
+alla prossima «Ripubblica».
+
 ## Verifiche richieste prima di applicare la migrazione al database reale
 
 | | Verifica | Dove è provata | Esito locale |

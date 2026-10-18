@@ -159,3 +159,8 @@ details.st-create[open] > summary { margin-bottom: 12px; }
 .st-section-title { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--line); }
 .st-checklist .st-detail { margin: 0; padding-left: 18px; font-size: 12px; color: var(--muted); word-break: break-word; }
 .st-checklist .st-detail .st-code { list-style: none; margin-left: -18px; opacity: 0.7; }
+/* Vendita: una riga per luogo, nome e scelta dell'accesso */
+.st-form label.st-place-access { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--ink); }
+.st-place-access > span:first-child { flex: 1 1 160px; }
+.st-form .st-place-access select { flex: 0 1 260px; width: auto; }
+.st-place-access .st-hint { flex-basis: 100%; }

@@ -8,6 +8,7 @@ import { setAccess } from "../../actions";
 interface AccessState {
   explore: "free" | "premium";
   introPlaces: string[];
+  freePlaces?: string[];
   premiumRoutes: string[];
   isDestination: boolean;
   places: { slug: string; name: string; openings: string[] }[];
@@ -24,6 +25,8 @@ export async function AccessSection({ pack, session }: { pack: string; session: 
   const { data, error } = await rpc<AccessState>(session.supabase, "studio_access", { p_pack: pack });
   const a = data;
   const intro = new Set(a?.introPlaces ?? []);
+  const free = new Set(a?.freePlaces ?? []);
+  const placeChoice = (slug: string) => (free.has(slug) ? "free" : intro.has(slug) ? "intro" : "paid");
   const premiumRoutes = new Set(a?.premiumRoutes ?? []);
   const missingOpenings = (p: AccessState["places"][number]) => (a?.locales ?? []).filter((l) => !p.openings.includes(l));
   const editable = Boolean(a?.canEdit && a.isDestination);
@@ -45,8 +48,10 @@ export async function AccessSection({ pack, session }: { pack: string; session: 
       )}
       <p className="st-hint">
         Gratuiti restano sempre la mappa, l&apos;elenco dei luoghi e i percorsi gratuiti. Con l&apos;esplorazione a
-        pagamento sono gratuiti anche i racconti d&apos;apertura dei luoghi introduttivi (al massimo 3); gli altri racconti,
-        e i fatti che citano, non entrano nell&apos;app pubblica. Un percorso a pagamento non entra nell&apos;app pubblica in nessun caso.
+        pagamento ogni luogo può essere: <strong>a pagamento</strong>{" "}(si sblocca con l&apos;esplorazione completa o comprandolo da
+        solo), <strong>introduttivo</strong>{" "}(gratuito il racconto d&apos;apertura, al massimo 3 luoghi) o <strong>gratuito</strong>{" "}(tutti i
+        suoi racconti nell&apos;app pubblica, non si vende). I racconti a pagamento, e i fatti che citano, non entrano
+        nell&apos;app pubblica. Un percorso a pagamento non entra nell&apos;app pubblica in nessun caso.
       </p>
       <p className="st-notice st-warn" role="note">
         Ciò che segni come a pagamento esce dall&apos;app pubblica alla prossima «Ripubblica»: lo vede solo chi lo ha
@@ -68,18 +73,23 @@ export async function AccessSection({ pack, session }: { pack: string; session: 
             </label>
             <label className="st-inline">
               <input type="radio" name="explore" value="premium" defaultChecked={a.explore === "premium"} disabled={Boolean(staticBlock) && a.explore !== "premium"} /> A pagamento: gratuiti solo
-              i racconti d&apos;apertura dei luoghi introduttivi
+              i luoghi gratuiti e i racconti d&apos;apertura dei luoghi introduttivi
             </label>
           </fieldset>
           <fieldset disabled={!editable}>
-            <legend>Luoghi introduttivi (al massimo 3)</legend>
+            <legend>Luoghi (con l&apos;esplorazione a pagamento)</legend>
             {a.places.length === 0 && <p className="st-hint">Nessun luogo.</p>}
             {a.places.map((p) => {
               const missing = missingOpenings(p);
               return (
-                <label key={p.slug} className="st-inline">
-                  <input type="checkbox" name="introPlaces" value={p.slug} defaultChecked={intro.has(p.slug)} /> {p.name}
-                  {missing.length > 0 && <span className="st-hint"> — manca il racconto d&apos;apertura in {missing.join(", ")}</span>}
+                <label key={p.slug} className="st-row st-place-access">
+                  <span>{p.name}</span>
+                  <select name={`place:${p.slug}`} defaultValue={placeChoice(p.slug)} aria-label={`Accesso a ${p.name}`}>
+                    <option value="paid">A pagamento</option>
+                    <option value="intro">Introduttivo: apertura gratis</option>
+                    <option value="free">Gratuito: tutti i racconti</option>
+                  </select>
+                  {intro.has(p.slug) && missing.length > 0 && <span className="st-hint">manca il racconto d&apos;apertura in {missing.join(", ")}</span>}
                 </label>
               );
             })}

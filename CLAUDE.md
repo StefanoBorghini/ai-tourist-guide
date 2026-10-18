@@ -74,6 +74,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   le parti a pagamento (un percorso comprende i racconti delle sue tappe) vanno nel bucket privato `premium`, leggibile solo con il diritto
   (migrazione `20261027000000_premium_storage.sql`, vedi `docs/v0.3-platform/CONSEGNA-CONTENUTI.md`); con l'esplorazione a pagamento
   ogni luogo non introduttivo ha anche la sua parte e si compra da solo (prodotto «place», migrazione `20261028000000_place_products.sql`);
+  i luoghi gratuiti (`config.access.freePlaces`, scelti nella scheda Vendita, migrazione `20261029000000_free_places.sql`) hanno tutti i racconti nel bundle pubblico e non si vendono;
   solo le destinazioni elencate in `territories/static-bundles.json` hanno bundle dai file, e non possono avere contenuti a pagamento
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`

@@ -237,7 +237,10 @@ export async function setAccess(form: FormData) {
   const pack = text(form, "pack");
   const path = `${packPath(pack)}/vendita`;
   const explore = text(form, "explore") === "premium" ? "premium" : "free";
-  const introPlaces = list(form, "introPlaces");
+  // Per ogni luogo «place:<slug>» = paid | intro | free (pagina Vendita); «introPlaces» resta per le pagine vecchie.
+  const choices = [...form.entries()].flatMap(([k, v]) => (k.startsWith("place:") && typeof v === "string" ? [[k.slice(6), v] as const] : []));
+  const introPlaces = [...new Set([...list(form, "introPlaces"), ...choices.filter(([, v]) => v === "intro").map(([s]) => s)])];
+  const freePlaces = choices.filter(([, v]) => v === "free").map(([s]) => s);
   const premiumRoutes = list(form, "premiumRoutes");
   if (introPlaces.length > 3) back(path, { errore: "Al massimo 3 luoghi introduttivi." });
   // Le destinazioni con bundle compilati dai file non possono avere contenuti a pagamento (lo ricontrolla la pubblicazione).
@@ -245,7 +248,7 @@ export async function setAccess(form: FormData) {
   if (blocked) back(path, { errore: `Non salvato: ${blocked}.` });
   const { error } = await rpc(supabase, "studio_set_access", {
     p_pack: pack,
-    p: { explore, introPlaces, premiumRoutes },
+    p: { explore, introPlaces, freePlaces, premiumRoutes },
   });
   if (error) back(path, { errore: friendlyError(error) });
   revalidatePath("/studio", "layout");

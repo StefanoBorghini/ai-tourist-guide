@@ -27,10 +27,19 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
      sovrascrittura; **cancellazione** solo delle pubblicazioni superate (stessa regola dei bundle);
    - bucket non pubblico: senza autorizzazione nessun indirizzo funziona. L'app chiederà un indirizzo firmato di pochi
      minuti con la sessione dell'utente (nessuna chiave di servizio).
-3. **Da fare dopo la revisione della migrazione:** pipeline di pubblicazione (caricamento delle parti nel bucket
-   privato, elenco con impronte nel manifest pubblico: solo nomi e impronte, nessun testo), `/api/premium` (indirizzi
-   firmati per i contenuti comprati e data di scadenza dell'uso offline), app (scarica, verifica l'impronta, unisce al
-   contenuto pubblico con `mergePremium`: i luoghi di un percorso comprato si sbloccano anche nell'esplorazione libera, conserva per 30 giorni, cancella dopo una revoca), pagina dell'ordine con «Apri nella guida».
+3. **Pubblicazione** (`lib/studio/publish.ts`, `server.ts`): «Ripubblica» carica le parti nel bucket privato, nella
+   cartella della pubblicazione, prima del manifest; il manifest pubblico ne elenca solo nomi e impronte
+   (`premium`); la pulizia toglie le parti delle pubblicazioni superate.
+4. **`/api/premium`**: con la sessione dell'utente, indirizzi firmati di 5 minuti per i soli file che le policy
+   concedono, più la scadenza dell'uso offline (30 giorni). Regole pure in `lib/premium.ts`.
+5. **App** (`lib/premium-client.ts`, `GuideApp`): all'apertura di un bundle con contenuti a pagamento usa subito la
+   copia sul dispositivo (se valida), poi convalida online: scarica ciò che manca verificando l'impronta, cancella ciò
+   che non è più concesso (rimborso), unisce con `mergePremium`. Una visita in corso non cambia a metà. La pagina
+   dell'ordine riuscito ha «Apri nella guida». Mappa dell'esplorazione libera: solo luoghi gratuiti o acquistati;
+   elenco e «Vicino a te» mostrano anche quelli a pagamento, con «Sblocca».
+
+Prova completa sullo stack locale (Studio, pubblicazione, acquisto con Stripe simulato, sblocco, uso senza rete,
+rimborso): 16/16. Da provare in Preview: indirizzi firmati della Storage API reale.
 
 ## Verifiche richieste prima di applicare la migrazione al database reale
 

@@ -35,7 +35,13 @@ export default async function OrderPage({ searchParams }: { searchParams: Search
       <section className="card flat">
         <p className="muted small">{name}</p>
         <p className="acc-price">{order.unit_amount ? formatEuro(order.unit_amount) : ""}</p>
-        {status === "completed" && <p className="notice success" role="status">Pagamento riuscito: l&apos;acquisto è nel tuo account.</p>}
+        {status === "completed" && (
+          <>
+            <p className="notice success" role="status">Pagamento riuscito: l&apos;acquisto è nel tuo account.</p>
+            {/* Caricamento completo (non navigazione interna): la guida riparte e chiede gli acquisti (lib/premium-client.ts). */}
+            <a className="button primary block" href="/">Apri nella guida</a>
+          </>
+        )}
         {waiting && (
           <p className="notice" role="status" aria-live="polite">In attesa della conferma del pagamento… La pagina si aggiorna da sola.</p>
         )}

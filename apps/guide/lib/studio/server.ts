@@ -187,7 +187,7 @@ async function visibleIndex(supabase: SupabaseClient): Promise<BundleIndexEntry[
  * Se qualcosa va storto la pubblicazione risulta fallita e la versione in linea resta quella di prima.
  */
 export async function runPublication(supabase: SupabaseClient, pack: string): Promise<PublicationResult> {
-  const { compilePublication, mediaPaths, removeDeadVersions } = await import("./publish");
+  const { compilePublication, mediaPaths, PREMIUM_BUCKET, removeDeadPremium, removeDeadVersions } = await import("./publish");
   const started = Date.now();
   // Una pubblicazione alla volta per territorio: senza la presa in carico non si tocca il bucket.
   const claim = await supabase.rpc("studio_publication_claim", { p_pack: pack });
@@ -235,6 +235,11 @@ export async function runPublication(supabase: SupabaseClient, pack: string): Pr
         const shared = path.startsWith("media/") && /exist|duplicate/i.test(up.error?.message ?? "");
         if (up.error && !shared) failures.push(`${b.folder}/${path}: ${up.error.message}`);
       });
+      // Parti a pagamento: nel bucket privato, mai in quello pubblico (le policy leggono solo con il diritto).
+      await pool([...b.premium], 4, async ([path, data]) => {
+        const up = await supabase.storage.from(PREMIUM_BUCKET).upload(path, data, { contentType: "application/json", upsert: false });
+        if (up.error) failures.push(`premium ${path}: ${up.error.message}`);
+      });
       if (failures.length) return await fail(failures, compiled.warnings);
       // Tiene viva la presa in carico di una pubblicazione lunga; persa, ci si ferma prima di altri caricamenti.
       if (!(await stillHeld())) return await fail([LOST], compiled.warnings);
@@ -261,6 +266,17 @@ export async function runPublication(supabase: SupabaseClient, pack: string): Pr
         if (!dirs.get(dir)!.has(path.slice(path.lastIndexOf("/") + 1))) missing.push(`${b.folder}/${path}`);
       }
     }
+    for (const b of compiled.bundles) {
+      const dirs = new Map<string, Set<string>>();
+      for (const path of b.premium.keys()) {
+        const dir = path.slice(0, path.lastIndexOf("/"));
+        if (!dirs.has(dir)) {
+          const { data } = await supabase.storage.from(PREMIUM_BUCKET).list(dir, { limit: 1000 });
+          dirs.set(dir, new Set((data ?? []).map((f) => f.name)));
+        }
+        if (!dirs.get(dir)!.has(path.slice(path.lastIndexOf("/") + 1))) missing.push(`premium ${path}`);
+      }
+    }
     if (missing.length) return await fail([`file mancanti nel bucket: ${missing.slice(0, 5).join(", ")}`], compiled.warnings);
     const warnings = [...compiled.warnings];
     const summary = compiled.bundles.map((b) => ({ locale: b.locale, totalBytes: b.manifest.totalBytes, places: b.places, units: b.units }));
@@ -280,7 +296,11 @@ export async function runPublication(supabase: SupabaseClient, pack: string): Pr
       const visible = await visibleIndex(supabase);
       const dead = await supabase.rpc("studio_publication_dead_ids", { p_pack: pack });
       if (!visible || dead.error) warnings.push("versioni precedenti non cancellate (indice in vigore o pubblicazioni non leggibili)");
-      else warnings.push(...await removeDeadVersions(bucket, compiled.bundles.map((b) => b.folder), visible, (dead.data as string[] | null) ?? [], publication));
+      else {
+        const deadIds = (dead.data as string[] | null) ?? [];
+        warnings.push(...await removeDeadVersions(bucket, compiled.bundles.map((b) => b.folder), visible, deadIds, publication));
+        warnings.push(...await removeDeadPremium(supabase.storage.from(PREMIUM_BUCKET), pack, compiled.bundles.map((b) => b.locale), visible, deadIds, publication));
+      }
     }
     return {
       ok: !indexError,

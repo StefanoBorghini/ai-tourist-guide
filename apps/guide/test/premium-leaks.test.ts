@@ -10,7 +10,7 @@ import type { TerritoryPack } from "@guide/domain";
 import { loadPacks, packToSnapshot } from "@guide/territory-pack";
 import { describe, expect, it } from "vitest";
 import { bundleBase, combineIndexes, currentIndexObject, fetchPublishedIndex, findEntry, loadIndexes, manifestPublication, mergeIndexes, type BundleIndexEntry } from "../lib/bundle-index";
-import { verifyBundle } from "@guide/bundle/client";
+import { verifyBundle, verifyPremiumPart } from "@guide/bundle/client";
 import { parseStaticList, premiumBlockedByStatic, staticBuildPlan } from "../lib/static-bundles";
 import { compilePublication, removeDeadVersions, type CleanupBucket } from "../lib/studio/publish";
 
@@ -278,5 +278,45 @@ describe("pubblicazioni immutabili (R2)", () => {
     expect(paid.bundles.every((b) => b.locked)).toBe(true);
     const free = compilePublication(VILLAGE, studioSnapshots(), new Map(), new Set());
     expect(free.bundles.some((b) => b.locked)).toBe(false);
+  });
+});
+
+describe("parti a pagamento nel bucket privato (consegna, migrazione 20261027000000)", () => {
+  // Stesso nome che le policy del bucket «premium» accettano (premium_object_name_ok).
+  const NAME = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*\/[a-z]{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(explore|route-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;
+  const PUB = "0a0b0c0d-0000-4000-8000-000000000001";
+
+  it("con l'esplorazione e un percorso a pagamento escono due file per lingua, con nomi validi per il bucket", () => {
+    const r = compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set(), PUB);
+    expect(r.errors).toEqual([]);
+    for (const b of r.bundles) {
+      const names = [...b.premium.keys()];
+      expect(names).toHaveLength(2);
+      for (const n of names) expect(n).toMatch(NAME);
+      expect(names.some((n) => n.includes(`/${b.locale}/${PUB}/explore.`))).toBe(true);
+      expect(names.some((n) => n.includes(`/${b.locale}/${PUB}/route-giro-breve.`))).toBe(true);
+    }
+  });
+
+  it("il manifest pubblico elenca solo nomi e impronte; i testi a pagamento stanno solo nei file privati", async () => {
+    const r = compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set(), PUB);
+    const b = r.bundles.find((x) => x.locale === "it")!;
+    const listed = b.manifest.premium ?? [];
+    expect(listed.map((f) => f.path).sort()).toEqual([...b.premium.keys()].sort());
+    const publicText = [b.manifestJson, ...[...b.immutable.values()].map(textOf)].join("\n");
+    for (const t of PREMIUM_TEXTS) expect(publicText).not.toContain(t);
+    const privateText = [...b.premium.values()].map(textOf).join("\n");
+    expect(PREMIUM_TEXTS.some((t) => privateText.includes(t))).toBe(true);
+    // Sul dispositivo: impronta e tipo verificati prima dell'unione; un file alterato si rifiuta.
+    for (const f of listed) {
+      const part = await verifyPremiumPart(f, textOf(b.premium.get(f.path)!));
+      expect(part.kind).toBe(f.kind);
+      await expect(verifyPremiumPart(f, textOf(b.premium.get(f.path)!) + " ")).rejects.toThrow();
+    }
+  });
+
+  it("senza contenuti a pagamento, o senza pubblicazione, nessun file privato", () => {
+    expect(compilePublication(VILLAGE, studioSnapshots(), new Map(), new Set(), PUB).bundles.every((b) => b.premium.size === 0 && !b.manifest.premium)).toBe(true);
+    expect(compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set()).bundles.every((b) => b.premium.size === 0)).toBe(true);
   });
 });

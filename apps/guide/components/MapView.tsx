@@ -56,7 +56,7 @@ export function MapView(props: {
   selected?: string | null;
   onSelect?: (ref: string | null) => void;
   tall?: boolean;
-  /** Luoghi a pagamento: spillo attenuato. */
+  /** Luoghi a pagamento non ancora acquistati: non compaiono sulla mappa (restano nell'elenco, con «Sblocca»). */
   locked?: ReadonlySet<string>;
 }) {
   const { content, runtime, debug, online, simulated, t } = props;
@@ -279,7 +279,7 @@ export function MapView(props: {
             return <rect key={a.ref} x={s.x - 6} y={s.y - 6} width={12} height={12} className="map-anchor" />;
           })}
           {content.places
-            .filter((p) => !stopIndex.has(p.ref))
+            .filter((p) => !stopIndex.has(p.ref) && !props.locked?.has(p.ref))
             .map((p) => {
               const s = screen(p.location);
               const state = [
@@ -287,7 +287,6 @@ export function MapView(props: {
                 p.ref === selected ? "selected" : "",
                 p.ref === runtime.currentPlaceRef ? "here" : "",
                 runtime.wasNarrated(p.ref) ? "heard" : "",
-                props.locked?.has(p.ref) ? "locked" : "",
               ].join(" ");
               return (
                 <g

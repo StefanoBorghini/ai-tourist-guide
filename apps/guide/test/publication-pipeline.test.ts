@@ -27,6 +27,8 @@ const LEGACY_CONTENT = "content.0000000000000000.json";
 const LOCALES = ["it", "en"];
 const folder = (loc: string) => `${VILLAGE}/${loc}-full`;
 const UUID = /^[^/]+\/[a-z]{2}-full\/([0-9a-f-]{36})\/(manifest\.json|content\.[0-9a-f]+\.json)$/;
+/** Cartella di una pubblicazione nel bucket privato «premium». */
+const PREMIUM_NS = /^[^/]+\/[a-z]{2}\/([0-9a-f-]{36})\/(explore|route-[a-z0-9-]+)\.[0-9a-f]{16,64}\.json$/;
 
 function snapshots() {
   const packs = structuredClone(loadPacks(TERRITORIES).packs);
@@ -77,44 +79,50 @@ function world(claims: string[], hooks: Hooks = {}) {
     return !!p && (p.status === "failed" || (p.status === "published" && [...pubs.values()].some((q) => q.status === "published" && q.finished > p.finished && reflected(q.gen))));
   };
   const namespacedLive = () => [...pubs.values()].some((p) => p.status === "published" && reflected(p.gen) && /[0-9a-f-]{36}\/manifest/.test(JSON.stringify(p.entries)));
-  const bucket = (name: string) => ({
-    async list(path: string, opts: { limit: number; sortBy?: { order: string } } = { limit: 100 }) {
-      const names = [...files.keys()].filter((k) => k.startsWith(`${path}/`)).map((k) => k.slice(path.length + 1)).filter((n) => !n.includes("/")).sort();
-      if (opts.sortBy?.order === "desc") names.reverse();
-      return { data: names.slice(0, opts.limit).map((n) => ({ name: n })), error: null };
-    },
-    async upload(path: string, data: Uint8Array, opts: { upsert?: boolean }) {
-      await hooks.onUpload?.(path);
-      if (hooks.failUpload?.(path)) return { data: null, error: { message: "caricamento non riuscito" } };
-      const deny = (why: string) => { log.rejected.push(path); return { data: null, error: { message: why } }; };
-      if (name !== "bundles") return deny("bucket");
-      if (opts.upsert) return deny("upsert non ammesso (nessuna policy di aggiornamento)");
-      if (files.has(path)) return { data: null, error: { message: "The resource already exists" } };
-      const ns = UUID.exec(path);
-      const idx = /^index\/(\d{20})\.json$/.exec(path);
-      const allowed = /^[^/]+\/[a-z]{2}-full\/media\//.test(path) || (ns && pubs.get(ns[1])?.status === "building") || (idx && Number(idx[1]) <= seq);
-      if (!allowed) return deny("new row violates row-level security policy");
-      if (!hooks.loseUpload?.(path)) files.set(path, new TextDecoder().decode(data));
-      log.uploads.push(path);
-      return { data: { path }, error: null };
-    },
-    async download(path: string) {
-      const v = files.get(path);
-      return v === undefined ? { data: null, error: { message: "Object not found" } } : { data: new Blob([v]), error: null };
-    },
-    async remove(paths: string[]) {
-      for (const p of paths) {
-        const ns = UUID.exec(p);
-        const legacyContent = /^[^/]+\/[a-z]{2}-full\/content\.[0-9a-f]+\.json$/.test(p);
-        // Come la policy di cancellazione: solo cartelle di pubblicazioni morte e, dopo la struttura nuova, i vecchi contenuti.
-        if ((ns && dead(ns[1])) || (legacyContent && namespacedLive())) {
-          files.delete(p);
-          log.removed.push(p);
+  // Un solo archivio per i due bucket: i file del bucket privato «premium» hanno il prefisso «premium::».
+  const bucket = (name: string) => {
+    const key = (p: string) => (name === "bundles" ? p : `${name}::${p}`);
+    return {
+      async list(path: string, opts: { limit: number; sortBy?: { order: string } } = { limit: 100 }) {
+        const names = [...files.keys()].filter((k) => k.startsWith(`${key(path)}/`)).map((k) => k.slice(key(path).length + 1)).filter((n) => !n.includes("/")).sort();
+        if (opts.sortBy?.order === "desc") names.reverse();
+        return { data: names.slice(0, opts.limit).map((n) => ({ name: n })), error: null };
+      },
+      async upload(path: string, data: Uint8Array, opts: { upsert?: boolean }) {
+        await hooks.onUpload?.(path);
+        if (hooks.failUpload?.(path)) return { data: null, error: { message: "caricamento non riuscito" } };
+        const deny = (why: string) => { log.rejected.push(path); return { data: null, error: { message: why } }; };
+        if (name !== "bundles" && name !== "premium") return deny("bucket");
+        if (opts.upsert) return deny("upsert non ammesso (nessuna policy di aggiornamento)");
+        if (files.has(key(path))) return { data: null, error: { message: "The resource already exists" } };
+        const ns = name === "premium" ? PREMIUM_NS.exec(path) : UUID.exec(path);
+        const idx = /^index\/(\d{20})\.json$/.exec(path);
+        const allowed = name === "premium"
+          ? ns && pubs.get(ns[1])?.status === "building"
+          : /^[^/]+\/[a-z]{2}-full\/media\//.test(path) || (ns && pubs.get(ns[1])?.status === "building") || (idx && Number(idx[1]) <= seq);
+        if (!allowed) return deny("new row violates row-level security policy");
+        if (!hooks.loseUpload?.(path)) files.set(key(path), new TextDecoder().decode(data));
+        log.uploads.push(key(path));
+        return { data: { path }, error: null };
+      },
+      async download(path: string) {
+        const v = files.get(key(path));
+        return v === undefined ? { data: null, error: { message: "Object not found" } } : { data: new Blob([v]), error: null };
+      },
+      async remove(paths: string[]) {
+        for (const p of paths) {
+          const ns = name === "premium" ? PREMIUM_NS.exec(p) : UUID.exec(p);
+          const legacyContent = name === "bundles" && /^[^/]+\/[a-z]{2}-full\/content\.[0-9a-f]+\.json$/.test(p);
+          // Come la policy di cancellazione: solo cartelle di pubblicazioni morte e, dopo la struttura nuova, i vecchi contenuti.
+          if ((ns && dead(ns[1])) || (legacyContent && namespacedLive())) {
+            files.delete(key(p));
+            log.removed.push(key(p));
+          }
         }
-      }
-      return { data: [], error: null };
-    },
-  });
+        return { data: [], error: null };
+      },
+    };
+  };
   const rpc = async (fn: string, args: Record<string, unknown>) => {
     switch (fn) {
       case "studio_publication_claim": {
@@ -310,7 +318,9 @@ describe("pipeline di pubblicazione immutabile (R2)", () => {
     expect(w.servedIsComplete()).toBe(true);
     // A (sostituita) è morta e non più nell'indice: tolta; B resta.
     expect([...w.files.keys()].some((k) => k.includes(`/${A}/`))).toBe(false);
-    expect([...w.files.keys()].filter((k) => k.includes(`/${B}/`)).length).toBe(LOCALES.length * 2);
+    expect([...w.files.keys()].filter((k) => k.includes(`/${B}/`) && !k.startsWith("premium::")).length).toBe(LOCALES.length * 2);
+    // Anche nel bucket privato: via le parti a pagamento di A, restano quelle di B (esplorazione e percorso, per lingua).
+    expect([...w.files.keys()].filter((k) => k.startsWith("premium::") && k.includes(`/${B}/`)).length).toBe(LOCALES.length * 2);
   });
 
   it("tre pubblicazioni di fila: l'indice servito va solo avanti e punta sempre a file completi", async () => {

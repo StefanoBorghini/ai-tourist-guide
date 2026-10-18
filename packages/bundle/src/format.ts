@@ -240,4 +240,19 @@ export interface BundleManifest {
   content: string;
   files: BundleFile[];
   totalBytes: number;
+  /**
+   * File a pagamento di questa pubblicazione nel bucket privato «premium» (migrazione 20261027000000): solo nomi,
+   * tipo e impronte, mai i contenuti. L'app li scarica con un indirizzo firmato, solo se l'utente ha il diritto.
+   */
+  premium?: PremiumFile[];
+}
+
+export interface PremiumFile {
+  kind: PremiumPart["kind"];
+  /** Percorso, per i file «route». */
+  ref?: string;
+  /** Percorso nel bucket «premium»: `<destinazione>/<lingua>/<pubblicazione>/(explore|route-<percorso>).<impronta>.json`. */
+  path: string;
+  sha256: string;
+  bytes: number;
 }

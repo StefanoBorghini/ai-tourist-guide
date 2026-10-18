@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { verifyBundle, type BundleContent, type BundleManifest } from "@guide/bundle/client";
+import { mergePremium, verifyBundle, type BundleContent, type BundleManifest } from "@guide/bundle/client";
 import { bearingDeg, distanceM, type Fix, type LngLat } from "@guide/context-engine";
 import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeKind, type RuntimeState, type TourOptions } from "../lib/runtime";
 import type { PositionSource } from "../lib/field-points";
@@ -12,6 +12,7 @@ import { GuideVoice, type SpeechState } from "../lib/speech";
 import { uiFor, type UiText } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
 import { formatPrice, lockedPlaceRefs, offersFor, type CatalogItem, type Offer } from "../lib/shop";
+import { localPremium, syncPremium } from "../lib/premium-client";
 import { AskBox } from "./AskBox";
 import { bundleBase as bundleBaseOf, loadIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndexEntry } from "../lib/bundle-index";
 import { DebugPanel } from "./DebugPanel";
@@ -86,6 +87,8 @@ export function GuideApp() {
   const [walking, setWalking] = useState(false);
   const [opening, setOpening] = useState(false);
   const [content, setContent] = useState<BundleContent | null>(null);
+  /** Bundle pubblico (verificato) da cui viene il contenuto mostrato: le parti acquistate si uniscono a questo. */
+  const baseContentRef = useRef<BundleContent | null>(null);
   const [bundleBase, setBundleBase] = useState("");
   const [opened, setOpened] = useState<{ url: string; manifest: BundleManifest } | null>(null);
   const [offline, setOffline] = useState<"no" | "downloading" | "yes" | "error">("no");
@@ -200,6 +203,23 @@ export function GuideApp() {
       .catch(() => setAskAvailable(false));
   }, [online]);
 
+  // Ritorno alla guida (scheda del browser o pagina ripresa dalla cache di navigazione): si ricontrollano gli acquisti.
+  useEffect(() => {
+    const again = () => {
+      const entry = openedEntryRef.current;
+      const base = baseContentRef.current;
+      if (document.visibilityState !== "visible" || !entry || !base?.locked || !ACCOUNTS || !navigator.onLine) return;
+      void refreshPremium(entry.manifest, base, 0);
+    };
+    document.addEventListener("visibilitychange", again);
+    window.addEventListener("pageshow", again);
+    return () => {
+      document.removeEventListener("visibilitychange", again);
+      window.removeEventListener("pageshow", again);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshPremium legge solo ref e setter stabili
+  }, []);
+
   // Prezzi dei contenuti a pagamento: solo online, con acquisti attivi e se la destinazione ne ha.
   const lockedPack = content?.locked ? content.destination : null;
   useEffect(() => {
@@ -250,12 +270,34 @@ export function GuideApp() {
     const base = bundleBaseOf(entry.manifest);
     const json = await (await fetch(base + manifest.content)).text();
     const verified = await verifyBundle(manifest, json);
-    setContent(verified);
+    // Contenuti acquistati: subito quelli già sul dispositivo (anche senza rete), poi la convalida online.
+    const owned = verified.locked ? await localPremium(entry.manifest) : [];
+    const shown = mergePremium(verified, owned);
+    setContent(shown);
     setBundleBase(base);
     setOpened({ url: entry.manifest, manifest });
     openedEntryRef.current = entry;
     setOffline((await isBundleCached(entry.manifest, manifest).catch(() => false)) ? "yes" : "no");
-    return verified;
+    baseContentRef.current = verified;
+    if (verified.locked && ACCOUNTS && navigator.onLine) void refreshPremium(entry.manifest, verified, owned.length);
+    return shown;
+  };
+
+  /**
+   * Convalida online degli acquisti di un bundle: sblocca ciò che è stato comprato, richiude ciò che è stato
+   * rimborsato. Se una visita è già in corso su questo contenuto la cambia alla prossima apertura, non a metà.
+   */
+  const refreshPremium = async (manifestUrl: string, base: BundleContent, before: number) => {
+    const parts = await syncPremium(manifestUrl).catch(() => null);
+    // Nel frattempo si è aperto un altro bundle (altra destinazione o lingua): questo esito non vale più.
+    if (!parts || baseContentRef.current !== base) return;
+    setContent((current) => {
+      // Visita in corso su questo contenuto: cambia alla prossima apertura, non a metà.
+      if (!current || (runtimeRef.current && runtimeRef.current.content === current)) return current;
+      const next = mergePremium(base, parts);
+      return JSON.stringify(next) === JSON.stringify(current) ? current : next;
+    });
+    if (parts.length > before) setFlash(uiFor(base.locale).premiumUnlocked);
   };
 
   const openBundle = async (entry: BundleEntry) => {

@@ -8,7 +8,7 @@
  * descritto (autore, licenza, luoghi) non si pubblica.
  */
 import { createHash } from "node:crypto";
-import { buildBundle, BundleBuildError, type BundleManifest } from "@guide/bundle";
+import { buildBundle, BundleBuildError, type BundleManifest, type PremiumFile } from "@guide/bundle";
 import { MEDIA_FILES_DIR, type Locale, type TerritoryPack } from "@guide/domain";
 import { SnapshotError, snapshotToPack } from "@guide/territory-pack";
 import { bundleFolder, indexEntry, manifestPublication, pubBase, type BundleIndexEntry } from "../bundle-index";
@@ -41,7 +41,12 @@ export interface PublicationBundle {
   manifestPath: string;
   /** Il bundle esclude contenuti a pagamento: le versioni precedenti del contenuto vanno tolte dal bucket. */
   locked: boolean;
+  /** Parti a pagamento per il bucket privato «premium», per percorso nel bucket (solo con una pubblicazione). */
+  premium: Map<string, Uint8Array>;
 }
+
+export { PREMIUM_BUCKET } from "../premium";
+const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export interface CompiledPublication {
   ok: boolean;
@@ -166,6 +171,23 @@ export function compilePublication(
         manifestPath = `${publication}/manifest.json`;
         entry = { ...entry, manifest: `${pubBase(target, locale)}${manifestPath}` };
       }
+      // Parti a pagamento: nel bucket privato, cartella della pubblicazione; il manifest pubblico ne elenca solo
+      // nomi e impronte. Senza identificativo di pubblicazione (prove) non c'è una cartella in cui metterle.
+      const premium = new Map<string, Uint8Array>();
+      if (publication && built.premium.length > 0) {
+        const listed: PremiumFile[] = [];
+        for (const part of built.premium) {
+          const slug = part.ref ? part.ref.slice(part.ref.lastIndexOf(":") + 1) : "";
+          if (part.kind === "route" && !SLUG.test(slug)) throw new BundleBuildError(`percorso a pagamento con un identificativo non valido: ${part.ref}`);
+          const data = new TextEncoder().encode(JSON.stringify(part));
+          const hash = sha256(data);
+          const path = `${target}/${locale}/${publication}/${part.kind === "explore" ? "explore" : `route-${slug}`}.${hash.slice(0, 16)}.json`;
+          premium.set(path, data);
+          listed.push({ kind: part.kind, ...(part.ref ? { ref: part.ref } : {}), path, sha256: hash, bytes: data.byteLength });
+        }
+        manifest = { ...manifest, premium: listed };
+        manifestJson = JSON.stringify(manifest, null, 2);
+      }
       bundles.push({
         locale,
         folder: bundleFolder(target, locale),
@@ -178,6 +200,7 @@ export function compilePublication(
         manifestJson,
         manifestPath,
         locked: built.content.locked !== undefined,
+        premium,
       });
     } catch (e) {
       errors.push(`${target} (${locale}): ${e instanceof BundleBuildError ? e.message : String(e)}`);
@@ -239,3 +262,36 @@ export async function removeDeadVersions(
   }
   return warnings;
 }
+
+/**
+ * Pulizia del bucket «premium» dopo una pubblicazione andata in linea: le cartelle delle pubblicazioni morte del
+ * territorio, con le stesse cautele dei bundle (niente se l'indice in vigore non è ancora quello di questa
+ * pubblicazione). Il bucket lo impone a sua volta (policy di cancellazione, 20261027000000).
+ */
+export async function removeDeadPremium(
+  bucket: CleanupBucket,
+  pack: string,
+  locales: readonly string[],
+  visible: readonly BundleIndexEntry[],
+  deadPublications: readonly string[],
+  ownPublication: string,
+): Promise<string[]> {
+  const warnings: string[] = [];
+  const doomed: string[] = [];
+  for (const locale of locales) {
+    const entry = visible.find((e) => e.manifest.startsWith(`/pub/${bundleFolder(pack, locale)}/`));
+    if (!entry || manifestPublication(entry.manifest) !== ownPublication) continue;
+    for (const id of deadPublications) {
+      if (id === ownPublication || !PUBLICATION_ID.test(id)) continue;
+      const { data, error } = await bucket.list(`${pack}/${locale}/${id}`, { limit: 1000 });
+      if (error) warnings.push(`premium ${pack}/${locale}/${id}: elenco non disponibile (${error.message})`);
+      for (const f of data ?? []) if (PREMIUM_FILE.test(f.name)) doomed.push(`${pack}/${locale}/${id}/${f.name}`);
+    }
+  }
+  if (doomed.length > 0) {
+    const removed = await bucket.remove(doomed);
+    if (removed.error) warnings.push(`premium: versioni precedenti non cancellate (${removed.error.message})`);
+  }
+  return warnings;
+}
+const PREMIUM_FILE = /^(explore|route-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;

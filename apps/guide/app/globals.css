@@ -1119,7 +1119,6 @@ details.card[open] > summary::after { content: "–"; }
 .place-media.locked .lock-band { font-size: 15px; padding: 6px 0; width: 140%; }
 .tile.locked .tile-name, .place-row.locked .name { color: var(--muted); }
 .place-actions.locked { display: flex; flex-direction: column; gap: 8px; }
-.map-pin.locked { opacity: 0.45; }
 
 /* Invito a installare l'app: foglio in basso, sopra la barra delle schede. */
 .install-sheet {

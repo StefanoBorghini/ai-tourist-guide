@@ -16,6 +16,8 @@ import { localPremium, syncPremium } from "../lib/premium-client";
 import { AskBox } from "./AskBox";
 import { bundleBase as bundleBaseOf, loadIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndexEntry } from "../lib/bundle-index";
 import { DebugPanel } from "./DebugPanel";
+import { EventsHomeButton, EventsPanel, useLocalEvents } from "./EventsPanel";
+import { countInRange } from "../lib/events-view";
 import { MapView } from "./MapView";
 import { Carousel } from "./Carousel";
 import { Icon } from "./Icon";
@@ -713,6 +715,15 @@ export function GuideApp() {
   /** La visita in corso vive nella scheda del suo tipo: esplorazione libera o percorso. */
   const sessionTab: Tab | null = walking && runtime ? (runtime.kind === "tour" ? "percorsi" : "esplora") : null;
 
+  // Eventi del giorno (solo online): della visita in corso, altrimenti della destinazione aperta o di quella in evidenza.
+  // Il bundle dà la lingua, che è tra quelle del territorio; un territorio senza calendario risponde 404 e non mostra nulla.
+  const eventsTarget = runtime?.content ?? content ?? featured ?? null;
+  const [eventsState, retryEvents] = useLocalEvents(
+    eventsTarget?.destination ?? null,
+    eventsTarget?.locale ?? null,
+    online,
+  );
+
   /**
    * Cambio di scheda. Percorsi ha bisogno di una destinazione, e il Profilo la offre per l'uso offline: senza,
    * si apre quella in evidenza. Esplora elenca le destinazioni e non ne apre nessuna da sola.
@@ -815,6 +826,11 @@ export function GuideApp() {
                   {t.exploreStart} <Icon name="forward" />
                 </button>
                 {featured.preview && <span className="badge on-photo">{t.previewBadge}</span>}
+              </div>
+            )}
+            {eventsTarget && (
+              <div className="hero-cta">
+                <EventsHomeButton state={eventsState} onRetry={retryEvents} name={eventsTarget.name} locale={locale} t={t} />
               </div>
             )}
           </div>
@@ -1438,6 +1454,17 @@ export function GuideApp() {
     </details>
   );
 
+  // Eventi nella visita: assenti se il territorio non ha calendario; chiusi di base per non spingere giù la scheda del luogo.
+  const eventsInSession = eventsState.kind !== "unavailable" && (
+    <details className="card" id="events-in-session">
+      <summary>
+        <Icon name="calendar" /> {t.events.title}
+        {eventsState.kind === "ok" && <span className="muted small"> · {t.events.ranges.today} {countInRange(eventsState.data, "today", Date.now())}</span>}
+      </summary>
+      <EventsPanel state={eventsState} onRetry={retryEvents} locale={content.locale} t={t} />
+    </details>
+  );
+
   return shell(
     <main className={`walk ${exploring ? "explore" : "tour"}`}>
       <header className="topbar">
@@ -1479,6 +1506,7 @@ export function GuideApp() {
               {(speaking || transcript.length > 0) && nowPlaying}
               {ask}
               {itinerariesInSession}
+              {eventsInSession}
               {content.locked?.explore && (
                 <section className="mode-explore paid-explore">
                   <p className="eyebrow"><Icon name="lock" size={15} /> {t.paidRoutes}</p>

@@ -1129,3 +1129,60 @@ details.card[open] > summary::after { content: "–"; }
 @media (min-width: 900px) { .install-sheet { bottom: calc(var(--tabbar-h) + 30px); } }
 /* Elenco delle destinazioni nella scheda Esplora (dal 2026-10-19 non più nella home) */
 .destinations { display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 16px; }
+
+/* ------------------------------------------------------------------ eventi del giorno (solo online) */
+.button.on-photo { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.28); color: #fff; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.button.small { min-height: 36px; padding: 6px 14px; font-size: 14px; }
+.events { display: flex; flex-direction: column; gap: 14px; }
+.events .segmented button { padding-left: 8px; padding-right: 8px; white-space: nowrap; }
+.events .segmented button .muted { font-size: 13px; }
+.event-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.event-day h3 { font-size: 17px; margin: 4px 0 8px; text-transform: capitalize; }
+.event-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.event { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
+.event.off .event-title { text-decoration: line-through; text-decoration-thickness: 1px; color: var(--ink-soft); }
+.event-time { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--sand); font-variant-numeric: tabular-nums; }
+.event-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.event-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.event-badges .badge.cat, .event-badges .badge.price-paid, .event-badges .badge.price-unknown { background: var(--surface); color: var(--ink-soft); }
+.event-badges .badge.price-free { background: var(--ok-soft); color: var(--ok); }
+.event-badges .badge.status-cancelled { background: var(--danger-soft); color: var(--danger); }
+.event-badges .badge.status-postponed, .event-badges .badge.status-unconfirmed { background: var(--warn-soft); color: var(--warn); }
+.event-title { font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; }
+.event-venue { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.event-venue .icon { flex: none; margin-top: 2px; }
+.event-note { margin: 0; font-size: 14px; color: var(--warn); }
+.event.off .event-note { color: var(--danger); }
+.event-summary { margin: 0; font-size: 15px; color: var(--ink-soft); }
+.event-more summary { cursor: pointer; font-size: 14px; color: var(--sand); }
+.event-more p { margin: 6px 0 0; font-size: 15px; color: var(--ink-soft); }
+.event-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.event-links .button { text-decoration: none; }
+.events-cta { min-height: 44px; }
+.events-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.events-sheet-body {
+  width: 100%;
+  max-width: 640px;
+  max-height: 88dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: 18px var(--gutter) max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: rise 0.3s var(--ease) both;
+}
+.events-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.events-sheet-head h2 { display: flex; align-items: center; gap: 8px; font-size: 22px; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+@media (min-width: 720px) { .events-sheet { align-items: center; } .events-sheet-body { border-radius: var(--r-xl); } }

@@ -82,7 +82,10 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   la stessa logica di date e indirizzi in `apps/guide/lib/local-events.ts`; API pubblica `GET /api/v1/events`
   (`app/api/v1/events`, regole in `lib/events-api.ts`, client anonimo senza cookie in `lib/public-supabase.ts`, cache CDN 60 s);
   scheda «Eventi» dello Studio in `app/studio/[pack]/eventi/` con azioni in `app/studio/actions-events.ts` e lettura del modulo in
-  `lib/studio/local-events.ts` (crea in bozza, verifica la fonte, pubblica/ritira, annulla o rinvia senza ritirare, elimina solo bozze)
+  `lib/studio/local-events.ts` (crea in bozza, verifica la fonte, pubblica/ritira, annulla o rinvia senza ritirare, elimina solo bozze);
+  nella guida `components/EventsPanel.tsx` con regole pure in `lib/events-view.ts`: pulsante «Oggi a …» nella home (apre un pannello,
+  la home resta senza scorrimento) e scheda «Eventi» nella visita; viste Oggi/Domani/7 giorni dal `today` del territorio, filtri,
+  annullato/rinviato come testo, «Verificato il …», link solo https; solo online, mai nel pacchetto offline né nelle domande all'AI
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`
   test delle migrazioni, delle policy e della parità pack ↔ database su un Postgres locale (`npm run db:check`;

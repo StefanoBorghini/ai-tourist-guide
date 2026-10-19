@@ -30,6 +30,7 @@ const PATHS = {
   info: "M12 21a9 9 0 100-18 9 9 0 000 18zM12 11v5.5M12 7.8h.01",
   home: "M4 11l8-7 8 7v8.5a1 1 0 01-1 1h-4.5v-6h-5v6H5a1 1 0 01-1-1z",
   user: "M12 12a4 4 0 100-8 4 4 0 000 8zM4.5 20.5a7.5 7.5 0 0115 0",
+  calendar: "M5 6.5h14v13H5zM5 10.5h14M9 4v4M15 4v4",
 } as const;
 
 export type IconName = keyof typeof PATHS;

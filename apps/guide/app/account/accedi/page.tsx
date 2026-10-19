@@ -3,6 +3,10 @@ import { accountSetup } from "../../../lib/account/server";
 import { PROVIDER_LABEL, safeNext } from "../../../lib/account/shared";
 import { signIn, signInWith } from "../actions";
 import { AccountPage, NotAvailable, one, Outcome, type SearchParams } from "../ui";
+import { ClearPurchases } from "../ClearPurchases";
+
+/** Esiti dopo i quali sul dispositivo non deve restare nessun contenuto acquistato. */
+const SIGNED_OUT = new Set(["uscito", "uscito-ovunque", "eliminato"]);
 
 export default async function SignInPage({ searchParams }: { searchParams: SearchParams }) {
   const setup = accountSetup();
@@ -13,6 +17,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
     <AccountPage title="Accedi">
       <p className="muted">Serve un account solo per acquistare e ritrovare i tuoi acquisti su altri dispositivi.</p>
       <Outcome ok={one(q.ok)} errore={one(q.errore)} />
+      {SIGNED_OUT.has(one(q.ok) ?? "") && <ClearPurchases />}
       <form action={signIn} className="acc-form">
         <input type="hidden" name="next" value={next} />
         <label>

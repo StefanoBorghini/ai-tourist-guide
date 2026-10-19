@@ -35,7 +35,7 @@ export function Notice({ ok, errore }: { ok?: string; errore?: string }) {
   return null;
 }
 
-export type PackTab = "panoramica" | "luoghi" | "percorsi" | "racconti" | "affermazioni" | "fonti" | "media" | "vendita";
+export type PackTab = "panoramica" | "luoghi" | "percorsi" | "racconti" | "affermazioni" | "fonti" | "media" | "eventi" | "vendita";
 
 export function PackTabs({ pack, current }: { pack: string; current: PackTab | null }) {
   const base = `/studio/${encodeURIComponent(pack)}`;
@@ -48,6 +48,7 @@ export function PackTabs({ pack, current }: { pack: string; current: PackTab | n
     ["racconti", "Racconti"],
     ["percorsi", "Percorsi"],
     ["media", "Foto"],
+    ["eventi", "Eventi"],
     ["vendita", "Vendita"],
   ] as const;
   return (

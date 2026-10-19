@@ -42,6 +42,8 @@
   outline: 2px solid var(--sand); outline-offset: 2px;
 }
 .st-primary { background: var(--ivory); color: var(--on-ivory); border-color: var(--ivory); font-weight: 600; }
+.studio a.st-btn { text-decoration: none; }
+.studio a.st-primary { color: var(--on-ivory); }
 .st-quiet { background: transparent; }
 
 .st-notice { padding: 10px 14px; border-radius: var(--r-sm); margin: 12px 0; font-size: 14px; }

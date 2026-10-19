@@ -680,6 +680,56 @@ export function GuideApp() {
   const demo = groups.filter((g) => g[0]!.fictional).map(pick);
   const featured = real.find((e) => e.cover) ?? real[0] ?? demo[0];
   const languages = (destination: string) => (byDestination.get(destination) ?? []).map((e) => (e.locale === "it" ? "Italiano" : "English")).join(" · ");
+  /** Tutte le destinazioni, nella scheda Esplora (dal 2026-10-19 non più nella home). */
+  const destinationsList = (
+    <div id="destinazioni" className="destinations">
+      {real.length > 0 && (
+        <>
+          <div className="section-head">
+            <h2>{t.destinations}</h2>
+          </div>
+          <div className="dest-grid">
+            {real.map((e) => (
+              <article key={e.destination} className="dest-card">
+                {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
+                {e.cover && <img src={e.cover.image} alt={e.cover.alt} loading="lazy" />}
+                <div className="dest-card-body">
+                  <h3>{e.name}</h3>
+                  <p className="meta">
+                    <Icon name="globe" size={16} /> {t.languagesAvailable}: {languages(e.destination)}
+                    {e.preview && <span className="badge on-photo">{t.previewBadge}</span>}
+                  </p>
+                  <button className="button primary" onClick={() => openBundle(e)}>
+                    {t.exploreDestination(e.name)} <Icon name="forward" />
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+
+      {demo.length > 0 && (
+        <section className="section">
+          <div className="section-intro">
+            <h3>{t.demoTerritories}</h3>
+            <p className="muted small">{t.demoNote}</p>
+          </div>
+          <div className="demo-list">
+            {demo.map((e) => (
+              <button key={e.destination} className="demo-item" onClick={() => openBundle(e)}>
+                <span>
+                  <strong>{e.name}</strong>
+                  <span className="muted small" style={{ display: "block" }}>{t.fictional} · {languages(e.destination)}</span>
+                </span>
+                <Icon name="forward" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
 
   /** La visita in corso vive nella scheda del suo tipo: esplorazione libera o percorso. */
   const sessionTab: Tab | null = walking && runtime ? (runtime.kind === "tour" ? "percorsi" : "esplora") : null;
@@ -814,51 +864,6 @@ export function GuideApp() {
             </div>
           )}
 
-          {real.length > 0 && (
-            <>
-              <div className="section-head">
-                <h2>{t.destinations}</h2>
-              </div>
-              <div className="dest-grid">
-                {real.map((e) => (
-                  <article key={e.destination} className="dest-card">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
-                    {e.cover && <img src={e.cover.image} alt={e.cover.alt} loading="lazy" />}
-                    <div className="dest-card-body">
-                      <h3>{e.name}</h3>
-                      <p className="meta">
-                        <Icon name="globe" size={16} /> {t.languagesAvailable}: {languages(e.destination)}
-                        {e.preview && <span className="badge on-photo">{t.previewBadge}</span>}
-                      </p>
-                      <button className="button primary" onClick={() => openBundle(e)}>
-                        {t.exploreDestination(e.name)} <Icon name="forward" />
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </>
-          )}
-
-          {demo.length > 0 && (
-            <section className="section">
-              <div className="section-intro">
-                <h3>{t.demoTerritories}</h3>
-                <p className="muted small">{t.demoNote}</p>
-              </div>
-              <div className="demo-list">
-                {demo.map((e) => (
-                  <button key={e.destination} className="demo-item" onClick={() => openBundle(e)}>
-                    <span>
-                      <strong>{e.name}</strong>
-                      <span className="muted small" style={{ display: "block" }}>{t.fictional} · {languages(e.destination)}</span>
-                    </span>
-                    <Icon name="forward" />
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
         </div>
         <footer className="home-foot muted small">Powered by Ductavia</footer>
       </main>,
@@ -992,7 +997,7 @@ export function GuideApp() {
     </>
   );
   const changeDestination = groups.length > 1 && (
-    <button className="back-btn" onClick={() => void goTab("home")}>
+    <button className="back-btn" onClick={() => { void goTab("esplora").then(() => setTimeout(() => document.getElementById("destinazioni")?.scrollIntoView({ behavior: "smooth" }), 50)); }}>
       <Icon name="back" /> {t.changeDestination}
     </button>
   );
@@ -1079,6 +1084,7 @@ export function GuideApp() {
               <Icon name="info" /> {n.text}
             </p>
           ))}
+          {destinationsList}
         </div>
       </main>,
     );

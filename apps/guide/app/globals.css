@@ -1136,3 +1136,5 @@ details.card[open] > summary::after { content: "–"; }
 .install-close { appearance: none; background: none; border: 0; color: var(--muted); padding: 4px; cursor: pointer; }
 .install-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 @media (min-width: 900px) { .install-sheet { bottom: calc(var(--tabbar-h) + 30px); } }
+/* Elenco delle destinazioni nella scheda Esplora (dal 2026-10-19 non più nella home) */
+.destinations { display: flex; flex-direction: column; gap: 16px; padding-top: 12px; border-top: 1px solid var(--line); scroll-margin-top: 16px; }

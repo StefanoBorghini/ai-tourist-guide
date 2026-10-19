@@ -144,6 +144,10 @@ describe("richiesta ed esiti", () => {
       const src = readFileSync(resolve(root, file), "utf8");
       expect(src, file).not.toMatch(/api\/v1\/events|local-events|events-view|EventsPanel/);
     }
+    // Sulle anteprime protette da Vercel la richiesta passa solo con i cookie dello stesso sito.
+    const panel = readFileSync(resolve(root, "components/EventsPanel.tsx"), "utf8");
+    expect(panel).toMatch(/credentials: "same-origin"/);
+    expect(panel).not.toMatch(/credentials: "omit"/);
     const sw = readFileSync(resolve(root, "public/sw.js"), "utf8");
     expect(sw).toMatch(/url\.pathname\.startsWith\("\/api\/"\)/);
   });

@@ -36,7 +36,9 @@ export function useLocalEvents(territory: string | null, lang: string | null, on
     }
     const ctrl = new AbortController();
     setState({ kind: "loading" });
-    fetch(key, { signal: ctrl.signal, credentials: "omit" })
+    // Cookie dello stesso sito inclusi (predefinito): sugli indirizzi protetti da Vercel (anteprime) servono per
+    // passare la protezione. La route non legge cookie, quindi la risposta resta uguale per tutti e in cache.
+    fetch(key, { signal: ctrl.signal, credentials: "same-origin" })
       .then(async (r) => stateFromResponse(r.status, await r.json().catch(() => null)))
       .catch((e: Error) => (e.name === "AbortError" ? null : ({ kind: "error" } as EventsState)))
       .then((next) => {

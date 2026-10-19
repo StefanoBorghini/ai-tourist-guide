@@ -28,7 +28,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 
 - `apps/guide` — app Next.js (PWA, poi Capacitor). Due modalità sullo stesso motore (GPS, geofence, luoghi, fonti,
   narrazione), cambia solo l'organizzazione: **esplorazione libera** (nessun piano, tutti i luoghi attivi) e **percorsi
-  guidati** (itinerari curati o su misura, tappe in ordine, GPS reale). Si passa dall'una all'altra in un tocco, nella
+  guidati** (itinerari curati, gratuiti o a pagamento, elencati anche durante l'esplorazione; tappe in ordine, GPS reale; il percorso su misura non si offre più). Si passa dall'una all'altra in un tocco, nella
   stessa visita: la memoria del racconto resta, l'avanzamento delle tappe è del singolo percorso. L'app è organizzata come un'app nativa, con una barra in basso a quattro schede (Home, Esplora, Percorsi, Profilo; `components/GuideApp.tsx`): la visita in corso resta attiva cambiando scheda, la sua scheda mostra un punto verde, e il Profilo raccoglie lingua, modalità e velocità della guida, uso offline e account. `lib/runtime.ts` collega motore di contesto e narrazione (logica
   pura, testata: coda degli arrivi, niente interruzioni mentre la guida parla, luoghi rifiutati non riproposti per
   15 minuti, luoghi vicini); `lib/gps-status.ts` stato del segnale; `components/InstallPrompt.tsx` invito a installare l'app a ogni apertura (finché non è installata; «Non ora» vale per la sessione); `components/PlaceCard.tsx` scheda del luogo (galleria, miniature: mai la

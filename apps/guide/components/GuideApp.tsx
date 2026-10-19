@@ -33,7 +33,6 @@ const loadIndex = () => loadIndexes((url) => fetch(url), STATIC_INDEX_URL, PUBLI
 
 /** Schede della barra in basso. La visita in corso (esplorazione o percorso) vive nella sua scheda. */
 type Tab = "home" | "esplora" | "percorsi" | "profilo";
-const BUDGETS = [20, 30, 45, 60, 90];
 /** Giro salvato per riprenderlo se il telefono chiude o ricarica la pagina (es. dopo aver usato la fotocamera). */
 const SAVED_TOUR_KEY = "guide-tour/1";
 const SAVED_TOUR_MAX_AGE_MS = 12 * 3_600_000;
@@ -100,7 +99,6 @@ export function GuideApp() {
   /** Impronte dei bundle con cui risponde il server delle domande (per il debug). */
   const [webAvailable, setWebAvailable] = useState(false);
   const [serverBundles, setServerBundles] = useState<{ destination: string; locale: string; kbHash: string }[] | null>(null);
-  const [budget, setBudget] = useState(45);
   const [routeRef, setRouteRef] = useState<string | null>(null);
   const [debug, setDebug] = useState(false);
   const [gpsError, setGpsError] = useState<GpsErrorCode | null>(null);
@@ -114,7 +112,6 @@ export function GuideApp() {
   const openedEntryRef = useRef<BundleEntry | null>(null);
   const tourOptionsRef = useRef<TourOptions | null>(null);
   const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
-  const [returnToAnchor, setReturnToAnchor] = useState(true);
   const [mode, setMode] = useState<GuideMode>("ask");
   const [avoidStairs, setAvoidStairs] = useState(false);
   const [, setTick] = useState(0);
@@ -432,26 +429,15 @@ export function GuideApp() {
     reorganize({ now: Date.now(), start, route: ref, budgetMin: route.durationMin, avoidStairs }, start);
   };
 
-  /** Avvia un percorso curato (ref) o su misura (null). */
-  const startTour = (chosen: string | null = routeRef) => {
-    if (!content) return;
+  /** Avvia un percorso curato (il percorso su misura non si offre più, decisione del 2026-10-19). */
+  const startTour = (chosen: string) => {
+    const route = content?.routes.find((r) => r.ref === chosen);
+    if (!content || !route) return;
     setRouteRef(chosen);
-    const now = Date.now();
-    const anchor = content.anchors[0];
-    const route = chosen ? content.routes.find((r) => r.ref === chosen) : undefined;
-    // Con un percorso curato si parte dalla sua prima tappa; altrimenti dall'ancora (o dal primo luogo).
-    const firstStop = route ? content.places.find((p) => p.ref === route.stops[0]?.place) : undefined;
-    const start = firstStop?.location ?? anchor?.location ?? content.places[0]!.location;
-    beginSession(content, mode, {
-      now,
-      start,
-      ...(route
-        ? { route: route.ref, budgetMin: route.durationMin }
-        : returnToAnchor && anchor
-          ? { anchor: { ref: anchor.ref, deadline: now + budget * 60_000 } }
-          : { budgetMin: budget }),
-      avoidStairs,
-    }, start);
+    // Si parte dalla prima tappa del percorso.
+    const firstStop = content.places.find((p) => p.ref === route.stops[0]?.place);
+    const start = firstStop?.location ?? content.anchors[0]?.location ?? content.places[0]!.location;
+    beginSession(content, mode, { now: Date.now(), start, route: route.ref, budgetMin: route.durationMin, avoidStairs }, start);
     // Anche il percorso guidato usa il GPS reale per riconoscere le tappe.
     startGps();
   };
@@ -971,7 +957,6 @@ export function GuideApp() {
   };
   const placeName = (c: BundleContent, ref: string) => c.places.find((p) => p.ref === ref)?.name ?? ref;
 
-  const anchor = content.anchors[0];
   const visitInProgress = runtimeRef.current?.content === content && runtimeRef.current.memory.visitedPlaces.length > 0;
   const heroCover = destinationCover(content);
   const resumeBox = visitInProgress && !walking && (
@@ -1177,38 +1162,6 @@ export function GuideApp() {
                   </article>
                 );
               })}
-
-              <article className={`route-card ${openRoute === "custom" ? "open" : ""}`}>
-                <button className="route-head" aria-expanded={openRoute === "custom"} onClick={() => setOpenRoute(openRoute === "custom" ? "" : "custom")}>
-                  <span className="route-cover"><Icon name="sparkle" size={30} /></span>
-                  <span>
-                    <span className="route-title">{t.customRoute}</span>
-                    <span className="meta-line"><span>{t.customRouteHint}</span></span>
-                  </span>
-                  <Icon name="forward" className="chev" />
-                </button>
-                {openRoute === "custom" && (
-                  <div className="route-body custom-route">
-                    <p className="eyebrow">{t.howLong}</p>
-                    <div className="row wrap">
-                      {BUDGETS.map((b) => (
-                        <button key={b} className={`chip ${budget === b ? "on" : ""}`} onClick={() => setBudget(b)}>
-                          {b} {t.minutes}
-                        </button>
-                      ))}
-                    </div>
-                    {anchor && (
-                      <label className="check">
-                        <input type="checkbox" checked={returnToAnchor} onChange={(e) => setReturnToAnchor(e.target.checked)} />
-                        {t.returnTo} {anchor.name} {t.by} {clock(Date.now() + budget * 60_000, locale)}
-                      </label>
-                    )}
-                    <button className="button primary big block" onClick={() => startTour(null)}>
-                      {t.startItinerary} <Icon name="forward" />
-                    </button>
-                  </div>
-                )}
-              </article>
             </section>
           {destinationNotices}
         </div>
@@ -1238,8 +1191,10 @@ export function GuideApp() {
     setWalking(false);
     window.scrollTo(0, 0);
   };
-  const openItineraries = () => {
+  /** Un percorso a pagamento si compra dalla scheda Percorsi: la si apre con quel percorso aperto. */
+  const openPaidRoute = (ref: string) => {
     leave();
+    setOpenRoute(ref);
     setTab("percorsi");
   };
   const choosePlace = (ref: string) => {
@@ -1519,7 +1474,22 @@ export function GuideApp() {
           </button>
         ))}
       </div>
-      <button className="link" onClick={openItineraries}>{t.moreOptions} <Icon name="forward" size={16} /></button>
+        {(content.locked?.routes ?? []).map((r) => (
+          <button key={r.ref} className="place-row locked" onClick={() => openPaidRoute(r.ref)}>
+            <span className="thumb">
+              {/* eslint-disable-next-line @next/next/no-img-element -- copertina della destinazione */}
+              {lockedCover ? <img src={lockedCover} alt="" loading="lazy" /> : <Icon name="lock" />}
+            </span>
+            <span>
+              <span className="name">{r.name}</span>
+              <span className="short">
+                {r.durationMin} {t.minutes} · {t.paidRoutes}
+                {offers.routes.get(r.ref) ? ` · ${formatPrice(offers.routes.get(r.ref)!.amount, content.locale)}` : ""}
+              </span>
+            </span>
+            <Icon name="lock" />
+          </button>
+        ))}
     </details>
   );
 

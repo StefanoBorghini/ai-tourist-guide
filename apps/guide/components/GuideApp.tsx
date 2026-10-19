@@ -291,11 +291,14 @@ export function GuideApp() {
     if (parts.length > before) setFlash(uiFor(base.locale).premiumUnlocked);
   };
 
+  /** Toccare una destinazione la apre e fa partire subito l'esplorazione libera (il tocco autorizza anche il GPS). */
   const openBundle = async (entry: BundleEntry) => {
     try {
-      await loadBundle(entry);
+      const loaded = await loadBundle(entry);
       setTab("esplora");
       window.scrollTo(0, 0);
+      beginSession(loaded, mode, null, defaultStart(loaded));
+      startGps();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -389,13 +392,6 @@ export function GuideApp() {
 
   /** Punto di partenza della simulazione quando non c'è ancora una posizione. */
   const defaultStart = (c: BundleContent): LngLat => c.anchors[0]?.location ?? c.places[0]!.location;
-
-  const startExploring = () => {
-    if (!content) return;
-    beginSession(content, mode, null, defaultStart(content));
-    // Il tocco su «Inizia a esplorare» è anche il gesto che autorizza la richiesta della posizione.
-    startGps();
-  };
 
   /**
    * Cambia l'organizzazione della visita (esplorazione libera ↔ percorso guidato) senza perderla:
@@ -671,9 +667,6 @@ export function GuideApp() {
     <div id="destinazioni" className="destinations">
       {real.length > 0 && (
         <>
-          <div className="section-head">
-            <h2>{t.destinations}</h2>
-          </div>
           <div className="dest-grid">
             {real.map((e) => (
               <article key={e.destination} className="dest-card">
@@ -721,11 +714,11 @@ export function GuideApp() {
   const sessionTab: Tab | null = walking && runtime ? (runtime.kind === "tour" ? "percorsi" : "esplora") : null;
 
   /**
-   * Cambio di scheda. Esplora e Percorsi hanno bisogno di una destinazione, e il Profilo la offre per l'uso
-   * offline: senza, si apre quella in evidenza.
+   * Cambio di scheda. Percorsi ha bisogno di una destinazione, e il Profilo la offre per l'uso offline: senza,
+   * si apre quella in evidenza. Esplora elenca le destinazioni e non ne apre nessuna da sola.
    */
   const goTab = async (next: Tab) => {
-    if (next !== "home" && !content && featured) {
+    if (next !== "home" && next !== "esplora" && !content && featured) {
       setOpening(true);
       setTab(next);
       try {
@@ -930,6 +923,22 @@ export function GuideApp() {
     );
   }
 
+  // Esplora: solo l'elenco delle destinazioni (decisione del 2026-10-19). La visita in corso resta nella sua scheda.
+  if (tab === "esplora" && sessionTab !== "esplora") {
+    return shell(
+      <main className="hub explore-tab">
+        <header className="tab-head">
+          <h1>{t.destinations}</h1>
+        </header>
+        <div className="hub-body tab-body">
+          {opening && <p className="notice">{t.opening}</p>}
+          {error && <p className="notice gps-error">{online ? error : t.offlineNoBundle}</p>}
+          {destinationsList}
+        </div>
+      </main>,
+    );
+  }
+
   if (!content) {
     return shell(
       <main className="tab-empty">
@@ -938,14 +947,6 @@ export function GuideApp() {
     );
   }
 
-  /** Copertina della destinazione aperta: quella dell'indice, oppure la prima immagine del bundle. */
-  const destinationCover = (c: BundleContent): { src: string; alt: string } | null => {
-    const fromIndex = openedEntryRef.current?.cover;
-    if (fromIndex) return { src: fromIndex.image, alt: fromIndex.alt };
-    const first = c.media.find((m) => m.cover) ?? c.media[0];
-    const src = thumbSrc(first, bundleBase);
-    return first && src ? { src, alt: first.alt } : null;
-  };
   /**
    * Copertina di un percorso: una foto delle sue tappe (prima le foto, poi i fotogrammi dei video).
    * Percorsi diversi ruotano tra le foto disponibili, così le schede non si ripetono.
@@ -958,7 +959,6 @@ export function GuideApp() {
   const placeName = (c: BundleContent, ref: string) => c.places.find((p) => p.ref === ref)?.name ?? ref;
 
   const visitInProgress = runtimeRef.current?.content === content && runtimeRef.current.memory.visitedPlaces.length > 0;
-  const heroCover = destinationCover(content);
   const resumeBox = visitInProgress && !walking && (
     <div className="resume light">
       <span>{t.continueVisit(runtimeRef.current!.memory.visitedPlaces.length)}</span>
@@ -1021,61 +1021,6 @@ export function GuideApp() {
       </form>
     );
 
-
-  if (tab === "esplora" && !showSession) {
-    return shell(
-      <main className="hub">
-        <section className="hub-hero">
-          {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
-          {heroCover && <img src={heroCover.src} alt={heroCover.alt} />}
-          <div className="hero-top">
-            {changeDestination || <span />}
-            {brand}
-          </div>
-          <div className="hub-title">
-            <p className="eyebrow" style={{ color: "rgba(255,255,255,.8)" }}>{t.exploreTitle}</p>
-            <h1>{content.name}</h1>
-            <div className="row wrap">
-              {content.preview && <span className="badge on-photo">{t.previewBadge}</span>}
-              {content.fictional && <span className="badge on-photo">{t.fictional}</span>}
-            </div>
-          </div>
-        </section>
-        <div className="hub-body tab-body">
-          {resumeBox}
-          <section className="mode-explore">
-            <p className="muted">{t.exploreHint}</p>
-            <ul className="feature-list">
-              {t.exploreFeatures.map((f, i) => (
-                <li key={f}>
-                  <Icon name={(["map", "volume", "chat"] as const)[i]!} /> {f}
-                </li>
-              ))}
-            </ul>
-            <button className="button primary xl block" onClick={startExploring}>
-              {walking && runtime?.content === content ? t.switchToExplore : t.exploreStart} <Icon name="forward" />
-            </button>
-            <p className="muted small">{t.backgroundNote}</p>
-          </section>
-          {content.locked?.explore && (
-            <section className="mode-explore paid-explore">
-              <p className="eyebrow"><Icon name="lock" size={15} /> {t.paidRoutes}</p>
-              <h2>{t.fullExplore}</h2>
-              <p className="muted">{t.fullExploreHint}</p>
-              {buy(offers.explore)}
-            </section>
-          )}
-          {destinationNotices}
-          {content.safetyNotes.map((n) => (
-            <p key={n.id} className="notice">
-              <Icon name="info" /> {n.text}
-            </p>
-          ))}
-          {destinationsList}
-        </div>
-      </main>,
-    );
-  }
 
   if (tab === "percorsi" && !showSession) {
     return shell(
@@ -1534,6 +1479,20 @@ export function GuideApp() {
               {(speaking || transcript.length > 0) && nowPlaying}
               {ask}
               {itinerariesInSession}
+              {content.locked?.explore && (
+                <section className="mode-explore paid-explore">
+                  <p className="eyebrow"><Icon name="lock" size={15} /> {t.paidRoutes}</p>
+                  <h2>{t.fullExplore}</h2>
+                  <p className="muted">{t.fullExploreHint}</p>
+                  {buy(offers.explore)}
+                </section>
+              )}
+              {destinationNotices}
+              {content.safetyNotes.map((n) => (
+                <p key={n.id} className="notice">
+                  <Icon name="info" /> {n.text}
+                </p>
+              ))}
             </>
           ) : (
             <>

@@ -312,11 +312,15 @@ describe("parti a pagamento nel bucket privato (consegna, migrazione 20261027000
       const part = JSON.parse(textOf(b.premium.get(f.path)!)) as PremiumPart;
       expect(part.ref).toBe(f.ref);
       expect(part.routes).toEqual([]);
-      expect(part.units.some((u) => u.anchor === f.ref)).toBe(true);
+      // Un luogo ancora senza racconti ha il suo file vuoto (migrazione 20261030000000); altrimenti ci sono i suoi.
+      if (part.units.length > 0) expect(part.units.some((u) => u.anchor === f.ref)).toBe(true);
       // Solo unità del luogo o suoi prerequisiti: tutte comprese nell'esplorazione, e meno di essa.
       for (const u of part.units) expect(exploreUnits.has(u.ref)).toBe(true);
       expect(part.units.length).toBeLessThan(explore.units.length);
     }
+    // Il carrugio non ha racconti ma è a pagamento: il file c'è, vuoto.
+    const carrugio = listed.find((f) => f.kind === "place" && f.ref?.endsWith(":carrugio-centrale"));
+    expect(carrugio && (JSON.parse(textOf(b.premium.get(carrugio.path)!)) as PremiumPart).units).toEqual([]);
   });
 
   it("il manifest pubblico elenca solo nomi e impronte; i testi a pagamento stanno solo nei file privati", async () => {

@@ -167,12 +167,6 @@ export function GuideApp() {
   const locale = tab === "home" || tab === "profilo" ? uiLocale : (content?.locale ?? uiLocale);
   const [view, setView] = useState<"map" | "list">("map");
   const [openRoute, setOpenRoute] = useState<string | null>(null);
-  // Il video ambientale parte solo se il dispositivo non chiede movimento ridotto o risparmio dati.
-  const [allowVideo, setAllowVideo] = useState(false);
-  useEffect(() => {
-    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
-    setAllowVideo(!saveData && !window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  }, []);
   const t = uiFor(locale);
   const rerender = useCallback(() => setTick((n) => n + 1), []);
 
@@ -767,9 +761,9 @@ export function GuideApp() {
         <section className="hero">
           {cover && (
             <div className="hero-media">
+              {/* Sempre la stessa immagine ferma: niente video né zoom lento (decisione del 2026-10-19). */}
               {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
-              <img className="ken" src={cover.image} alt={cover.alt} fetchPriority="high" />
-              {cover.video && allowVideo && online && <video src={cover.video} poster={cover.image} autoPlay muted loop playsInline preload="auto" aria-hidden="true" />}
+              <img src={cover.image} alt={cover.alt} fetchPriority="high" />
             </div>
           )}
           <header className="hero-top">
@@ -777,11 +771,6 @@ export function GuideApp() {
             {languageSwitch}
           </header>
           <div className="hero-copy">
-            {featured && (
-              <span className="hero-place">
-                <Icon name="pin" size={16} /> {featured.name}
-              </span>
-            )}
             <h1>{t.heroTitle}</h1>
             <p className="lede">{t.heroLede}</p>
             {sessionTab && runtime ? (
@@ -799,7 +788,6 @@ export function GuideApp() {
                 {featured.preview && <span className="badge on-photo">{t.previewBadge}</span>}
               </div>
             )}
-            {cover?.credit && <p className="hero-credit">{t.photo}: {cover.credit}</p>}
           </div>
         </section>
 
@@ -872,9 +860,7 @@ export function GuideApp() {
             </section>
           )}
         </div>
-        <footer className="home-foot muted small">
-          AI Guide{cover?.credit ? ` · ${t.photo}: ${cover.credit}` : ""}
-        </footer>
+        <footer className="home-foot muted small">Powered by Ductavia</footer>
       </main>,
     );
   }

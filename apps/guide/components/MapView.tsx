@@ -30,8 +30,11 @@ import type { GuideRuntime } from "../lib/runtime";
  * (punto blu, inconfondibile con gli spilli) finché non la sposta, e «Centra su di me» la riaggancia.
  */
 const HEIGHT = 260;
-/** Altezza della mappa in esplorazione: è lo strumento principale. */
-const TALL_HEIGHT = "min(58vh, 520px)";
+/**
+ * Mappa in esplorazione: è lo strumento principale, quadrata (decisione del 2026-10-19). Su schermi larghi
+ * l'altezza si ferma a 560 px per non spingere giù il resto.
+ */
+const TALL_STYLE = { aspectRatio: "1 / 1", maxHeight: 560 } as const;
 /** Zoom quando la mappa segue il visitatore: si vedono i luoghi nel raggio di qualche centinaio di metri. */
 const FOLLOW_ZOOM = 17;
 /** Spillo con la punta nel punto (0,0): alto 20 px. */
@@ -237,7 +240,7 @@ export function MapView(props: {
       <div
         ref={boxRef}
         className="map-box"
-        style={fullscreen ? undefined : { height: props.tall ? TALL_HEIGHT : HEIGHT }}
+        style={fullscreen ? undefined : props.tall ? TALL_STYLE : { height: HEIGHT }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

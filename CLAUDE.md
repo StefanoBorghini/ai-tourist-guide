@@ -79,7 +79,8 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
 - Eventi del giorno (dati operativi, fuori da Territory Pack, bundle e AI): tabella `local_events` e `destinations.timezone`
   (migrazione `20261031000000_local_events.sql`; date nel fuso della destinazione, orari del cambio d'ora rifiutati, fonte https e
   verifica obbligatorie per pubblicare, bozze solo a chi modifica il territorio, lettura pubblica solo con `public_local_events()`);
-  la stessa logica di date e indirizzi in `apps/guide/lib/local-events.ts`
+  la stessa logica di date e indirizzi in `apps/guide/lib/local-events.ts`; API pubblica `GET /api/v1/events`
+  (`app/api/v1/events`, regole in `lib/events-api.ts`, client anonimo senza cookie in `lib/public-supabase.ts`, cache CDN 60 s)
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`
   test delle migrazioni, delle policy e della parità pack ↔ database su un Postgres locale (`npm run db:check`;

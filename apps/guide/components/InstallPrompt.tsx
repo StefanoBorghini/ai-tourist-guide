@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { UiText } from "../lib/i18n";
+import { recordInstallStep, watchInstall } from "../lib/install-status";
 import { Icon } from "./Icon";
 
 /** Evento di Chrome/Edge/Android per l'installazione della PWA (non è nei tipi standard del DOM). */
@@ -22,6 +23,9 @@ const SESSION_KEY = "guide-install-later";
 export function InstallPrompt({ t, hidden = false }: { t: UiText; hidden?: boolean }) {
   const [kind, setKind] = useState<Kind | null>(null);
   const [event, setEvent] = useState<InstallEvent | null>(null);
+
+  // Diario per il pannello di prova: si registra sempre, anche quando l'invito non compare.
+  useEffect(() => watchInstall(), []);
 
   useEffect(() => {
     const installed =
@@ -65,6 +69,7 @@ export function InstallPrompt({ t, hidden = false }: { t: UiText; hidden?: boole
     if (!event) return;
     await event.prompt();
     const choice = await event.userChoice.catch(() => null);
+    if (choice) recordInstallStep(choice.outcome === "accepted" ? "accepted" : "dismissed");
     setEvent(null);
     if (choice?.outcome === "accepted") setKind(null);
     else close();

@@ -14,6 +14,7 @@ import {
   shareFieldPoints,
   type PositionSource,
 } from "../lib/field-points";
+import { installSummary, readInstallLog } from "../lib/install-status";
 import type { GuideRuntime } from "../lib/runtime";
 
 /**
@@ -71,6 +72,13 @@ export function DebugPanel(props: DebugPanelProps) {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => setPoints(loadFieldPoints(content.destination)), [content.destination]);
+  // Stato dell'installazione: letto all'apertura del pannello (il diario è nel telefono, vedi lib/install-status.ts).
+  const [install, setInstall] = useState<{ line: string; level: string }>({ line: "—", level: "warn" });
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    const clock = (t: number) => new Date(t).toLocaleString("it-IT", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
+    setInstall(installSummary(readInstallLog(), standalone, clock));
+  }, []);
   const nearest = snap.places[0]?.ref ?? "";
   const selected = kind === "note" && target === "" ? "" : target || nearest;
   const device = typeof navigator !== "undefined" ? navigator.userAgent : null;
@@ -148,6 +156,10 @@ export function DebugPanel(props: DebugPanelProps) {
         <dd>
           <span className={online ? "good" : "bad"}>{online ? "online" : "offline"}</span> · cache offline{" "}
           {offlineReady === null ? "non verificabile" : offlineReady ? <span className="good">completa</span> : <span className="warn">non scaricata</span>}
+        </dd>
+        <dt>Installazione</dt>
+        <dd>
+          <span className={install.level}>{install.line}</span>
         </dd>
         <dt>Contenuti</dt>
         <dd>

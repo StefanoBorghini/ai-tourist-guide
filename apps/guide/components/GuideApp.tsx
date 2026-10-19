@@ -841,6 +841,8 @@ export function GuideApp() {
           </div>
         </section>
 
+        {/* Avvisi e visita salvata solo se ci sono: altrimenti la home è la sola foto e non scorre. */}
+        {(!online || error || indexPartial || savedTour) && (
         <div className="home-body">
           {!online && (
             <p className="notice">
@@ -865,7 +867,7 @@ export function GuideApp() {
           )}
 
         </div>
-        <footer className="home-foot muted small">Powered by Ductavia</footer>
+        )}
       </main>,
     );
   }

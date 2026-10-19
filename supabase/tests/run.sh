@@ -50,6 +50,16 @@ if "${PSQL[@]}" -f "$ROOT/rollback/$PREM.down.sql" 2>"$DATA/prem.err"; then echo
 grep -q "REVOCA PREMIUM interrotta, nulla è stato modificato" "$DATA/prem.err" || { cat "$DATA/prem.err"; exit 1; }
 "${PSQL[@]}" -At -c "select count(*) from pg_policies where policyname like 'premium_files_%'" | grep -qx 4 || { echo "revoca premium: policy toccate"; exit 1; }
 "${PSQL[@]}" -c "delete from storage.objects where bucket_id = 'premium'"
+# La revoca degli eventi non cancella mai eventi: con un evento presente si ferma senza cambiare nulla.
+EVT=20261031000000_local_events
+echo "test revoca $EVT con eventi presenti"
+"${PSQL[@]}" -c "insert into packs (id, kind, organization_id, default_locale, locales, title) values ('zz.revoca-eventi', 'destination', (select id from organizations where kind = 'platform' order by created_at limit 1), 'it', '{it}', '{\"it\":\"R\"}')" \
+  -c "insert into destinations (pack_id) values ('zz.revoca-eventi')" \
+  -c "insert into local_events (pack_id, slug, labels, category, start_date, venue_name) values ('zz.revoca-eventi', 'resta', '{\"it\":{\"title\":\"Resta\"}}', 'culture', '2030-01-01', 'Piazza')"
+if "${PSQL[@]}" -f "$ROOT/rollback/$EVT.down.sql" 2>"$DATA/evt.err"; then echo "la revoca degli eventi doveva fermarsi"; exit 1; fi
+grep -q "REVOCA EVENTI interrotta, nulla è stato modificato" "$DATA/evt.err" || { cat "$DATA/evt.err"; exit 1; }
+"${PSQL[@]}" -At -c "select count(*) from local_events where pack_id = 'zz.revoca-eventi'" | grep -qx 1 || { echo "revoca eventi: evento toccato"; exit 1; }
+"${PSQL[@]}" -c "delete from local_events where pack_id = 'zz.revoca-eventi'"
 for f in $(ls "$ROOT"/rollback/*.down.sql 2>/dev/null | sort -r); do
   echo "revoca $(basename "$f")"
   "${PSQL[@]}" -f "$f"

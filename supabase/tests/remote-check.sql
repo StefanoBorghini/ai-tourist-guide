@@ -6,7 +6,7 @@
 -- Esito: una tabella con «superato»; se qualcosa non va, un errore che inizia con «FALLITO».
 -- Colonne: esito, dati di prova rimasti (atteso 0), amministratori della piattaforma, controlli NON verificati
 -- (atteso «nessuno»: altrimenti l'elenco dice cosa va verificato a mano, e quei controlli non sono superati).
--- Presuppone le migrazioni fino a 20261030000000 (… → 29 → 30): senza, si ferma con «FALLITO: funzione assente».
+-- Presuppone le migrazioni fino a 20261031000000 (… → 29 → 30 → 31): senza, si ferma con «FALLITO: funzione assente».
 -- Non verificabile da SQL: lo scaricamento pubblico da /pub/ e la Storage API (qui si provano le regole sulle righe
 -- di storage.objects, non il servizio HTTP).
 -- Gli stessi controlli girano in locale con `npm run db:check` (10_platform_security.sql e seguenti).
@@ -58,7 +58,9 @@ begin
         ('20261026000000_orders', 'payment_paid(uuid,text,text,text,integer,text)'),
         ('20261027000000_premium_storage', 'premium_object_readable(text)'),
         ('20261028000000_place_products', 'has_place_right(text,uuid)'),
-        ('20261028000000_place_products', 'studio_places_on_sale(text,integer)')
+        ('20261028000000_place_products', 'studio_places_on_sale(text,integer)'),
+        ('20261031000000_local_events', 'public_local_events(text,date,date,text)'),
+        ('20261031000000_local_events', 'studio_save_local_event(text,uuid,jsonb,boolean)')
       ) as t(migration, sig) loop
       if to_regprocedure(f.sig) is null then
         raise exception 'FALLITO: migrazione % non applicata (manca %)', f.migration, f.sig;
@@ -896,6 +898,69 @@ begin
     begin
       insert into storage.objects (bucket_id, name) values ('bundles', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/explore.dddddddddddddddd.json');
       raise exception 'FALLITO: un file a pagamento entra nel bucket pubblico';
+    exception when insufficient_privilege then null; end;
+    reset role;
+
+    -- ------------------------------------------------------------ eventi del giorno (20261031000000)
+    -- Nessun accesso diretto per anon; lettura pubblica solo con public_local_events (definer, search_path fissato).
+    if has_table_privilege('anon', 'local_events', 'select') or has_table_privilege('anon', 'local_events', 'insert') then
+      raise exception 'FALLITO: anon ha privilegi sulla tabella degli eventi';
+    end if;
+    if not has_function_privilege('anon', 'public_local_events(text,date,date,text)', 'execute')
+       or has_function_privilege('anon', 'studio_save_local_event(text,uuid,jsonb,boolean)', 'execute') then
+      raise exception 'FALLITO: privilegi delle funzioni degli eventi';
+    end if;
+    if not (select prosecdef from pg_proc where oid = 'public_local_events(text,date,date,text)'::regprocedure)
+       or (select proconfig from pg_proc where oid = 'public_local_events(text,date,date,text)'::regprocedure) is distinct from array['search_path=public'] then
+      raise exception 'FALLITO: public_local_events deve girare come proprietario con search_path=public';
+    end if;
+    update destinations set status = 'published' where pack_id = 'it.test.alfa';
+    insert into local_events (pack_id, slug, labels, category, start_date, start_time, venue_name, source_url,
+                              verified_at, verified_by, publication, verification_note)
+    values ('it.test.alfa', 'remote-check-bozza', '{"it":{"title":"Bozza"}}', 'culture', (now() at time zone 'Europe/Rome')::date + 1, '18:00',
+            'Piazza', null, null, null, 'draft', null),
+           ('it.test.alfa', 'remote-check-pubblicato', '{"it":{"title":"Pubblicato"}}', 'culture', (now() at time zone 'Europe/Rome')::date + 1, '20:00',
+            'Piazza', 'https://example.org/evento', now(), 'a0000000-0000-0000-0000-000000000002', 'published', 'nota interna di verifica');
+    set local role anon;
+    perform set_config('request.jwt.claim.sub', '', true);
+    perform set_config('request.jwt.claims', '', true);
+    begin
+      perform 1 from local_events limit 1;
+      raise exception 'FALLITO: anon legge la tabella degli eventi';
+    exception when insufficient_privilege then null; end;
+    r := public_local_events('it.test.alfa');
+    if (select array_agg(ev.value ->> 'slug') from jsonb_array_elements(r -> 'events') ev) is distinct from array['remote-check-pubblicato'] then
+      raise exception 'FALLITO: eventi pubblici %', r -> 'events';
+    end if;
+    if r::text like '%nota interna di verifica%' or r::text like '%a0000000-0000-0000-0000-000000000002%' then
+      raise exception 'FALLITO: dati interni degli eventi nella risposta pubblica';
+    end if;
+    begin
+      perform public_local_events('it.test.alfa', (now() at time zone 'Europe/Rome')::date, (now() at time zone 'Europe/Rome')::date + 14);
+      raise exception 'FALLITO: accettato un periodo di 15 giorni';
+    exception when invalid_parameter_value then null; end;
+    reset role;
+    -- L'esperto del territorio è staff ma non legge le bozze degli eventi; il redattore le legge solo nel suo territorio.
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000003', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+    if exists (select 1 from local_events) then raise exception 'FALLITO: l''esperto legge gli eventi'; end if;
+    reset role;
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+    if (select count(*) from local_events where pack_id = 'it.test.alfa') <> 2 then raise exception 'FALLITO: il redattore non vede gli eventi del suo territorio'; end if;
+    begin
+      perform studio_set_local_event_publication((select id from local_events where slug = 'remote-check-bozza'), 'published');
+      raise exception 'FALLITO: pubblicato un evento senza fonte';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    begin
+      update local_events set publication = 'published' where slug = 'remote-check-bozza';
+      raise exception 'FALLITO: evento pubblicato con un UPDATE diretto';
+    exception when insufficient_privilege then null; end;
+    begin
+      perform studio_save_local_event('it.test.beta', null, '{"slug":"intruso","category":"culture","startDate":"2030-01-01","labels":{"it":{"title":"I"}},"venueName":"P"}');
+      raise exception 'FALLITO: il redattore crea eventi in un altro territorio';
     exception when insufficient_privilege then null; end;
     reset role;
 

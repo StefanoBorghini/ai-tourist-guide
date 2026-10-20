@@ -134,6 +134,13 @@ export function GuideApp() {
   /** Punto di partenza del giro (ancora o prima tappa del percorso): da qui parte anche la simulazione. */
   const tourStartRef = useRef<LngLat | null>(null);
   const speechStateRef = useRef<SpeechState>("idle");
+  /** Valori correnti per i passaggi asincroni (convalida degli acquisti, cambio di lingua). */
+  const walkingRef = useRef(walking);
+  walkingRef.current = walking;
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+  /** Parti acquistate già unite nel contenuto mostrato: dice se la convalida online ne ha portate di nuove. */
+  const ownedCountRef = useRef(0);
   const proposalRef = useRef(proposal);
   proposalRef.current = proposal;
 
@@ -169,19 +176,8 @@ export function GuideApp() {
       void loadBundle(other).catch((e: Error) => setError(e.message));
       return;
     }
-    const kind = runtime.kind;
-    const state = runtime.exportState();
-    const options = kind === "tour" ? tourOptionsRef.current : null;
-    const visiting = walking;
-    const here = tab;
     void loadBundle(other)
-      .then((loaded) => {
-        if (kind === "tour" && !options) return;
-        beginSession(loaded, runtime.mode, options, start, state);
-        // La visita resta dov'era: se si stava guardando un'altra scheda, non ci si sposta.
-        if (!visiting) setWalking(false);
-        setTab(here);
-      })
+      .then((loaded) => continueVisitWith(loaded))
       .catch((e: Error) => setError(e.message));
   };
   // Nella pagina iniziale e nel profilo vale la lingua scelta; dentro un territorio, quella del suo bundle.
@@ -224,7 +220,7 @@ export function GuideApp() {
       const entry = openedEntryRef.current;
       const base = baseContentRef.current;
       if (document.visibilityState !== "visible" || !entry || !base?.locked || !ACCOUNTS || !navigator.onLine) return;
-      void refreshPremium(entry.manifest, base, 0);
+      void refreshPremium(entry.manifest, base);
     };
     document.addEventListener("visibilitychange", again);
     window.addEventListener("pageshow", again);
@@ -288,13 +284,14 @@ export function GuideApp() {
     // Contenuti acquistati: subito quelli già sul dispositivo (anche senza rete), poi la convalida online.
     const owned = verified.locked ? await localPremium(entry.manifest) : [];
     const shown = mergePremium(verified, owned);
+    ownedCountRef.current = owned.length;
     setContent(shown);
     setBundleBase(base);
     setOpened({ url: entry.manifest, manifest });
     openedEntryRef.current = entry;
     setOffline((await isBundleCached(entry.manifest, manifest).catch(() => false)) ? "yes" : "no");
     baseContentRef.current = verified;
-    if (verified.locked && ACCOUNTS && navigator.onLine) void refreshPremium(entry.manifest, verified, owned.length);
+    if (verified.locked && ACCOUNTS && navigator.onLine) void refreshPremium(entry.manifest, verified);
     return shown;
   };
 
@@ -302,17 +299,44 @@ export function GuideApp() {
    * Convalida online degli acquisti di un bundle: sblocca ciò che è stato comprato, richiude ciò che è stato
    * rimborsato. Se una visita è già in corso su questo contenuto la cambia alla prossima apertura, non a metà.
    */
-  const refreshPremium = async (manifestUrl: string, base: BundleContent, before: number) => {
+  const refreshPremium = async (manifestUrl: string, base: BundleContent) => {
     const parts = await syncPremium(manifestUrl).catch(() => null);
     // Nel frattempo si è aperto un altro bundle (altra destinazione o lingua): questo esito non vale più.
     if (!parts || baseContentRef.current !== base) return;
-    setContent((current) => {
-      // Visita in corso su questo contenuto: cambia alla prossima apertura, non a metà.
-      if (!current || (runtimeRef.current && runtimeRef.current.content === current)) return current;
-      const next = mergePremium(base, parts);
-      return JSON.stringify(next) === JSON.stringify(current) ? current : next;
-    });
-    if (parts.length > before) setFlash(uiFor(base.locale).premiumUnlocked);
+    const grew = parts.length > ownedCountRef.current;
+    const next = mergePremium(base, parts);
+    const runtime = runtimeRef.current;
+    const visiting = runtime && runtime.content.destination === base.destination && runtime.content.locale === base.locale;
+    if (visiting) {
+      // Visita in corso (aprire una destinazione avvia l'esplorazione prima che arrivi la convalida): ciò che il server
+      // concede ora vale subito, in entrambi i versi (acquisto appena fatto, oppure rimborso o revoca), e la visita
+      // continua dallo stesso punto.
+      ownedCountRef.current = parts.length;
+      if (JSON.stringify(next) !== JSON.stringify(runtime.content)) continueVisitWith(next);
+    } else {
+      ownedCountRef.current = parts.length;
+      setContent((current) => (!current || JSON.stringify(next) === JSON.stringify(current) ? current : next));
+    }
+    if (grew) setFlash(uiFor(base.locale).premiumUnlocked);
+  };
+
+  /**
+   * La visita in corso continua con un altro contenuto della stessa destinazione (un'altra lingua, o con le parti
+   * appena acquistate): stessa memoria del racconto, tappe raggiunte, percorso, scheda e GPS.
+   */
+  const continueVisitWith = (next: BundleContent) => {
+    const runtime = runtimeRef.current;
+    const start = tourStartRef.current;
+    if (!runtime || !runtime.kind || !start) return;
+    const options = runtime.kind === "tour" ? tourOptionsRef.current : null;
+    if (runtime.kind === "tour" && !options) return;
+    const visiting = walkingRef.current;
+    const here = tabRef.current;
+    setContent(next);
+    beginSession(next, runtime.mode, options, start, runtime.exportState());
+    // La visita resta dov'era: se si stava guardando un'altra scheda, non ci si sposta.
+    if (!visiting) setWalking(false);
+    setTab(here);
   };
 
   /** Toccare una destinazione la apre e fa partire subito l'esplorazione libera (il tocco autorizza anche il GPS). */

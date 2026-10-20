@@ -45,6 +45,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   `components/DebugPanel.tsx` e `lib/field-points.ts` per il test sul campo (`?debug=1`);
   `components/MapView.tsx` e `lib/map-view.ts` per la mappa (Web Mercator, sfondo OpenStreetMap solo online e
   solo per le prove, attribuzione come solo testo senza link: in produzione serve un fornitore di tile con licenza adeguata);
+  `lib/site-lock.ts` protezione del sito con nome utente e password (autenticazione di base, applicata da `proxy.ts` a ogni percorso tranne il webhook di Stripe; accesa solo con le variabili del server `SITE_USERNAME` e `SITE_PASSWORD`, spenta senza; alla prima risposta 401 il service worker cancella le copie per l'uso senza rete);
   `app/studio/` e `lib/studio/` lo Studio della redazione (`/studio`, Supabase Auth, funzioni `studio_*` del database con
   l'identità dell'utente, nessuna chiave di servizio; `proxy.ts` per `/studio`, `/account`, `/auth` e `/pub/`; nuovi territori, stati, eliminazione (piano e copia
   di sicurezza nel database) e controllo di pubblicazione in `lib/studio/readiness.ts` (spiegato in parole semplici, con la sezione dove correggere, da `lib/studio/explain.ts`), vedi `docs/v0.3-platform/TERRITORI-DAL-CMS.md`; senza variabili dice di non essere

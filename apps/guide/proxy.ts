@@ -1,13 +1,17 @@
 /**
+ * Prima di tutto, se è attiva, la protezione del sito con nome utente e password (lib/site-lock.ts): vale per ogni
+ * pagina, file e API, tranne il webhook di Stripe.
+ *
  * Per /studio e per l'account dei visitatori (/account, /auth): rinnova la sessione Supabase nei cookie e manda
  * all'accesso chi non è autenticato. È un controllo ottimistico; quello vero lo fa ogni pagina e ogni azione
- * (lib/studio/server.ts, lib/account/server.ts). La guida turistica non passa di qui.
+ * (lib/studio/server.ts, lib/account/server.ts). Il resto della guida passa di qui solo per la protezione del sito.
  */
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { BUNDLES_BUCKET, currentIndexObject, listIndexObjects, PUB_INDEX_URL, publishedOrigin, pubToStorageUrl } from "./lib/bundle-index";
 import { readStudioConfig } from "./lib/studio/shared";
 import { accountEnv, readAccountConfig, requiresSession, SIGN_IN } from "./lib/account/shared";
+import { siteLockDecision, siteLockFromEnv } from "./lib/site-lock";
 
 /**
  * File pubblicati dallo Studio (/pub/, riscritti verso il bucket «bundles»): sono dati, mai pagine. Niente script
@@ -77,6 +81,13 @@ function withNoIndex(response: NextResponse): NextResponse {
 }
 
 export async function proxy(request: NextRequest) {
+  const lock = siteLockDecision(
+    request.nextUrl.pathname,
+    request.headers.get("authorization"),
+    siteLockFromEnv({ SITE_USERNAME: process.env.SITE_USERNAME, SITE_PASSWORD: process.env.SITE_PASSWORD }),
+  );
+  if (lock) return new NextResponse("Accesso riservato.", { status: lock.status, headers: lock.headers });
+  if (!/^\/(studio|pub|account|auth)(\/|$)/.test(request.nextUrl.pathname)) return NextResponse.next();
   if (request.nextUrl.pathname.startsWith("/pub/")) {
     // La riscrittura verso il bucket la fa qui (non in next.config): così le intestazioni restano sulla risposta.
     const origin = publishedOrigin({ NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL });
@@ -113,5 +124,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/studio", "/studio/:path*", "/pub/:path*", "/account", "/account/:path*", "/auth/:path*"],
+  // Tutto, perché la protezione del sito vale ovunque; le parti statiche di Next passano comunque dal controllo
+  // (un estraneo non deve poter scaricare nemmeno quelle). Le regole di Studio e account restano sui loro percorsi.
+  matcher: ["/:path*"],
 };

@@ -155,12 +155,32 @@ export function GuideApp() {
     } catch {
       // memoria non disponibile
     }
-    // Destinazione aperta ma nessuna visita in corso: la si riapre nella lingua scelta, se c'è.
+    // Destinazione aperta: la si riapre nella lingua scelta, se c'è. Con una visita in corso la visita continua
+    // nella nuova lingua dallo stesso punto (memoria del racconto, tappe raggiunte, percorso), come una ripresa.
     const current = openedEntryRef.current;
-    if (current && current.locale !== l && !runtimeRef.current) {
-      const other = entries.find((e) => e.destination === current.destination && e.locale === l);
-      if (other) void loadBundle(other).catch((e: Error) => setError(e.message));
+    if (!current || current.locale === l) return;
+    const other = entries.find((e) => e.destination === current.destination && e.locale === l);
+    if (!other) return;
+    const runtime = runtimeRef.current;
+    const start = tourStartRef.current;
+    if (!runtime || !runtime.kind || !start) {
+      void loadBundle(other).catch((e: Error) => setError(e.message));
+      return;
     }
+    const kind = runtime.kind;
+    const state = runtime.exportState();
+    const options = kind === "tour" ? tourOptionsRef.current : null;
+    const visiting = walking;
+    const here = tab;
+    void loadBundle(other)
+      .then((loaded) => {
+        if (kind === "tour" && !options) return;
+        beginSession(loaded, runtime.mode, options, start, state);
+        // La visita resta dov'era: se si stava guardando un'altra scheda, non ci si sposta.
+        if (!visiting) setWalking(false);
+        setTab(here);
+      })
+      .catch((e: Error) => setError(e.message));
   };
   // Nella pagina iniziale e nel profilo vale la lingua scelta; dentro un territorio, quella del suo bundle.
   const locale = tab === "home" || tab === "profilo" ? uiLocale : (content?.locale ?? uiLocale);

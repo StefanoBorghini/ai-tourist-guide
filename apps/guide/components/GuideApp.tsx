@@ -784,8 +784,18 @@ export function GuideApp() {
       </span>
     </div>
   );
-  const shell = (view: ReactNode) => (
+  /**
+   * Cornice di ogni scheda: in alto marchio e lingua (come nella home, decisione del 2026-10-20), poi la vista, il
+   * lettore e la barra in basso. La home ha marchio e lingua sopra la foto; la visita in corso ha la sua barra.
+   */
+  const shell = (view: ReactNode, appBar = true) => (
     <div className="app-shell">
+      {appBar && (
+        <header className="app-bar">
+          {brand}
+          {languageSwitch}
+        </header>
+      )}
       {view}
       {player}
       {/* Sempre montato (non perde l'evento d'installazione cambiando scheda); nascosto mentre la guida parla. */}
@@ -864,6 +874,7 @@ export function GuideApp() {
         </div>
         )}
       </main>,
+      false,
     );
   }
 
@@ -873,16 +884,6 @@ export function GuideApp() {
     return shell(
       <main className="profile">
         <h1>{t.profileTitle}</h1>
-        <section className="card">
-          <h2>{t.language}</h2>
-          <div className="segmented wide" role="group" aria-label={t.language}>
-            {(["it", "en"] as const).map((l) => (
-              <button key={l} aria-pressed={uiLocale === l} onClick={() => chooseLocale(l)} lang={l}>
-                {l === "it" ? "Italiano" : "English"}
-              </button>
-            ))}
-          </div>
-        </section>
         <section className="card">
           <h2>{t.guideSettings}</h2>
           <p className="muted small">{t.mode}</p>
@@ -1558,6 +1559,7 @@ export function GuideApp() {
         </div>
       </div>
     </main>,
+    false,
   );
 }
 

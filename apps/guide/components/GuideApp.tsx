@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { mergePremium, verifyBundle, type BundleContent, type BundleManifest } from "@guide/bundle/client";
 import { bearingDeg, distanceM, type Fix, type LngLat } from "@guide/context-engine";
 import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeKind, type RuntimeState, type TourOptions } from "../lib/runtime";
@@ -125,6 +125,8 @@ export function GuideApp() {
   const [gps, setGps] = useState(false);
   const [complete, setComplete] = useState(false);
 
+  /** Ultima scheda mostrata e verso del passaggio (per l'animazione d'ingresso). */
+  const tabMotionRef = useRef<{ tab: Tab; dir: "fwd" | "back" }>({ tab: "home", dir: "fwd" });
   const runtimeRef = useRef<GuideRuntime | null>(null);
   const voiceRef = useRef<GuideVoice | null>(null);
   const simRef = useRef<{ fixes: Fix[]; index: number; timer: ReturnType<typeof setInterval> | null }>({ fixes: [], index: 0, timer: null });
@@ -808,15 +810,22 @@ export function GuideApp() {
    * Cornice di ogni scheda: in alto marchio e lingua (come nella home, decisione del 2026-10-20), poi la vista, il
    * lettore e la barra in basso. La home ha marchio e lingua sopra la foto; la visita in corso ha la sua barra.
    */
+  // Verso del cambio di scheda (avanti o indietro nella barra): decide da che lato entra la nuova vista.
+  if (tabMotionRef.current.tab !== tab) {
+    const order = TABS.map((x) => x.id);
+    tabMotionRef.current = { tab, dir: order.indexOf(tab) >= order.indexOf(tabMotionRef.current.tab) ? "fwd" : "back" };
+  }
+  // La chiave sulla vista la fa rientrare (e animare) solo quando cambia la scheda, non a ogni aggiornamento.
+  const keyed = (view: ReactNode) => (isValidElement(view) ? cloneElement(view as ReactElement, { key: tab }) : view);
   const shell = (view: ReactNode, appBar = true) => (
-    <div className="app-shell">
+    <div className="app-shell" data-tab-dir={tabMotionRef.current.dir}>
       {appBar && (
         <header className="app-bar">
           {brand}
           {languageSwitch}
         </header>
       )}
-      {view}
+      {keyed(view)}
       {player}
       {/* Sempre montato (non perde l'evento d'installazione cambiando scheda); nascosto mentre la guida parla. */}
       <InstallPrompt t={t} hidden={Boolean(player)} />

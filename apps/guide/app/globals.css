@@ -1200,3 +1200,23 @@ details.card[open] > summary::after { content: "–"; }
 .app-bar .segmented.on-photo { background: var(--surface); border-color: var(--line-strong); backdrop-filter: none; -webkit-backdrop-filter: none; }
 .app-bar ~ main .tab-head, .app-bar ~ .profile, .app-bar ~ .tab-empty { padding-top: 12px; }
 .app-bar ~ .hub { min-height: 0; }
+
+/* ------------------------------------------------------------------ cambio di scheda: ingresso sobrio della vista */
+/* Solo opacità e un piccolo spostamento (nessun transform a riposo: non disturba mappa e pannelli fissi). */
+@keyframes tab-in-fwd { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@keyframes tab-in-back { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+.app-shell > main { animation: tab-in-fwd 0.32s var(--ease) backwards; }
+.app-shell[data-tab-dir="back"] > main { animation-name: tab-in-back; }
+/* La scheda attiva della barra in basso si accende con una piccola «pillola» che cresce. */
+@keyframes tab-pill { from { transform: scaleX(0.6); opacity: 0.4; } to { transform: none; opacity: 1; } }
+.tabbar button.on .tab-icon { animation: tab-pill 0.32s var(--ease) backwards; }
+.tabbar button .icon { transition: transform 0.25s var(--ease); }
+.tabbar button.on .icon { transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) {
+  .app-shell > main, .tabbar button.on .tab-icon { animation: none; }
+  .tabbar button .icon { transition: none; }
+}
+
+/* Niente alone colorato del browser al tocco (Chrome su Android): il riscontro lo danno gli stati dei pulsanti.
+   La tastiera conserva il suo contorno visibile (:focus-visible). */
+html { -webkit-tap-highlight-color: transparent; }

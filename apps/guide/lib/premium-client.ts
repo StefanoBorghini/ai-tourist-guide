@@ -6,6 +6,20 @@ import { verifyPremiumPart, type PremiumPart } from "@guide/bundle/client";
 import { missingParts, reconcile, usableParts, type PremiumGrant, type StoredPremium } from "./premium";
 
 const KEY_PREFIX = "guide-premium:";
+
+/** Esito dell'ultima convalida online (solo per il pannello di debug): nessun dato personale, solo conteggi e codici. */
+export interface PremiumSyncReport {
+  at: number;
+  status: number | "rete";
+  enabled: boolean | null;
+  signedIn: boolean | null;
+  allowed: number;
+  downloaded: number;
+  failed: number;
+  error: string | null;
+}
+let lastReport: PremiumSyncReport | null = null;
+export const premiumSyncReport = () => lastReport;
 const keyOf = (manifestUrl: string) => KEY_PREFIX + manifestUrl.replace(/\/[0-9a-f-]{36}\/manifest\.json$/, "");
 
 function read(manifestUrl: string): StoredPremium | null {
@@ -65,9 +79,20 @@ export function clearPremium(): void {
  * acquisti sono dell'account, non del dispositivo.
  */
 export async function syncPremium(manifestUrl: string): Promise<PremiumPart[] | null> {
-  const res = await fetch(`/api/premium?manifest=${encodeURIComponent(manifestUrl)}`, { cache: "no-store", credentials: "same-origin" });
+  const report: PremiumSyncReport = { at: Date.now(), status: "rete", enabled: null, signedIn: null, allowed: 0, downloaded: 0, failed: 0, error: null };
+  lastReport = report;
+  let res: Response;
+  try {
+    res = await fetch(`/api/premium?manifest=${encodeURIComponent(manifestUrl)}`, { cache: "no-store", credentials: "same-origin" });
+  } catch (e) {
+    report.error = (e as Error).name;
+    throw e;
+  }
+  report.status = res.status;
   if (!res.ok) return null;
   const grant = (await res.json()) as PremiumGrant;
+  report.enabled = grant.enabled;
+  report.signedIn = grant.signedIn;
   if (!grant.enabled) return null;
   if (!grant.signedIn) {
     clearPremium();
@@ -75,15 +100,21 @@ export async function syncPremium(manifestUrl: string): Promise<PremiumPart[] | 
   }
   if (grant.validUntil === null) return null;
   const allowed = grant.parts.map((p) => p.entry);
+  report.allowed = allowed.length;
   const next = reconcile(read(manifestUrl), manifestUrl, allowed, grant.validUntil);
   for (const entry of missingParts(next, allowed)) {
     const url = grant.parts.find((p) => p.entry.path === entry.path)!.url;
     try {
-      const json = await (await fetch(url, { cache: "no-store" })).text();
+      const file = await fetch(url, { cache: "no-store" });
+      if (!file.ok) throw new Error(`HTTP ${file.status}`);
+      const json = await file.text();
       await verifyPremiumPart(entry, json);
       next.parts.push({ entry, json });
-    } catch {
+      report.downloaded++;
+    } catch (e) {
       // Scaricamento non riuscito: si riprova alla prossima apertura.
+      report.failed++;
+      report.error ??= `${entry.kind}: ${(e as Error).message.slice(0, 80)}`;
     }
   }
   write(next);

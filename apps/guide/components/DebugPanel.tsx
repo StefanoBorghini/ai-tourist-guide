@@ -15,6 +15,7 @@ import {
   type PositionSource,
 } from "../lib/field-points";
 import { installSummary, readInstallLog } from "../lib/install-status";
+import { premiumSyncReport } from "../lib/premium-client";
 import type { GuideRuntime } from "../lib/runtime";
 
 /**
@@ -56,6 +57,21 @@ export interface DebugPanelProps {
   serverKbHash?: string | null;
   askAvailable?: boolean;
   webAvailable?: boolean;
+}
+
+/** Ultima convalida degli acquisti, in breve: risposta del server, accesso, parti concesse, scaricate, errori. */
+function premiumLine(r: ReturnType<typeof premiumSyncReport>) {
+  if (!r) return <span className="warn">nessuna verifica (destinazione gratuita, acquisti spenti o offline)</span>;
+  const when = new Date(r.at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  if (r.status !== 200) return <span className="bad">{when} · risposta {r.status}{r.error ? ` · ${r.error}` : ""}</span>;
+  if (!r.enabled) return <span className="warn">{when} · acquisti spenti sul server</span>;
+  if (!r.signedIn) return <span className="warn">{when} · nessun account entrato</span>;
+  return (
+    <span className={r.failed ? "bad" : "good"}>
+      {when} · concesse {r.allowed} · scaricate ora {r.downloaded}
+      {r.failed ? ` · NON scaricate ${r.failed}: ${r.error}` : ""}
+    </span>
+  );
 }
 
 export function DebugPanel(props: DebugPanelProps) {
@@ -161,6 +177,12 @@ export function DebugPanel(props: DebugPanelProps) {
         <dd>
           <span className={install.level}>{install.line}</span>
         </dd>
+        <dt>Versione</dt>
+        <dd>
+          <code>{process.env.NEXT_PUBLIC_BUILD_SHA ? process.env.NEXT_PUBLIC_BUILD_SHA.slice(0, 7) : "locale"}</code>
+        </dd>
+        <dt>Acquisti</dt>
+        <dd>{premiumLine(premiumSyncReport())}</dd>
         <dt>Contenuti</dt>
         <dd>
           telefono <code>{bundleHash ? bundleHash.slice(0, 12) : "—"}</code> · domande (server){" "}

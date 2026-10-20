@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Versione in esecuzione (commit del deploy su Vercel), mostrata nel pannello di debug.
+  env: { NEXT_PUBLIC_BUILD_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? "" },
   // I pacchetti del monorepo sono distribuiti come sorgenti TypeScript.
   transpilePackages: ["@guide/domain", "@guide/bundle", "@guide/context-engine", "@guide/narrative-planner", "@guide/territory-pack"],
   outputFileTracingIncludes: {

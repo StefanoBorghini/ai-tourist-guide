@@ -1027,7 +1027,7 @@ export function GuideApp() {
             )}
           </section>
         )}
-        <p className="muted small home-foot">AI Guide</p>
+        <p className="muted small home-foot">Powered by Ductavia</p>
       </main>,
     );
   }

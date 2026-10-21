@@ -14,6 +14,7 @@ import { uiFor, type UiText } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
 import { formatPrice, lockedPlaceRefs, offersFor, type CatalogItem, type Offer } from "../lib/shop";
 import { localPremium, syncPremium } from "../lib/premium-client";
+import { asNavState, HOME, initialStack, navStateOf, navStep, navUrl, readNavUrl, type NavState } from "../lib/nav-history";
 import { clearPurchaseWatch, markPurchaseStarted, PURCHASE_DONE_KEY, PURCHASE_POLL_MS, purchaseStamps, watchingPurchase } from "../lib/purchase-watch";
 import { AskBox } from "./AskBox";
 import { bundleBase as bundleBaseOf, loadIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndexEntry } from "../lib/bundle-index";
@@ -88,8 +89,11 @@ export function GuideApp() {
   const [tab, setTab] = useState<Tab>("home");
   /** Visita in corso (GPS, racconti): resta attiva anche passando alle altre schede. */
   const [walking, setWalking] = useState(false);
-  /** Elenco delle destinazioni aperto da una visita in corso («‹ Destinazioni»): la visita resta attiva sotto. */
-  const [pickDest, setPickDest] = useState(false);
+  /**
+   * La scheda della visita in corso mostra la sua pagina invece della visita: l'elenco delle destinazioni
+   * («‹ Destinazioni») o i percorsi (con il back del telefono). La visita resta attiva sotto.
+   */
+  const [showHub, setShowHub] = useState(false);
   const [opening, setOpening] = useState(false);
   const [content, setContent] = useState<BundleContent | null>(null);
   /** Bundle pubblico (verificato) da cui viene il contenuto mostrato: le parti acquistate si uniscono a questo. */
@@ -143,6 +147,8 @@ export function GuideApp() {
   walkingRef.current = walking;
   const tabRef = useRef(tab);
   tabRef.current = tab;
+  const contentRef = useRef(content);
+  contentRef.current = content;
   /** Parti acquistate già unite nel contenuto mostrato: dice se la convalida online ne ha portate di nuove. */
   const ownedCountRef = useRef(0);
   /** Istante dell'ultima convalida online riuscita (per chiudere l'attesa di un acquisto). */
@@ -391,7 +397,7 @@ export function GuideApp() {
 
   /** Toccare una destinazione la apre e fa partire subito l'esplorazione libera (il tocco autorizza anche il GPS). */
   const openBundle = async (entry: BundleEntry) => {
-    setPickDest(false);
+    setShowHub(false);
     try {
       stopSimulation();
       const loaded = await loadBundle(entry);
@@ -486,6 +492,7 @@ export function GuideApp() {
     setSelected(null);
     setFlash(null);
     setWalking(true);
+    setShowHub(false);
     setTab(options ? "percorsi" : "esplora");
     saveTour();
   };
@@ -867,12 +874,136 @@ export function GuideApp() {
     online,
   );
 
+  // Cronologia del browser (lib/nav-history.ts): il back del telefono scende Visita → scheda → Home invece di uscire,
+  // l'indirizzo porta scheda e destinazione (?v=…&d=…) e ricaricando si ritrova la stessa vista.
+  const inVisit = walking && !!runtime && tab === sessionTab && !showHub;
+  const navNow = navStateOf({ tab, inVisit, destination: inVisit ? runtime!.content.destination : (content?.destination ?? null) });
+  const entryFor = (d: string | null) => {
+    const group = d ? byDestination.get(d) : undefined;
+    return group ? pick(group) : null;
+  };
+  /** Vista da ritrovare (back/avanti del browser, ricarica, link diretto). */
+  const applyNav = (st: NavState) => {
+    window.scrollTo(0, 0);
+    if (st.depth === 0) {
+      setShowHub(false);
+      setTab("home");
+      return;
+    }
+    if (st.depth === 1) {
+      if (st.tab === "percorsi") {
+        setShowHub(true);
+        const entry = st.d && contentRef.current?.destination !== st.d ? entryFor(st.d) : !contentRef.current ? featured : null;
+        if (entry) void loadBundle(entry).catch((e: Error) => setError(e.message));
+      } else setShowHub(st.tab === "esplora");
+      setTab(st.tab);
+      return;
+    }
+    // Visita: quella in corso se è della stessa destinazione, altrimenti la si riprende (giro salvato) o la si avvia.
+    const rt = runtimeRef.current;
+    if (walkingRef.current && rt && rt.content.destination === st.d) {
+      setShowHub(false);
+      setTab(rt.kind === "tour" ? "percorsi" : "esplora");
+      return;
+    }
+    const saved = readSavedTour();
+    if (saved && saved.entry.destination === st.d) void resumeTour(saved);
+    else {
+      const entry = entryFor(st.d);
+      if (entry) void openBundle(entry);
+    }
+  };
+  const applyNavRef = useRef(applyNav);
+  applyNavRef.current = applyNav;
+  const writeNav = (st: NavState, push: boolean) => {
+    // Lo stato del router di Next resta: si aggiunge solo la nostra chiave.
+    const state = { ...(window.history.state ?? {}), guideNav: st };
+    const url = window.location.pathname + navUrl(st, window.location.search);
+    if (push) window.history.pushState(state, "", url);
+    else window.history.replaceState(state, "", url);
+  };
+  const navReadyRef = useRef(false);
+  /** Ritorno indietro avviato dall'app (es. da una visita alla Home): la voce raggiunta prende questo stato. */
+  const navPendingRef = useRef<NavState | null>(null);
+  /** Vista in arrivo dopo una ricarica o un link: finché non è pronta la cronologia non si tocca. */
+  const navRestoringRef = useRef<NavState | null>(null);
+
+  // Prima apertura o ricarica: appena c'è l'elenco delle destinazioni si ritrova la vista dell'indirizzo.
+  useEffect(() => {
+    if (navReadyRef.current || (entries.length === 0 && !error)) return;
+    navReadyRef.current = true;
+    if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+    const existing = asNavState((window.history.state as { guideNav?: unknown } | null)?.guideNav);
+    const url = readNavUrl(window.location.search);
+    let target: NavState = existing ?? (url.d ? { depth: 2, tab: "esplora", d: url.d } : url.v ? { depth: 1, tab: url.v, d: null } : HOME);
+    // Destinazione sconosciuta (link vecchio o sbagliato): si mostra l'elenco.
+    if (target.d && !byDestination.has(target.d)) target = { depth: 1, tab: "esplora", d: null };
+    if (!existing) {
+      const [first, ...rest] = initialStack(target);
+      writeNav(first!, false);
+      for (const st of rest) writeNav(st, true);
+    } else writeNav(target, false);
+    if (target.depth > 0) {
+      navRestoringRef.current = target;
+      // Se la vista non si raggiunge (errore di rete) dopo un po' la cronologia torna a seguire l'app.
+      setTimeout(() => { if (navRestoringRef.current === target) navRestoringRef.current = null; }, 15000);
+      applyNav(target);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta sola, quando l'elenco è pronto
+  }, [entries, error]);
+
+  // Ogni cambio di vista dell'app si riflette nella cronologia (aggiunge, sostituisce o torna indietro).
+  const navKey = `${navNow.depth}|${navNow.tab}|${navNow.d ?? ""}`;
+  useEffect(() => {
+    if (!navReadyRef.current) return;
+    const restoring = navRestoringRef.current;
+    if (restoring) {
+      const reached = navNow.depth === restoring.depth && navNow.tab === restoring.tab && (!restoring.d || navNow.d === restoring.d);
+      if (!reached) return;
+      navRestoringRef.current = null;
+      writeNav(navNow, false);
+      return;
+    }
+    if (navPendingRef.current) {
+      navPendingRef.current = navNow;
+      return;
+    }
+    const current = asNavState((window.history.state as { guideNav?: unknown } | null)?.guideNav);
+    const step = navStep(current, navNow);
+    if (step.kind === "replace") writeNav(navNow, false);
+    else if (step.kind === "push") for (const st of step.states) writeNav(st, true);
+    else if (step.kind === "back") {
+      navPendingRef.current = navNow;
+      window.history.go(-step.steps);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- navKey riassume navNow
+  }, [navKey]);
+
+  // Back e avanti del browser o del telefono.
+  useEffect(() => {
+    const onPop = (ev: PopStateEvent) => {
+      const pending = navPendingRef.current;
+      if (pending) {
+        navPendingRef.current = null;
+        writeNav(pending, false);
+        return;
+      }
+      const st = asNavState((ev.state as { guideNav?: unknown } | null)?.guideNav);
+      if (!st) return;
+      navRestoringRef.current = null;
+      applyNavRef.current(st);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- writeNav usa solo window
+  }, []);
   /**
    * Cambio di scheda. Percorsi ha bisogno di una destinazione, e il Profilo la offre per l'uso offline: senza,
    * si apre quella in evidenza. Esplora elenca le destinazioni e non ne apre nessuna da sola.
    */
   const goTab = async (next: Tab) => {
-    setPickDest(false);
+    setShowHub(false);
+    navRestoringRef.current = null;
     if (next !== "home" && next !== "esplora" && !content && featured) {
       setOpening(true);
       setTab(next);
@@ -891,13 +1022,13 @@ export function GuideApp() {
 
   /** «‹ Destinazioni»: elenco delle destinazioni senza chiudere la visita (GPS e voce restano attivi). */
   const toDestinations = () => {
-    setPickDest(true);
+    setShowHub(true);
     setTab("esplora");
     window.scrollTo(0, 0);
   };
   /** Dall'elenco si torna alla visita in corso della stessa destinazione. */
   const backToVisit = () => {
-    setPickDest(false);
+    setShowHub(false);
     if (sessionTab) setTab(sessionTab);
     window.scrollTo(0, 0);
   };
@@ -1105,7 +1236,7 @@ export function GuideApp() {
   }
 
   // Esplora: solo l'elenco delle destinazioni (decisione del 2026-10-19). La visita in corso resta nella sua scheda.
-  if (tab === "esplora" && (sessionTab !== "esplora" || pickDest)) {
+  if (tab === "esplora" && (sessionTab !== "esplora" || showHub)) {
     return shell(
       <main className="hub explore-tab">
         <header className="tab-head">
@@ -1169,7 +1300,7 @@ export function GuideApp() {
       <Icon name="back" /> {t.destinations}
     </button>
   );
-  const showSession = walking && runtime?.content === content && tab === sessionTab;
+  const showSession = walking && runtime?.content === content && tab === sessionTab && !showHub;
   // Contenuti a pagamento: prezzo dal listino pubblico e acquisto diretto (il server decide utente e importo;
   // senza accesso porta prima al login e poi alla pagina d'acquisto).
   const shopOn = ACCOUNTS && catalog?.pack === content.destination && catalog.enabled;

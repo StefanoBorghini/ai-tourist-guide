@@ -42,6 +42,11 @@ export type RuntimeKind = "explore" | "tour";
 
 export type GuideMode = "auto" | "ask" | "silent";
 
+/** Modalità predefinita: chiede prima di raccontare (niente voce a sorpresa, l'audio parte da un tocco). */
+export const DEFAULT_GUIDE_MODE: GuideMode = "ask";
+/** Modalità ricordata sul dispositivo (chiave `guide-mode`); un valore sconosciuto torna alla predefinita. */
+export const parseGuideMode = (raw: string | null): GuideMode => (raw === "auto" || raw === "ask" || raw === "silent" ? raw : DEFAULT_GUIDE_MODE);
+
 export interface NarrationSegment {
   id: string;
   kind: "unit" | "bridge";

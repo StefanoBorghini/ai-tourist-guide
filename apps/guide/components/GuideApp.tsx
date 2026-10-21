@@ -3,7 +3,7 @@
 import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { mergePremium, verifyBundle, type BundleContent, type BundleManifest } from "@guide/bundle/client";
 import { bearingDeg, distanceM, type Fix, type LngLat } from "@guide/context-engine";
-import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeKind, type RuntimeState, type TourOptions } from "../lib/runtime";
+import { DEFAULT_GUIDE_MODE, GuideRuntime, parseGuideMode, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeKind, type RuntimeState, type TourOptions } from "../lib/runtime";
 import type { PositionSource } from "../lib/field-points";
 import { gpsStatus, type GpsErrorCode, type GpsStatus } from "../lib/gps-status";
 import { geoPlatform, shouldResume, type GeoPlatform } from "../lib/geo-permission";
@@ -116,7 +116,7 @@ export function GuideApp() {
   const openedEntryRef = useRef<BundleEntry | null>(null);
   const tourOptionsRef = useRef<TourOptions | null>(null);
   const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
-  const [mode, setMode] = useState<GuideMode>("ask");
+  const [mode, setMode] = useState<GuideMode>(DEFAULT_GUIDE_MODE);
   const [avoidStairs, setAvoidStairs] = useState(false);
   const [, setTick] = useState(0);
   const [proposal, setProposal] = useState<{ placeRef: string; name: string } | null>(null);
@@ -161,6 +161,23 @@ export function GuideApp() {
     }
     setUiLocale(saved === "it" || saved === "en" ? saved : navigator.language.startsWith("it") ? "it" : "en");
   }, []);
+  // La modalità della guida scelta nel Profilo vale anche per le visite nuove (letta dopo il montaggio, come la lingua).
+  useEffect(() => {
+    try {
+      setMode(parseGuideMode(localStorage.getItem("guide-mode")));
+    } catch {
+      // memoria non disponibile: resta la predefinita
+    }
+  }, []);
+  const chooseMode = (m: GuideMode) => {
+    setMode(m);
+    if (runtimeRef.current) runtimeRef.current.mode = m;
+    try {
+      localStorage.setItem("guide-mode", m);
+    } catch {
+      // memoria non disponibile: vale solo finché l'app resta aperta
+    }
+  };
   const chooseLocale = (l: "it" | "en") => {
     setUiLocale(l);
     try {
@@ -520,10 +537,10 @@ export function GuideApp() {
   const resumeTour = async (saved: SavedTour) => {
     try {
       const loaded = await loadBundle(saved.entry);
-      setMode(saved.mode);
+      // Vale la modalità scelta ora nel Profilo (ricordata sul dispositivo), non quella del momento del salvataggio.
       const options = saved.kind === "explore" ? null : saved.options;
       if (options?.route) setRouteRef(options.route);
-      beginSession(loaded, saved.mode, options, saved.start, saved.state);
+      beginSession(loaded, mode, options, saved.start, saved.state);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -1011,7 +1028,7 @@ export function GuideApp() {
           <p className="muted small">{t.mode}</p>
           <div className="segmented wide stack" role="group" aria-label={t.mode}>
             {(["ask", "auto", "silent"] as const).map((m) => (
-              <button key={m} aria-pressed={mode === m} onClick={() => { setMode(m); if (runtimeRef.current) runtimeRef.current.mode = m; }}>
+              <button key={m} aria-pressed={mode === m} onClick={() => chooseMode(m)}>
                 {t.modes[m]}
               </button>
             ))}

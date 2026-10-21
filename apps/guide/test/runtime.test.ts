@@ -4,7 +4,7 @@ import { buildBundle, type BundleContent } from "@guide/bundle";
 import { destination } from "@guide/context-engine";
 import { loadPacks } from "@guide/territory-pack";
 import { beforeAll, describe, expect, it } from "vitest";
-import { DECLINE_COOLDOWN_MS, GuideRuntime, narrationBudgetS, type RuntimeEvent } from "../lib/runtime.ts";
+import { DECLINE_COOLDOWN_MS, DEFAULT_GUIDE_MODE, GuideRuntime, narrationBudgetS, parseGuideMode, type RuntimeEvent } from "../lib/runtime.ts";
 import { simulateWalk } from "../lib/simulator.ts";
 
 /**
@@ -462,5 +462,15 @@ describe("passaggio tra esplorazione libera e percorso guidato", () => {
     reopened.startTour({ now: T0, start: content.anchors[0]!.location, route: route().ref });
     reopened.restoreState(legacy);
     expect(reopened.nextStop).toBe(route().stops[1]!.place);
+  });
+});
+
+describe("modalità ricordata", () => {
+  it("valori validi restano, il resto torna a «Mi chiede prima»", () => {
+    expect(parseGuideMode("auto")).toBe("auto");
+    expect(parseGuideMode("silent")).toBe("silent");
+    expect(parseGuideMode("ask")).toBe("ask");
+    expect(parseGuideMode(null)).toBe(DEFAULT_GUIDE_MODE);
+    expect(parseGuideMode("boh")).toBe("ask");
   });
 });

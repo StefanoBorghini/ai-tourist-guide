@@ -6,6 +6,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { POSITION_CITATION, askRequestSchema, buildKnowledge, type AskAnswer, type AskRequest } from "../lib/ask.ts";
 import { askGuide, type Loaded, type WebGate } from "../lib/ask-server.ts";
+import { AnthropicAdapter, type AskModels } from "../lib/model.ts";
 import {
   DEFAULT_BLOCKED_DOMAINS,
   DailyCounter,
@@ -16,6 +17,7 @@ import {
   estimateUsd,
   needsWeb,
   parseWebAnswer,
+  redactForLog,
   reserveUsd,
   sourceTier,
   unsupportedNumbers,
@@ -68,7 +70,10 @@ function fakeClient(...replies: (object | Error)[]) {
     if (next instanceof Error) throw next;
     return next;
   });
-  return { client: { beta: { messages: { create } } } as unknown as Anthropic, create };
+  const anthropic = { beta: { messages: { create } } } as unknown as Anthropic;
+  // Risposta locale e ricerca sullo stesso client finto, come in produzione con il fornitore Anthropic.
+  const client: AskModels = { local: new AnthropicAdapter(anthropic), web: anthropic };
+  return { client, create };
 }
 const gate = (o: Partial<WebGate> = {}): WebGate => ({ config: webConfig({}), supported: true, permitted: () => true, ...o });
 
@@ -109,6 +114,18 @@ describe("quando cercare", () => {
     expect(needsWeb(a("answered"), deep)).toBe(true);
     expect(needsWeb(a("off_topic"), deep)).toBe(false);
     expect(needsWeb(a("unavailable"), deep)).toBe(false);
+  });
+  it("in un'emergenza non cerca mai", () => {
+    expect(needsWeb(a("safety"), req)).toBe(false);
+    expect(needsWeb(a("safety"), { ...req, depth: "deep" })).toBe(false);
+  });
+});
+
+describe("log delle domande", () => {
+  it("maschera email e numeri di telefono, non gli anni", () => {
+    expect(redactForLog("scrivimi a mario.rossi@example.it per info")).toBe("scrivimi a [email] per info");
+    expect(redactForLog("chiamami al +39 347 123 4567 o allo 0187 790000")).toBe("chiamami al [telefono] o allo [telefono]");
+    expect(redactForLog("fu costruita tra il 1256-1277 e restaurata nel 1929")).toBe("fu costruita tra il 1256-1277 e restaurata nel 1929");
   });
 });
 

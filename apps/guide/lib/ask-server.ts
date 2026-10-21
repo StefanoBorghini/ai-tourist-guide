@@ -1,9 +1,12 @@
 /**
- * Parte server delle domande alla guida: legge il bundle compilato e interroga Claude.
+ * Parte server delle domande alla guida: legge il bundle compilato e interroga il modello.
  *
  * La conoscenza arriva dallo stesso bundle che usa l'app (public/bundles, verificato con gli hash),
  * mai dal client: chi fa la domanda non può aggiungere "fatti" alla base.
+ * La risposta locale passa da un ModelAdapter (model.ts): il fornitore si cambia con la configurazione.
+ * La ricerca web usa lo strumento lato server di Anthropic.
  */
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
@@ -36,8 +39,15 @@ import {
   type Usage,
   type WebConfig,
 } from "./ask-web";
+import { DEFAULT_ANTHROPIC_MODEL, type AskModels, type ModelAdapter } from "./model";
+import { PERSONA, PERSONA_PROMPT } from "./persona";
 
-export const ASK_MODEL = "claude-opus-5-5";
+/** Modello della risposta locale quando ASK_MODEL non è impostato (fornitore Anthropic). */
+export const ASK_MODEL = DEFAULT_ANTHROPIC_MODEL;
+
+/** Versioni di istruzioni e persona, per i log: dicono con quali regole è stata data una risposta. */
+export const PROMPT_VERSION = createHash("sha256").update(`${SYSTEM_PROMPT}\n${WEB_SYSTEM_PROMPT}\n${PERSONA_PROMPT}`).digest("hex").slice(0, 12);
+export const PERSONA_VERSION = `${PERSONA.id}@${PERSONA.version}`;
 
 export interface Loaded {
   content: BundleContent;
@@ -171,36 +181,28 @@ const toUsage = (u: Anthropic.Beta.Messages.BetaUsage): Usage => ({
 });
 
 /** Livello A: risposta dalla sola base verificata, con controllo rigoroso di citazioni e numeri. */
-export async function askLocal(client: Anthropic, loaded: Loaded, req: AskRequest): Promise<LocalResult> {
-  const response = await client.beta.messages.create(
-    {
-      model: ASK_MODEL,
-      max_tokens: 4000,
-      // Se il modello declina, l'API ripete la richiesta sul modello di ripiego consigliato.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      // Risposte da leggere a voce: poca riflessione, latenza bassa.
-      output_config: { effort: "low", format: { type: "json_schema", schema: ANSWER_JSON_SCHEMA } },
-      system: [
-        { type: "text", text: SYSTEM_PROMPT },
-        { type: "text", text: loaded.knowledge, cache_control: { type: "ephemeral" } },
-      ],
-      messages: [{ role: "user", content: buildQuestionMessage(loaded.content, req) }],
-    },
-    { timeout: 25_000 },
-  );
-  const usage = toUsage(response.usage);
-  // Il modello che ha risposto davvero (con il ripiego automatico può non essere ASK_MODEL).
-  const model = response.model || ASK_MODEL;
+export async function askLocal(model: ModelAdapter, loaded: Loaded, req: AskRequest): Promise<LocalResult> {
+  const response = await model.generate({
+    // Istruzioni e persona fisse, poi la base: tutto il prefisso resta in cache tra una domanda e l'altra.
+    system: [{ text: SYSTEM_PROMPT }, { text: PERSONA_PROMPT }, { text: loaded.knowledge, cache: true }],
+    user: buildQuestionMessage(loaded.content, req),
+    jsonSchema: ANSWER_JSON_SCHEMA,
+    maxTokens: 4000,
+    timeoutMs: 25_000,
+  });
+  const { usage } = response;
 
-  if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") {
-    const reason = response.stop_reason === "refusal" ? "il modello ha rifiutato la richiesta" : "risposta troncata (limite di lunghezza)";
-    return { answer: fallbackAnswer(req.locale, "rejected", reason), rejected: reason, usage, model };
+  if (response.stop !== "end") {
+    const reason = response.stop === "refusal" ? "il modello ha rifiutato la richiesta" : "risposta troncata (limite di lunghezza)";
+    return { answer: fallbackAnswer(req.locale, "rejected", reason), rejected: reason, usage, model: response.model };
   }
-  const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-  const checked = checkModelAnswer(text, loaded.content, req);
-  if (!checked.ok) return { answer: fallbackAnswer(req.locale, "rejected", checked.reason), rejected: checked.reason, usage, model };
-  return { answer: { ...checked.answer, origin: "local" }, usage, model };
+  const checked = checkModelAnswer(response.text, loaded.content, req);
+  if (!checked.ok) {
+    // Un'emergenza scartata dal controllo non diventa mai un «riprova»: si rimanda comunque al 112.
+    const answer = fallbackAnswer(req.locale, checked.safety ? "safety" : "rejected", checked.reason);
+    return { answer, rejected: checked.reason, usage, model: response.model };
+  }
+  return { answer: { ...checked.answer, origin: "local" }, usage, model: response.model };
 }
 
 type WebResult =
@@ -240,6 +242,7 @@ export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest,
         tools: [tool],
         system: [
           { type: "text", text: WEB_SYSTEM_PROMPT },
+          { type: "text", text: PERSONA_PROMPT },
           { type: "text", text: loaded.knowledge, cache_control: { type: "ephemeral" } },
         ],
         messages,
@@ -285,9 +288,12 @@ export interface WebGate {
  * diretti alla ricerca (la base è comunque nel contesto) e la si interroga di nuovo solo se la
  * ricerca non è disponibile o non produce fonti. Così non si paga due volte la stessa risposta locale.
  */
-export async function askGuide(client: Anthropic, loaded: Loaded, req: AskRequest, gate: WebGate | null = null): Promise<AskOutcome> {
+export async function askGuide(ai: AskModels, loaded: Loaded, req: AskRequest, webGate: WebGate | null = null): Promise<AskOutcome> {
+  // Senza client Anthropic la ricerca web non c'è: la guida risponde con la sola base, come senza configurazione.
+  const client = ai.web;
+  const gate = client ? webGate : null;
   let local: LocalResult | null = null;
-  const getLocal = async () => (local ??= await askLocal(client, loaded, req));
+  const getLocal = async () => (local ??= await askLocal(ai.local, loaded, req));
   const webOn = gate !== null && gate.config.enabled && gate.supported !== false;
   let permitted: boolean | undefined;
   const permit = () => (permitted ??= gate!.permitted());
@@ -312,8 +318,8 @@ export async function askGuide(client: Anthropic, loaded: Loaded, req: AskReques
   /** Ripiego: la risposta locale (calcolata ora se serve) con la dichiarazione del limite. */
   const fallback = async (kind: "webUnavailable" | "webNoSources", web: AskOutcome["web"], webUsage?: Usage) => {
     const l = await getLocal();
-    // Fuori tema o senza servizio: la nota sulla ricerca non avrebbe senso.
-    if (l.answer.status === "off_topic" || l.answer.status === "unavailable") return done(l.answer, web, webUsage);
+    // Fuori tema, emergenza o senza servizio: la nota sulla ricerca non avrebbe senso.
+    if (l.answer.status === "off_topic" || l.answer.status === "safety" || l.answer.status === "unavailable") return done(l.answer, web, webUsage);
     return done(withWebNote(l.answer, req.locale, kind), web, webUsage);
   };
 
@@ -328,7 +334,7 @@ export async function askGuide(client: Anthropic, loaded: Loaded, req: AskReques
 
   let web: WebResult;
   try {
-    web = await askWeb(client, loaded, req, local ? (local as LocalResult).answer : null, gate!.config);
+    web = await askWeb(client!, loaded, req, local ? (local as LocalResult).answer : null, gate!.config);
     webModel = web.model;
   } catch (error) {
     const message = error instanceof Anthropic.APIError ? `API ${error.status ?? "?"}: ${error.message}` : (error as Error).message;

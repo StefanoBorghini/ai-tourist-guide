@@ -95,11 +95,26 @@ Pipeline di `/api/guide/ask` (codice in `apps/guide/lib/ask.ts`, `ask-web.ts`, `
 Le risposte con ricerca non diventano conoscenza verificata: compaiono nei log (`event: "web_answer"`, con le fonti)
 perché la redazione le valuti e, se reggono, le porti nel Territory Pack.
 
-Variabili d'ambiente (tutte facoltative tranne la chiave):
+**La guida, Gaia.** Le risposte hanno la voce di Gaia: identità e stile sono in `apps/guide/lib/persona.ts`
+(documento di riferimento `docs/v0.4-gaia/CHARACTER-BIBLE.md`), separati dalle regole di verità di `ask.ts`, che
+vengono prima. Le domande su di sé citano `persona:gaia`; un'emergenza (malore, persona dispersa) ha l'esito `safety`
+e rimanda sempre al 112, senza ricerca web. I log riportano l'impronta delle istruzioni (`prompt`) e la versione della
+persona (`persona`).
+
+**Il modello è sostituibile.** La risposta dalla base locale passa da un `ModelAdapter` (`apps/guide/lib/model.ts`):
+Anthropic per default, oppure qualunque servizio con API compatibile OpenAI ("chat completions" con output JSON
+vincolato: Mistral, vLLM, servizi gestiti di modelli aperti). Gli stessi controlli valgono per ogni modello. La ricerca
+web resta uno strumento di Anthropic: con un altro fornitore è attiva solo se c'è anche `ANTHROPIC_API_KEY`.
+
+Variabili d'ambiente (tutte facoltative tranne quelle del fornitore scelto):
 
 | Variabile | Default | Effetto |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | obbligatoria per le domande (solo lato server) |
+| `ASK_PROVIDER` | `anthropic` | `anthropic` oppure `openai-compatible` |
+| `ASK_MODEL` | `claude-opus-5-5` | modello della risposta locale (obbligatorio con `openai-compatible`) |
+| `ASK_BASE_URL` | — | con `openai-compatible`: indirizzo dell'API (es. `https://…/v1`) |
+| `ASK_API_KEY` | — | con `openai-compatible`: chiave del servizio (solo lato server) |
+| `ANTHROPIC_API_KEY` | — | obbligatoria con `anthropic`; con l'altro fornitore abilita la ricerca web (solo lato server) |
 | `ASK_WEB_ENABLED` | `1` | `0` spegne la ricerca web (resta la base locale) |
 | `ASK_WEB_MAX_USES` | `3` | ricerche massime per domanda (1–10) |
 | `ASK_WEB_MODEL` | `claude-opus-5-5` | modello della risposta con ricerca (es. `claude-sonnet-5-5` per spendere meno) |
@@ -114,7 +129,11 @@ I limiti per indirizzo e per giorno valgono per singola istanza del server: sono
 Il tetto di spesa mensile affidabile si imposta nella Console Anthropic (limite di spesa del workspace a cui
 appartiene la chiave). `GET /api/guide/ask` dice se la ricerca è attiva e se il modello la supporta (Models API).
 Prove di qualità: `npm run ask:eval -w @guide/app -- --file ../../territories/<id>/ASK-EVAL.json --out rapporto.md`
-(chiama davvero l'API: serve la chiave e ha un costo; `--dry` mostra solo cosa sa la base locale). Prima di ogni
-domanda tiene libera una riserva prudente e non parte se supererebbe `--max-usd`; `--no-web` per la sola base,
-`--web-model` per scegliere il modello della ricerca, `--json` per salvare i risultati e confrontare due esecuzioni
-con `npm run ask:compare -w @guide/app -- a.json b.json --out confronto.md` (nessun costo).
+(chiama davvero il modello configurato: ha un costo; `--dry` mostra solo cosa sa la base locale). Prima di ogni
+domanda tiene libera una riserva prudente e non parte se supererebbe `--max-usd`; per i modelli senza listino il
+costo non si stima e serve `--max-calls`. `--no-web` per la sola base, `--web-model` per scegliere il modello della
+ricerca, `--area` per una sola area della suite, `--json` per salvare i risultati e confrontare due esecuzioni con
+`npm run ask:compare -w @guide/app -- a.json b.json --out confronto.md` (nessun costo). La suite completa di Gaia è
+`GAIA-EVAL.it.json` / `GAIA-EVAL.en.json` (163 casi per lingua): lo script calcola un punteggio automatico (esito,
+citazioni, luogo, parole vietate, formato, lunghezza), le rubriche per la revisione umana sono in
+`docs/v0.4-gaia/RUBRICHE.md`.

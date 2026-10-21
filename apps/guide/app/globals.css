@@ -1220,3 +1220,9 @@ details.card[open] > summary::after { content: "–"; }
 /* Niente alone colorato del browser al tocco (Chrome su Android): il riscontro lo danno gli stati dei pulsanti.
    La tastiera conserva il suo contorno visibile (:focus-visible). */
 html { -webkit-tap-highlight-color: transparent; }
+
+/* Posizione bloccata: istruzioni per riattivarla, sotto la riga del GPS (a tutta larghezza). */
+.gps-help { flex: 1 1 100%; font-size: 14px; color: var(--ink); }
+.gps-help summary { cursor: pointer; font-weight: 600; margin: 2px 0 4px; }
+.gps-help ol { margin: 4px 0 6px; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; line-height: 1.45; }
+.gps-help p { margin: 0; }

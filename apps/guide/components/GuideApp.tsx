@@ -6,6 +6,7 @@ import { bearingDeg, distanceM, type Fix, type LngLat } from "@guide/context-eng
 import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeKind, type RuntimeState, type TourOptions } from "../lib/runtime";
 import type { PositionSource } from "../lib/field-points";
 import { gpsStatus, type GpsErrorCode, type GpsStatus } from "../lib/gps-status";
+import { geoPlatform, shouldResume, type GeoPlatform } from "../lib/geo-permission";
 import { compass, formatDistance } from "../lib/format";
 import { simulateWalk, type SimStop } from "../lib/simulator";
 import { GuideVoice, type SpeechState } from "../lib/speech";
@@ -628,6 +629,44 @@ export function GuideApp() {
     void requestWakeLock();
   };
   const toggleGps = () => (gps ? stopGps() : startGps());
+
+  // Posizione bloccata («Non consentire mai»): il browser non la richiede più. Quando il visitatore la riattiva nelle
+  // impostazioni e torna nell'app, il GPS riparte da solo (cambio del permesso o ritorno in primo piano).
+  const gpsErrorRef = useRef(gpsError);
+  gpsErrorRef.current = gpsError;
+  const startGpsRef = useRef(startGps);
+  startGpsRef.current = startGps;
+  const [geoHelp, setGeoHelp] = useState<GeoPlatform>("other");
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setGeoHelp(geoPlatform(navigator.userAgent, standalone));
+    let status: PermissionStatus | null = null;
+    let closed = false;
+    const resume = (state: string | null) => {
+      if (shouldResume(state, gpsErrorRef.current) && runtimeRef.current) {
+        setGpsError(null);
+        startGpsRef.current();
+      }
+    };
+    const check = () => {
+      if (document.visibilityState !== "visible" || gpsErrorRef.current !== "denied") return;
+      if (status) resume(status.state);
+    };
+    navigator.permissions
+      ?.query({ name: "geolocation" as PermissionName })
+      .then((s) => {
+        if (closed) return;
+        status = s;
+        s.onchange = () => resume(s.state);
+      })
+      .catch(() => undefined);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      closed = true;
+      if (status) status.onchange = null;
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, []);
 
   // Lo schermo acceso va richiesto di nuovo quando l'app torna in primo piano.
   useEffect(() => {
@@ -1540,7 +1579,7 @@ export function GuideApp() {
         </button>
       </header>
 
-      <GpsBar status={status} gps={gps} simulating={simulating} onToggle={toggleGps} t={t} />
+      <GpsBar status={status} gps={gps} simulating={simulating} onToggle={toggleGps} t={t} help={geoHelp} />
       {pausedNotice && (
         <p className="notice toast" role="status">
           <Icon name="info" /> {t.pausedNotice}
@@ -1621,7 +1660,7 @@ function gpsErrorText(code: GpsErrorCode, t: UiText): string {
 }
 
 /** Stato del segnale di posizione: una riga sempre visibile, con il pulsante per accendere o spegnere il GPS. */
-function GpsBar({ status, gps, simulating, onToggle, t }: { status: GpsStatus; gps: boolean; simulating: boolean; onToggle: () => void; t: UiText }) {
+function GpsBar({ status, gps, simulating, onToggle, t, help }: { status: GpsStatus; gps: boolean; simulating: boolean; onToggle: () => void; t: UiText; help: GeoPlatform }) {
   const text = (() => {
     switch (status.level) {
       case "ok":
@@ -1655,6 +1694,17 @@ function GpsBar({ status, gps, simulating, onToggle, t }: { status: GpsStatus; g
         <button className={`button ${gps ? "quiet" : "primary"}`} onClick={onToggle}>
           {gps ? t.gps.stop : t.gps.start}
         </button>
+      )}
+      {status.level === "denied" && (
+        <details className="gps-help" open>
+          <summary>{t.gpsBlocked.how}</summary>
+          <ol>
+            {t.gpsBlocked.steps[help].map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          <p className="muted small">{t.gpsBlocked.after}</p>
+        </details>
       )}
     </div>
   );

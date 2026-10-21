@@ -116,7 +116,38 @@ export const UI = {
       legendYou: "Punto blu: tu. Spilli: i luoghi.",
       legendSimulated: "Punto arancione: posizione simulata.",
     },
-    gpsDenied: "Permesso di posizione negato. Attivalo nelle impostazioni del browser, oppure prosegui con «Sono qui».",
+    gpsBlocked: {
+      how: "Come riattivarla",
+      after: "Fatto? Torna qui: il GPS riparte da solo.",
+      steps: {
+        android: [
+          "Tocca l'icona a sinistra dell'indirizzo (lucchetto o regolazioni).",
+          "Apri «Autorizzazioni» (o «Impostazioni sito») → «Posizione».",
+          "Scegli «Consenti».",
+          "Se non basta: Chrome → ⋮ → Impostazioni → Impostazioni sito → Posizione, e togli questo sito dai «Bloccati».",
+        ],
+        "android-app": [
+          "Apri Chrome → ⋮ → Impostazioni → Impostazioni sito → Posizione.",
+          "Tra i siti «Bloccati» tocca questo sito e scegli «Consenti».",
+          "Controlla anche che la posizione del telefono sia attiva (tendina in alto).",
+        ],
+        ios: [
+          "In Safari tocca «aA» (o l'icona a sinistra dell'indirizzo) → «Impostazioni sito web».",
+          "Alla voce «Posizione» scegli «Consenti».",
+          "Se non c'è: Impostazioni dell'iPhone → Privacy e sicurezza → Localizzazione → attiva, poi «Siti web di Safari» → «Mentre usi l'app».",
+        ],
+        "ios-app": [
+          "Impostazioni dell'iPhone → Privacy e sicurezza → Localizzazione: deve essere attiva.",
+          "Sempre lì, «Siti web di Safari» → «Mentre usi l'app».",
+          "Riapri l'app dalla schermata Home.",
+        ],
+        other: [
+          "Nelle impostazioni del browser apri «Impostazioni sito» (o «Privacy») → «Posizione».",
+          "Consenti questo sito.",
+        ],
+      },
+    },
+    gpsDenied: "Posizione bloccata per questo sito: il browser non la richiede più da solo. Riattivala nelle impostazioni, oppure prosegui con «Sono qui».",
     gpsUnavailable: "Questo dispositivo non fornisce la posizione: prosegui con «Sono qui».",
     gpsTimeout: "Il GPS non risponde: resta all'aperto qualche secondo. Puoi proseguire con «Sono qui».",
     gpsNoSignal: "Segnale GPS assente. Puoi proseguire con «Sono qui».",
@@ -372,7 +403,38 @@ export const UI = {
       legendYou: "Blue dot: you. Pins: places.",
       legendSimulated: "Orange dot: simulated position.",
     },
-    gpsDenied: "Location permission denied. Enable it in your browser settings, or continue with “I'm here”.",
+    gpsBlocked: {
+      how: "How to turn it back on",
+      after: "Done? Come back here: GPS restarts by itself.",
+      steps: {
+        android: [
+          "Tap the icon to the left of the address (padlock or sliders).",
+          "Open “Permissions” (or “Site settings”) → “Location”.",
+          "Choose “Allow”.",
+          "If that's not enough: Chrome → ⋮ → Settings → Site settings → Location, and remove this site from “Blocked”.",
+        ],
+        "android-app": [
+          "Open Chrome → ⋮ → Settings → Site settings → Location.",
+          "Under “Blocked”, tap this site and choose “Allow”.",
+          "Also check that the phone's location is on (pull-down panel).",
+        ],
+        ios: [
+          "In Safari tap “aA” (or the icon left of the address) → “Website Settings”.",
+          "Under “Location” choose “Allow”.",
+          "If it's missing: iPhone Settings → Privacy & Security → Location Services → on, then “Safari Websites” → “While Using the App”.",
+        ],
+        "ios-app": [
+          "iPhone Settings → Privacy & Security → Location Services: must be on.",
+          "There, “Safari Websites” → “While Using the App”.",
+          "Reopen the app from the Home Screen.",
+        ],
+        other: [
+          "In your browser settings open “Site settings” (or “Privacy”) → “Location”.",
+          "Allow this site.",
+        ],
+      },
+    },
+    gpsDenied: "Location is blocked for this site: the browser won't ask again by itself. Turn it back on in settings, or continue with “I'm here”.",
     gpsUnavailable: "This device does not provide location: continue with “I'm here”.",
     gpsTimeout: "GPS is not responding: stay in the open for a few seconds. You can continue with “I'm here”.",
     gpsNoSignal: "No GPS signal. You can continue with “I'm here”.",

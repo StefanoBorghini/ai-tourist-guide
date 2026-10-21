@@ -88,6 +88,8 @@ export function GuideApp() {
   const [tab, setTab] = useState<Tab>("home");
   /** Visita in corso (GPS, racconti): resta attiva anche passando alle altre schede. */
   const [walking, setWalking] = useState(false);
+  /** Elenco delle destinazioni aperto da una visita in corso («‹ Destinazioni»): la visita resta attiva sotto. */
+  const [pickDest, setPickDest] = useState(false);
   const [opening, setOpening] = useState(false);
   const [content, setContent] = useState<BundleContent | null>(null);
   /** Bundle pubblico (verificato) da cui viene il contenuto mostrato: le parti acquistate si uniscono a questo. */
@@ -389,7 +391,9 @@ export function GuideApp() {
 
   /** Toccare una destinazione la apre e fa partire subito l'esplorazione libera (il tocco autorizza anche il GPS). */
   const openBundle = async (entry: BundleEntry) => {
+    setPickDest(false);
     try {
+      stopSimulation();
       const loaded = await loadBundle(entry);
       setTab("esplora");
       window.scrollTo(0, 0);
@@ -802,22 +806,29 @@ export function GuideApp() {
       {real.length > 0 && (
         <>
           <div className="dest-grid">
-            {real.map((e) => (
-              <article key={e.destination} className="dest-card">
-                {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
-                {e.cover && <img src={e.cover.image} alt={e.cover.alt} loading="lazy" />}
-                <div className="dest-card-body">
-                  <h3>{e.name}</h3>
-                  <p className="meta">
-                    <Icon name="globe" size={16} /> {t.languagesAvailable}: {languages(e.destination)}
-                    {e.preview && <span className="badge on-photo">{t.previewBadge}</span>}
-                  </p>
-                  <button className="button primary" onClick={() => openBundle(e)}>
-                    {t.exploreDestination(e.name)} <Icon name="forward" />
-                  </button>
-                </div>
-              </article>
-            ))}
+            {real.map((e) => {
+              const live = walking && runtime?.content.destination === e.destination;
+              return (
+                <button key={e.destination} className="dest-card" onClick={() => (live ? backToVisit() : void openBundle(e))}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
+                  {e.cover && <img src={e.cover.image} alt={e.cover.alt} loading="lazy" />}
+                  <span className="dest-card-body">
+                    <span className="dest-name">{e.name}</span>
+                    {e.preview && (
+                      <span className="meta">
+                        <span className="badge on-photo">{t.previewBadge}</span> {t.previewDetail}
+                      </span>
+                    )}
+                    <span className="meta">
+                      <Icon name="globe" size={16} /> {t.languagesAvailable}: {languages(e.destination)}
+                    </span>
+                    <span className="button primary">
+                      {live ? t.resumeVisit : t.exploreDestination(e.name)} <Icon name="forward" />
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </>
       )}
@@ -830,7 +841,7 @@ export function GuideApp() {
           </div>
           <div className="demo-list">
             {demo.map((e) => (
-              <button key={e.destination} className="demo-item" onClick={() => openBundle(e)}>
+              <button key={e.destination} className="demo-item" onClick={() => (walking && runtime?.content.destination === e.destination ? backToVisit() : void openBundle(e))}>
                 <span>
                   <strong>{e.name}</strong>
                   <span className="muted small" style={{ display: "block" }}>{t.fictional} · {languages(e.destination)}</span>
@@ -861,6 +872,7 @@ export function GuideApp() {
    * si apre quella in evidenza. Esplora elenca le destinazioni e non ne apre nessuna da sola.
    */
   const goTab = async (next: Tab) => {
+    setPickDest(false);
     if (next !== "home" && next !== "esplora" && !content && featured) {
       setOpening(true);
       setTab(next);
@@ -874,6 +886,19 @@ export function GuideApp() {
       return;
     }
     setTab(next);
+    window.scrollTo(0, 0);
+  };
+
+  /** «‹ Destinazioni»: elenco delle destinazioni senza chiudere la visita (GPS e voce restano attivi). */
+  const toDestinations = () => {
+    setPickDest(true);
+    setTab("esplora");
+    window.scrollTo(0, 0);
+  };
+  /** Dall'elenco si torna alla visita in corso della stessa destinazione. */
+  const backToVisit = () => {
+    setPickDest(false);
+    if (sessionTab) setTab(sessionTab);
     window.scrollTo(0, 0);
   };
 
@@ -1080,7 +1105,7 @@ export function GuideApp() {
   }
 
   // Esplora: solo l'elenco delle destinazioni (decisione del 2026-10-19). La visita in corso resta nella sua scheda.
-  if (tab === "esplora" && sessionTab !== "esplora") {
+  if (tab === "esplora" && (sessionTab !== "esplora" || pickDest)) {
     return shell(
       <main className="hub explore-tab">
         <header className="tab-head">
@@ -1139,9 +1164,9 @@ export function GuideApp() {
       )}
     </>
   );
-  const changeDestination = groups.length > 1 && (
-    <button className="back-btn" onClick={() => { void goTab("esplora").then(() => setTimeout(() => document.getElementById("destinazioni")?.scrollIntoView({ behavior: "smooth" }), 50)); }}>
-      <Icon name="back" /> {t.changeDestination}
+  const changeDestination = (
+    <button className="back-btn" onClick={toDestinations}>
+      <Icon name="back" /> {t.destinations}
     </button>
   );
   const showSession = walking && runtime?.content === content && tab === sessionTab;
@@ -1608,23 +1633,30 @@ export function GuideApp() {
   return shell(
     <main className={`walk ${exploring ? "explore" : "tour"}`}>
       <header className="topbar">
-        <button className="round-btn" onClick={leave} aria-label={t.back}><Icon name="back" /></button>
+        <button className="back-btn compact" onClick={toDestinations}><Icon name="back" size={18} /> {t.destinations}</button>
         <div style={{ minWidth: 0 }}>
           <div className="title">{content.name}</div>
           <span className="sub">{exploring ? t.exploreTitle : (tourRoute?.name ?? t.itinerariesTitle)}</span>
         </div>
         <span className="spacer" />
         {!online && <span className="badge offline"><Icon name="wifiOff" size={14} /> {t.offlineBadge}</span>}
-        {content.preview && <span className="badge preview">{t.previewBadge}</span>}
         {content.fictional && <span className="badge">{t.fictional}</span>}
-        <button className={`link debug-toggle ${debug ? "on" : ""}`} onClick={() => {
-          const next = !debug;
-          setDebug(next);
-          try { localStorage.setItem("guide-debug", next ? "1" : "0"); } catch { /* memoria non disponibile */ }
-        }} aria-pressed={debug}>
-          debug
-        </button>
+        {/* Solo in modalità debug (?debug=1, ricordata sul telefono): da qui la si spegne. */}
+        {debug && (
+          <button className="link debug-toggle on" onClick={() => {
+            setDebug(false);
+            try { localStorage.setItem("guide-debug", "0"); } catch { /* memoria non disponibile */ }
+          }} aria-pressed={true}>
+            debug
+          </button>
+        )}
       </header>
+      {content.preview && (
+        <details className="notice preview preview-banner">
+          <summary><Icon name="info" size={18} /> {t.previewShort}</summary>
+          <p>{t.previewNote}</p>
+        </details>
+      )}
 
       <GpsBar status={status} gps={gps} simulating={simulating} onToggle={toggleGps} t={t} help={geoHelp} />
       {pausedNotice && (
@@ -1647,15 +1679,22 @@ export function GuideApp() {
               {ask}
               {itinerariesInSession}
               {eventsInSession}
-              {content.locked?.explore && (
+              {content.locked?.explore && (ACCOUNTS && (offers.explore || !online) ? (
                 <section className="mode-explore paid-explore">
                   <p className="eyebrow"><Icon name="lock" size={15} /> {t.paidRoutes}</p>
                   <h2>{t.fullExplore}</h2>
                   <p className="muted">{t.fullExploreHint}</p>
                   {buy(offers.explore)}
                 </section>
+              ) : (!ACCOUNTS || catalog?.pack === content.destination) && (
+                // Non in vendita (o acquisti spenti): si dice solo che arriverà, senza prezzi né «a pagamento».
+                <p className="muted small soon-line"><Icon name="lock" size={15} /> {t.fullExplore} · {t.soon}</p>
+              ))}
+              {content.fictional && (
+                <p className="notice">
+                  <Icon name="info" /> {t.fictionalNote}
+                </p>
               )}
-              {destinationNotices}
               {content.safetyNotes.map((n) => (
                 <p key={n.id} className="notice">
                   <Icon name="info" /> {n.text}
@@ -1672,7 +1711,7 @@ export function GuideApp() {
               <button className="button quiet" onClick={switchToExplore}><Icon name="compass" /> {t.switchToExplore}</button>
             </>
           )}
-          {tools}
+          {debug && tools}
           {debug && (
             <DebugPanel
               content={content}
@@ -1731,14 +1770,16 @@ function GpsBar({ status, gps, simulating, onToggle, t, help }: { status: GpsSta
     }
   })();
   const alert = ["stale", "no_signal", "denied", "unavailable", "imprecise"].includes(status.level);
+  // Segnale buono: una riga discreta con la precisione; per errori e attese resta la barra estesa con le azioni.
+  const compact = status.level === "ok" && gps && !simulating;
   return (
-    <div className={`gps-bar ${status.level}`} role={alert ? "alert" : "status"}>
+    <div className={`gps-bar ${status.level} ${compact ? "compact" : ""}`} role={alert ? "alert" : "status"}>
       <p>
         <span className="gps-dot" aria-hidden="true" />
         <span>📍 {text}</span>
       </p>
       {status.level !== "unavailable" && !simulating && (
-        <button className={`button ${gps ? "quiet" : "primary"}`} onClick={onToggle}>
+        <button className={compact ? "link small" : `button ${gps ? "quiet" : "primary"}`} onClick={onToggle}>
           {gps ? t.gps.stop : t.gps.start}
         </button>
       )}

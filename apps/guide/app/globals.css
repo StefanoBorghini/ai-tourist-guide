@@ -335,7 +335,11 @@ p { margin: 0; }
 .dest-card:hover > img { transform: scale(1.03); }
 .dest-card::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(0deg, rgba(12, 12, 12, 0.85), rgba(12, 12, 12, 0.1) 60%); }
 .dest-card-body { padding: 22px; display: flex; flex-direction: column; gap: 10px; }
-.dest-card h3 { color: #fff; font-size: 30px; }
+.dest-card h3, .dest-card .dest-name { color: #fff; font-size: 30px; }
+/* Tutta la card è il pulsante: un solo comando, area di tocco ampia. */
+button.dest-card { appearance: none; border: 0; padding: 0; width: 100%; text-align: left; font: inherit; cursor: pointer; }
+button.dest-card:focus-visible { outline: 3px solid var(--sand); outline-offset: 3px; }
+.dest-card .dest-name { font-family: var(--font-display); font-weight: 600; line-height: 1.05; display: block; }
 .dest-card .meta { font-size: 14px; color: rgba(255, 255, 255, 0.85); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .dest-card .button.primary { background: var(--ivory); color: var(--on-ivory); border-color: var(--ivory); align-self: flex-start; }
 .demo-list { display: flex; flex-direction: column; gap: 8px; }
@@ -519,6 +523,14 @@ p { margin: 0; }
   cursor: pointer;
   color: var(--ink);
 }
+/* «‹ Destinazioni» nella barra della visita: stessa forma del pulsante sulle foto, colori della barra. */
+.topbar .back-btn.compact { flex: none; min-height: 44px; padding: 6px 12px 6px 8px; font-size: 14px; color: var(--ink); background: var(--surface); border-color: var(--line); backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* Avviso di anteprima: una riga sotto la barra, il testo completo al tocco. */
+.preview-banner { display: block; padding: 10px 14px; }
+.preview-banner summary { cursor: pointer; display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 600; list-style: none; }
+.preview-banner summary::-webkit-details-marker { display: none; }
+.preview-banner p { margin: 8px 0 0; font-size: 14px; }
+.soon-line { display: flex; gap: 8px; align-items: center; margin: 0; }
 .debug-toggle { font-size: 12px; opacity: 0.55; padding: 6px; }
 .debug-toggle.on { opacity: 1; color: var(--warn); }
 
@@ -552,6 +564,9 @@ p { margin: 0; }
 .gps-bar.waiting .gps-dot { animation: blink 1.4s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: 0.3; } }
 .gps-bar .button { min-height: 40px; padding: 8px 16px; font-size: 15px; }
+.gps-bar.compact { padding: 4px 4px 4px 12px; background: transparent; border-color: var(--line); box-shadow: none; }
+.gps-bar.compact p { font-size: 13px; color: var(--muted); font-weight: 500; }
+.gps-bar.compact .link { min-height: 40px; padding: 0 10px; font-size: 13px; }
 
 /* Proposta di arrivo */
 .proposal {

@@ -14,6 +14,7 @@ import { uiFor, type UiText } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
 import { formatPrice, lockedPlaceRefs, offersFor, type CatalogItem, type Offer } from "../lib/shop";
 import { localPremium, syncPremium } from "../lib/premium-client";
+import { clearPurchaseWatch, markPurchaseStarted, PURCHASE_DONE_KEY, PURCHASE_POLL_MS, purchaseStamps, watchingPurchase } from "../lib/purchase-watch";
 import { AskBox } from "./AskBox";
 import { bundleBase as bundleBaseOf, loadIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndexEntry } from "../lib/bundle-index";
 import { DebugPanel } from "./DebugPanel";
@@ -142,6 +143,8 @@ export function GuideApp() {
   tabRef.current = tab;
   /** Parti acquistate già unite nel contenuto mostrato: dice se la convalida online ne ha portate di nuove. */
   const ownedCountRef = useRef(0);
+  /** Istante dell'ultima convalida online riuscita (per chiudere l'attesa di un acquisto). */
+  const lastPremiumSyncRef = useRef<number | null>(null);
   const proposalRef = useRef(proposal);
   proposalRef.current = proposal;
 
@@ -216,18 +219,42 @@ export function GuideApp() {
   }, [online]);
 
   // Ritorno alla guida (scheda del browser o pagina ripresa dalla cache di navigazione): si ricontrollano gli acquisti.
+  // Dopo un acquisto partito dalla guida si richiedono anche a intervalli, finché arriva (lib/purchase-watch.ts): il
+  // webhook conferma qualche secondo dopo, e nell'app installata la cassa si apre sopra l'app senza che lei lo veda.
   useEffect(() => {
-    const again = () => {
+    let busy = false;
+    const check = async (always: boolean) => {
       const entry = openedEntryRef.current;
       const base = baseContentRef.current;
-      if (document.visibilityState !== "visible" || !entry || !base?.locked || !ACCOUNTS || !navigator.onLine) return;
-      void refreshPremium(entry.manifest, base);
+      if (busy || document.visibilityState !== "visible" || !entry || !base?.locked || !ACCOUNTS || !navigator.onLine) return;
+      const { pending, done } = purchaseStamps();
+      const now = Date.now();
+      const watching = watchingPurchase(pending, done, lastPremiumSyncRef.current, now);
+      if (!watching && pending !== null) clearPurchaseWatch();
+      if (!always && !watching) return;
+      busy = true;
+      try {
+        if ((await refreshPremium(entry.manifest, base)) === true) clearPurchaseWatch();
+      } finally {
+        busy = false;
+      }
     };
+    const again = () => void check(true);
+    const tick = () => void check(false);
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === PURCHASE_DONE_KEY) again();
+    };
+    const timer = setInterval(tick, PURCHASE_POLL_MS);
     document.addEventListener("visibilitychange", again);
     window.addEventListener("pageshow", again);
+    window.addEventListener("focus", again);
+    window.addEventListener("storage", onStorage);
     return () => {
+      clearInterval(timer);
       document.removeEventListener("visibilitychange", again);
       window.removeEventListener("pageshow", again);
+      window.removeEventListener("focus", again);
+      window.removeEventListener("storage", onStorage);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshPremium legge solo ref e setter stabili
   }, []);
@@ -298,12 +325,14 @@ export function GuideApp() {
 
   /**
    * Convalida online degli acquisti di un bundle: sblocca ciò che è stato comprato, richiude ciò che è stato
-   * rimborsato. Se una visita è già in corso su questo contenuto la cambia alla prossima apertura, non a metà.
+   * rimborsato. Vero se ha portato parti nuove; null se la risposta non vale (errore, o nel frattempo altro bundle).
    */
-  const refreshPremium = async (manifestUrl: string, base: BundleContent) => {
+  const refreshPremium = async (manifestUrl: string, base: BundleContent): Promise<boolean | null> => {
+    const asked = Date.now();
     const parts = await syncPremium(manifestUrl).catch(() => null);
     // Nel frattempo si è aperto un altro bundle (altra destinazione o lingua): questo esito non vale più.
-    if (!parts || baseContentRef.current !== base) return;
+    if (!parts || baseContentRef.current !== base) return null;
+    lastPremiumSyncRef.current = asked;
     const grew = parts.length > ownedCountRef.current;
     const next = mergePremium(base, parts);
     const runtime = runtimeRef.current;
@@ -319,6 +348,7 @@ export function GuideApp() {
       setContent((current) => (!current || JSON.stringify(next) === JSON.stringify(current) ? current : next));
     }
     if (grew) setFlash(uiFor(base.locale).premiumUnlocked);
+    return grew;
   };
 
   /**
@@ -1119,7 +1149,7 @@ export function GuideApp() {
     ) : !offer ? (
       <p className="muted small">{t.notOnSale}</p>
     ) : (
-      <form action="/api/checkout" method="post" className="buy-form">
+      <form action="/api/checkout" method="post" className="buy-form" onSubmit={() => markPurchaseStarted()}>
         <input type="hidden" name="prodotto" value={offer.productId} />
         <input type="hidden" name="destinazione" value={content.destination} />
         <button className="button primary big block" type="submit">

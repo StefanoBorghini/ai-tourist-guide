@@ -53,7 +53,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   (solo per acquistare; spenti senza `NEXT_PUBLIC_ACCOUNTS_ENABLED` e testi legali; esiti nell'indirizzo solo come codici,
   redirect solo interni, consensi registrati al primo accesso; vedi `docs/v0.3-platform/ACCOUNT.md`); `app/studio/[pack]/vendita/` (scheda «Vendita»: cosa è a pagamento e catalogo) e `lib/studio/catalog.ts` il catalogo
   (prodotti e prezzi in bozza/pubblicati, solo amministratore; listino pubblico `public_catalog()`; vedi `docs/v0.3-platform/CATALOGO.md`);
-  `lib/payments/` e `app/api/checkout`, `app/api/stripe/webhook`, `app/account/acquista`, `app/account/ordine` gli acquisti con Stripe, che partono anche dalla guida (schede Percorsi ed Esplora: `lib/shop.ts`, listino da `app/api/catalog`)
+  `lib/payments/` e `app/api/checkout`, `app/api/stripe/webhook`, `app/account/acquista`, `app/account/ordine` gli acquisti con Stripe, che partono anche dalla guida (schede Percorsi ed Esplora: `lib/shop.ts`, listino da `app/api/catalog`); dopo il pagamento la guida aperta si sblocca da sola, senza ricaricare (`lib/purchase-watch.ts`: richieste a intervalli per 15 minuti dopo la partenza verso la cassa e segnale dalla pagina dell'ordine)
   (solo modalità test; il browser invia solo il prodotto, prezzo dal database; diritti solo dal webhook firmato, che usa la
   chiave di servizio solo per le funzioni `payment_*`; vedi `docs/v0.3-platform/PAGAMENTI.md`)
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack

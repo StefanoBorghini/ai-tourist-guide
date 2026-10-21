@@ -3,7 +3,7 @@ import { accountSetup, requireVisitor } from "../../../lib/account/server";
 import { ORDER_STATUS_LABELS, orderPath, shopPath, UUID_RE } from "../../../lib/payments/shared";
 import { formatEuro } from "../../../lib/studio/catalog";
 import { AccountPage, NotAvailable, one, type SearchParams } from "../ui";
-import { AutoRefresh } from "./refresh";
+import { AutoRefresh, PurchaseDone } from "./refresh";
 
 /**
  * Ritorno da Stripe. Mostra lo stato dell'ordine letto dal database e non concede nulla: l'acquisto diventa attivo
@@ -40,6 +40,7 @@ export default async function OrderPage({ searchParams }: { searchParams: Search
             <p className="notice success" role="status">Pagamento riuscito: l&apos;acquisto è nel tuo account.</p>
             {/* Caricamento completo (non navigazione interna): la guida riparte e chiede gli acquisti (lib/premium-client.ts). */}
             <a className="button primary block" href="/">Apri nella guida</a>
+            <PurchaseDone />
           </>
         )}
         {waiting && (

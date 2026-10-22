@@ -226,6 +226,23 @@ describe("secoli", () => {
     const r = checkModelAnswer(json({ status: "not_in_knowledge", answer: "Non so se sia del Cinquecento.", citations: [] }), content, q);
     expect(r.ok).toBe(true);
   });
+
+  it("ammette il secolo scritto nell'affermazione citata, non un altro", () => {
+    const own = structuredClone(content);
+    const a = own.assertions.find((x) => !x.value)!;
+    a.text = "Le guide locali indicano una dimora del Quattrocento.";
+    const ok = checkModelAnswer(json({ status: "answered", answer: "Secondo le guide locali è una dimora del Quattrocento.", citations: [a.ref] }), own, req);
+    expect(ok.ok).toBe(true);
+    const wrong = checkModelAnswer(json({ status: "answered", answer: "È una dimora del Cinquecento.", citations: [a.ref] }), own, req);
+    expect(wrong).toMatchObject({ ok: false, reason: expect.stringContaining("secoli") });
+  });
+});
+
+describe("numero di emergenza", () => {
+  it("si può dare anche fuori da un'emergenza riconosciuta", () => {
+    const r = checkModelAnswer(json({ status: "not_in_knowledge", answer: "Non so dov'è la farmacia; se stai male chiama il 112.", citations: [] }), content, req);
+    expect(r.ok).toBe(true);
+  });
 });
 
 describe("luogo di cui si parla", () => {

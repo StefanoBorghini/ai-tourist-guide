@@ -160,4 +160,6 @@ sola base, `--web-model` e `--web-max-uses` per le varianti della ricerca, `--ar
 cieca). Protocollo del confronto e rubrica: `docs/v0.3-platform/COSTI-AI.md`. La suite completa di Gaia è
 `GAIA-EVAL.it.json` / `GAIA-EVAL.en.json` (163 casi per lingua): lo script calcola un punteggio automatico (esito,
 citazioni, luogo, parole vietate, formato, lunghezza), le rubriche per la revisione umana sono in
-`docs/v0.4-gaia/RUBRICHE.md`.
+`docs/v0.4-gaia/RUBRICHE.md`. Le risposte di riferimento di Gaia (`GAIA-EXAMPLES.it.json`) si controllano con
+`npm run gaia:examples -w @guide/app -- --file ../../territories/<id>/GAIA-EXAMPLES.it.json` (nessun costo) e, una volta
+approvate dalla redazione, si esportano con `--out` per allenare un modello aperto: `docs/v0.4-gaia/ESEMPI.md`.

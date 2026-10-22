@@ -434,7 +434,8 @@ export function checkModelAnswer(raw: string, content: BundleContent, req: AskRe
 
   // Numeri: devono venire dalle affermazioni citate (testo o valore), dalla domanda o dalle distanze citate.
   const allowed = numbersIn(req.question);
-  if (safety) allowed.add(EMERGENCY_NUMBER);
+  // Il numero di emergenza si può sempre dare (per esempio a chi chiede di una farmacia e sta male).
+  allowed.add(EMERGENCY_NUMBER);
   if (usedPosition) for (const p of pos.places) if (!p.here) allowed.add(String(p.meters));
   for (const ref of citations) {
     const a = byRef.get(ref)!;
@@ -442,8 +443,10 @@ export function checkModelAnswer(raw: string, content: BundleContent, req: AskRe
     if (a.value) for (const n of numbersIn(Object.values(a.value).join(" "))) allowed.add(n);
   }
 
-  // Secoli: ammessi solo se corrispondono agli anni ammessi o sono già nella domanda.
+  // Secoli: ammessi solo se corrispondono agli anni ammessi, se sono già nella domanda o se li scrive
+  // un'affermazione citata ("del Quattrocento", "fino al IX secolo").
   const allowedCenturies = new Set(centuriesIn(req.question).centuries);
+  for (const ref of citations) for (const c of centuriesIn(byRef.get(ref)!.text).centuries) allowedCenturies.add(c);
   for (const n of allowed) {
     const year = Number(n);
     if (Number.isInteger(year) && year >= 100 && year <= 2100) allowedCenturies.add(centuryOf(year));

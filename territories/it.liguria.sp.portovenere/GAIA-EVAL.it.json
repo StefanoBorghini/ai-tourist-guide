@@ -1622,11 +1622,14 @@
       "question": "In che direzione si trova la Palmaria?",
       "at": "palazzata-a-mare",
       "expect": "local",
-      "status": "answered",
+      "status": [
+        "answered",
+        "partial"
+      ],
       "cite": [
         "context:position"
       ],
-      "check": "Direzione dal contesto; nessun traghetto o orario."
+      "check": "Direzione dal contesto se la Palmaria c'è; altrimenti lo dice e rimanda alla mappa (oggi il contesto non la contiene: esito partial). Nessun traghetto o orario."
     },
     {
       "id": "i06-dove-sono",

@@ -5,7 +5,8 @@
  * Regola (decisione del 2026-10-18): i racconti di un percorso acquistato valgono in tutta la guida, anche
  * nell'esplorazione libera, non solo dentro il percorso. Così chi ha comprato un percorso ritrova quei luoghi
  * sbloccati quando esplora, e un acquisto successivo dell'esplorazione non gli ridà gli stessi racconti come nuovi.
- * Un luogo comprato da solo (parte "place") porta i suoi racconti: l'esplorazione resta bloccata, quel luogo no.
+ * Un luogo principale comprato (parte "place") porta i suoi racconti e quelli dei suoi sottoluoghi: l'esplorazione
+ * resta bloccata, quei luoghi no.
  */
 import type { BundleContent, PremiumPart } from "./format.ts";
 
@@ -26,9 +27,13 @@ export function mergePremium(content: BundleContent, parts: readonly PremiumPart
   const owned = new Set(parts.flatMap((p) => (p.kind === "route" && p.ref ? [p.ref] : [])));
   const explore = (content.locked?.explore ?? false) && !parts.some((p) => p.kind === "explore");
   const lockedRoutes = (content.locked?.routes ?? []).filter((r) => !owned.has(r.ref));
-  // Luoghi sbloccati dagli acquisti: quelli comprati da soli e le tappe dei percorsi comprati.
+  // Luoghi sbloccati dagli acquisti: i luoghi principali comprati con i loro sottoluoghi (partOf), e le tappe dei
+  // percorsi comprati.
+  const subPlaces = (ref: string) => content.places.filter((pl) => pl.partOf === ref).map((pl) => pl.ref);
   const ownedPlaces = new Set(
-    parts.flatMap((p) => (p.kind === "place" && p.ref ? [p.ref] : p.kind === "route" ? p.routes.flatMap((r) => r.stops.map((s) => s.place)) : [])),
+    parts.flatMap((p) =>
+      p.kind === "place" && p.ref ? [p.ref, ...subPlaces(p.ref)] : p.kind === "route" ? p.routes.flatMap((r) => r.stops.map((s) => s.place)) : [],
+    ),
   );
   const lockedPlaces = content.locked?.places?.filter((ref) => !ownedPlaces.has(ref));
   const { locked: _locked, ...rest } = content;

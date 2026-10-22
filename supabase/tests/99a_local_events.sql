@@ -55,6 +55,11 @@ declare
   e jsonb;
   bad text;
 begin
+  -- Gli eventi di prova (anche quello che finisce alle 02:00 del giorno dopo) non devono cadere sul cambio dell'ora:
+  -- se tra d e d+2 l'ora cambia, si sposta di tre giorni (resta nei 7 giorni delle viste).
+  if ((d + 2)::timestamp at time zone 'Europe/Rome') - (d::timestamp at time zone 'Europe/Rome') <> interval '48 hours' then
+    d := d + 3;
+  end if;
   e := studio_save_local_event('ze.eventi', null, jsonb_build_object(
     'slug', 'concerto', 'category', 'music', 'startDate', d, 'startTime', '21:00',
     'labels', jsonb_build_object('it', jsonb_build_object('title', '  Concerto in piazza  ', 'summary', 'Musica'), 'fr', jsonb_build_object('title', 'Concert')),
@@ -278,6 +283,7 @@ declare
   r jsonb;
   ev jsonb;
   slugs text[];
+  nb date;
 begin
   r := public_local_events('ze.eventi', null, null, 'it');
   if (r ->> 'today')::date <> today then raise exception 'FALLITO E4: oggi del territorio %', r ->> 'today'; end if;
@@ -307,9 +313,11 @@ begin
     raise exception 'FALLITO E4: lingue';
   end if;
   -- Evento oltre la mezzanotte: nel giorno di inizio e in quello dopo, non in quello dopo ancora.
-  if not (public_local_events('ze.eventi', today + 2, today + 2) -> 'events' @> '[{"slug":"notte-bianca"}]'
-          and public_local_events('ze.eventi', today + 3, today + 3) -> 'events' @> '[{"slug":"notte-bianca"}]'
-          and not public_local_events('ze.eventi', today + 4, today + 4) -> 'events' @> '[{"slug":"notte-bianca"}]') then
+  -- (Il giorno d'inizio è quello scelto in E1, spostato se cadeva sul cambio dell'ora.)
+  nb := (select (x #>> '{start,date}')::date from jsonb_array_elements(public_local_events('ze.eventi') -> 'events') x where x ->> 'slug' = 'notte-bianca');
+  if not (public_local_events('ze.eventi', nb, nb) -> 'events' @> '[{"slug":"notte-bianca"}]'
+          and public_local_events('ze.eventi', nb + 1, nb + 1) -> 'events' @> '[{"slug":"notte-bianca"}]'
+          and not public_local_events('ze.eventi', nb + 2, nb + 2) -> 'events' @> '[{"slug":"notte-bianca"}]') then
     raise exception 'FALLITO E4: evento oltre la mezzanotte';
   end if;
   -- Isolamento e destinazioni non pubblicate o inesistenti.

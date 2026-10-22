@@ -10,7 +10,7 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
 | Percorso a pagamento | Itinerario completo (tappe e ordine) **più i racconti delle sue tappe**, anche offline: un'esperienza autonoma, non una traccia muta. |
 | Doppio pagamento | **Risolto (2026-10-18):** i racconti di un percorso acquistato valgono in tutta la guida: i luoghi del percorso compaiono sbloccati anche nell'esplorazione libera. L'unione dei contenuti comprati con quelli pubblici (`mergePremium`, `packages/bundle/src/merge.ts`, testata) non duplica mai un racconto e dà lo stesso risultato in qualunque ordine arrivino gli acquisti. Il prezzo dell'esplorazione per chi ha già dei percorsi resta una scelta commerciale nello Studio (per esempio un pacchetto). |
 | Uso senza rete | 30 giorni dall'ultima convalida online, rinnovati a ogni ritorno online se il diritto è ancora valido. Dopo rimborso o revoca il server nega l'accesso e l'app cancella la copia alla prima riconnessione. Una copia su un dispositivo che resta offline non si può cancellare prima della scadenza locale. I contenuti sono dell'account, non del dispositivo: all'uscita dall'account (o alla sua eliminazione) la pagina d'accesso toglie dal dispositivo tutte le parti acquistate (`clearPremium()` in `lib/premium-client.ts`), e lo stesso fa la convalida online quando il server risponde che nessuno è entrato; un altro account vede solo le parti che ha comprato lui. |
-| Singolo luogo | **(2026-10-18)** Con l'esplorazione a pagamento ogni luogo non introduttivo si può comprare anche da solo. Il prezzo si decide nello Studio; quello proposto è **0,50 €**, il minimo che Stripe accetta (lo 0,19 € inizialmente richiesto non è addebitabile); prezzo pieno, nessuno sconto automatico su un acquisto successivo dell'esplorazione. |
+| Singolo luogo | **(2026-10-22: sostituito dai luoghi principali con i loro sottoluoghi, 1,99 € proposto, migrazione 20261101000000; vedi ACCESSO-CONTENUTI.md)** **(2026-10-18)** Con l'esplorazione a pagamento ogni luogo non introduttivo si può comprare anche da solo. Il prezzo si decide nello Studio; quello proposto è **0,50 €**, il minimo che Stripe accetta (lo 0,19 € inizialmente richiesto non è addebitabile); prezzo pieno, nessuno sconto automatico su un acquisto successivo dell'esplorazione. |
 | Domande all'AI | Per ora solo sui contenuti pubblici. In una fase successiva anche sui contenuti comprati, verificando i diritti sul server prima di leggere qualsiasi contenuto protetto. |
 
 ## Come funziona
@@ -61,6 +61,17 @@ L1–L5 e blocco «singolo luogo» di `remote-check.sql`). Nessuna tabella nuova
 `place-<luogo>`. Nello Studio, scheda Vendita: «Metti in vendita i luoghi» crea un prodotto «Luogo» attivo per ogni
 luogo vendibile senza prodotto, con il prezzo in bozza (0,50 € proposto), che vale dopo «Pubblica i prezzi». I file dei
 luoghi escono alla prossima «Ripubblica». La revoca si ferma se esistono già prodotti o diritti sui luoghi.
+
+## Luoghi principali e sottoluoghi: migrazione 32
+
+`supabase/migrations/20261101000000_sub_places.sql` (revoca in `supabase/rollback/`, test `supabase/tests/99b_sub_places.sql`
+S1–S3, controlli in `remote-check.sql`). Nessuna tabella nuova: usa `places.part_of_node_id`. Aggiunge `place_parent`,
+`studio_set_place_parent` (spunta dello Studio); cambia `studio_places`/`studio_place` (principale e sottoluoghi),
+`catalog_problem_place` (un sottoluogo non si vende; un introduttivo sì), `studio_places_on_sale` (solo principali, 1,99 €
+proposto, ritira i prodotti dei sottoluoghi, restituisce `{created, retired}`), `studio_catalog` e `has_place_right` (il
+diritto su un luogo diventato sottoluogo apre il file del principale). Il file `place-<principale>` contiene anche i
+racconti dei sottoluoghi; i file escono alla prossima «Ripubblica». La revoca torna alle funzioni precedenti senza toccare
+dati (la gerarchia resta, i prodotti ritirati restano ritirati).
 
 ## Luoghi gratuiti: migrazione 29
 

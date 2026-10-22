@@ -1305,6 +1305,15 @@ export function GuideApp() {
   // senza accesso porta prima al login e poi alla pagina d'acquisto).
   const shopOn = ACCOUNTS && catalog?.pack === content.destination && catalog.enabled;
   const lockedPlaces = lockedPlaceRefs(content);
+  // Luoghi principali e sottoluoghi (decisione del 2026-10-22): si compra il principale, che sblocca anche i suoi
+  // sottoluoghi; del principale la panoramica (racconto d'apertura) è nel bundle pubblico.
+  const placeByRef = new Map(content.places.map((p) => [p.ref, p]));
+  const principalOf = (ref: string) => {
+    const parent = placeByRef.get(ref)?.partOf;
+    return parent && parent !== ref && placeByRef.has(parent) ? parent : null;
+  };
+  const subCount = (ref: string) => content.places.filter((p) => p.partOf === ref && p.ref !== ref).length;
+  const publicAnchors = new Set(content.units.map((u) => u.anchor));
   // Un luogo si offre da solo solo se la pubblicazione ha il suo file a pagamento (altrimenti non riceverebbe nulla).
   const placeParts = new Set((opened?.manifest.premium ?? []).flatMap((f) => (f.kind === "place" && f.ref ? [f.ref] : [])));
   const offers = offersFor(content.locked, shopOn ? catalog.items : [], content.locale, {
@@ -1485,19 +1494,28 @@ export function GuideApp() {
       onAsk={() => { setSelected(cardRef); setAskFocus((n) => n + 1); }}
       onHere={() => arriveHere(cardRef)}
       {...(selected ? { onClose: () => setSelected(null) } : {})}
-      {...(lockedPlaces.has(cardRef)
-        ? {
-            locked: offers.places.has(cardRef) ? (
-              <>
-                <p className="muted">{t.lockedPlaceBuyHint}</p>
-                {buy(offers.places.get(cardRef), t.buyPlace)}
-                {offers.explore && buy(offers.explore, t.buyAllPlaces)}
-              </>
-            ) : (
-              <><p className="muted">{t.lockedPlaceHint}</p>{buy(offers.explore)}</>
-            ),
-          }
-        : {})}
+      {...(() => {
+        const principal = principalOf(cardRef) ?? cardRef;
+        const isSub = principal !== cardRef;
+        const principalName = placeByRef.get(principal)?.name ?? principal;
+        if (!lockedPlaces.has(cardRef)) return isSub ? { partOf: principalName } : {};
+        const n = subCount(principal);
+        const offer = offers.places.get(principal);
+        return {
+          ...(isSub ? { partOf: principalName } : {}),
+          // La panoramica gratuita si ascolta anche senza acquisto (solo dei luoghi principali).
+          overview: !isSub && publicAnchors.has(cardRef),
+          locked: offer ? (
+            <>
+              <p className="muted">{isSub ? t.lockedSubHint(principalName) : t.lockedPrincipalHint(principalName, n)}</p>
+              {buy(offer, t.buyPrincipal(principalName, n))}
+              {offers.explore && buy(offers.explore, t.buyAllPlaces)}
+            </>
+          ) : (
+            <><p className="muted">{t.lockedPlaceHint}</p>{buy(offers.explore)}</>
+          ),
+        };
+      })()}
     />
   ) : exploring ? (
     <p className="notice">
@@ -1623,8 +1641,11 @@ export function GuideApp() {
         </>
       ) : (
         <ul className="places">
-          {allPlaces.map(({ p, d }) => (
-            <li key={p.ref}>
+          {allPlaces
+            .filter(({ p }) => !principalOf(p.ref))
+            .flatMap((x) => [x, ...allPlaces.filter(({ p }) => principalOf(p.ref) === x.p.ref)])
+            .map(({ p, d }) => (
+            <li key={p.ref} className={principalOf(p.ref) ? "sub" : undefined}>
               <button className={`place-row ${p.ref === cardRef ? "on" : ""} ${lockedPlaces.has(p.ref) ? "locked" : ""}`} onClick={() => choosePlace(p.ref)}>
                 <span className="lock-wrap">
                   <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="thumb" />
@@ -1632,6 +1653,7 @@ export function GuideApp() {
                 </span>
                 <span>
                   <span className="name">{p.name}</span>
+                  {principalOf(p.ref) && <span className="short partof">{t.partOf(placeByRef.get(principalOf(p.ref)!)?.name ?? "")}</span>}
                   {p.short && <span className="short">{p.short}</span>}
                 </span>
                 <span className="dist">

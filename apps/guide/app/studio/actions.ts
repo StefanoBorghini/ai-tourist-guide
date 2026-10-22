@@ -56,6 +56,29 @@ export async function signOut() {
 
 // ---------------------------------------------------------------- luoghi
 
+/**
+ * Spunta «È un sottoluogo di …» (migrazione 20261101000000): il luogo diventa sottoluogo del luogo principale scelto, o
+ * torna principale. Un solo livello: le regole stanno nel database (studio_set_place_parent).
+ */
+export async function setPlaceParent(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const slug = text(form, "slug");
+  const path = `${packPath(pack)}/luoghi/${encodeURIComponent(slug)}`;
+  const isSub = form.get("isSub") === "1";
+  const parent = isSub ? text(form, "parent") : "";
+  if (isSub && !parent) back(path, { errore: "Scegli il luogo principale di cui fa parte." });
+  const { error } = await rpc(supabase, "studio_set_place_parent", { p_pack: pack, p_slug: slug, p_parent: parent || null });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(path);
+  revalidatePath(`${packPath(pack)}/luoghi`);
+  back(path, {
+    ok: isSub
+      ? "Ora è un sottoluogo: si sblocca con il suo luogo principale. Vale nell'app dalla prossima «Ripubblica»."
+      : "Ora è un luogo principale. Vale nell'app dalla prossima «Ripubblica».",
+  });
+}
+
 export async function updatePlace(form: FormData) {
   const { supabase } = await requireStaff();
   const pack = text(form, "pack");
@@ -294,7 +317,10 @@ export async function setDraftPrice(form: FormData) {
   back(path, { ok: clear ? "Bozza del prezzo tolta." : `Prezzo in bozza: ${formatEuro(cents!)}. Vale solo dopo «Pubblica i prezzi».` });
 }
 
-/** Crea i prodotti dei singoli luoghi vendibili ancora senza prodotto, con il prezzo in bozza indicato (0,50 € se vuoto). */
+/**
+ * Crea i prodotti dei luoghi principali vendibili ancora senza prodotto, con il prezzo in bozza indicato (1,99 € se
+ * vuoto), e ritira quelli dei luoghi diventati sottoluoghi.
+ */
 export async function placesOnSale(form: FormData) {
   const { supabase } = await requireStaff();
   const pack = text(form, "pack");
@@ -302,12 +328,16 @@ export async function placesOnSale(form: FormData) {
   const cents = text(form, "price") ? parseEuro(text(form, "price")) : PLACE_DEFAULT_CENTS;
   const problem = priceProblem(cents);
   if (problem) back(path, { errore: problem });
-  const { data, error } = await rpc<number>(supabase, "studio_places_on_sale", { p_pack: pack, p_amount: cents });
+  const { data, error } = await rpc<{ created: number; retired: number }>(supabase, "studio_places_on_sale", { p_pack: pack, p_amount: cents });
   if (error) back(path, { errore: friendlyError(error) });
   revalidatePath(path);
-  back(path, {
-    ok: data ? `Creati ${data} prodotti «Luogo» a ${formatEuro(cents!)} in bozza: valgono dopo «Pubblica i prezzi».` : "Tutti i luoghi vendibili hanno già un prodotto.",
-  });
+  const created = data?.created ?? 0;
+  const retired = data?.retired ?? 0;
+  const parts = [
+    created ? `Creati ${created} prodotti «Luogo principale» a ${formatEuro(cents!)} in bozza: valgono dopo «Pubblica i prezzi».` : "",
+    retired ? `Ritirati ${retired} prodotti di sottoluoghi: ora si vendono con il loro luogo principale.` : "",
+  ].filter(Boolean);
+  back(path, { ok: parts.join(" ") || "Tutti i luoghi principali hanno già un prodotto." });
 }
 
 export async function publishPrices(form: FormData) {

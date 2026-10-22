@@ -12,8 +12,8 @@ Ogni destinazione ha una configurazione «accesso» (`config.yaml` → `access`,
 
 | Campo | Valori | Effetto sul bundle pubblico |
 |---|---|---|
-| `explore` | `free` (predefinito) / `premium` | `premium`: dei racconti restano solo le **aperture dei luoghi introduttivi**, più i racconti di contesto che servono a capirle; i fatti citati solo dai racconti esclusi non entrano |
-| `introPlaces` | fino a 3 luoghi della destinazione | i luoghi i cui racconti d'apertura restano gratuiti |
+| `explore` | `free` (predefinito) / `premium` | `premium`: dei racconti restano solo le **panoramiche** (aperture) **dei luoghi principali e dei luoghi introduttivi** (dal 2026-10-22), più i racconti di contesto che servono a capirle; i fatti citati solo dai racconti esclusi non entrano |
+| `introPlaces` | fino a 3 luoghi della destinazione | i luoghi i cui racconti d'apertura restano gratuiti; dal 2026-10-22 serve solo per un sottoluogo (la panoramica dei principali è già gratuita) |
 | `freePlaces` | luoghi della destinazione, senza limite (dal 2026-10-18, migrazione 20261029000000) | i luoghi con tutti i racconti gratuiti; non si vendono da soli |
 | `premiumRoutes` | percorsi della destinazione | non entrano nel bundle pubblico; l'app ne riceve solo nome e durata (`locked.routes`) |
 
@@ -60,6 +60,24 @@ La revisione del branch ha trovato vie alternative ai contenuti a pagamento oltr
 non ha un campo adatto: `purchases.raw` è l'ultimo evento del fornitore, non una copia del prodotto). Se la concessione
 arriva dopo una modifica del pacchetto, vale il contenuto al momento della concessione. Il futuro webhook deve quindi
 concedere subito dopo il pagamento; una copia immutabile del contenuto acquistato richiede una decisione (campo nuovo).
+
+## Luoghi principali e sottoluoghi (decisione del 2026-10-22, migrazione 20261101000000)
+
+- Un **sottoluogo** è un luogo che fa parte (`partOf`, nel database `places.part_of_node_id`) di un altro luogo della
+  stessa destinazione: nello Studio, scheda del luogo, spunta «È un sottoluogo di …». Un solo livello: il validatore
+  (`PART_OF_DEPTH`) e il database (`studio_set_place_parent`) rifiutano un sottoluogo di un sottoluogo e un luogo con
+  sottoluoghi che diventa sottoluogo. Ogni altro luogo della destinazione è **principale**.
+- Con l'esplorazione a pagamento la **panoramica** di ogni luogo principale (il suo racconto d'apertura) è nel bundle
+  pubblico; tutti gli altri racconti del principale e **tutti** quelli dei suoi sottoluoghi stanno nel file a pagamento del
+  principale (`place-<principale>`). I sottoluoghi non hanno un file proprio e non si vendono da soli.
+- Si vende il **luogo principale** (prodotto «Luogo principale», 1,99 € proposto da «Metti in vendita i luoghi
+  principali», che ritira anche i prodotti dei luoghi diventati sottoluoghi). Comprato il principale, l'app sblocca anche
+  i sottoluoghi (`mergePremium`). «Esplorazione completa» continua a sbloccare tutto.
+- Chi aveva comprato un luogo prima che diventasse un sottoluogo riceve il file del suo principale (`has_place_right`):
+  l'acquisto non va perso.
+- Un sottoluogo di un luogo gratuito si sblocca solo con l'esplorazione completa (o rendendo gratuito anche lui).
+- Nell'app: elenco con i sottoluoghi rientrati sotto il principale; scheda del principale con «Ascolta la panoramica
+  gratuita» e «Sblocca <principale> · N luoghi»; scheda del sottoluogo con «Fa parte di <principale>» e lo stesso acquisto.
 
 ## Percorsi premium (P6)
 

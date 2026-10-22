@@ -55,6 +55,10 @@ export function PlaceCard(props: {
   onClose?: () => void;
   /** Luogo a pagamento: overlay con «Sblocca» e, al posto di ascolto e domande, l'acquisto. */
   locked?: ReactNode;
+  /** Luogo principale a pagamento con la panoramica gratuita: sopra l'acquisto resta «Ascolta la panoramica». */
+  overview?: boolean;
+  /** Nome del luogo principale, per un sottoluogo (si mostra sotto il nome). */
+  partOf?: string;
 }) {
   const { content, placeRef, base, fix, isHere, heard, canAsk, t } = props;
   const place = content.places.find((p) => p.ref === placeRef);
@@ -111,6 +115,7 @@ export function PlaceCard(props: {
           {isHere ? t.here : d !== null ? `${formatDistance(d, content.locale)} · ${compass(bearingDeg(fix!.location, place.location), t.dirs)}` : " "}
         </p>
         <h2>{place.name}</h2>
+        {props.partOf && <p className="muted small place-partof">{t.partOf(props.partOf)}</p>}
         {place.short && <p className="place-short">{place.short}</p>}
         {heard && (
           <span className="heard-mark">
@@ -118,7 +123,14 @@ export function PlaceCard(props: {
           </span>
         )}
         {props.locked ? (
-          <div className="place-actions locked">{props.locked}</div>
+          <div className="place-actions locked">
+            {props.overview && (
+              <button className="button big" onClick={props.onListen}>
+                <Icon name="play" /> {t.listenOverview}
+              </button>
+            )}
+            {props.locked}
+          </div>
         ) : (
         <div className="place-actions">
           <button className="button primary big" onClick={props.onListen}>

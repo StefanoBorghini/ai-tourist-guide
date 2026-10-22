@@ -74,7 +74,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   esplorazione, luoghi introduttivi, percorsi premium) restano fuori dal bundle pubblico, vedi `docs/v0.3-platform/ACCESSO-CONTENUTI.md`;
   le parti a pagamento (un percorso comprende i racconti delle sue tappe) vanno nel bucket privato `premium`, leggibile solo con il diritto
   (migrazione `20261027000000_premium_storage.sql`, vedi `docs/v0.3-platform/CONSEGNA-CONTENUTI.md`); con l'esplorazione a pagamento
-  ogni luogo non introduttivo ha anche la sua parte e si compra da solo (prodotto «place», migrazione `20261028000000_place_products.sql`);
+  ogni luogo principale ha la sua parte con i racconti dei suoi sottoluoghi e si compra da solo (prodotto «place», migrazioni `20261028000000_place_products.sql` e `20261101000000_sub_places.sql`: sottoluogo = `partOf` un luogo della stessa destinazione, un solo livello, spunta «È un sottoluogo di» nella scheda del luogo dello Studio; panoramica = racconto d'apertura del principale, gratuita; 1,99 € proposto; nell'app i sottoluoghi stanno sotto il principale e si sbloccano con lui);
   i luoghi gratuiti (`config.access.freePlaces`, scelti nella scheda Vendita, migrazione `20261029000000_free_places.sql`) hanno tutti i racconti nel bundle pubblico e non si vendono;
   solo le destinazioni elencate in `territories/static-bundles.json` hanno bundle dai file, e non possono avere contenuti a pagamento
 - Eventi del giorno (dati operativi, fuori da Territory Pack, bundle e AI): tabella `local_events` e `destinations.timezone`

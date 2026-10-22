@@ -208,7 +208,7 @@ export interface BundleLocked {
   routes: { ref: string; name: string; durationMin: number }[];
   /**
    * Con l'esplorazione a pagamento, i luoghi a pagamento secondo lo Studio: tutti quelli della destinazione tranne
-   * gli introduttivi e i gratuiti, anche se non hanno ancora racconti. Solo questi si mostrano bloccati. Dopo
+   * i gratuiti, anche se non hanno ancora racconti (dei luoghi principali resta pubblica la panoramica). Solo questi si mostrano bloccati. Dopo
    * l'unione con le parti acquistate (mergePremium) restano solo quelli non comprati. Assente nei bundle precedenti
    * al 2026-10-18.
    */
@@ -218,7 +218,7 @@ export interface BundleLocked {
 /**
  * Parte a pagamento di un bundle: mai nei file pubblici. "explore" contiene i racconti dell'esplorazione
  * completa; "route" un percorso premium con i racconti delle sue tappe che non sono già pubblici; "place" i racconti
- * di un singolo luogo (solo con l'esplorazione a pagamento, per i luoghi non introduttivi).
+ * di un luogo principale e dei suoi sottoluoghi, oltre alla panoramica pubblica (solo con l'esplorazione a pagamento).
  */
 export interface PremiumPart {
   kind: "explore" | "route" | "place";

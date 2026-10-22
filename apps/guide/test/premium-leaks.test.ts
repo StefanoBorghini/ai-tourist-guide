@@ -286,7 +286,7 @@ describe("parti a pagamento nel bucket privato (consegna, migrazione 20261027000
   const NAME = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*\/[a-z]{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(explore|(route|place)-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;
   const PUB = "0a0b0c0d-0000-4000-8000-000000000001";
 
-  it("con l'esplorazione e un percorso a pagamento: un file per l'esplorazione, uno per il percorso e uno per ogni luogo in vendita", () => {
+  it("con l'esplorazione e un percorso a pagamento: un file per l'esplorazione, uno per il percorso e uno per ogni luogo principale", () => {
     const r = compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set(), PUB);
     expect(r.errors).toEqual([]);
     for (const b of r.bundles) {
@@ -294,10 +294,12 @@ describe("parti a pagamento nel bucket privato (consegna, migrazione 20261027000
       for (const n of names) expect(n).toMatch(NAME);
       expect(names.filter((n) => n.includes(`/${b.locale}/${PUB}/explore.`))).toHaveLength(1);
       expect(names.filter((n) => n.includes(`/${b.locale}/${PUB}/route-giro-breve.`))).toHaveLength(1);
-      // Singoli luoghi (migrazione 20261028000000): mai quello introduttivo, che è già gratuito.
+      // Luoghi principali (migrazioni 20261028000000 e 20261101000000): anche la porta, che ha la panoramica gratuita;
+      // mai il carrugio, sottoluogo della porta, che sta nel file della porta.
       const places = names.filter((n) => n.includes(`/${b.locale}/${PUB}/place-`));
       if (b.locale === "it") expect(places.length).toBeGreaterThan(0);
-      expect(places.some((n) => n.includes("/place-porta-del-borgo."))).toBe(false);
+      if (b.locale === "it") expect(places.some((n) => n.includes("/place-porta-del-borgo."))).toBe(true);
+      expect(places.some((n) => n.includes("/place-carrugio-centrale."))).toBe(false);
       expect(names).toHaveLength(2 + places.length);
     }
   });
@@ -318,9 +320,9 @@ describe("parti a pagamento nel bucket privato (consegna, migrazione 20261027000
       for (const u of part.units) expect(exploreUnits.has(u.ref)).toBe(true);
       expect(part.units.length).toBeLessThan(explore.units.length);
     }
-    // Il carrugio non ha racconti ma è a pagamento: il file c'è, vuoto.
-    const carrugio = listed.find((f) => f.kind === "place" && f.ref?.endsWith(":carrugio-centrale"));
-    expect(carrugio && (JSON.parse(textOf(b.premium.get(carrugio.path)!)) as PremiumPart).units).toEqual([]);
+    // La porta ha solo la panoramica (pubblica) e il carrugio, suo sottoluogo, non ha racconti: il file c'è, vuoto.
+    const porta = listed.find((f) => f.kind === "place" && f.ref?.endsWith(":porta-del-borgo"));
+    expect(porta && (JSON.parse(textOf(b.premium.get(porta.path)!)) as PremiumPart).units).toEqual([]);
   });
 
   it("il manifest pubblico elenca solo nomi e impronte; i testi a pagamento stanno solo nei file privati", async () => {

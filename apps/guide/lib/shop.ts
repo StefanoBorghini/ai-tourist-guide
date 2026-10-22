@@ -83,7 +83,7 @@ export const formatPrice = (cents: number, locale: string) =>
 /**
  * Luoghi a pagamento: con l'esplorazione a pagamento, quelli senza racconti nel bundle pubblico (restano sulla
  * elenco, ma la guida non li racconta finché non si acquista il luogo o l'esplorazione completa). Quali siano lo
- * decide lo Studio (introduttivi e gratuiti esclusi); un luogo comprato non è più fra questi.
+ * decide lo Studio (gratuiti esclusi; dei luoghi principali resta pubblica la panoramica); un luogo comprato non è più fra questi.
  */
 export function lockedPlaceRefs(content: Pick<BundleContent, "locked" | "places" | "units">): Set<string> {
   if (!content.locked?.explore) return new Set();

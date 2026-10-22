@@ -32,10 +32,10 @@ export function formatEuro(cents: number): string {
 }
 
 export const PRODUCT_KIND_LABELS: Record<string, string> = {
-  explore: "Esplorazione", route: "Percorso", bundle: "Pacchetto di percorsi", place: "Luogo",
+  explore: "Esplorazione", route: "Percorso", bundle: "Pacchetto di percorsi", place: "Luogo principale",
 };
-/** Prezzo predefinito di un singolo luogo: il minimo che Stripe accetta (decisione del 2026-10-18). */
-export const PLACE_DEFAULT_CENTS = PRICE_MIN_CENTS;
+/** Prezzo proposto per un luogo principale, con i suoi sottoluoghi (decisione del 2026-10-22). */
+export const PLACE_DEFAULT_CENTS = 199;
 export const PRODUCT_STATUS_LABELS: Record<string, string> = { draft: "Bozza", active: "In vendita", retired: "Ritirato" };
 export const AVAILABILITY_LABELS: Record<string, string> = { available: "Disponibile", hidden: "Nascosto", sold_out: "Esaurito" };
 
@@ -61,8 +61,12 @@ export interface CatalogState {
   isDestination: boolean;
   explore: "free" | "premium";
   routes: { id: string; slug: string; name: string; premium: boolean }[];
-  /** Luoghi della destinazione; «sellable» se si possono vendere da soli (esplorazione a pagamento, non introduttivi). */
-  places?: { id: string; slug: string; name: string; sellable: boolean }[];
+  /**
+   * Luoghi della destinazione; «sellable» se si possono vendere (esplorazione a pagamento, luogo principale non
+   * gratuito); «parent» il luogo principale di un sottoluogo, «subPlaces» quanti sottoluoghi ha un principale
+   * (migrazione 20261101000000).
+   */
+  places?: { id: string; slug: string; name: string; sellable: boolean; parent?: string | null; subPlaces?: number }[];
   products: CatalogProduct[];
   drafts: number;
 }
@@ -71,6 +75,12 @@ export interface CatalogState {
 export function placesWithoutProduct(c: Pick<CatalogState, "places" | "products">): NonNullable<CatalogState["places"]> {
   const withProduct = new Set(c.products.filter((p) => p.kind === "place" && p.status !== "retired").map((p) => p.place?.slug));
   return (c.places ?? []).filter((pl) => pl.sellable && !withProduct.has(pl.slug));
+}
+
+/** Prodotti ancora attivi di luoghi diventati sottoluoghi: «Metti in vendita i luoghi principali» li ritira. */
+export function subPlaceProducts(c: Pick<CatalogState, "places" | "products">): CatalogProduct[] {
+  const subs = new Set((c.places ?? []).filter((pl) => pl.parent).map((pl) => pl.slug));
+  return c.products.filter((p) => p.kind === "place" && p.status !== "retired" && p.place && subs.has(p.place.slug));
 }
 
 /** In vendita davvero: attivo, non nascosto, con un prezzo pubblicato e coerente con l'accesso (come public_catalog). */

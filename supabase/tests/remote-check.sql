@@ -6,7 +6,7 @@
 -- Esito: una tabella con «superato»; se qualcosa non va, un errore che inizia con «FALLITO».
 -- Colonne: esito, dati di prova rimasti (atteso 0), amministratori della piattaforma, controlli NON verificati
 -- (atteso «nessuno»: altrimenti l'elenco dice cosa va verificato a mano, e quei controlli non sono superati).
--- Presuppone le migrazioni fino a 20261031000000 (… → 29 → 30 → 31): senza, si ferma con «FALLITO: funzione assente».
+-- Presuppone le migrazioni fino a 20261101000000 (… → 29 → 30 → 31 → 32): senza, si ferma con «FALLITO: funzione assente».
 -- Non verificabile da SQL: lo scaricamento pubblico da /pub/ e la Storage API (qui si provano le regole sulle righe
 -- di storage.objects, non il servizio HTTP).
 -- Gli stessi controlli girano in locale con `npm run db:check` (10_platform_security.sql e seguenti).
@@ -60,7 +60,9 @@ begin
         ('20261028000000_place_products', 'has_place_right(text,uuid)'),
         ('20261028000000_place_products', 'studio_places_on_sale(text,integer)'),
         ('20261031000000_local_events', 'public_local_events(text,date,date,text)'),
-        ('20261031000000_local_events', 'studio_save_local_event(text,uuid,jsonb,boolean)')
+        ('20261031000000_local_events', 'studio_save_local_event(text,uuid,jsonb,boolean)'),
+        ('20261101000000_sub_places', 'place_parent(uuid)'),
+        ('20261101000000_sub_places', 'studio_set_place_parent(text,text,text)')
       ) as t(migration, sig) loop
       if to_regprocedure(f.sig) is null then
         raise exception 'FALLITO: migrazione % non applicata (manca %)', f.migration, f.sig;
@@ -83,6 +85,10 @@ begin
     end if;
     if (select prosrc from pg_proc where oid = 'catalog_problem_place(text,uuid)'::regprocedure) like '%non ha racconti%' then
       raise exception 'FALLITO: migrazione 20261030000000_places_without_stories non applicata (i luoghi senza racconti non si vendono)';
+    end if;
+    -- 20261101000000: «Metti in vendita» restituisce quanti prodotti ha creato e quanti ha ritirato.
+    if (select prorettype from pg_proc where oid = 'studio_places_on_sale(text,integer)'::regprocedure) <> 'jsonb'::regtype then
+      raise exception 'FALLITO: migrazione 20261101000000_sub_places incompleta (studio_places_on_sale non restituisce jsonb)';
     end if;
     if exists (select 1 from pg_policy where polrelid = 'storage.objects'::regclass and polname = 'bundles_public_read') then
       raise exception 'FALLITO: migrazione 20261023000000_bundles_storage incompleta (resta la policy bundles_public_read)';
@@ -864,6 +870,10 @@ begin
     -- Singolo luogo (20261028000000): il diritto su un luogo apre solo il file di quel luogo, il rimborso lo richiude.
     if has_function_privilege('anon', 'has_place_right(text,uuid)', 'execute') then
       raise exception 'FALLITO: anon può eseguire has_place_right';
+    end if;
+    -- Sottoluoghi (20261101000000): la gerarchia la cambia solo chi modifica il territorio, mai un anonimo.
+    if has_function_privilege('anon', 'studio_set_place_parent(text,text,text)', 'execute') then
+      raise exception 'FALLITO: anon può eseguire studio_set_place_parent';
     end if;
     insert into storage.objects (bucket_id, name, owner) values
       ('premium', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/place-luogo-a.cccccccccccccccc.json', null);

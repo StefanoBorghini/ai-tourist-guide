@@ -52,6 +52,14 @@ describe("dipendenze e riferimenti", () => {
     expect(errorCodes(packs)).toContain("UNDECLARED_DEPENDENCY");
   });
 
+  it("sottoluoghi su un solo livello: un sottoluogo non può fare da luogo principale", () => {
+    const packs = loadSynthetic();
+    expect(errorCodes(packs)).not.toContain("PART_OF_DEPTH");
+    // Il carrugio è già un sottoluogo della porta: la chiesa non può farne parte.
+    village(packs).places.find((p) => p.id === "chiesa-di-san-test")!.partOf = "carrugio-centrale";
+    expect(errorCodes(packs)).toContain("PART_OF_DEPTH");
+  });
+
   it("rifiuta un nodo inesistente", () => {
     const packs = loadSynthetic();
     village(packs).assertions[0]!.subject = "luogo-che-non-esiste";
@@ -366,7 +374,12 @@ describe("accesso a pagamento", () => {
     // La porta ha l'apertura in italiano e in inglese; la chiesa no.
     village(packs).config.access = { explore: "premium", introPlaces: ["porta-del-borgo", "chiesa-di-san-test"], premiumRoutes: [] };
     expect(warningCodes(packs)).toContain("ACCESS_INTRO_NO_OPENING");
+    // Senza introduttivi la porta, luogo principale, ha comunque la sua panoramica gratuita.
     village(packs).config.access = { explore: "premium", introPlaces: [], premiumRoutes: [] };
+    expect(warningCodes(packs)).not.toContain("ACCESS_NO_INTRO");
+    // Se la porta diventa un sottoluogo, nessun luogo principale ha più una panoramica.
+    village(packs).places.find((p) => p.id === "carrugio-centrale")!.partOf = undefined;
+    village(packs).places.find((p) => p.id === "porta-del-borgo")!.partOf = "chiesa-di-san-test";
     expect(warningCodes(packs)).toContain("ACCESS_NO_INTRO");
   });
 });

@@ -166,3 +166,6 @@ details.st-create[open] > summary { margin-bottom: 12px; }
 .st-place-access > span:first-child { flex: 1 1 160px; }
 .st-form .st-place-access select { flex: 0 1 260px; width: auto; }
 .st-place-access .st-hint { flex-basis: 100%; }
+
+/* Sottoluoghi sotto il loro luogo principale (migrazione 20261101000000). */
+.st-sub-row td:first-child { padding-left: 28px; }

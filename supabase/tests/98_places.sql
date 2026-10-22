@@ -1,5 +1,6 @@
 -- Test dell'acquisto di un singolo luogo (20261028000000_place_products.sql):
---   L1 si vendono solo i luoghi a pagamento (esplorazione a pagamento, non introduttivi); «Metti in vendita» a 0,50 €;
+--   L1 si vendono solo i luoghi a pagamento (esplorazione a pagamento; dal 20261101000000 anche gli introduttivi, che
+--      sono luoghi principali); «Metti in vendita» al prezzo indicato (qui 0,50 €);
 --   L2 il diritto su un luogo apre solo il file di quel luogo (non altri luoghi, non l'esplorazione, non i percorsi);
 --   L3 ordine con la copia del luogo e diritto dal pagamento; L4 il rimborso revoca solo quel luogo;
 --   L5 con l'esplorazione tornata gratuita il luogo esce dal catalogo pubblico.
@@ -38,15 +39,12 @@ set request.jwt.claim.sub = '98000000-0000-0000-0000-000000000001';
 do $$
 declare n integer;
 begin
-  n := studio_places_on_sale('zl.lambda');
-  if n <> 3 then raise exception 'FALLITO L1: messi in vendita % luoghi, attesi 3 (torre, chiesa, vicolo; la porta è introduttiva)', n; end if;
+  n := (studio_places_on_sale('zl.lambda', 50) ->> 'created')::int;
+  if n <> 4 then raise exception 'FALLITO L1: messi in vendita % luoghi, attesi 4 (porta, torre, chiesa, vicolo)', n; end if;
   if not exists (select 1 from products where kind = 'place' and place_id = '98000000-0000-0000-0000-0000000000a4') then
     raise exception 'FALLITO L1: non in vendita il luogo ancora senza racconti';
   end if;
-  if studio_places_on_sale('zl.lambda') <> 0 then raise exception 'FALLITO L1: un secondo «Metti in vendita» crea doppioni'; end if;
-  if exists (select 1 from products where kind = 'place' and place_id = '98000000-0000-0000-0000-0000000000a1') then
-    raise exception 'FALLITO L1: in vendita il luogo introduttivo (gratuito)';
-  end if;
+  if (studio_places_on_sale('zl.lambda') ->> 'created')::int <> 0 then raise exception 'FALLITO L1: un secondo «Metti in vendita» crea doppioni'; end if;
   if (select array_agg(distinct pp.unit_amount) from product_prices pp join products p on p.id = pp.product_id
       where p.pack_id = 'zl.lambda' and pp.status = 'draft') <> '{50}' then
     raise exception 'FALLITO L1: prezzo proposto diverso da 0,50 €';
@@ -55,18 +53,13 @@ begin
     perform studio_places_on_sale('zl.lambda', 19);
     raise exception 'FALLITO L1: accettato un prezzo sotto 0,50 €';
   exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
-  -- Un prodotto per il luogo introduttivo, anche scritto a mano dall'API, non si attiva.
-  begin
-    insert into products (slug, kind, pack_id, place_id, status) values ('zl-porta', 'place', 'zl.lambda', '98000000-0000-0000-0000-0000000000a1', 'active');
-    raise exception 'FALLITO L1: attivato il prodotto del luogo introduttivo';
-  exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
   perform studio_prices_publish('zl.lambda');
 end $$;
 reset role;
 set role anon;
 do $$ begin
-  if (select count(*) from jsonb_array_elements(public_catalog('zl.lambda')) x where x ->> 'kind' = 'place') <> 3 then
-    raise exception 'FALLITO L1: il catalogo pubblico non elenca i tre luoghi';
+  if (select count(*) from jsonb_array_elements(public_catalog('zl.lambda')) x where x ->> 'kind' = 'place') <> 4 then
+    raise exception 'FALLITO L1: il catalogo pubblico non elenca i quattro luoghi';
   end if;
   if not exists (select 1 from jsonb_array_elements(public_catalog('zl.lambda')) x where x ->> 'place' = 'torre' and (x #>> '{price,amount}')::int = 50) then
     raise exception 'FALLITO L1: la torre non è in vendita a 0,50 €';

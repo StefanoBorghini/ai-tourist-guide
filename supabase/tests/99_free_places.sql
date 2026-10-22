@@ -53,7 +53,8 @@ end $$;
 set role authenticated;
 set request.jwt.claim.sub = '99000000-0000-0000-0000-000000000001';
 do $$ begin
-  if studio_places_on_sale('zq.libero') <> 1 then raise exception 'FALLITO G2: in vendita più della sola chiesa'; end if;
+  -- In vendita la porta e la chiesa (luoghi principali; dal 20261101000000 anche l'introduttiva), non la torre gratuita.
+  if (studio_places_on_sale('zq.libero') ->> 'created')::int <> 2 then raise exception 'FALLITO G2: in vendita più di porta e chiesa'; end if;
   if exists (select 1 from products where kind = 'place' and place_id = '99000000-0000-0000-0000-0000000000a2') then
     raise exception 'FALLITO G2: in vendita il luogo gratuito';
   end if;

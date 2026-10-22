@@ -15,10 +15,12 @@ test `supabase/tests/95_catalog.sql` e blocco «catalogo» in `remote-check.sql`
 | Esplorazione | L'esplorazione completa della destinazione (uno solo non ritirato per destinazione) | nell'Accesso l'esplorazione è a pagamento |
 | Percorso | Un percorso premium (uno solo non ritirato per percorso) | il percorso è premium nell'Accesso |
 | Pacchetto | Più percorsi della stessa destinazione | ha almeno un percorso e sono tutti premium |
-| Luogo | Un singolo luogo (uno solo non ritirato per luogo; migrazione `20261028000000_place_products.sql`) | l'esplorazione è a pagamento e il luogo non è introduttivo |
+| Luogo principale | Un luogo principale con i suoi sottoluoghi (uno solo non ritirato per luogo; migrazioni `20261028000000_place_products.sql` e `20261101000000_sub_places.sql`) | l'esplorazione è a pagamento, il luogo non è gratuito e non è un sottoluogo |
 
-I prodotti «Luogo» si creano tutti insieme con **«Metti in vendita i luoghi»** (prezzo in bozza proposto: 0,50 €, il
-minimo di Stripe; decisione del 2026-10-18), poi il prezzo di ciascuno si cambia nella sua scheda.
+I prodotti «Luogo principale» si creano tutti insieme con **«Metti in vendita i luoghi principali»** (prezzo in bozza
+proposto: 1,99 €, decisione del 2026-10-22; prima 0,50 € per ogni luogo), che ritira anche i prodotti dei luoghi diventati
+sottoluoghi; poi il prezzo di ciascuno si cambia nella sua scheda. Vedi ACCESSO-CONTENUTI.md, «Luoghi principali e
+sottoluoghi».
 
 - **Stati:** bozza → in vendita → ritirato. Un prodotto ritirato non torna indietro; uno con acquisti non si elimina.
 - **Disponibilità:** disponibile, nascosto (fuori dal listino), esaurito (nel listino, non acquistabile).

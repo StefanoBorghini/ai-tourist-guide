@@ -239,6 +239,14 @@ export const UI = {
     installOther: "Dal menu del browser scegli «Installa app» o «Aggiungi alla schermata Home».",
     installLater: "Non ora",
     lockedPlaceHint: "Il racconto di questo luogo fa parte dell'esplorazione completa.",
+    listenOverview: "Ascolta la panoramica gratuita",
+    lockedPrincipalHint: (name: string, n: number) =>
+      n > 0
+        ? `La panoramica è gratuita. Sblocca ${name} per ascoltare tutti i suoi racconti e quelli dei ${n === 1 ? "luogo" : `${n} luoghi`} che comprende.`
+        : `La panoramica è gratuita. Sblocca ${name} per ascoltare tutti i suoi racconti.`,
+    lockedSubHint: (parent: string) => `Fa parte di ${parent}: si sblocca con ${parent}.`,
+    buyPrincipal: (name: string, n: number) => (n > 0 ? `Sblocca ${name} · ${n + 1} luoghi` : `Sblocca ${name}`),
+    partOf: (parent: string) => `Fa parte di ${parent}`,
     lockedPlaceBuyHint: "Sblocca solo questo luogo, oppure tutti i luoghi con l'esplorazione completa.",
     buyPlace: "Solo questo luogo",
     buyAllPlaces: "Tutti i luoghi",
@@ -249,7 +257,7 @@ export const UI = {
     notOnSale: "Presto disponibile.",
     testPayment: "Modalità di prova: nessun addebito reale.",
     fullExplore: "Esplorazione completa",
-    fullExploreHint: "Tutti i racconti di tutti i luoghi, non solo quelli introduttivi.",
+    fullExploreHint: "Tutti i racconti di tutti i luoghi, non solo le panoramiche.",
     events: {
       title: "Eventi",
       todayIn: (name: string) => `Oggi a ${name}`,
@@ -530,6 +538,14 @@ export const UI = {
     installOther: "From the browser menu choose “Install app” or “Add to Home screen”.",
     installLater: "Not now",
     lockedPlaceHint: "This place's story is part of the full exploration.",
+    listenOverview: "Listen to the free overview",
+    lockedPrincipalHint: (name: string, n: number) =>
+      n > 0
+        ? `The overview is free. Unlock ${name} to hear all its stories and those of the ${n === 1 ? "place" : `${n} places`} it includes.`
+        : `The overview is free. Unlock ${name} to hear all its stories.`,
+    lockedSubHint: (parent: string) => `Part of ${parent}: unlocked with ${parent}.`,
+    buyPrincipal: (name: string, n: number) => (n > 0 ? `Unlock ${name} · ${n + 1} places` : `Unlock ${name}`),
+    partOf: (parent: string) => `Part of ${parent}`,
     lockedPlaceBuyHint: "Unlock just this place, or every place with the full exploration.",
     buyPlace: "Just this place",
     buyAllPlaces: "Every place",
@@ -540,7 +556,7 @@ export const UI = {
     notOnSale: "Coming soon.",
     testPayment: "Test mode: no real charge.",
     fullExplore: "Full exploration",
-    fullExploreHint: "Every story of every place, not only the introductory ones.",
+    fullExploreHint: "Every story of every place, not only the overviews.",
     events: {
       title: "Events",
       todayIn: (name: string) => `Today in ${name}`,

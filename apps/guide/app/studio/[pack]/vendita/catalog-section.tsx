@@ -1,5 +1,5 @@
 import {
-  AVAILABILITY_LABELS, formatEuro, onSale, PLACE_DEFAULT_CENTS, placesWithoutProduct, PRODUCT_KIND_LABELS, PRODUCT_STATUS_LABELS,
+  AVAILABILITY_LABELS, formatEuro, onSale, PLACE_DEFAULT_CENTS, placesWithoutProduct, PRODUCT_KIND_LABELS, PRODUCT_STATUS_LABELS, subPlaceProducts,
   type CatalogProduct, type CatalogState,
 } from "../../../../lib/studio/catalog";
 import { rpc, type StudioSession } from "../../../../lib/studio/server";
@@ -24,6 +24,8 @@ export async function CatalogSection({ pack, session }: { pack: string; session:
   const freeRoutes = (c?.routes ?? []).filter((r) => !routesWithProduct.has(r.slug));
   const placeName = new Map((c?.places ?? []).map((pl) => [pl.slug, pl.name]));
   const placesToSell = c ? placesWithoutProduct(c) : [];
+  const toRetire = c ? subPlaceProducts(c) : [];
+  const subCount = new Map((c?.places ?? []).map((pl) => [pl.slug, pl.subPlaces ?? 0]));
   const defaultPlacePrice = formatEuro(PLACE_DEFAULT_CENTS).replace(" €", "");
 
   return (
@@ -34,7 +36,7 @@ export async function CatalogSection({ pack, session }: { pack: string; session:
       {session.me.admin && (
         <p className="st-hint">
           Un prodotto è ciò che il visitatore compra (l&apos;esplorazione completa, un percorso, un pacchetto di percorsi,
-          un singolo luogo).
+          un luogo principale con i suoi sottoluoghi).
           Si attiva solo se il contenuto è a pagamento al punto 1. Il prezzo si scrive in bozza e vale dopo «Pubblica i
           prezzi»; un prezzo pubblicato non si cambia: se ne pubblica uno nuovo e il precedente resta nello storico.
           Gli acquisti per ora sono in modalità di prova (Stripe test): nessun pagamento reale.
@@ -58,19 +60,29 @@ export async function CatalogSection({ pack, session }: { pack: string; session:
           </form>
 
           {c.explore === "premium" && (
-            <div className="st-review" aria-labelledby="luoghi-singoli">
-              <h3 id="luoghi-singoli">Luoghi singoli</h3>
+            <div className="st-review" aria-labelledby="luoghi-principali">
+              <h3 id="luoghi-principali">Luoghi principali</h3>
               <p className="st-hint">
-                Con l&apos;esplorazione a pagamento ogni luogo (tranne gli introduttivi, già gratuiti) si può comprare anche da
-                solo. {placesToSell.length > 0
-                  ? `${placesToSell.length} luoghi non hanno ancora un prodotto: il pulsante li crea tutti, attivi, con il prezzo in bozza.`
-                  : "Tutti i luoghi vendibili hanno già un prodotto: il prezzo di ciascuno si cambia nella sua scheda qui sotto."}
+                Con l&apos;esplorazione a pagamento si vende ogni luogo principale: la sua panoramica resta gratuita, l&apos;acquisto
+                sblocca tutti i suoi racconti e quelli dei suoi sottoluoghi (si indicano nella scheda del luogo, sezione Luoghi). I
+                sottoluoghi e i luoghi gratuiti non si vendono da soli.{" "}
+                {placesToSell.length > 0
+                  ? `${placesToSell.length} luoghi principali non hanno ancora un prodotto: il pulsante li crea tutti, attivi, con il prezzo in bozza.`
+                  : "Tutti i luoghi principali hanno già un prodotto: il prezzo di ciascuno si cambia nella sua scheda qui sotto."}
+                {toRetire.length > 0 && ` ${toRetire.length} prodotti sono di luoghi diventati sottoluoghi: il pulsante li ritira.`}
               </p>
               {placesToSell.length > 0 && (
+                <ul className="st-meta">
+                  {placesToSell.map((pl) => (
+                    <li key={pl.slug}>{pl.name}{subCount.get(pl.slug) ? ` · ${subCount.get(pl.slug)} sottoluoghi inclusi` : ""}</li>
+                  ))}
+                </ul>
+              )}
+              {(placesToSell.length > 0 || toRetire.length > 0) && (
                 <form action={placesOnSale} className="st-reject">
                   <input type="hidden" name="pack" value={pack} />
-                  <input name="price" inputMode="decimal" defaultValue={defaultPlacePrice} aria-label="Prezzo in bozza di ogni luogo, in euro" required />
-                  <button className="st-btn" type="submit">Metti in vendita i luoghi</button>
+                  <input name="price" inputMode="decimal" defaultValue={defaultPlacePrice} aria-label="Prezzo in bozza di ogni luogo principale, in euro" required />
+                  <button className="st-btn" type="submit">Metti in vendita i luoghi principali</button>
                 </form>
               )}
             </div>

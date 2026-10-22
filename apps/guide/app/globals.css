@@ -1241,3 +1241,9 @@ html { -webkit-tap-highlight-color: transparent; }
 .gps-help summary { cursor: pointer; font-weight: 600; margin: 2px 0 4px; }
 .gps-help ol { margin: 4px 0 6px; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; line-height: 1.45; }
 .gps-help p { margin: 0; }
+
+/* Sottoluoghi nell'elenco: rientrati sotto il loro luogo principale (decisione del 2026-10-22). */
+.places li.sub { padding-left: 26px; position: relative; }
+.places li.sub::before { content: ""; position: absolute; left: 10px; top: -8px; bottom: 50%; width: 12px; border-left: 2px solid var(--line); border-bottom: 2px solid var(--line); border-bottom-left-radius: 8px; }
+.place-row .short.partof { color: var(--sand); }
+.place-card .place-partof { margin: -4px 0 6px; }

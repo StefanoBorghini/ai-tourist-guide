@@ -262,6 +262,19 @@ function checkPlaces(pack: TerritoryPack, ctx: Context): void {
       if (parent?.ref === formatNodeRef({ packId, slug: place.id })) {
         ctx.out.error({ code: "PART_OF_SELF", packId, file, item: place.id, message: "un luogo non può far parte di sé stesso" });
       }
+      // Sottoluoghi su un solo livello (decisione del 2026-10-22): il luogo principale non può essere a sua volta
+      // un sottoluogo di un altro luogo dello stesso pack.
+      const parentPlace = pack.places.find((pl) => parent?.ref === formatNodeRef({ packId, slug: pl.id }));
+      const grand = parentPlace?.partOf ? resolveRef(parentPlace.partOf, packId) : null;
+      if (grand && grand.packId === packId && pack.places.some((pl) => pl.id === grand.slug)) {
+        ctx.out.error({
+          code: "PART_OF_DEPTH",
+          packId,
+          file,
+          item: place.id,
+          message: `«${parentPlace!.id}» è già un sottoluogo: un sottoluogo può far parte solo di un luogo principale`,
+        });
+      }
     }
     if (place.placeKind === "poi" && place.importance >= 3 && !place.geofences.some((g) => g.kind === "arrival")) {
       ctx.out.warning({
@@ -620,7 +633,7 @@ function checkAccess(pack: TerritoryPack, ctx: Context): void {
   }
   const places = new Set(pack.places.map((p) => p.id));
   const routes = new Set(pack.routes.map((r) => r.id));
-  for (const [list, label] of [[access.introPlaces, "luogo introduttivo"], [access.premiumRoutes, "percorso premium"]] as const) {
+  for (const [list, label] of [[access.introPlaces, "luogo introduttivo"], [access.freePlaces ?? [], "luogo gratuito"], [access.premiumRoutes, "percorso premium"]] as const) {
     if (new Set(list).size !== list.length) {
       ctx.out.warning({ code: "ACCESS_DUPLICATE", packId, file, message: `${label} ripetuto` });
     }
@@ -628,12 +641,35 @@ function checkAccess(pack: TerritoryPack, ctx: Context): void {
   for (const id of access.introPlaces) {
     if (!places.has(id)) ctx.out.error({ code: "ACCESS_INTRO_UNKNOWN", packId, file, item: id, message: `luogo introduttivo inesistente: ${id}` });
   }
+  for (const id of access.freePlaces ?? []) {
+    if (!places.has(id)) ctx.out.error({ code: "ACCESS_FREE_UNKNOWN", packId, file, item: id, message: `luogo gratuito inesistente: ${id}` });
+  }
   for (const id of access.premiumRoutes) {
     if (!routes.has(id)) ctx.out.error({ code: "ACCESS_ROUTE_UNKNOWN", packId, file, item: id, message: `percorso premium inesistente: ${id}` });
   }
   if (access.explore !== "premium") return;
-  if (access.introPlaces.length === 0) {
-    ctx.out.warning({ code: "ACCESS_NO_INTRO", packId, file, message: "esplorazione a pagamento senza luoghi introduttivi: l'anteprima non avrà racconti" });
+  // Anteprima gratuita: le panoramiche dei luoghi principali (racconto d'apertura o, se manca, il primo racconto) e le
+  // aperture dei luoghi introduttivi (decisione del 2026-10-22). Se non ce n'è nessuna, chi non ha comprato non sente
+  // nessun racconto.
+  const subPlaces = new Set(
+    pack.places.filter((pl) => {
+      const parent = pl.partOf ? resolveRef(pl.partOf, packId) : null;
+      return parent?.packId === packId && parent.slug !== pl.id && places.has(parent.slug);
+    }).map((pl) => pl.id),
+  );
+  const principals = new Set([...places].filter((id) => !subPlaces.has(id)));
+  const hasPreview = pack.units.some((u) => {
+    const anchor = resolveRef(u.anchor, packId);
+    if (anchor?.packId !== packId) return false;
+    return principals.has(anchor.slug) || (u.unitType === "opening" && access.introPlaces.includes(anchor.slug));
+  });
+  if (!hasPreview) {
+    ctx.out.warning({
+      code: "ACCESS_NO_INTRO",
+      packId,
+      file,
+      message: "esplorazione a pagamento senza panoramiche: nessun luogo principale ha racconti, l'anteprima non avrà racconti",
+    });
   }
   for (const id of access.introPlaces) {
     if (!places.has(id)) continue;

@@ -254,7 +254,9 @@ export function AskBox(props: {
                     {last.answer.meter && (
                       <>
                         <br />
-                        costo stimato <b>{last.answer.meter.costUsd === null ? "?" : `${last.answer.meter.costUsd.toFixed(4)} $`}</b> · chiamate {last.answer.meter.calls} ·
+                        costo stimato <b>{last.answer.meter.costUsd === null ? "?" : `${last.answer.meter.costUsd.toFixed(4)} $`}</b>
+                        {last.answer.meter.costQuality === "estimated" && " (consumi mancanti: caso peggiore)"}
+                        {last.answer.meter.costQuality === "unknown" && " (modello fuori listino: stima prudente)"} · chiamate {last.answer.meter.calls} ·
                         token in {last.answer.meter.input} (cache letti {last.answer.meter.cacheRead}, scritti {last.answer.meter.cacheWrite}) · out {last.answer.meter.output} ·
                         ricerche {last.answer.meter.webSearches}
                         {last.answer.meter.models.length > 0 && <> · {last.answer.meter.models.join(", ")}</>}

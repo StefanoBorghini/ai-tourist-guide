@@ -206,15 +206,23 @@ export interface BundleLocked {
   explore: boolean;
   /** Percorsi premium: solo nome e durata, per presentarli. */
   routes: { ref: string; name: string; durationMin: number }[];
+  /**
+   * Con l'esplorazione a pagamento, i luoghi a pagamento secondo lo Studio: tutti quelli della destinazione tranne
+   * i gratuiti, anche se non hanno ancora racconti (dei luoghi principali resta pubblica la panoramica). Solo questi si mostrano bloccati. Dopo
+   * l'unione con le parti acquistate (mergePremium) restano solo quelli non comprati. Assente nei bundle precedenti
+   * al 2026-10-18.
+   */
+  places?: string[];
 }
 
 /**
  * Parte a pagamento di un bundle: mai nei file pubblici. "explore" contiene i racconti dell'esplorazione
- * completa; "route" un percorso premium con i racconti delle sue tappe che non sono già pubblici.
+ * completa; "route" un percorso premium con i racconti delle sue tappe che non sono già pubblici; "place" i racconti
+ * di un luogo principale e dei suoi sottoluoghi, oltre alla panoramica pubblica (solo con l'esplorazione a pagamento).
  */
 export interface PremiumPart {
-  kind: "explore" | "route";
-  /** Percorso, per le parti "route". */
+  kind: "explore" | "route" | "place";
+  /** Percorso per le parti "route", luogo per le parti "place". */
   ref?: string;
   units: BundleUnit[];
   assertions: BundleAssertion[];
@@ -240,4 +248,19 @@ export interface BundleManifest {
   content: string;
   files: BundleFile[];
   totalBytes: number;
+  /**
+   * File a pagamento di questa pubblicazione nel bucket privato «premium» (migrazione 20261027000000): solo nomi,
+   * tipo e impronte, mai i contenuti. L'app li scarica con un indirizzo firmato, solo se l'utente ha il diritto.
+   */
+  premium?: PremiumFile[];
+}
+
+export interface PremiumFile {
+  kind: PremiumPart["kind"];
+  /** Percorso per i file «route», luogo per i file «place». */
+  ref?: string;
+  /** Percorso nel bucket «premium»: `<destinazione>/<lingua>/<pubblicazione>/(explore|route-<percorso>|place-<luogo>).<impronta>.json`. */
+  path: string;
+  sha256: string;
+  bytes: number;
 }

@@ -10,3 +10,14 @@ export function formatDistance(meters: number, locale: string): string {
 export function compass(bearingDeg: number, words: readonly string[]): string {
   return words[Math.round((((bearingDeg % 360) + 360) % 360) / 45) % 8]!;
 }
+
+/**
+ * Fuso orario delle date mostrate nello Studio. Le pagine dello Studio sono generate sul server (Vercel, in UTC):
+ * senza un fuso esplicito «Nell'app dal …» risultava indietro di una o due ore rispetto all'ora italiana.
+ */
+export const STUDIO_TIME_ZONE = "Europe/Rome";
+
+/** «18/10/2026, 19:36:05» nell'ora della redazione, qualunque sia il fuso del server. */
+export function formatStudioTime(iso: string): string {
+  return new Date(iso).toLocaleString("it-IT", { timeZone: STUDIO_TIME_ZONE });
+}

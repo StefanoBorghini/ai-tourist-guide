@@ -1,22 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { verifyBundle, type BundleContent, type BundleManifest } from "@guide/bundle/client";
+import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { mergePremium, verifyBundle, type BundleContent, type BundleManifest } from "@guide/bundle/client";
 import { bearingDeg, distanceM, type Fix, type LngLat } from "@guide/context-engine";
-import { GuideRuntime, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeKind, type RuntimeState, type TourOptions } from "../lib/runtime";
+import { DEFAULT_GUIDE_MODE, GuideRuntime, parseGuideMode, type GuideMode, type NarrationSegment, type RuntimeEvent, type RuntimeKind, type RuntimeState, type TourOptions } from "../lib/runtime";
 import type { PositionSource } from "../lib/field-points";
 import { gpsStatus, type GpsErrorCode, type GpsStatus } from "../lib/gps-status";
+import { geoPlatform, shouldResume, type GeoPlatform } from "../lib/geo-permission";
 import { compass, formatDistance } from "../lib/format";
 import { simulateWalk, type SimStop } from "../lib/simulator";
 import { GuideVoice, type SpeechState } from "../lib/speech";
 import { uiFor, type UiText } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
+import { formatPrice, lockedPlaceRefs, offersFor, type CatalogItem, type Offer } from "../lib/shop";
+import { localPremium, syncPremium } from "../lib/premium-client";
+import { asNavState, HOME, initialStack, navStateOf, navStep, navUrl, readNavUrl, type NavState } from "../lib/nav-history";
+import { clearPurchaseWatch, markPurchaseStarted, PURCHASE_DONE_KEY, PURCHASE_POLL_MS, purchaseStamps, watchingPurchase } from "../lib/purchase-watch";
 import { AskBox } from "./AskBox";
 import { bundleBase as bundleBaseOf, loadIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndexEntry } from "../lib/bundle-index";
 import { DebugPanel } from "./DebugPanel";
+import { EventsHomeButton, EventsPanel, useLocalEvents } from "./EventsPanel";
+import { countInRange } from "../lib/events-view";
 import { MapView } from "./MapView";
 import { Carousel } from "./Carousel";
 import { Icon } from "./Icon";
+import { InstallPrompt } from "./InstallPrompt";
 import { PlaceCard, PlacePhoto, PlaceThumb, placeMedia, thumbSrc } from "./PlaceCard";
 
 type BundleEntry = BundleIndexEntry;
@@ -28,8 +36,8 @@ const PUBLISHED = publishedOrigin({ NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_P
 /** Indice: bundle dei file più quelli pubblicati. Se l'indice pubblicato non si legge lo si dice (publishedOk). */
 const loadIndex = () => loadIndexes((url) => fetch(url), STATIC_INDEX_URL, PUBLISHED ? PUB_INDEX_URL : null);
 
-type Screen = "home" | "setup" | "walk";
-const BUDGETS = [20, 30, 45, 60, 90];
+/** Schede della barra in basso. La visita in corso (esplorazione o percorso) vive nella sua scheda. */
+type Tab = "home" | "esplora" | "percorsi" | "profilo";
 /** Giro salvato per riprenderlo se il telefono chiude o ricarica la pagina (es. dopo aver usato la fotocamera). */
 const SAVED_TOUR_KEY = "guide-tour/1";
 const SAVED_TOUR_MAX_AGE_MS = 12 * 3_600_000;
@@ -70,23 +78,37 @@ function clock(ms: number, locale: string): string {
   return new Date(ms).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
 }
 
+/** Account (e quindi acquisti) attivi in questa installazione: lib/account/shared.ts. */
+const ACCOUNTS = process.env.NEXT_PUBLIC_ACCOUNTS_ENABLED === "1";
+
 export function GuideApp() {
   const [entries, setEntries] = useState<BundleEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   /** Indice pubblicato non leggibile: alcune destinazioni mancano per ora (nessun ripiego su altri contenuti). */
   const [indexPartial, setIndexPartial] = useState(false);
-  const [screen, setScreen] = useState<Screen>("home");
+  const [tab, setTab] = useState<Tab>("home");
+  /** Visita in corso (GPS, racconti): resta attiva anche passando alle altre schede. */
+  const [walking, setWalking] = useState(false);
+  /**
+   * La scheda della visita in corso mostra la sua pagina invece della visita: l'elenco delle destinazioni
+   * («‹ Destinazioni») o i percorsi (con il back del telefono). La visita resta attiva sotto.
+   */
+  const [showHub, setShowHub] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [content, setContent] = useState<BundleContent | null>(null);
+  /** Bundle pubblico (verificato) da cui viene il contenuto mostrato: le parti acquistate si uniscono a questo. */
+  const baseContentRef = useRef<BundleContent | null>(null);
   const [bundleBase, setBundleBase] = useState("");
   const [opened, setOpened] = useState<{ url: string; manifest: BundleManifest } | null>(null);
   const [offline, setOffline] = useState<"no" | "downloading" | "yes" | "error">("no");
   const [progress, setProgress] = useState(0);
   const [online, setOnline] = useState(true);
+  // Listino pubblico della destinazione aperta (solo se ha contenuti a pagamento e gli acquisti sono attivi).
+  const [catalog, setCatalog] = useState<{ pack: string; enabled: boolean; items: CatalogItem[] } | null>(null);
   const [askAvailable, setAskAvailable] = useState(false);
   /** Impronte dei bundle con cui risponde il server delle domande (per il debug). */
   const [webAvailable, setWebAvailable] = useState(false);
   const [serverBundles, setServerBundles] = useState<{ destination: string; locale: string; kbHash: string }[] | null>(null);
-  const [budget, setBudget] = useState(45);
   const [routeRef, setRouteRef] = useState<string | null>(null);
   const [debug, setDebug] = useState(false);
   const [gpsError, setGpsError] = useState<GpsErrorCode | null>(null);
@@ -94,15 +116,13 @@ export function GuideApp() {
   const [askFocus, setAskFocus] = useState(0);
   const [flash, setFlash] = useState<string | null>(null);
   const [pausedNotice, setPausedNotice] = useState(false);
-  const [itinerariesOpen, setItinerariesOpen] = useState(false);
   const hiddenAtRef = useRef<number | null>(null);
   const [fixSource, setFixSource] = useState<PositionSource | null>(null);
   const [savedTour, setSavedTour] = useState<SavedTour | null>(null);
   const openedEntryRef = useRef<BundleEntry | null>(null);
   const tourOptionsRef = useRef<TourOptions | null>(null);
   const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
-  const [returnToAnchor, setReturnToAnchor] = useState(true);
-  const [mode, setMode] = useState<GuideMode>("ask");
+  const [mode, setMode] = useState<GuideMode>(DEFAULT_GUIDE_MODE);
   const [avoidStairs, setAvoidStairs] = useState(false);
   const [, setTick] = useState(0);
   const [proposal, setProposal] = useState<{ placeRef: string; name: string } | null>(null);
@@ -113,6 +133,8 @@ export function GuideApp() {
   const [gps, setGps] = useState(false);
   const [complete, setComplete] = useState(false);
 
+  /** Ultima scheda mostrata e verso del passaggio (per l'animazione d'ingresso). */
+  const tabMotionRef = useRef<{ tab: Tab; dir: "fwd" | "back" }>({ tab: "home", dir: "fwd" });
   const runtimeRef = useRef<GuideRuntime | null>(null);
   const voiceRef = useRef<GuideVoice | null>(null);
   const simRef = useRef<{ fixes: Fix[]; index: number; timer: ReturnType<typeof setInterval> | null }>({ fixes: [], index: 0, timer: null });
@@ -120,6 +142,17 @@ export function GuideApp() {
   /** Punto di partenza del giro (ancora o prima tappa del percorso): da qui parte anche la simulazione. */
   const tourStartRef = useRef<LngLat | null>(null);
   const speechStateRef = useRef<SpeechState>("idle");
+  /** Valori correnti per i passaggi asincroni (convalida degli acquisti, cambio di lingua). */
+  const walkingRef = useRef(walking);
+  walkingRef.current = walking;
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  /** Parti acquistate già unite nel contenuto mostrato: dice se la convalida online ne ha portate di nuove. */
+  const ownedCountRef = useRef(0);
+  /** Istante dell'ultima convalida online riuscita (per chiudere l'attesa di un acquisto). */
+  const lastPremiumSyncRef = useRef<number | null>(null);
   const proposalRef = useRef(proposal);
   proposalRef.current = proposal;
 
@@ -136,6 +169,23 @@ export function GuideApp() {
     }
     setUiLocale(saved === "it" || saved === "en" ? saved : navigator.language.startsWith("it") ? "it" : "en");
   }, []);
+  // La modalità della guida scelta nel Profilo vale anche per le visite nuove (letta dopo il montaggio, come la lingua).
+  useEffect(() => {
+    try {
+      setMode(parseGuideMode(localStorage.getItem("guide-mode")));
+    } catch {
+      // memoria non disponibile: resta la predefinita
+    }
+  }, []);
+  const chooseMode = (m: GuideMode) => {
+    setMode(m);
+    if (runtimeRef.current) runtimeRef.current.mode = m;
+    try {
+      localStorage.setItem("guide-mode", m);
+    } catch {
+      // memoria non disponibile: vale solo finché l'app resta aperta
+    }
+  };
   const chooseLocale = (l: "it" | "en") => {
     setUiLocale(l);
     try {
@@ -143,17 +193,28 @@ export function GuideApp() {
     } catch {
       // memoria non disponibile
     }
+    // Destinazione aperta: la si riapre nella lingua scelta, se c'è. Con una visita in corso la visita continua
+    // nella nuova lingua dallo stesso punto (memoria del racconto, tappe raggiunte, percorso), come una ripresa.
+    const current = openedEntryRef.current;
+    if (!current || current.locale === l) return;
+    const other = entries.find((e) => e.destination === current.destination && e.locale === l);
+    if (!other) return;
+    const runtime = runtimeRef.current;
+    const start = tourStartRef.current;
+    if (!runtime || !runtime.kind || !start) {
+      void loadBundle(other).catch((e: Error) => setError(e.message));
+      return;
+    }
+    void loadBundle(other)
+      .then((loaded) => continueVisitWith(loaded))
+      .catch((e: Error) => setError(e.message));
   };
-  // Nella pagina iniziale vale la lingua scelta; dentro un territorio, quella del suo bundle.
-  const locale = screen === "home" ? uiLocale : (content?.locale ?? uiLocale);
+  // Nella pagina iniziale e nel profilo vale la lingua scelta; dentro un territorio, quella del suo bundle.
+  const locale = tab === "home" || tab === "profilo" ? uiLocale : (content?.locale ?? uiLocale);
   const [view, setView] = useState<"map" | "list">("map");
+  /** Luoghi principali con i sottoluoghi aperti nell'elenco. */
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [openRoute, setOpenRoute] = useState<string | null>(null);
-  // Il video ambientale parte solo se il dispositivo non chiede movimento ridotto o risparmio dati.
-  const [allowVideo, setAllowVideo] = useState(false);
-  useEffect(() => {
-    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
-    setAllowVideo(!saveData && !window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  }, []);
   const t = uiFor(locale);
   const rerender = useCallback(() => setTick((n) => n + 1), []);
 
@@ -183,6 +244,63 @@ export function GuideApp() {
       })
       .catch(() => setAskAvailable(false));
   }, [online]);
+
+  // Ritorno alla guida (scheda del browser o pagina ripresa dalla cache di navigazione): si ricontrollano gli acquisti.
+  // Dopo un acquisto partito dalla guida si richiedono anche a intervalli, finché arriva (lib/purchase-watch.ts): il
+  // webhook conferma qualche secondo dopo, e nell'app installata la cassa si apre sopra l'app senza che lei lo veda.
+  useEffect(() => {
+    let busy = false;
+    const check = async (always: boolean) => {
+      const entry = openedEntryRef.current;
+      const base = baseContentRef.current;
+      if (busy || document.visibilityState !== "visible" || !entry || !base?.locked || !ACCOUNTS || !navigator.onLine) return;
+      const { pending, done } = purchaseStamps();
+      const now = Date.now();
+      const watching = watchingPurchase(pending, done, lastPremiumSyncRef.current, now);
+      if (!watching && pending !== null) clearPurchaseWatch();
+      if (!always && !watching) return;
+      busy = true;
+      try {
+        if ((await refreshPremium(entry.manifest, base)) === true) clearPurchaseWatch();
+      } finally {
+        busy = false;
+      }
+    };
+    const again = () => void check(true);
+    const tick = () => void check(false);
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === PURCHASE_DONE_KEY) again();
+    };
+    const timer = setInterval(tick, PURCHASE_POLL_MS);
+    document.addEventListener("visibilitychange", again);
+    window.addEventListener("pageshow", again);
+    window.addEventListener("focus", again);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", again);
+      window.removeEventListener("pageshow", again);
+      window.removeEventListener("focus", again);
+      window.removeEventListener("storage", onStorage);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshPremium legge solo ref e setter stabili
+  }, []);
+
+  // Prezzi dei contenuti a pagamento: solo online, con acquisti attivi e se la destinazione ne ha.
+  const lockedPack = content?.locked ? content.destination : null;
+  useEffect(() => {
+    if (!ACCOUNTS || !online || !lockedPack) return;
+    let alive = true;
+    fetch(`/api/catalog?destinazione=${encodeURIComponent(lockedPack)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { enabled?: boolean; items?: CatalogItem[] }) => {
+        if (alive) setCatalog({ pack: lockedPack, enabled: d.enabled === true, items: Array.isArray(d.items) ? d.items : [] });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [lockedPack, online]);
 
   // Si invita a fare domande solo quando si possono davvero fare.
   useEffect(() => {
@@ -218,18 +336,77 @@ export function GuideApp() {
     const base = bundleBaseOf(entry.manifest);
     const json = await (await fetch(base + manifest.content)).text();
     const verified = await verifyBundle(manifest, json);
-    setContent(verified);
+    // Contenuti acquistati: subito quelli già sul dispositivo (anche senza rete), poi la convalida online.
+    const owned = verified.locked ? await localPremium(entry.manifest) : [];
+    const shown = mergePremium(verified, owned);
+    ownedCountRef.current = owned.length;
+    setContent(shown);
     setBundleBase(base);
     setOpened({ url: entry.manifest, manifest });
     openedEntryRef.current = entry;
     setOffline((await isBundleCached(entry.manifest, manifest).catch(() => false)) ? "yes" : "no");
-    return verified;
+    baseContentRef.current = verified;
+    if (verified.locked && ACCOUNTS && navigator.onLine) void refreshPremium(entry.manifest, verified);
+    return shown;
   };
 
+  /**
+   * Convalida online degli acquisti di un bundle: sblocca ciò che è stato comprato, richiude ciò che è stato
+   * rimborsato. Vero se ha portato parti nuove; null se la risposta non vale (errore, o nel frattempo altro bundle).
+   */
+  const refreshPremium = async (manifestUrl: string, base: BundleContent): Promise<boolean | null> => {
+    const asked = Date.now();
+    const parts = await syncPremium(manifestUrl).catch(() => null);
+    // Nel frattempo si è aperto un altro bundle (altra destinazione o lingua): questo esito non vale più.
+    if (!parts || baseContentRef.current !== base) return null;
+    lastPremiumSyncRef.current = asked;
+    const grew = parts.length > ownedCountRef.current;
+    const next = mergePremium(base, parts);
+    const runtime = runtimeRef.current;
+    const visiting = runtime && runtime.content.destination === base.destination && runtime.content.locale === base.locale;
+    if (visiting) {
+      // Visita in corso (aprire una destinazione avvia l'esplorazione prima che arrivi la convalida): ciò che il server
+      // concede ora vale subito, in entrambi i versi (acquisto appena fatto, oppure rimborso o revoca), e la visita
+      // continua dallo stesso punto.
+      ownedCountRef.current = parts.length;
+      if (JSON.stringify(next) !== JSON.stringify(runtime.content)) continueVisitWith(next);
+    } else {
+      ownedCountRef.current = parts.length;
+      setContent((current) => (!current || JSON.stringify(next) === JSON.stringify(current) ? current : next));
+    }
+    if (grew) setFlash(uiFor(base.locale).premiumUnlocked);
+    return grew;
+  };
+
+  /**
+   * La visita in corso continua con un altro contenuto della stessa destinazione (un'altra lingua, o con le parti
+   * appena acquistate): stessa memoria del racconto, tappe raggiunte, percorso, scheda e GPS.
+   */
+  const continueVisitWith = (next: BundleContent) => {
+    const runtime = runtimeRef.current;
+    const start = tourStartRef.current;
+    if (!runtime || !runtime.kind || !start) return;
+    const options = runtime.kind === "tour" ? tourOptionsRef.current : null;
+    if (runtime.kind === "tour" && !options) return;
+    const visiting = walkingRef.current;
+    const here = tabRef.current;
+    setContent(next);
+    beginSession(next, runtime.mode, options, start, runtime.exportState());
+    // La visita resta dov'era: se si stava guardando un'altra scheda, non ci si sposta.
+    if (!visiting) setWalking(false);
+    setTab(here);
+  };
+
+  /** Toccare una destinazione la apre e fa partire subito l'esplorazione libera (il tocco autorizza anche il GPS). */
   const openBundle = async (entry: BundleEntry) => {
+    setShowHub(false);
     try {
-      await loadBundle(entry);
-      setScreen("setup");
+      stopSimulation();
+      const loaded = await loadBundle(entry);
+      setTab("esplora");
+      window.scrollTo(0, 0);
+      beginSession(loaded, mode, null, defaultStart(loaded));
+      startGps();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -291,7 +468,7 @@ export function GuideApp() {
     if (!state && current && current.content === tourContent && current.memory.visitedPlaces.length > 0) {
       current.mode = tourMode;
       reorganize(options, start);
-      setScreen("walk");
+      setWalking(true);
       return;
     }
     const runtime = new GuideRuntime(tourContent, tourMode);
@@ -316,19 +493,14 @@ export function GuideApp() {
     setComplete(false);
     setSelected(null);
     setFlash(null);
-    setScreen("walk");
+    setWalking(true);
+    setShowHub(false);
+    setTab(options ? "percorsi" : "esplora");
     saveTour();
   };
 
   /** Punto di partenza della simulazione quando non c'è ancora una posizione. */
   const defaultStart = (c: BundleContent): LngLat => c.anchors[0]?.location ?? c.places[0]!.location;
-
-  const startExploring = () => {
-    if (!content) return;
-    beginSession(content, mode, null, defaultStart(content));
-    // Il tocco su «Inizia a esplorare» è anche il gesto che autorizza la richiesta della posizione.
-    startGps();
-  };
 
   /**
    * Cambia l'organizzazione della visita (esplorazione libera ↔ percorso guidato) senza perderla:
@@ -346,6 +518,7 @@ export function GuideApp() {
     setSelected(null);
     stopSimulation();
     setFlash(t.switchKeeps);
+    setTab(options ? "percorsi" : "esplora");
     saveTour();
     rerender();
   };
@@ -361,26 +534,15 @@ export function GuideApp() {
     reorganize({ now: Date.now(), start, route: ref, budgetMin: route.durationMin, avoidStairs }, start);
   };
 
-  /** Avvia un percorso curato (ref) o su misura (null). */
-  const startTour = (chosen: string | null = routeRef) => {
-    if (!content) return;
+  /** Avvia un percorso curato (il percorso su misura non si offre più, decisione del 2026-10-19). */
+  const startTour = (chosen: string) => {
+    const route = content?.routes.find((r) => r.ref === chosen);
+    if (!content || !route) return;
     setRouteRef(chosen);
-    const now = Date.now();
-    const anchor = content.anchors[0];
-    const route = chosen ? content.routes.find((r) => r.ref === chosen) : undefined;
-    // Con un percorso curato si parte dalla sua prima tappa; altrimenti dall'ancora (o dal primo luogo).
-    const firstStop = route ? content.places.find((p) => p.ref === route.stops[0]?.place) : undefined;
-    const start = firstStop?.location ?? anchor?.location ?? content.places[0]!.location;
-    beginSession(content, mode, {
-      now,
-      start,
-      ...(route
-        ? { route: route.ref, budgetMin: route.durationMin }
-        : returnToAnchor && anchor
-          ? { anchor: { ref: anchor.ref, deadline: now + budget * 60_000 } }
-          : { budgetMin: budget }),
-      avoidStairs,
-    }, start);
+    // Si parte dalla prima tappa del percorso.
+    const firstStop = content.places.find((p) => p.ref === route.stops[0]?.place);
+    const start = firstStop?.location ?? content.anchors[0]?.location ?? content.places[0]!.location;
+    beginSession(content, mode, { now: Date.now(), start, route: route.ref, budgetMin: route.durationMin, avoidStairs }, start);
     // Anche il percorso guidato usa il GPS reale per riconoscere le tappe.
     startGps();
   };
@@ -388,10 +550,10 @@ export function GuideApp() {
   const resumeTour = async (saved: SavedTour) => {
     try {
       const loaded = await loadBundle(saved.entry);
-      setMode(saved.mode);
+      // Vale la modalità scelta ora nel Profilo (ricordata sul dispositivo), non quella del momento del salvataggio.
       const options = saved.kind === "explore" ? null : saved.options;
       if (options?.route) setRouteRef(options.route);
-      beginSession(loaded, saved.mode, options, saved.start, saved.state);
+      beginSession(loaded, mode, options, saved.start, saved.state);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -528,6 +690,44 @@ export function GuideApp() {
   };
   const toggleGps = () => (gps ? stopGps() : startGps());
 
+  // Posizione bloccata («Non consentire mai»): il browser non la richiede più. Quando il visitatore la riattiva nelle
+  // impostazioni e torna nell'app, il GPS riparte da solo (cambio del permesso o ritorno in primo piano).
+  const gpsErrorRef = useRef(gpsError);
+  gpsErrorRef.current = gpsError;
+  const startGpsRef = useRef(startGps);
+  startGpsRef.current = startGps;
+  const [geoHelp, setGeoHelp] = useState<GeoPlatform>("other");
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setGeoHelp(geoPlatform(navigator.userAgent, standalone));
+    let status: PermissionStatus | null = null;
+    let closed = false;
+    const resume = (state: string | null) => {
+      if (shouldResume(state, gpsErrorRef.current) && runtimeRef.current) {
+        setGpsError(null);
+        startGpsRef.current();
+      }
+    };
+    const check = () => {
+      if (document.visibilityState !== "visible" || gpsErrorRef.current !== "denied") return;
+      if (status) resume(status.state);
+    };
+    navigator.permissions
+      ?.query({ name: "geolocation" as PermissionName })
+      .then((s) => {
+        if (closed) return;
+        status = s;
+        s.onchange = () => resume(s.state);
+      })
+      .catch(() => undefined);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      closed = true;
+      if (status) status.onchange = null;
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, []);
+
   // Lo schermo acceso va richiesto di nuovo quando l'app torna in primo piano.
   useEffect(() => {
     const onVisible = () => {
@@ -553,11 +753,6 @@ export function GuideApp() {
     const id = setInterval(rerender, 5000);
     return () => clearInterval(id);
   }, [gps, rerender]);
-
-  // Tornando dai percorsi guidati la pagina si apre su di loro.
-  useEffect(() => {
-    if (screen === "setup" && itinerariesOpen) document.getElementById("guided")?.scrollIntoView({ block: "start" });
-  }, [screen, itinerariesOpen]);
 
   useEffect(() => {
     if (!flash) return;
@@ -606,24 +801,316 @@ export function GuideApp() {
     </div>
   );
 
-  if (screen === "home") {
-    const byDestination = new Map<string, BundleEntry[]>();
-    for (const e of entries) byDestination.set(e.destination, [...(byDestination.get(e.destination) ?? []), e]);
-    const groups = [...byDestination.values()];
-    const pick = (group: BundleEntry[]) => group.find((e) => e.locale === uiLocale) ?? group[0]!;
-    const real = groups.filter((g) => !g[0]!.fictional).map(pick);
-    const demo = groups.filter((g) => g[0]!.fictional).map(pick);
-    const featured = real.find((e) => e.cover) ?? real[0] ?? demo[0];
+  const byDestination = new Map<string, BundleEntry[]>();
+  for (const e of entries) byDestination.set(e.destination, [...(byDestination.get(e.destination) ?? []), e]);
+  const groups = [...byDestination.values()];
+  const pick = (group: BundleEntry[]) => group.find((e) => e.locale === uiLocale) ?? group[0]!;
+  const real = groups.filter((g) => !g[0]!.fictional).map(pick);
+  const demo = groups.filter((g) => g[0]!.fictional).map(pick);
+  const featured = real.find((e) => e.cover) ?? real[0] ?? demo[0];
+  const languages = (destination: string) => (byDestination.get(destination) ?? []).map((e) => (e.locale === "it" ? "Italiano" : "English")).join(" · ");
+  /** Tutte le destinazioni, nella scheda Esplora (dal 2026-10-19 non più nella home). */
+  const destinationsList = (
+    <div id="destinazioni" className="destinations">
+      {real.length > 0 && (
+        <>
+          <div className="dest-grid">
+            {real.map((e) => {
+              const live = walking && runtime?.content.destination === e.destination;
+              return (
+                <button key={e.destination} className="dest-card" onClick={() => (live ? backToVisit() : void openBundle(e))}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
+                  {e.cover && <img src={e.cover.image} alt={e.cover.alt} loading="lazy" />}
+                  <span className="dest-card-body">
+                    <span className="dest-name">{e.name}</span>
+                    {e.preview && (
+                      <span className="meta">
+                        <span className="badge on-photo">{t.previewBadge}</span> {t.previewDetail}
+                      </span>
+                    )}
+                    <span className="meta">
+                      <Icon name="globe" size={16} /> {t.languagesAvailable}: {languages(e.destination)}
+                    </span>
+                    <span className="button primary">
+                      {live ? t.resumeVisit : t.exploreDestination(e.name)} <Icon name="forward" />
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {demo.length > 0 && (
+        <section className="section">
+          <div className="section-intro">
+            <h3>{t.demoTerritories}</h3>
+            <p className="muted small">{t.demoNote}</p>
+          </div>
+          <div className="demo-list">
+            {demo.map((e) => (
+              <button key={e.destination} className="demo-item" onClick={() => (walking && runtime?.content.destination === e.destination ? backToVisit() : void openBundle(e))}>
+                <span>
+                  <strong>{e.name}</strong>
+                  <span className="muted small" style={{ display: "block" }}>{t.fictional} · {languages(e.destination)}</span>
+                </span>
+                <Icon name="forward" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+
+  /** La visita in corso vive nella scheda del suo tipo: esplorazione libera o percorso. */
+  const sessionTab: Tab | null = walking && runtime ? (runtime.kind === "tour" ? "percorsi" : "esplora") : null;
+
+  // Eventi del giorno (solo online): della visita in corso, altrimenti della destinazione aperta o di quella in evidenza.
+  // Il bundle dà la lingua, che è tra quelle del territorio; un territorio senza calendario risponde 404 e non mostra nulla.
+  const eventsTarget = runtime?.content ?? content ?? featured ?? null;
+  const [eventsState, retryEvents] = useLocalEvents(
+    eventsTarget?.destination ?? null,
+    eventsTarget?.locale ?? null,
+    online,
+  );
+
+  // Cronologia del browser (lib/nav-history.ts): il back del telefono scende Visita → scheda → Home invece di uscire,
+  // l'indirizzo porta scheda e destinazione (?v=…&d=…) e ricaricando si ritrova la stessa vista.
+  const inVisit = walking && !!runtime && tab === sessionTab && !showHub;
+  const navNow = navStateOf({ tab, inVisit, destination: inVisit ? runtime!.content.destination : (content?.destination ?? null) });
+  const entryFor = (d: string | null) => {
+    const group = d ? byDestination.get(d) : undefined;
+    return group ? pick(group) : null;
+  };
+  /** Vista da ritrovare (back/avanti del browser, ricarica, link diretto). */
+  const applyNav = (st: NavState) => {
+    window.scrollTo(0, 0);
+    if (st.depth === 0) {
+      setShowHub(false);
+      setTab("home");
+      return;
+    }
+    if (st.depth === 1) {
+      if (st.tab === "percorsi") {
+        setShowHub(true);
+        const entry = st.d && contentRef.current?.destination !== st.d ? entryFor(st.d) : !contentRef.current ? featured : null;
+        if (entry) void loadBundle(entry).catch((e: Error) => setError(e.message));
+      } else setShowHub(st.tab === "esplora");
+      setTab(st.tab);
+      return;
+    }
+    // Visita: quella in corso se è della stessa destinazione, altrimenti la si riprende (giro salvato) o la si avvia.
+    const rt = runtimeRef.current;
+    if (walkingRef.current && rt && rt.content.destination === st.d) {
+      setShowHub(false);
+      setTab(rt.kind === "tour" ? "percorsi" : "esplora");
+      return;
+    }
+    const saved = readSavedTour();
+    if (saved && saved.entry.destination === st.d) void resumeTour(saved);
+    else {
+      const entry = entryFor(st.d);
+      if (entry) void openBundle(entry);
+    }
+  };
+  const applyNavRef = useRef(applyNav);
+  applyNavRef.current = applyNav;
+  const writeNav = (st: NavState, push: boolean) => {
+    // Lo stato del router di Next resta: si aggiunge solo la nostra chiave.
+    const state = { ...(window.history.state ?? {}), guideNav: st };
+    const url = window.location.pathname + navUrl(st, window.location.search);
+    if (push) window.history.pushState(state, "", url);
+    else window.history.replaceState(state, "", url);
+  };
+  const navReadyRef = useRef(false);
+  /** Ritorno indietro avviato dall'app (es. da una visita alla Home): la voce raggiunta prende questo stato. */
+  const navPendingRef = useRef<NavState | null>(null);
+  /** Vista in arrivo dopo una ricarica o un link: finché non è pronta la cronologia non si tocca. */
+  const navRestoringRef = useRef<NavState | null>(null);
+
+  // Prima apertura o ricarica: appena c'è l'elenco delle destinazioni si ritrova la vista dell'indirizzo.
+  useEffect(() => {
+    if (navReadyRef.current || (entries.length === 0 && !error)) return;
+    navReadyRef.current = true;
+    if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+    const existing = asNavState((window.history.state as { guideNav?: unknown } | null)?.guideNav);
+    const url = readNavUrl(window.location.search);
+    let target: NavState = existing ?? (url.d ? { depth: 2, tab: "esplora", d: url.d } : url.v ? { depth: 1, tab: url.v, d: null } : HOME);
+    // Destinazione sconosciuta (link vecchio o sbagliato): si mostra l'elenco.
+    if (target.d && !byDestination.has(target.d)) target = { depth: 1, tab: "esplora", d: null };
+    if (!existing) {
+      const [first, ...rest] = initialStack(target);
+      writeNav(first!, false);
+      for (const st of rest) writeNav(st, true);
+    } else writeNav(target, false);
+    if (target.depth > 0) {
+      navRestoringRef.current = target;
+      // Se la vista non si raggiunge (errore di rete) dopo un po' la cronologia torna a seguire l'app.
+      setTimeout(() => { if (navRestoringRef.current === target) navRestoringRef.current = null; }, 15000);
+      applyNav(target);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta sola, quando l'elenco è pronto
+  }, [entries, error]);
+
+  // Ogni cambio di vista dell'app si riflette nella cronologia (aggiunge, sostituisce o torna indietro).
+  const navKey = `${navNow.depth}|${navNow.tab}|${navNow.d ?? ""}`;
+  useEffect(() => {
+    if (!navReadyRef.current) return;
+    const restoring = navRestoringRef.current;
+    if (restoring) {
+      const reached = navNow.depth === restoring.depth && navNow.tab === restoring.tab && (!restoring.d || navNow.d === restoring.d);
+      if (!reached) return;
+      navRestoringRef.current = null;
+      writeNav(navNow, false);
+      return;
+    }
+    if (navPendingRef.current) {
+      navPendingRef.current = navNow;
+      return;
+    }
+    const current = asNavState((window.history.state as { guideNav?: unknown } | null)?.guideNav);
+    const step = navStep(current, navNow);
+    if (step.kind === "replace") writeNav(navNow, false);
+    else if (step.kind === "push") for (const st of step.states) writeNav(st, true);
+    else if (step.kind === "back") {
+      navPendingRef.current = navNow;
+      window.history.go(-step.steps);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- navKey riassume navNow
+  }, [navKey]);
+
+  // Back e avanti del browser o del telefono.
+  useEffect(() => {
+    const onPop = (ev: PopStateEvent) => {
+      const pending = navPendingRef.current;
+      if (pending) {
+        navPendingRef.current = null;
+        writeNav(pending, false);
+        return;
+      }
+      const st = asNavState((ev.state as { guideNav?: unknown } | null)?.guideNav);
+      if (!st) return;
+      navRestoringRef.current = null;
+      applyNavRef.current(st);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- writeNav usa solo window
+  }, []);
+  /**
+   * Cambio di scheda. Percorsi ha bisogno di una destinazione, e il Profilo la offre per l'uso offline: senza,
+   * si apre quella in evidenza. Esplora elenca le destinazioni e non ne apre nessuna da sola.
+   */
+  const goTab = async (next: Tab) => {
+    setShowHub(false);
+    navRestoringRef.current = null;
+    if (next !== "home" && next !== "esplora" && !content && featured) {
+      setOpening(true);
+      setTab(next);
+      try {
+        await loadBundle(featured);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setOpening(false);
+      }
+      return;
+    }
+    setTab(next);
+    window.scrollTo(0, 0);
+  };
+
+  /** «‹ Destinazioni»: elenco delle destinazioni senza chiudere la visita (GPS e voce restano attivi). */
+  const toDestinations = () => {
+    setShowHub(true);
+    setTab("esplora");
+    window.scrollTo(0, 0);
+  };
+  /** Dall'elenco si torna alla visita in corso della stessa destinazione. */
+  const backToVisit = () => {
+    setShowHub(false);
+    if (sessionTab) setTab(sessionTab);
+    window.scrollTo(0, 0);
+  };
+
+  const TABS: { id: Tab; icon: "home" | "compass" | "route" | "user"; label: string }[] = [
+    { id: "home", icon: "home", label: t.tabs.home },
+    { id: "esplora", icon: "compass", label: t.tabs.explore },
+    { id: "percorsi", icon: "route", label: sessionTab === "percorsi" ? t.inProgress : t.tabs.routes },
+    { id: "profilo", icon: "user", label: t.tabs.profile },
+  ];
+  const tabbar = (
+    <nav className="tabbar" aria-label={t.tabsLabel}>
+      {TABS.map((item) => (
+        <button key={item.id} className={tab === item.id ? "on" : ""} aria-current={tab === item.id ? "page" : undefined} onClick={() => void goTab(item.id)}>
+          <span className="tab-icon">
+            <Icon name={item.icon} size={22} />
+            {sessionTab === item.id && <span className="tab-live" aria-label={t.inProgress} />}
+          </span>
+          <span className="tab-label">{item.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+
+  // Lettore sempre a portata di pollice mentre la guida parla, in qualunque scheda.
+  const speaking = speech.state !== "idle";
+  const player = speaking && runtime && (
+    <div className={`player ${speech.state === "paused" ? "paused" : ""}`} role="region" aria-label={t.nowPlaying}>
+      <span className="eq" aria-hidden="true"><i /><i /><i /></span>
+      <span className="what">
+        <strong>{currentSegment ? runtime.name(currentSegment.placeRef) : (speech.title ?? t.nowPlaying)}</strong>
+        <span>{t.nowPlaying}</span>
+      </span>
+      <span className="actions">
+        <button className="round-btn main" onClick={() => voiceRef.current?.toggle()} aria-label={speech.state === "paused" ? t.play : t.pause}>
+          <Icon name={speech.state === "paused" ? "play" : "pause"} />
+        </button>
+        <button className="round-btn" onClick={() => voiceRef.current?.skip()} aria-label={t.skip}>
+          <Icon name="skip" />
+        </button>
+      </span>
+    </div>
+  );
+  /**
+   * Cornice di ogni scheda: in alto marchio e lingua (come nella home, decisione del 2026-10-20), poi la vista, il
+   * lettore e la barra in basso. La home ha marchio e lingua sopra la foto; la visita in corso ha la sua barra.
+   */
+  // Verso del cambio di scheda (avanti o indietro nella barra): decide da che lato entra la nuova vista.
+  if (tabMotionRef.current.tab !== tab) {
+    const order = TABS.map((x) => x.id);
+    tabMotionRef.current = { tab, dir: order.indexOf(tab) >= order.indexOf(tabMotionRef.current.tab) ? "fwd" : "back" };
+  }
+  // La chiave sulla vista la fa rientrare (e animare) solo quando cambia la scheda, non a ogni aggiornamento.
+  const keyed = (view: ReactNode) => (isValidElement(view) ? cloneElement(view as ReactElement, { key: tab }) : view);
+  const shell = (view: ReactNode, appBar = true) => (
+    <div className="app-shell" data-tab-dir={tabMotionRef.current.dir}>
+      {appBar && (
+        <header className="app-bar">
+          {brand}
+          {languageSwitch}
+        </header>
+      )}
+      {keyed(view)}
+      {player}
+      {/* Sempre montato (non perde l'evento d'installazione cambiando scheda); nascosto mentre la guida parla. */}
+      <InstallPrompt t={t} hidden={Boolean(player)} />
+      {tabbar}
+    </div>
+  );
+
+  if (tab === "home") {
     const cover = featured?.cover;
-    const languages = (destination: string) => (byDestination.get(destination) ?? []).map((e) => (e.locale === "it" ? "Italiano" : "English")).join(" · ");
-    return (
+    return shell(
       <main className="home">
         <section className="hero">
           {cover && (
             <div className="hero-media">
+              {/* Sempre la stessa immagine ferma: niente video né zoom lento (decisione del 2026-10-19). */}
               {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
-              <img className="ken" src={cover.image} alt={cover.alt} fetchPriority="high" />
-              {cover.video && allowVideo && online && <video src={cover.video} poster={cover.image} autoPlay muted loop playsInline preload="auto" aria-hidden="true" />}
+              <img src={cover.image} alt={cover.alt} fetchPriority="high" />
             </div>
           )}
           <header className="hero-top">
@@ -631,14 +1118,16 @@ export function GuideApp() {
             {languageSwitch}
           </header>
           <div className="hero-copy">
-            {featured && (
-              <span className="hero-place">
-                <Icon name="pin" size={16} /> {featured.name}
-              </span>
-            )}
             <h1>{t.heroTitle}</h1>
             <p className="lede">{t.heroLede}</p>
-            {featured && (
+            {sessionTab && runtime ? (
+              <div className="hero-cta">
+                {/* Visita in corso: la home riporta lì invece di ricominciare. */}
+                <button className="button primary xl" onClick={() => goTab(sessionTab)}>
+                  {t.resume}: {runtime.content.name} <Icon name="forward" />
+                </button>
+              </div>
+            ) : featured && (
               <div className="hero-cta">
                 <button className="button primary xl" onClick={() => openBundle(featured)}>
                   {t.exploreStart} <Icon name="forward" />
@@ -646,10 +1135,16 @@ export function GuideApp() {
                 {featured.preview && <span className="badge on-photo">{t.previewBadge}</span>}
               </div>
             )}
-            {cover?.credit && <p className="hero-credit">{t.photo}: {cover.credit}</p>}
+            {eventsTarget && (
+              <div className="hero-cta">
+                <EventsHomeButton state={eventsState} onRetry={retryEvents} name={eventsTarget.name} locale={locale} t={t} />
+              </div>
+            )}
           </div>
         </section>
 
+        {/* Avvisi e visita salvata solo se ci sono: altrimenti la home è la sola foto e non scorre. */}
+        {(!online || error || indexPartial || savedTour) && (
         <div className="home-body">
           {!online && (
             <p className="notice">
@@ -673,65 +1168,99 @@ export function GuideApp() {
             </div>
           )}
 
-          {real.length > 0 && (
-            <>
-              <div className="section-head">
-                <h2>{t.destinations}</h2>
-              </div>
-              <div className="dest-grid">
-                {real.map((e) => (
-                  <article key={e.destination} className="dest-card">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
-                    {e.cover && <img src={e.cover.image} alt={e.cover.alt} loading="lazy" />}
-                    <div className="dest-card-body">
-                      <h3>{e.name}</h3>
-                      <p className="meta">
-                        <Icon name="globe" size={16} /> {t.languagesAvailable}: {languages(e.destination)}
-                        {e.preview && <span className="badge on-photo">{t.previewBadge}</span>}
-                      </p>
-                      <button className="button primary" onClick={() => openBundle(e)}>
-                        {t.exploreDestination(e.name)} <Icon name="forward" />
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </>
-          )}
-
-          {demo.length > 0 && (
-            <section className="section">
-              <div className="section-intro">
-                <h3>{t.demoTerritories}</h3>
-                <p className="muted small">{t.demoNote}</p>
-              </div>
-              <div className="demo-list">
-                {demo.map((e) => (
-                  <button key={e.destination} className="demo-item" onClick={() => openBundle(e)}>
-                    <span>
-                      <strong>{e.name}</strong>
-                      <span className="muted small" style={{ display: "block" }}>{t.fictional} · {languages(e.destination)}</span>
-                    </span>
-                    <Icon name="forward" />
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
         </div>
-        <footer className="home-foot muted small">AI Guide{cover?.credit ? ` · ${t.photo}: ${cover.credit}` : ""}</footer>
-      </main>
+        )}
+      </main>,
+      false,
     );
   }
 
-  /** Copertina della destinazione aperta: quella dell'indice, oppure la prima immagine del bundle. */
-  const destinationCover = (c: BundleContent): { src: string; alt: string } | null => {
-    const fromIndex = openedEntryRef.current?.cover;
-    if (fromIndex) return { src: fromIndex.image, alt: fromIndex.alt };
-    const first = c.media.find((m) => m.cover) ?? c.media[0];
-    const src = thumbSrc(first, bundleBase);
-    return first && src ? { src, alt: first.alt } : null;
-  };
+  if (tab === "profilo") {
+    // Account solo dove sono attivi (lib/account/shared.ts): servono per acquistare, non per visitare.
+    const accounts = ACCOUNTS;
+    return shell(
+      <main className="profile">
+        <h1>{t.profileTitle}</h1>
+        <section className="card">
+          <h2>{t.guideSettings}</h2>
+          <p className="muted small">{t.mode}</p>
+          <div className="segmented wide stack" role="group" aria-label={t.mode}>
+            {(["ask", "auto", "silent"] as const).map((m) => (
+              <button key={m} aria-pressed={mode === m} onClick={() => chooseMode(m)}>
+                {t.modes[m]}
+              </button>
+            ))}
+          </div>
+          <p className="muted small">{t.voiceSpeed}</p>
+          <div className="segmented wide" role="group" aria-label={t.voiceSpeed}>
+            {[0.75, 1, 1.25, 1.5].map((r) => (
+              <button key={r} aria-pressed={rate === r} onClick={() => { setRate(r); voiceRef.current?.setRate(r); }}>
+                {r}×
+              </button>
+            ))}
+          </div>
+          <label className="check">
+            <input type="checkbox" checked={avoidStairs} onChange={(e) => setAvoidStairs(e.target.checked)} />
+            {t.avoidStairs}
+          </label>
+        </section>
+        <section className="card">
+          <h2>{t.offlineTitle}</h2>
+          {!offlineSupported() || !opened || !content ? (
+            <p className="muted small">{t.offlineNone}</p>
+          ) : offline === "yes" ? (
+            <p className="ok"><Icon name="check" /> {content.name}: {t.offlineReady}</p>
+          ) : (
+            <div className="offline-box">
+              <button className="button quiet" disabled={offline === "downloading" || !online} onClick={saveOffline}>
+                <Icon name="download" /> {t.offlineDownload}: {content.name} ({Math.ceil(opened.manifest.totalBytes / 1024)} KB)
+              </button>
+              {offline === "downloading" && <p className="muted small">{Math.round(progress * 100)}%</p>}
+              {offline === "error" && <p className="error small">{t.offlineError}</p>}
+              <p className="muted small">{t.offlineHint}</p>
+            </div>
+          )}
+        </section>
+        {accounts && (
+          <section className="card">
+            <h2>{t.accountTitle}</h2>
+            <p className="muted small">{t.accountHint}</p>
+            {online ? (
+              <a className="button primary block" href="/account">{t.accountOpen} <Icon name="forward" /></a>
+            ) : (
+              <p className="muted small"><Icon name="wifiOff" /> {t.accountOffline}</p>
+            )}
+          </section>
+        )}
+        <p className="muted small home-foot">Powered by Ductavia</p>
+      </main>,
+    );
+  }
+
+  // Esplora: solo l'elenco delle destinazioni (decisione del 2026-10-19). La visita in corso resta nella sua scheda.
+  if (tab === "esplora" && (sessionTab !== "esplora" || showHub)) {
+    return shell(
+      <main className="hub explore-tab">
+        <header className="tab-head">
+          <h1>{t.destinations}</h1>
+        </header>
+        <div className="hub-body tab-body">
+          {opening && <p className="notice">{t.opening}</p>}
+          {error && <p className="notice gps-error">{online ? error : t.offlineNoBundle}</p>}
+          {destinationsList}
+        </div>
+      </main>,
+    );
+  }
+
+  if (!content) {
+    return shell(
+      <main className="tab-empty">
+        <p className="notice">{opening ? t.opening : error ? (online ? error : t.offlineNoBundle) : t.noDestination}</p>
+      </main>,
+    );
+  }
+
   /**
    * Copertina di un percorso: una foto delle sue tappe (prima le foto, poi i fotogrammi dei video).
    * Percorsi diversi ruotano tra le foto disponibili, così le schede non si ripetono.
@@ -743,116 +1272,93 @@ export function GuideApp() {
   };
   const placeName = (c: BundleContent, ref: string) => c.places.find((p) => p.ref === ref)?.name ?? ref;
 
-  if (screen === "setup" && content) {
-    const anchor = content.anchors[0];
-    const visitInProgress = runtimeRef.current?.content === content && runtimeRef.current.memory.visitedPlaces.length > 0;
-    const heroCover = destinationCover(content);
-    return (
-      <main className="hub">
-        <section className="hub-hero">
-          {/* eslint-disable-next-line @next/next/no-img-element -- copertina statica del bundle */}
-          {heroCover && <img src={heroCover.src} alt={heroCover.alt} />}
-          <div className="hero-top">
-            <button className="back-btn" onClick={() => setScreen("home")}>
-              <Icon name="back" /> {t.back}
-            </button>
-            {brand}
-          </div>
-          <div className="hub-title">
-            <p className="eyebrow" style={{ color: "rgba(255,255,255,.8)" }}>{t.howToVisit}</p>
-            <h1>{content.name}</h1>
-            <div className="row wrap">
-              {content.preview && <span className="badge on-photo">{t.previewBadge}</span>}
-              {content.fictional && <span className="badge on-photo">{t.fictional}</span>}
-            </div>
-          </div>
-        </section>
+  const visitInProgress = runtimeRef.current?.content === content && runtimeRef.current.memory.visitedPlaces.length > 0;
+  const resumeBox = visitInProgress && !walking && (
+    <div className="resume light">
+      <span>{t.continueVisit(runtimeRef.current!.memory.visitedPlaces.length)}</span>
+      <div className="row">
+        <button className="button ghost" onClick={() => { runtimeRef.current = null; clearSavedTour(); setSavedTour(null); setWalking(false); rerender(); }}>
+          {t.restart}
+        </button>
+      </div>
+    </div>
+  );
+  const destinationNotices = (
+    <>
+      {content.preview && (
+        <p className="notice preview">
+          <Icon name="info" /> {t.previewNote}
+        </p>
+      )}
+      {content.fictional && (
+        <p className="notice">
+          <Icon name="info" /> {t.fictionalNote}
+        </p>
+      )}
+    </>
+  );
+  const changeDestination = (
+    <button className="back-btn" onClick={toDestinations}>
+      <Icon name="back" /> {t.destinations}
+    </button>
+  );
+  const showSession = walking && runtime?.content === content && tab === sessionTab && !showHub;
+  // Contenuti a pagamento: prezzo dal listino pubblico e acquisto diretto (il server decide utente e importo;
+  // senza accesso porta prima al login e poi alla pagina d'acquisto).
+  const shopOn = ACCOUNTS && catalog?.pack === content.destination && catalog.enabled;
+  const lockedPlaces = lockedPlaceRefs(content);
+  // Luoghi principali e sottoluoghi (decisione del 2026-10-22): si compra il principale, che sblocca anche i suoi
+  // sottoluoghi; del principale la panoramica (racconto d'apertura) è nel bundle pubblico.
+  const placeByRef = new Map(content.places.map((p) => [p.ref, p]));
+  const principalOf = (ref: string) => {
+    const parent = placeByRef.get(ref)?.partOf;
+    return parent && parent !== ref && placeByRef.has(parent) ? parent : null;
+  };
+  const subCount = (ref: string) => content.places.filter((p) => p.partOf === ref && p.ref !== ref).length;
+  const publicAnchors = new Set(content.units.map((u) => u.anchor));
+  // Un luogo si offre da solo solo se la pubblicazione ha il suo file a pagamento (altrimenti non riceverebbe nulla).
+  const placeParts = new Set((opened?.manifest.premium ?? []).flatMap((f) => (f.kind === "place" && f.ref ? [f.ref] : [])));
+  const offers = offersFor(content.locked, shopOn ? catalog.items : [], content.locale, {
+    destination: content.destination,
+    // I luoghi principali che hanno un file a pagamento: anche quelli gratuiti con sottoluoghi a pagamento.
+    refs: [...placeParts],
+  });
+  // Immagine per i percorsi a pagamento (il bundle pubblico non ne descrive le tappe): la copertina della destinazione.
+  const lockedCover = (() => {
+    const cover = content.media.find((m) => m.cover && m.kind !== "video") ?? content.media.find((m) => m.kind !== "video");
+    return cover ? thumbSrc(cover, bundleBase) : null;
+  })();
+  const buy = (offer: Offer | null | undefined, label: string = t.buy) =>
+    !ACCOUNTS ? null : !online ? (
+      <p className="muted small">{t.buyOffline}</p>
+    ) : !offer ? (
+      <p className="muted small">{t.notOnSale}</p>
+    ) : (
+      <form action="/api/checkout" method="post" className="buy-form" onSubmit={() => markPurchaseStarted()}>
+        <input type="hidden" name="prodotto" value={offer.productId} />
+        <input type="hidden" name="destinazione" value={content.destination} />
+        <button className="button primary big block" type="submit">
+          <Icon name="lock" /> {label} · {formatPrice(offer.amount, content.locale)}
+        </button>
+        {offer.bundle && <p className="muted small">{t.inBundle(offer.name)}</p>}
+        <p className="muted small">{t.testPayment}</p>
+      </form>
+    );
 
-        <div className="hub-body">
-          {visitInProgress && (
-            <div className="resume light">
-              <span>{t.continueVisit(runtimeRef.current!.memory.visitedPlaces.length)}</span>
-              <div className="row">
-                <button className="button ghost" onClick={() => { runtimeRef.current = null; clearSavedTour(); setSavedTour(null); rerender(); }}>
-                  {t.restart}
-                </button>
-              </div>
-            </div>
-          )}
 
-          <div className="hub-grid">
-            <div className="stack" style={{ gap: 22 }}>
-              <section className="mode-explore">
-                <h2>{t.exploreTitle}</h2>
-                <p className="muted">{t.exploreHint}</p>
-                <ul className="feature-list">
-                  {t.exploreFeatures.map((f, i) => (
-                    <li key={f}>
-                      <Icon name={(["map", "volume", "chat"] as const)[i]!} /> {f}
-                    </li>
-                  ))}
-                </ul>
-                <button className="button primary xl block" onClick={startExploring}>
-                  {t.exploreStart} <Icon name="forward" />
-                </button>
-                <p className="muted small">{t.backgroundNote}</p>
-              </section>
-
-              <section className="card prefs">
-                <h3>{t.preferences}</h3>
-                <p className="muted small">{t.mode}</p>
-                <div className="segmented wide" role="group" aria-label={t.mode}>
-                  {(["ask", "auto", "silent"] as const).map((m) => (
-                    <button key={m} aria-pressed={mode === m} onClick={() => setMode(m)}>
-                      {t.modes[m]}
-                    </button>
-                  ))}
-                </div>
-                <label className="check">
-                  <input type="checkbox" checked={avoidStairs} onChange={(e) => setAvoidStairs(e.target.checked)} />
-                  {t.avoidStairs}
-                </label>
-                {offlineSupported() && opened && (
-                  <div className="offline-box">
-                    {offline === "yes" ? (
-                      <p className="ok"><Icon name="check" /> {t.offlineReady}</p>
-                    ) : (
-                      <>
-                        <button className="button quiet" disabled={offline === "downloading" || !online} onClick={saveOffline}>
-                          <Icon name="download" /> {t.offlineDownload} ({Math.ceil(opened.manifest.totalBytes / 1024)} KB)
-                        </button>
-                        {offline === "downloading" && <p className="muted small">{Math.round(progress * 100)}%</p>}
-                        {offline === "error" && <p className="error small">{t.offlineError}</p>}
-                        <p className="muted small">{t.offlineHint}</p>
-                      </>
-                    )}
-                  </div>
-                )}
-              </section>
-              {content.preview && (
-                <p className="notice preview">
-                  <Icon name="info" /> {t.previewNote}
-                </p>
-              )}
-              {content.fictional && (
-                <p className="notice">
-                  <Icon name="info" /> {t.fictionalNote}
-                </p>
-              )}
-              {content.safetyNotes.map((n) => (
-                <p key={n.id} className="notice">
-                  <Icon name="info" /> {n.text}
-                </p>
-              ))}
-            </div>
-
-            <section className="section" id="guided">
-              <div className="section-intro">
-                <h2>{t.itinerariesTitle}</h2>
-                <p className="muted small">{t.itinerariesHint}</p>
-              </div>
+  if (tab === "percorsi" && !showSession) {
+    return shell(
+      <main className="hub routes-tab">
+        <header className="tab-head">
+          {changeDestination}
+          <h1>{t.tabs.routes}</h1>
+          <p className="muted">{t.routesIntro(content.name)}</p>
+        </header>
+        <div className="hub-body tab-body">
+          {resumeBox}
+          <section className="section" id="guided">
               {content.routes.map((r) => {
-                const open = openRoute === r.ref || (itinerariesOpen && openRoute === null && routeRef === r.ref);
+                const open = openRoute === r.ref || (openRoute === null && routeRef === r.ref);
                 const stops = r.stops.map((s) => s.place);
                 const cover = routeCover(content, stops);
                 return (
@@ -894,41 +1400,41 @@ export function GuideApp() {
                 );
               })}
 
-              <article className={`route-card ${openRoute === "custom" ? "open" : ""}`}>
-                <button className="route-head" aria-expanded={openRoute === "custom"} onClick={() => setOpenRoute(openRoute === "custom" ? "" : "custom")}>
-                  <span className="route-cover"><Icon name="sparkle" size={30} /></span>
-                  <span>
-                    <span className="route-title">{t.customRoute}</span>
-                    <span className="meta-line"><span>{t.customRouteHint}</span></span>
-                  </span>
-                  <Icon name="forward" className="chev" />
-                </button>
-                {openRoute === "custom" && (
-                  <div className="route-body custom-route">
-                    <p className="eyebrow">{t.howLong}</p>
-                    <div className="row wrap">
-                      {BUDGETS.map((b) => (
-                        <button key={b} className={`chip ${budget === b ? "on" : ""}`} onClick={() => setBudget(b)}>
-                          {b} {t.minutes}
-                        </button>
-                      ))}
-                    </div>
-                    {anchor && (
-                      <label className="check">
-                        <input type="checkbox" checked={returnToAnchor} onChange={(e) => setReturnToAnchor(e.target.checked)} />
-                        {t.returnTo} {anchor.name} {t.by} {clock(Date.now() + budget * 60_000, locale)}
-                      </label>
-                    )}
-                    <button className="button primary big block" onClick={() => startTour(null)}>
-                      {t.startItinerary} <Icon name="forward" />
+              {(content.locked?.routes ?? []).map((r) => {
+                const open = openRoute === r.ref;
+                return (
+                  <article key={r.ref} className={`route-card locked ${open ? "open" : ""}`}>
+                    <button className="route-head" aria-expanded={open} onClick={() => setOpenRoute(open ? "" : r.ref)}>
+                      <span className="route-cover lock-wrap">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- copertina della destinazione */}
+                        {lockedCover ? <img src={lockedCover} alt="" loading="lazy" /> : <Icon name="lock" size={28} />}
+                        <span className="lock-band" aria-hidden="true">{t.unlock}</span>
+                      </span>
+                      <span>
+                        <span className="route-title">{r.name}</span>
+                        <span className="meta-line">
+                          <span><Icon name="clock" size={15} /> {r.durationMin} {t.minutes}</span>
+                          <span className="paid">
+                            {t.paidRoutes}
+                            {offers.routes.get(r.ref) ? ` · ${formatPrice(offers.routes.get(r.ref)!.amount, content.locale)}` : ""}
+                          </span>
+                        </span>
+                      </span>
+                      <Icon name="forward" className="chev" />
                     </button>
-                  </div>
-                )}
-              </article>
+                    {open && (
+                      <div className="route-body">
+                        <p className="muted">{t.paidRouteHint}</p>
+                        {buy(offers.routes.get(r.ref))}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
             </section>
-          </div>
+          {destinationNotices}
         </div>
-      </main>
+      </main>,
     );
   }
 
@@ -946,17 +1452,19 @@ export function GuideApp() {
   const tourRoute = !exploring && tourOptionsRef.current?.route ? content.routes.find((r) => r.ref === tourOptionsRef.current!.route) : undefined;
   const planStops = runtime.plan?.stops.map((s) => s.placeId) ?? [];
   const doneCount = planStops.filter((ref) => runtime.visited.includes(ref)).length;
+  /** Fine della visita sullo schermo: si spengono GPS e voce, la memoria del racconto resta («Continua»). */
   const leave = () => {
     stopSimulation();
     stopGps();
     voiceRef.current?.stop();
-    // Da un itinerario si torna con gli itinerari aperti: è lì che si era.
-    if (!exploring) setItinerariesOpen(true);
-    setScreen("setup");
+    setWalking(false);
+    window.scrollTo(0, 0);
   };
-  const openItineraries = () => {
-    setItinerariesOpen(true);
+  /** Un percorso a pagamento si compra dalla scheda Percorsi: la si apre con quel percorso aperto. */
+  const openPaidRoute = (ref: string) => {
     leave();
+    setOpenRoute(ref);
+    setTab("percorsi");
   };
   const choosePlace = (ref: string) => {
     setSelected(ref);
@@ -989,6 +1497,43 @@ export function GuideApp() {
       onAsk={() => { setSelected(cardRef); setAskFocus((n) => n + 1); }}
       onHere={() => arriveHere(cardRef)}
       {...(selected ? { onClose: () => setSelected(null) } : {})}
+      {...(() => {
+        const principal = principalOf(cardRef) ?? cardRef;
+        const isSub = principal !== cardRef;
+        const principalName = placeByRef.get(principal)?.name ?? principal;
+        const offer = offers.places.get(principal);
+        // Principale gratuito: i suoi racconti si ascoltano, i suoi sottoluoghi a pagamento si sbloccano da qui.
+        const freePrincipal = !lockedPlaces.has(principal);
+        const paidSubs = content.places.filter((p) => p.partOf === principal && p.ref !== principal && lockedPlaces.has(p.ref)).length;
+        if (!lockedPlaces.has(cardRef)) {
+          return {
+            ...(isSub ? { partOf: principalName } : {}),
+            ...(!isSub && offer && paidSubs > 0
+              ? { extra: <><p className="muted">{t.freePrincipalHint(principalName, paidSubs)}</p>{buy(offer, t.buySubPlaces(principalName, paidSubs))}</> }
+              : {}),
+          };
+        }
+        const n = subCount(principal);
+        const buyLabel = freePrincipal ? t.buySubPlaces(principalName, paidSubs) : t.buyPrincipal(principalName, n);
+        return {
+          ...(isSub ? { partOf: principalName } : {}),
+          // La panoramica gratuita si ascolta anche senza acquisto (solo dei luoghi principali).
+          overview: !isSub && publicAnchors.has(cardRef),
+          locked: offer ? (
+            <>
+              <p className="muted">
+                {isSub
+                  ? t.lockedSubHint(principalName)
+                  : publicAnchors.has(cardRef) ? t.lockedPrincipalHint(principalName, n) : t.lockedPrincipalNoOverview(principalName, n)}
+              </p>
+              {buy(offer, buyLabel)}
+              {offers.explore && buy(offers.explore, t.buyAllPlaces)}
+            </>
+          ) : (
+            <><p className="muted">{t.lockedPlaceHint}</p>{buy(offers.explore)}</>
+          ),
+        };
+      })()}
     />
   ) : exploring ? (
     <p className="notice">
@@ -996,7 +1541,6 @@ export function GuideApp() {
     </p>
   ) : null;
 
-  const speaking = speech.state !== "idle";
   const nowPlaying = (
     <section className="card now-playing" aria-live="polite">
       <p className="eyebrow">{speaking ? t.listening : runtime.currentPlaceRef ? `${t.here}: ${runtime.name(runtime.currentPlaceRef)}` : " "}</p>
@@ -1027,25 +1571,6 @@ export function GuideApp() {
     </section>
   );
 
-  // Lettore sempre a portata di pollice mentre la guida parla.
-  const player = speaking && (
-    <div className={`player ${speech.state === "paused" ? "paused" : ""}`} role="region" aria-label={t.nowPlaying}>
-      <span className="eq" aria-hidden="true"><i /><i /><i /></span>
-      <span className="what">
-        <strong>{currentSegment ? runtime.name(currentSegment.placeRef) : (speech.title ?? t.nowPlaying)}</strong>
-        <span>{t.nowPlaying}</span>
-      </span>
-      <span className="actions">
-        <button className="round-btn main" onClick={() => voiceRef.current?.toggle()} aria-label={speech.state === "paused" ? t.play : t.pause}>
-          <Icon name={speech.state === "paused" ? "play" : "pause"} />
-        </button>
-        <button className="round-btn" onClick={() => voiceRef.current?.skip()} aria-label={t.skip}>
-          <Icon name="skip" />
-        </button>
-      </span>
-    </div>
-  );
-
   const map = (
     <MapView
       content={content}
@@ -1057,6 +1582,7 @@ export function GuideApp() {
       selected={selected}
       onSelect={(ref) => (ref ? choosePlace(ref) : setSelected(null))}
       tall={exploring}
+      locked={lockedPlaces}
     />
   );
 
@@ -1113,8 +1639,11 @@ export function GuideApp() {
             ) : (
               <Carousel className="nearby" label={t.nearbyTitle} prevLabel={t.carouselPrev} nextLabel={t.carouselNext}>
                 {nearby.map((p) => (
-                  <button key={p.ref} role="listitem" className={`tile ${p.ref === cardRef ? "on" : ""}`} onClick={() => choosePlace(p.ref)}>
-                    <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="tile-img" />
+                  <button key={p.ref} role="listitem" className={`tile ${p.ref === cardRef ? "on" : ""} ${lockedPlaces.has(p.ref) ? "locked" : ""}`} onClick={() => choosePlace(p.ref)}>
+                    <span className="lock-wrap">
+                      <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="tile-img" />
+                      {lockedPlaces.has(p.ref) && <span className="lock-band" aria-label={t.paidRoutes}>{t.unlock}</span>}
+                    </span>
                     <span className="tile-body">
                       <span className="tile-name">{p.ref === runtime.currentPlaceRef ? "📍 " : ""}{p.name}</span>
                       <span className="dist">
@@ -1130,21 +1659,55 @@ export function GuideApp() {
         </>
       ) : (
         <ul className="places">
-          {allPlaces.map(({ p, d }) => (
-            <li key={p.ref}>
-              <button className={`place-row ${p.ref === cardRef ? "on" : ""}`} onClick={() => choosePlace(p.ref)}>
-                <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="thumb" />
+          {/* Solo i luoghi principali; i sottoluoghi si aprono sotto il loro principale (decisione del 2026-10-22). */}
+          {allPlaces.filter(({ p }) => !principalOf(p.ref)).map(({ p, d }) => {
+            const subs = allPlaces.filter(({ p: x }) => principalOf(x.ref) === p.ref);
+            // Aperto se scelto dal visitatore o se la scheda aperta è di uno dei suoi sottoluoghi.
+            const open = openGroups.has(p.ref) || (cardRef !== null && subs.some(({ p: x }) => x.ref === cardRef));
+            const row = (q: typeof p, dist: number | null, sub: boolean) => (
+              <button className={`place-row ${q.ref === cardRef ? "on" : ""} ${lockedPlaces.has(q.ref) ? "locked" : ""}`} onClick={() => choosePlace(q.ref)}>
+                <span className="lock-wrap">
+                  <PlaceThumb content={content} placeRef={q.ref} base={bundleBase} name={q.name} className="thumb" />
+                  {lockedPlaces.has(q.ref) && <span className="lock-band" aria-label={t.paidRoutes}>{t.unlock}</span>}
+                </span>
                 <span>
-                  <span className="name">{p.name}</span>
-                  {p.short && <span className="short">{p.short}</span>}
+                  <span className="name">{q.name}</span>
+                  {sub && <span className="short partof">{t.partOf(p.name)}</span>}
+                  {q.short && <span className="short">{q.short}</span>}
                 </span>
                 <span className="dist">
-                  {d !== null && fixHere ? <>{formatDistance(d, content.locale)}<br />{compass(bearingDeg(fixHere, p.location), t.dirs)}</> : null}
-                  {runtime.wasNarrated(p.ref) && <span className="heard" style={{ display: "block" }}>✓</span>}
+                  {dist !== null && fixHere ? <>{formatDistance(dist, content.locale)}<br />{compass(bearingDeg(fixHere, q.location), t.dirs)}</> : null}
+                  {runtime.wasNarrated(q.ref) && <span className="heard" style={{ display: "block" }}>✓</span>}
                 </span>
               </button>
-            </li>
-          ))}
+            );
+            return (
+              <li key={p.ref}>
+                {row(p, d, false)}
+                {subs.length > 0 && (
+                  <>
+                    <button
+                      className="subs-toggle"
+                      aria-expanded={open}
+                      aria-controls={`subs-${p.ref}`}
+                      onClick={() => setOpenGroups((g) => {
+                        const next = new Set(g);
+                        if (open) next.delete(p.ref); else next.add(p.ref);
+                        return next;
+                      })}
+                    >
+                      <Icon name={open ? "up" : "down"} size={16} /> {open ? t.hideSubPlaces : t.showSubPlaces(subs.length)}
+                    </button>
+                    {open && (
+                      <ul className="places sub-places" id={`subs-${p.ref}`}>
+                        {subs.map(({ p: q, d: dq }) => <li key={q.ref} className="sub">{row(q, dq, true)}</li>)}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </>
@@ -1235,32 +1798,65 @@ export function GuideApp() {
           </button>
         ))}
       </div>
-      <button className="link" onClick={openItineraries}>{t.moreOptions} <Icon name="forward" size={16} /></button>
+        {(content.locked?.routes ?? []).map((r) => (
+          <button key={r.ref} className="place-row locked" onClick={() => openPaidRoute(r.ref)}>
+            <span className="thumb">
+              {/* eslint-disable-next-line @next/next/no-img-element -- copertina della destinazione */}
+              {lockedCover ? <img src={lockedCover} alt="" loading="lazy" /> : <Icon name="lock" />}
+            </span>
+            <span>
+              <span className="name">{r.name}</span>
+              <span className="short">
+                {r.durationMin} {t.minutes} · {t.paidRoutes}
+                {offers.routes.get(r.ref) ? ` · ${formatPrice(offers.routes.get(r.ref)!.amount, content.locale)}` : ""}
+              </span>
+            </span>
+            <Icon name="lock" />
+          </button>
+        ))}
     </details>
   );
 
-  return (
+  // Eventi nella visita: assenti se il territorio non ha calendario; chiusi di base per non spingere giù la scheda del luogo.
+  const eventsInSession = eventsState.kind !== "unavailable" && (
+    <details className="card" id="events-in-session">
+      <summary>
+        <Icon name="calendar" /> {t.events.title}
+        {eventsState.kind === "ok" && <span className="muted small"> · {t.events.ranges.today} {countInRange(eventsState.data, "today", Date.now())}</span>}
+      </summary>
+      <EventsPanel state={eventsState} onRetry={retryEvents} locale={content.locale} t={t} />
+    </details>
+  );
+
+  return shell(
     <main className={`walk ${exploring ? "explore" : "tour"}`}>
       <header className="topbar">
-        <button className="round-btn" onClick={leave} aria-label={t.back}><Icon name="back" /></button>
+        <button className="back-btn compact" onClick={toDestinations}><Icon name="back" size={18} /> {t.destinations}</button>
         <div style={{ minWidth: 0 }}>
           <div className="title">{content.name}</div>
           <span className="sub">{exploring ? t.exploreTitle : (tourRoute?.name ?? t.itinerariesTitle)}</span>
         </div>
         <span className="spacer" />
         {!online && <span className="badge offline"><Icon name="wifiOff" size={14} /> {t.offlineBadge}</span>}
-        {content.preview && <span className="badge preview">{t.previewBadge}</span>}
         {content.fictional && <span className="badge">{t.fictional}</span>}
-        <button className={`link debug-toggle ${debug ? "on" : ""}`} onClick={() => {
-          const next = !debug;
-          setDebug(next);
-          try { localStorage.setItem("guide-debug", next ? "1" : "0"); } catch { /* memoria non disponibile */ }
-        }} aria-pressed={debug}>
-          debug
-        </button>
+        {/* Solo in modalità debug (?debug=1, ricordata sul telefono): da qui la si spegne. */}
+        {debug && (
+          <button className="link debug-toggle on" onClick={() => {
+            setDebug(false);
+            try { localStorage.setItem("guide-debug", "0"); } catch { /* memoria non disponibile */ }
+          }} aria-pressed={true}>
+            debug
+          </button>
+        )}
       </header>
+      {content.preview && (
+        <details className="notice preview preview-banner">
+          <summary><Icon name="info" size={18} /> {t.previewShort}</summary>
+          <p>{t.previewNote}</p>
+        </details>
+      )}
 
-      <GpsBar status={status} gps={gps} simulating={simulating} onToggle={toggleGps} t={t} />
+      <GpsBar status={status} gps={gps} simulating={simulating} onToggle={toggleGps} t={t} help={geoHelp} />
       {pausedNotice && (
         <p className="notice toast" role="status">
           <Icon name="info" /> {t.pausedNotice}
@@ -1280,6 +1876,28 @@ export function GuideApp() {
               {(speaking || transcript.length > 0) && nowPlaying}
               {ask}
               {itinerariesInSession}
+              {eventsInSession}
+              {content.locked?.explore && (ACCOUNTS && (offers.explore || !online) ? (
+                <section className="mode-explore paid-explore">
+                  <p className="eyebrow"><Icon name="lock" size={15} /> {t.paidRoutes}</p>
+                  <h2>{t.fullExplore}</h2>
+                  <p className="muted">{t.fullExploreHint}</p>
+                  {buy(offers.explore)}
+                </section>
+              ) : (!ACCOUNTS || catalog?.pack === content.destination) && (
+                // Non in vendita (o acquisti spenti): si dice solo che arriverà, senza prezzi né «a pagamento».
+                <p className="muted small soon-line"><Icon name="lock" size={15} /> {t.fullExplore} · {t.soon}</p>
+              ))}
+              {content.fictional && (
+                <p className="notice">
+                  <Icon name="info" /> {t.fictionalNote}
+                </p>
+              )}
+              {content.safetyNotes.map((n) => (
+                <p key={n.id} className="notice">
+                  <Icon name="info" /> {n.text}
+                </p>
+              ))}
             </>
           ) : (
             <>
@@ -1291,7 +1909,7 @@ export function GuideApp() {
               <button className="button quiet" onClick={switchToExplore}><Icon name="compass" /> {t.switchToExplore}</button>
             </>
           )}
-          {tools}
+          {debug && tools}
           {debug && (
             <DebugPanel
               content={content}
@@ -1316,8 +1934,8 @@ export function GuideApp() {
           )}
         </div>
       </div>
-      {player}
-    </main>
+    </main>,
+    false,
   );
 }
 
@@ -1326,7 +1944,7 @@ function gpsErrorText(code: GpsErrorCode, t: UiText): string {
 }
 
 /** Stato del segnale di posizione: una riga sempre visibile, con il pulsante per accendere o spegnere il GPS. */
-function GpsBar({ status, gps, simulating, onToggle, t }: { status: GpsStatus; gps: boolean; simulating: boolean; onToggle: () => void; t: UiText }) {
+function GpsBar({ status, gps, simulating, onToggle, t, help }: { status: GpsStatus; gps: boolean; simulating: boolean; onToggle: () => void; t: UiText; help: GeoPlatform }) {
   const text = (() => {
     switch (status.level) {
       case "ok":
@@ -1350,16 +1968,29 @@ function GpsBar({ status, gps, simulating, onToggle, t }: { status: GpsStatus; g
     }
   })();
   const alert = ["stale", "no_signal", "denied", "unavailable", "imprecise"].includes(status.level);
+  // Segnale buono: una riga discreta con la precisione; per errori e attese resta la barra estesa con le azioni.
+  const compact = status.level === "ok" && gps && !simulating;
   return (
-    <div className={`gps-bar ${status.level}`} role={alert ? "alert" : "status"}>
+    <div className={`gps-bar ${status.level} ${compact ? "compact" : ""}`} role={alert ? "alert" : "status"}>
       <p>
         <span className="gps-dot" aria-hidden="true" />
         <span>📍 {text}</span>
       </p>
       {status.level !== "unavailable" && !simulating && (
-        <button className={`button ${gps ? "quiet" : "primary"}`} onClick={onToggle}>
+        <button className={compact ? "link small" : `button ${gps ? "quiet" : "primary"}`} onClick={onToggle}>
           {gps ? t.gps.stop : t.gps.start}
         </button>
+      )}
+      {status.level === "denied" && (
+        <details className="gps-help" open>
+          <summary>{t.gpsBlocked.how}</summary>
+          <ol>
+            {t.gpsBlocked.steps[help].map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          <p className="muted small">{t.gpsBlocked.after}</p>
+        </details>
       )}
     </div>
   );

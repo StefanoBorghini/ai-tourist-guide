@@ -10,7 +10,7 @@ import type { TerritoryPack } from "@guide/domain";
 import { loadPacks, packToSnapshot } from "@guide/territory-pack";
 import { describe, expect, it } from "vitest";
 import { bundleBase, combineIndexes, currentIndexObject, fetchPublishedIndex, findEntry, loadIndexes, manifestPublication, mergeIndexes, type BundleIndexEntry } from "../lib/bundle-index";
-import { verifyBundle } from "@guide/bundle/client";
+import { verifyBundle, verifyPremiumPart, type PremiumPart } from "@guide/bundle/client";
 import { parseStaticList, premiumBlockedByStatic, staticBuildPlan } from "../lib/static-bundles";
 import { compilePublication, removeDeadVersions, type CleanupBucket } from "../lib/studio/publish";
 
@@ -37,6 +37,16 @@ function studioSnapshots(access?: TerritoryPack["config"]["access"]) {
     pack.sources = pack.sources.map((src) => ({ ...src, fictional: false }));
     pack.media = [];
     if (id === VILLAGE && access) pack.config.access = access;
+    // Panoramiche (racconti d'apertura) anche per chiesa, torre e belvedere, come in un territorio reale: senza, la
+    // panoramica gratuita di un luogo principale sarebbe il suo primo racconto (decisione del 2026-10-22).
+    if (id === VILLAGE) {
+      for (const place of ["belvedere", "chiesa-di-san-test", "torre-di-prova"]) {
+        pack.units.push({
+          id: `${place}-panoramica-it`, anchor: place, unitType: "opening", locale: "it", audience: "general", durationS: 15,
+          text: "Panoramica di prova.", assertions: ["porta-funzione"], introduces: [], requires: [], hooks: [],
+        });
+      }
+    }
     // Nessuna foto: il descrittore dei file non viene mai chiamato.
     out.set(id, JSON.parse(JSON.stringify(packToSnapshot(pack, () => { throw new Error("nessun file"); }))) as Record<string, unknown>);
   }
@@ -45,10 +55,14 @@ function studioSnapshots(access?: TerritoryPack["config"]["access"]) {
 const textOf = (data: Uint8Array | string) => (typeof data === "string" ? data : new TextDecoder().decode(data));
 
 describe("bundle compilati dai file (P1)", () => {
-  it("l'elenco reale distribuisce dai file solo Portovenere, come prima", () => {
+  it("l'elenco reale non distribuisce più nulla dai file: Portovenere arriva solo dallo Studio (dal 2026-10-17)", () => {
     const plan = staticBuildPlan(real(), STATIC_LIST, false);
     expect(plan.errors).toEqual([]);
-    expect(plan.build).toEqual(["it.liguria.sp.portovenere"]);
+    expect(plan.build).toEqual([]);
+  });
+
+  it("una destinazione elencata si compila dai file", () => {
+    expect(staticBuildPlan(real(), { destinations: ["it.liguria.sp.portovenere"] }, false).build).toEqual(["it.liguria.sp.portovenere"]);
   });
 
   it("una destinazione non elencata non ha bundle statici, anche senza contenuti a pagamento nei file", () => {
@@ -63,7 +77,7 @@ describe("bundle compilati dai file (P1)", () => {
   it("rifiuta una destinazione elencata con contenuti a pagamento nei file, inesistente o non destinazione", () => {
     const packs = real();
     packs.get("it.liguria.sp.portovenere")!.config.access = { explore: "free", introPlaces: [], premiumRoutes: [] };
-    expect(staticBuildPlan(packs, STATIC_LIST, false).errors.join()).toMatch(/non può dichiarare l'accesso/);
+    expect(staticBuildPlan(packs, { destinations: ["it.liguria.sp.portovenere"] }, false).errors.join()).toMatch(/non può dichiarare l'accesso/);
     expect(staticBuildPlan(real(), { destinations: ["zz.inesistente"] }, false).errors.join()).toMatch(/non esiste/);
     expect(staticBuildPlan(real(), { destinations: ["it.liguria"] }, false).errors.join()).toMatch(/non è una destinazione/);
   });
@@ -274,5 +288,72 @@ describe("pubblicazioni immutabili (R2)", () => {
     expect(paid.bundles.every((b) => b.locked)).toBe(true);
     const free = compilePublication(VILLAGE, studioSnapshots(), new Map(), new Set());
     expect(free.bundles.some((b) => b.locked)).toBe(false);
+  });
+});
+
+describe("parti a pagamento nel bucket privato (consegna, migrazione 20261027000000)", () => {
+  // Stesso nome che le policy del bucket «premium» accettano (premium_object_name_ok).
+  const NAME = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*\/[a-z]{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(explore|(route|place)-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;
+  const PUB = "0a0b0c0d-0000-4000-8000-000000000001";
+
+  it("con l'esplorazione e un percorso a pagamento: un file per l'esplorazione, uno per il percorso e uno per ogni luogo principale", () => {
+    const r = compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set(), PUB);
+    expect(r.errors).toEqual([]);
+    for (const b of r.bundles) {
+      const names = [...b.premium.keys()];
+      for (const n of names) expect(n).toMatch(NAME);
+      expect(names.filter((n) => n.includes(`/${b.locale}/${PUB}/explore.`))).toHaveLength(1);
+      expect(names.filter((n) => n.includes(`/${b.locale}/${PUB}/route-giro-breve.`))).toHaveLength(1);
+      // Luoghi principali (migrazioni 20261028000000 e 20261101000000): anche la porta, che ha la panoramica gratuita;
+      // mai il carrugio, sottoluogo della porta, che sta nel file della porta.
+      const places = names.filter((n) => n.includes(`/${b.locale}/${PUB}/place-`));
+      if (b.locale === "it") expect(places.length).toBeGreaterThan(0);
+      if (b.locale === "it") expect(places.some((n) => n.includes("/place-porta-del-borgo."))).toBe(true);
+      expect(places.some((n) => n.includes("/place-carrugio-centrale."))).toBe(false);
+      expect(names).toHaveLength(2 + places.length);
+    }
+  });
+
+  it("il file di un luogo contiene solo i racconti di quel luogo (con ciò che serve a capirli), mai l'esplorazione intera", () => {
+    const r = compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set(), PUB);
+    const b = r.bundles.find((x) => x.locale === "it")!;
+    const listed = b.manifest.premium ?? [];
+    const explore = JSON.parse(textOf(b.premium.get(listed.find((f) => f.kind === "explore")!.path)!)) as PremiumPart;
+    const exploreUnits = new Set(explore.units.map((u) => u.ref));
+    for (const f of listed.filter((f) => f.kind === "place")) {
+      const part = JSON.parse(textOf(b.premium.get(f.path)!)) as PremiumPart;
+      expect(part.ref).toBe(f.ref);
+      expect(part.routes).toEqual([]);
+      // Un luogo ancora senza racconti ha il suo file vuoto (migrazione 20261030000000); altrimenti ci sono i suoi.
+      if (part.units.length > 0) expect(part.units.some((u) => u.anchor === f.ref)).toBe(true);
+      // Solo unità del luogo o suoi prerequisiti: tutte comprese nell'esplorazione, e meno di essa.
+      for (const u of part.units) expect(exploreUnits.has(u.ref)).toBe(true);
+      expect(part.units.length).toBeLessThan(explore.units.length);
+    }
+    // La porta ha solo la panoramica (pubblica) e il carrugio, suo sottoluogo, non ha racconti: il file c'è, vuoto.
+    const porta = listed.find((f) => f.kind === "place" && f.ref?.endsWith(":porta-del-borgo"));
+    expect(porta && (JSON.parse(textOf(b.premium.get(porta.path)!)) as PremiumPart).units).toEqual([]);
+  });
+
+  it("il manifest pubblico elenca solo nomi e impronte; i testi a pagamento stanno solo nei file privati", async () => {
+    const r = compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set(), PUB);
+    const b = r.bundles.find((x) => x.locale === "it")!;
+    const listed = b.manifest.premium ?? [];
+    expect(listed.map((f) => f.path).sort()).toEqual([...b.premium.keys()].sort());
+    const publicText = [b.manifestJson, ...[...b.immutable.values()].map(textOf)].join("\n");
+    for (const t of PREMIUM_TEXTS) expect(publicText).not.toContain(t);
+    const privateText = [...b.premium.values()].map(textOf).join("\n");
+    expect(PREMIUM_TEXTS.some((t) => privateText.includes(t))).toBe(true);
+    // Sul dispositivo: impronta e tipo verificati prima dell'unione; un file alterato si rifiuta.
+    for (const f of listed) {
+      const part = await verifyPremiumPart(f, textOf(b.premium.get(f.path)!));
+      expect(part.kind).toBe(f.kind);
+      await expect(verifyPremiumPart(f, textOf(b.premium.get(f.path)!) + " ")).rejects.toThrow();
+    }
+  });
+
+  it("senza contenuti a pagamento, o senza pubblicazione, nessun file privato", () => {
+    expect(compilePublication(VILLAGE, studioSnapshots(), new Map(), new Set(), PUB).bundles.every((b) => b.premium.size === 0 && !b.manifest.premium)).toBe(true);
+    expect(compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set()).bundles.every((b) => b.premium.size === 0)).toBe(true);
   });
 });

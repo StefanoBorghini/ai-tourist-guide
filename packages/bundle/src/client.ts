@@ -4,3 +4,4 @@
  */
 export * from "./format.ts";
 export * from "./read.ts";
+export * from "./merge.ts";

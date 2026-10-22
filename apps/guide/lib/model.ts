@@ -10,7 +10,7 @@
  * Configurazione dalle variabili d'ambiente (modelsFromEnv), nessun segreto nei log.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import type { Usage } from "./ask-web";
+import type { ApiUsageLike } from "./ask-cost";
 
 export interface ModelRequest {
   /** Blocchi di sistema, in ordine; `cache` segna la fine del prefisso da tenere in cache. */
@@ -25,7 +25,8 @@ export interface ModelRequest {
 export interface ModelResponse {
   text: string;
   stop: "end" | "refusal" | "length";
-  usage: Usage;
+  /** Consumi nella forma dell'API di Anthropic (ask-cost.ts li prezza, per modello). */
+  usage: ApiUsageLike;
   /** Modello che ha risposto davvero (con un ripiego può non essere quello richiesto). */
   model: string;
 }
@@ -83,17 +84,11 @@ export class AnthropicAdapter implements ModelAdapter {
       if (error instanceof Anthropic.APIError) throw new ModelError("unavailable", `API ${error.status ?? "?"}: ${error.message}`.slice(0, 300), error.status);
       throw error;
     }
-    const u = response.usage;
     return {
       text: response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(""),
       stop: response.stop_reason === "refusal" ? "refusal" : response.stop_reason === "max_tokens" ? "length" : "end",
-      usage: {
-        input: u.input_tokens,
-        cacheWrite: u.cache_creation_input_tokens ?? 0,
-        cacheRead: u.cache_read_input_tokens ?? 0,
-        output: u.output_tokens,
-        webSearches: u.server_tool_use?.web_search_requests ?? 0,
-      },
+      // Consumi così come li dà l'API, con i passaggi del ripiego (`iterations`): il budget li prezza per modello.
+      usage: response.usage,
       model: response.model || this.model,
     };
   }
@@ -151,12 +146,12 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     return {
       text: choice.message?.content ?? "",
       stop: choice.message?.refusal || finish === "content_filter" ? "refusal" : finish === "length" ? "length" : "end",
+      // Nella stessa forma dei consumi di Anthropic: i token letti dalla cache sono separati da quelli nuovi.
       usage: {
-        input: Math.max(0, (body?.usage?.prompt_tokens ?? 0) - cached),
-        cacheWrite: 0,
-        cacheRead: cached,
-        output: body?.usage?.completion_tokens ?? 0,
-        webSearches: 0,
+        input_tokens: Math.max(0, (body?.usage?.prompt_tokens ?? 0) - cached),
+        output_tokens: body?.usage?.completion_tokens ?? 0,
+        cache_read_input_tokens: cached,
+        cache_creation_input_tokens: 0,
       },
       model: body?.model || this.model,
     };
@@ -202,7 +197,8 @@ export function modelsConfig(env: Record<string, string | undefined> = process.e
 export function modelsFromEnv(env: Record<string, string | undefined> = process.env, fetchImpl?: FetchLike): AskModels | null {
   const config = modelsConfig(env);
   if (!config.ok) return null;
-  const web = config.webKey ? new Anthropic({ apiKey: clean(env.ANTHROPIC_API_KEY) }) : null;
+  // Nessun nuovo tentativo automatico dell'SDK (default 2): una chiamata scaduta può essere già pagata.
+  const web = config.webKey ? new Anthropic({ apiKey: clean(env.ANTHROPIC_API_KEY), maxRetries: 0 }) : null;
   const local =
     config.provider === "anthropic"
       ? new AnthropicAdapter(web!, config.model)

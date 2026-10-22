@@ -14,6 +14,8 @@ import {
   shareFieldPoints,
   type PositionSource,
 } from "../lib/field-points";
+import { installSummary, readInstallLog } from "../lib/install-status";
+import { premiumSyncReport } from "../lib/premium-client";
 import type { GuideRuntime } from "../lib/runtime";
 
 /**
@@ -57,6 +59,21 @@ export interface DebugPanelProps {
   webAvailable?: boolean;
 }
 
+/** Ultima convalida degli acquisti, in breve: risposta del server, accesso, parti concesse, scaricate, errori. */
+function premiumLine(r: ReturnType<typeof premiumSyncReport>) {
+  if (!r) return <span className="warn">nessuna verifica (destinazione gratuita, acquisti spenti o offline)</span>;
+  const when = new Date(r.at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  if (r.status !== 200) return <span className="bad">{when} · risposta {r.status}{r.error ? ` · ${r.error}` : ""}</span>;
+  if (!r.enabled) return <span className="warn">{when} · acquisti spenti sul server</span>;
+  if (!r.signedIn) return <span className="warn">{when} · nessun account entrato</span>;
+  return (
+    <span className={r.failed ? "bad" : "good"}>
+      {when} · concesse {r.allowed} · scaricate ora {r.downloaded}
+      {r.failed ? ` · NON scaricate ${r.failed}: ${r.error}` : ""}
+    </span>
+  );
+}
+
 export function DebugPanel(props: DebugPanelProps) {
   const { content, runtime, gpsError, fixSource, online, offlineReady, bundleHash, serverKbHash, askAvailable, webAvailable } = props;
   const snap = runtime.debugSnapshot();
@@ -71,6 +88,13 @@ export function DebugPanel(props: DebugPanelProps) {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => setPoints(loadFieldPoints(content.destination)), [content.destination]);
+  // Stato dell'installazione: letto all'apertura del pannello (il diario è nel telefono, vedi lib/install-status.ts).
+  const [install, setInstall] = useState<{ line: string; level: string }>({ line: "—", level: "warn" });
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    const clock = (t: number) => new Date(t).toLocaleString("it-IT", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
+    setInstall(installSummary(readInstallLog(), standalone, clock));
+  }, []);
   const nearest = snap.places[0]?.ref ?? "";
   const selected = kind === "note" && target === "" ? "" : target || nearest;
   const device = typeof navigator !== "undefined" ? navigator.userAgent : null;
@@ -149,6 +173,16 @@ export function DebugPanel(props: DebugPanelProps) {
           <span className={online ? "good" : "bad"}>{online ? "online" : "offline"}</span> · cache offline{" "}
           {offlineReady === null ? "non verificabile" : offlineReady ? <span className="good">completa</span> : <span className="warn">non scaricata</span>}
         </dd>
+        <dt>Installazione</dt>
+        <dd>
+          <span className={install.level}>{install.line}</span>
+        </dd>
+        <dt>Versione</dt>
+        <dd>
+          <code>{process.env.NEXT_PUBLIC_BUILD_SHA ? process.env.NEXT_PUBLIC_BUILD_SHA.slice(0, 7) : "locale"}</code>
+        </dd>
+        <dt>Acquisti</dt>
+        <dd>{premiumLine(premiumSyncReport())}</dd>
         <dt>Contenuti</dt>
         <dd>
           telefono <code>{bundleHash ? bundleHash.slice(0, 12) : "—"}</code> · domande (server){" "}

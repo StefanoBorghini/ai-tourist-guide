@@ -12,8 +12,9 @@ Ogni destinazione ha una configurazione «accesso» (`config.yaml` → `access`,
 
 | Campo | Valori | Effetto sul bundle pubblico |
 |---|---|---|
-| `explore` | `free` (predefinito) / `premium` | `premium`: dei racconti restano solo le **aperture dei luoghi introduttivi**, più i racconti di contesto che servono a capirle; i fatti citati solo dai racconti esclusi non entrano |
-| `introPlaces` | fino a 3 luoghi della destinazione | i luoghi i cui racconti d'apertura restano gratuiti |
+| `explore` | `free` (predefinito) / `premium` | `premium`: dei racconti restano solo le **panoramiche** (aperture) **dei luoghi principali e dei luoghi introduttivi** (dal 2026-10-22), più i racconti di contesto che servono a capirle; i fatti citati solo dai racconti esclusi non entrano |
+| `introPlaces` | fino a 3 luoghi della destinazione | i luoghi i cui racconti d'apertura restano gratuiti; dal 2026-10-22 serve solo per un sottoluogo (la panoramica dei principali è già gratuita) |
+| `freePlaces` | luoghi della destinazione, senza limite (dal 2026-10-18, migrazione 20261029000000) | i luoghi con tutti i racconti gratuiti; non si vendono da soli |
 | `premiumRoutes` | percorsi della destinazione | non entrano nel bundle pubblico; l'app ne riceve solo nome e durata (`locked.routes`) |
 
 Restano sempre pubblici: mappa, elenco e schede dei luoghi, nomi dei nodi, percorsi non premium, foto, note di sicurezza.
@@ -31,7 +32,7 @@ La revisione del branch ha trovato vie alternative ai contenuti a pagamento oltr
 
 | # | Problema | Correzione |
 |---|---|---|
-| P1 | I bundle compilati dai file del repository (`/bundles/`) ignorano l'accesso deciso nello Studio | Elenco esplicito `territories/static-bundles.json`: solo le destinazioni elencate hanno bundle dai file (oggi Portovenere, come prima). Le elencate non possono avere `config.access` nei file (il build si ferma) e lo Studio rifiuta di salvarle o pubblicarle con contenuti a pagamento (`lib/static-bundles.ts`, controllo di pubblicazione, `compilePublication`). Per vendere una destinazione elencata: toglierla dall'elenco e ridistribuire l'app |
+| P1 | I bundle compilati dai file del repository (`/bundles/`) ignorano l'accesso deciso nello Studio | Elenco esplicito `territories/static-bundles.json`: solo le destinazioni elencate hanno bundle dai file (fino al 2026-10-17 Portovenere; dal 2026-10-17 nessuna: Portovenere arriva solo dallo Studio, per poterla vendere). Le elencate non possono avere `config.access` nei file (il build si ferma) e lo Studio rifiuta di salvarle o pubblicarle con contenuti a pagamento (`lib/static-bundles.ts`, controllo di pubblicazione, `compilePublication`). Per vendere una destinazione elencata: toglierla dall'elenco e ridistribuire l'app |
 | P2 | Con l'indice pubblicato illeggibile, app e AI ricadevano sui bundle dei file | L'esito della lettura è esplicito (`fetchPublishedIndex`: assente, HTTP, JSON non valido, forma inattesa, rete). Una destinazione solo dello Studio risulta «temporaneamente non disponibile»: l'AI risponde 503, l'app lo dice. Il ripiego sui file resta solo per le destinazioni elencate, che per P1 sono sempre gratuite |
 | P3 | Elenco anonimo del bucket e versioni precedenti mai cancellate | Migrazione `20261023000000_bundles_storage.sql` (non applicata): elenco dei file solo a chi pubblica quel territorio; chi pubblica può cancellare i contenuti superati. Dopo una pubblicazione con contenuti a pagamento la pipeline cancella le versioni precedenti dei contenuti, dopo i manifest e prima di registrare l'esito, mentre la presa in carico è valida (se la pulizia non riesce resta un avviso e la pubblicazione vale comunque). L'app, quando riscarica un territorio, toglie dalla cache le versioni superate. *Pulizia sostituita da R2 (sotto): si cancellano solo cartelle di pubblicazioni morte* |
 | P4 | Note di curatela e nomi dei nodi anticipavano i racconti esclusi | Con contenuti a pagamento le note di curatela non entrano nel bundle; con l'esplorazione a pagamento restano solo i nodi citati da ciò che è pubblico |
@@ -60,22 +61,41 @@ non ha un campo adatto: `purchases.raw` è l'ultimo evento del fornitore, non un
 arriva dopo una modifica del pacchetto, vale il contenuto al momento della concessione. Il futuro webhook deve quindi
 concedere subito dopo il pagamento; una copia immutabile del contenuto acquistato richiede una decisione (campo nuovo).
 
+## Luoghi principali e sottoluoghi (decisione del 2026-10-22, migrazione 20261101000000)
+
+- Un **sottoluogo** è un luogo che fa parte (`partOf`, nel database `places.part_of_node_id`) di un altro luogo della
+  stessa destinazione: nello Studio, scheda del luogo, spunta «È un sottoluogo di …». Un solo livello: il validatore
+  (`PART_OF_DEPTH`) e il database (`studio_set_place_parent`) rifiutano un sottoluogo di un sottoluogo e un luogo con
+  sottoluoghi che diventa sottoluogo. Ogni altro luogo della destinazione è **principale**.
+- Con l'esplorazione a pagamento la **panoramica** di ogni luogo principale è nel bundle pubblico: il suo racconto
+  d'apertura o, se non ne ha, il suo primo racconto nell'ordine dei tipi (contesto, dettaglio, curiosità, leggenda…),
+  così ogni principale con racconti ha un ascolto gratuito; un principale senza racconti non ne ha, e l'app non lo dice; tutti gli altri racconti del principale e **tutti** quelli dei suoi sottoluoghi stanno nel file a pagamento del
+  principale (`place-<principale>`). I sottoluoghi non hanno un file proprio e non si vendono da soli.
+- Si vende il **luogo principale** (prodotto «Luogo principale», 1,99 € proposto da «Metti in vendita i luoghi
+  principali», che ritira anche i prodotti dei luoghi diventati sottoluoghi). Comprato il principale, l'app sblocca anche
+  i sottoluoghi (`mergePremium`). «Esplorazione completa» continua a sbloccare tutto.
+- Chi aveva comprato un luogo prima che diventasse un sottoluogo riceve il file del suo principale (`has_place_right`):
+  l'acquisto non va perso.
+- Un luogo principale **gratuito** con sottoluoghi a pagamento si vende lo stesso (migrazione 20261102000000): i suoi
+  racconti restano tutti gratuiti, il suo file contiene solo i sottoluoghi a pagamento e nell'app la sua scheda propone
+  «Sblocca i N luoghi di <principale>». Un luogo gratuito senza sottoluoghi a pagamento non si vende.
+- Nell'app: l'elenco mostra solo i luoghi principali, e sotto ciascuno «Mostra i N luoghi inclusi» apre i suoi sottoluoghi
+  (si apre da solo se la scheda aperta è di un sottoluogo); scheda del principale con «Ascolta la panoramica
+  gratuita» e «Sblocca <principale> · N luoghi»; scheda del sottoluogo con «Fa parte di <principale>» e lo stesso acquisto.
+
 ## Percorsi premium (P6)
 
-**Regola tecnica adottata (prudente):** l'acquisto di un percorso sblocca **solo l'itinerario** (tappe, durate, fonti
-del percorso). I racconti delle tappe restano dove sono: pubblici se l'esplorazione è gratuita, nell'esplorazione
-completa se è a pagamento. Così un acquisto di percorso non sblocca racconti dell'esplorazione, nemmeno in parte.
-
-**Decisione commerciale aperta.** Alternative possibili, da scegliere prima di vendere percorsi:
-1. solo itinerario (regola attuale);
-2. itinerario più i racconti delle sue tappe (si sovrappone all'esplorazione: chi compra entrambi paga due volte gli stessi racconti);
-3. itinerario più racconti scritti apposta per il percorso (serve un campo nuovo nel formato).
+**Decisione (2026-10-18):** l'acquisto di un percorso sblocca l'itinerario completo **e i racconti delle sue tappe**
+(con quelli che servono a capirli), anche senza l'esplorazione completa. Con l'esplorazione gratuita quei racconti sono
+già pubblici e il file del percorso contiene solo l'itinerario. Regola commerciale aperta: chi compra poi anche
+l'esplorazione non deve pagare due volte gli stessi racconti (da risolvere prima di attivare le vendite). Consegna e
+verifiche: `CONSEGNA-CONTENUTI.md`.
 
 ## Diritti (P5)
 
 | Prodotto | Diritti creati | Cosa sblocca |
 |---|---|---|
-| `explore` (es. 0,99 €) | uno, ambito `explore` sulla destinazione | i racconti dell'esplorazione completa; **non** i percorsi premium |
+| `explore` (prezzo da definire, vedi `PIANO-COMMERCIALE.md` §0) | uno, ambito `explore` sulla destinazione | i racconti dell'esplorazione completa; **non** i percorsi premium |
 | `route` | uno, ambito `route` sul percorso | solo quel percorso |
 | `bundle` (pacchetto) | un `route` per ogni percorso del pacchetto **al momento della concessione** | solo quei percorsi; se il pacchetto cambia dopo, chi l'ha comprato non riceve né perde nulla |
 | catalogo delle attività locali | nessuno | gratuito, non è un prodotto |
@@ -103,7 +123,7 @@ completa se è a pagamento. Così un acquisto di percorso non sblocca racconti d
 - Il database lo impone anche alle richieste dirette (`packs_guard`): nessun editor, nemmeno di un'organizzazione cliente,
   può cambiare o creare la configurazione.
 - Un luogo introduttivo o un percorso premium **non si elimina né si rinomina** finché è nella configurazione (D11):
-  prima si toglie dalla scheda Accesso.
+  prima si toglie dalla scheda Vendita (punto 1).
 
 ## File
 
@@ -112,7 +132,7 @@ completa se è a pagamento. Così un acquisto di percorso non sblocca racconti d
 | Formato e validatore | `packages/domain/src/pack-schema.ts` (`access`), `vocabulary.ts` (`ACCESS_TIERS`), `packages/territory-pack/src/validate.ts` (`checkAccess`) |
 | Compilazione | `packages/bundle/src/build.ts` (separazione, `withPrerequisites`), `format.ts` (`locked`, `PremiumPart`) |
 | Database | `supabase/migrations/20261022000000_access.sql` (+ revoca), test `supabase/tests/70_access.sql` |
-| Studio | `apps/guide/app/studio/[pack]/accesso/page.tsx`, azione `setAccess` |
+| Studio | `apps/guide/app/studio/[pack]/vendita/access-section.tsx` (scheda «Vendita»), azione `setAccess` |
 
 ## Verifiche
 

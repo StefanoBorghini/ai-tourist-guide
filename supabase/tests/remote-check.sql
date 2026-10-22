@@ -6,7 +6,7 @@
 -- Esito: una tabella con «superato»; se qualcosa non va, un errore che inizia con «FALLITO».
 -- Colonne: esito, dati di prova rimasti (atteso 0), amministratori della piattaforma, controlli NON verificati
 -- (atteso «nessuno»: altrimenti l'elenco dice cosa va verificato a mano, e quei controlli non sono superati).
--- Presuppone le migrazioni fino a 20261024000000 (22 → 23 → 24): senza, si ferma con «FALLITO: funzione assente».
+-- Presuppone le migrazioni fino a 20261102000000 (… → 30 → 31 → 32 → 33): senza, si ferma con «FALLITO: funzione assente».
 -- Non verificabile da SQL: lo scaricamento pubblico da /pub/ e la Storage API (qui si provano le regole sulle righe
 -- di storage.objects, non il servizio HTTP).
 -- Gli stessi controlli girano in locale con `npm run db:check` (10_platform_security.sql e seguenti).
@@ -51,7 +51,18 @@ begin
         ('20261023000000_bundles_storage', 'studio_index_snapshot()'),
         ('20261023000000_bundles_storage', 'studio_index_reflects(bigint)'),
         ('20261024000000_entitlements', 'grant_product(uuid,uuid,text,uuid,text)'),
-        ('20261024000000_entitlements', 'can_access_explore(text)')
+        ('20261024000000_entitlements', 'can_access_explore(text)'),
+        ('20261025000000_catalog', 'studio_prices_publish(text)'),
+        ('20261025000000_catalog', 'public_catalog(text)'),
+        ('20261026000000_orders', 'checkout_open(uuid)'),
+        ('20261026000000_orders', 'payment_paid(uuid,text,text,text,integer,text)'),
+        ('20261027000000_premium_storage', 'premium_object_readable(text)'),
+        ('20261028000000_place_products', 'has_place_right(text,uuid)'),
+        ('20261028000000_place_products', 'studio_places_on_sale(text,integer)'),
+        ('20261031000000_local_events', 'public_local_events(text,date,date,text)'),
+        ('20261031000000_local_events', 'studio_save_local_event(text,uuid,jsonb,boolean)'),
+        ('20261101000000_sub_places', 'place_parent(uuid)'),
+        ('20261101000000_sub_places', 'studio_set_place_parent(text,text,text)')
       ) as t(migration, sig) loop
       if to_regprocedure(f.sig) is null then
         raise exception 'FALLITO: migrazione % non applicata (manca %)', f.migration, f.sig;
@@ -60,12 +71,29 @@ begin
     for f in select * from (values
         ('20261023000000_bundles_storage', 'bundles_files_publisher_read'),
         ('20261023000000_bundles_storage', 'bundles_files_publisher_delete'),
-        ('20261023000000_bundles_storage', 'bundles_index_public_list')
+        ('20261023000000_bundles_storage', 'bundles_index_public_list'),
+        ('20261027000000_premium_storage', 'premium_files_entitled_read'),
+        ('20261027000000_premium_storage', 'premium_files_publisher_insert')
       ) as t(migration, pol) loop
       if not exists (select 1 from pg_policy where polrelid = 'storage.objects'::regclass and polname = f.pol) then
         raise exception 'FALLITO: migrazione % non applicata (manca la policy % su storage.objects)', f.migration, f.pol;
       end if;
     end loop;
+    -- 20261029000000 cambia solo funzioni esistenti: si riconosce dai luoghi gratuiti nel loro testo.
+    if (select prosrc from pg_proc where oid = 'catalog_problem_place(text,uuid)'::regprocedure) not like '%freePlaces%' then
+      raise exception 'FALLITO: migrazione 20261029000000_free_places non applicata (catalog_problem_place senza luoghi gratuiti)';
+    end if;
+    if (select prosrc from pg_proc where oid = 'catalog_problem_place(text,uuid)'::regprocedure) like '%non ha racconti%' then
+      raise exception 'FALLITO: migrazione 20261030000000_places_without_stories non applicata (i luoghi senza racconti non si vendono)';
+    end if;
+    -- 20261102000000 cambia solo catalog_problem_place: un principale gratuito con sottoluoghi a pagamento si vende.
+    if (select prosrc from pg_proc where oid = 'catalog_problem_place(text,uuid)'::regprocedure) not like '%senza sottoluoghi a pagamento%' then
+      raise exception 'FALLITO: migrazione 20261102000000_free_principal_sale non applicata (un luogo principale gratuito non si vende per i suoi sottoluoghi)';
+    end if;
+    -- 20261101000000: «Metti in vendita» restituisce quanti prodotti ha creato e quanti ha ritirato.
+    if (select prorettype from pg_proc where oid = 'studio_places_on_sale(text,integer)'::regprocedure) <> 'jsonb'::regtype then
+      raise exception 'FALLITO: migrazione 20261101000000_sub_places incompleta (studio_places_on_sale non restituisce jsonb)';
+    end if;
     if exists (select 1 from pg_policy where polrelid = 'storage.objects'::regclass and polname = 'bundles_public_read') then
       raise exception 'FALLITO: migrazione 20261023000000_bundles_storage incompleta (resta la policy bundles_public_read)';
     end if;
@@ -466,9 +494,11 @@ begin
       insert into storage.objects (bucket_id, name, owner) values ('bundles', 'it.test.alfa/it-full/' || x || '/manifest.json', auth.uid());
       raise exception 'FALLITO: scrittura nella cartella di una pubblicazione non più in corso';
     exception when insufficient_privilege then null; end;
+    -- Un numero mai emesso (il più alto possibile): in un progetto che ha già pubblicato i numeri bassi sono emessi
+    -- davvero e scriverli è permesso a chi pubblica; qui si prova che nessuno si prenota un numero futuro.
     begin
-      insert into storage.objects (bucket_id, name, owner) values ('bundles', 'index/' || lpad('1', 20, '0') || '.json', auth.uid());
-      raise exception 'FALLITO: un editor scrive l''indice pubblico';
+      insert into storage.objects (bucket_id, name, owner) values ('bundles', 'index/' || repeat('9', 20) || '.json', auth.uid());
+      raise exception 'FALLITO: un editor scrive un indice pubblico con un numero mai emesso';
     exception when insufficient_privilege then null; end;
     update storage.objects set name = name where bucket_id = 'bundles' and name = 'it.test.alfa/it-full/' || w || '/manifest.json';
     if found then raise exception 'FALLITO: un file del bucket si può sovrascrivere (upsert)'; end if;
@@ -694,6 +724,259 @@ begin
        or exists (select 1 from entitlements where user_id = 'a0000000-0000-0000-0000-000000000004') then
       raise exception 'FALLITO: la cancellazione dell''account rimuove i dati personali';
     end if;
+
+    -- ------------------------------------------------------------ catalogo (20261025000000)
+    -- L'amministratore pubblica un prezzo; la storia dei prezzi non si riscrive; il listino è pubblico, le bozze no.
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000001', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+    a := (select id from products where slug = 'alfa-esplora');
+    perform studio_price_draft(a, 499);
+    perform studio_prices_publish('it.test.alfa');
+    perform studio_price_draft(a, 599);
+    begin
+      update product_prices set unit_amount = 1 where product_id = a and status = 'published';
+      raise exception 'FALLITO: cambiato l''importo di un prezzo pubblicato (product_prices_guard)';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    reset role;
+    set local role anon;
+    perform set_config('request.jwt.claim.sub', '', true);
+    perform set_config('request.jwt.claims', '', true);
+    if not public_catalog('it.test.alfa') @> '[{"slug":"alfa-esplora","price":{"amount":499}}]' then
+      raise exception 'FALLITO: prezzo pubblicato assente dal catalogo pubblico';
+    end if;
+    if exists (select 1 from product_prices where product_id = a and status <> 'published') then
+      raise exception 'FALLITO: un anonimo legge i prezzi in bozza';
+    end if;
+    reset role;
+
+    -- ------------------------------------------------------------ ordini (20261026000000)
+    -- Il checkout copia il prezzo pubblicato; nessuno scrive ordini o diritti dall'API; il webhook (service_role)
+    -- concede una volta sola.
+    for f in select * from (values
+        ('checkout_open(uuid)', false, true, null),
+        ('checkout_attach(uuid,text)', false, true, null),
+        ('checkout_abandon(uuid)', false, true, null),
+        ('order_already_owned(uuid,uuid)', false, false, null),
+        ('payment_event_begin(text,text)', false, false, true),
+        ('payment_event_end(text,text,uuid,text)', false, false, true),
+        ('grant_order(uuid)', false, false, true),
+        ('payment_paid(uuid,text,text,text,integer,text)', false, false, true),
+        ('payment_unpaid(uuid,text)', false, false, true),
+        ('payment_refunded(text,integer)', false, false, true),
+        ('payment_dispute(text,text)', false, false, true)
+      ) as t(sig, anon_exec, auth_exec, service_exec) loop
+      if f.anon_exec is not null and has_function_privilege('anon', f.sig, 'execute') is distinct from f.anon_exec then
+        raise exception 'FALLITO: privilegi di %: anon %', f.sig, case when f.anon_exec then 'deve poterla eseguire' else 'non deve poterla eseguire' end;
+      end if;
+      if f.auth_exec is not null and has_function_privilege('authenticated', f.sig, 'execute') is distinct from f.auth_exec then
+        raise exception 'FALLITO: privilegi di %: authenticated %', f.sig, case when f.auth_exec then 'deve poterla eseguire' else 'non deve poterla eseguire' end;
+      end if;
+      if f.service_exec is not null and has_function_privilege('service_role', f.sig, 'execute') is distinct from f.service_exec then
+        raise exception 'FALLITO: privilegi di %: service_role %', f.sig, case when f.service_exec then 'deve poterla eseguire' else 'non deve poterla eseguire' end;
+      end if;
+    end loop;
+    if has_table_privilege('authenticated', 'purchases', 'insert') or has_table_privilege('authenticated', 'purchases', 'update') then
+      raise exception 'FALLITO: authenticated può scrivere gli ordini';
+    end if;
+    a := (select id from products where slug = 'alfa-esplora');
+    insert into auth.users (id, email, raw_user_meta_data) values ('a0000000-0000-0000-0000-000000000006', 'cliente@prova.test', '{}');
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000006', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+    begin
+      perform checkout_open(a);
+      raise exception 'FALLITO: venduta una destinazione non pubblicata';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    reset role;
+    update destinations set status = 'published' where pack_id = 'it.test.alfa';
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000006', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+    perform set_config('remote_check.ordine', checkout_open(a) ->> 'order', true);
+    if (select unit_amount from purchases where id = current_setting('remote_check.ordine')::uuid) is distinct from 499 then
+      raise exception 'FALLITO: l''ordine non copia il prezzo pubblicato';
+    end if;
+    begin
+      update purchases set status = 'completed' where id = current_setting('remote_check.ordine')::uuid;
+      raise exception 'FALLITO: un cliente segna pagato il proprio ordine';
+    exception when insufficient_privilege then null; end;
+    begin
+      perform payment_paid(current_setting('remote_check.ordine')::uuid, 'cs_test_remotecheck', 'pi_remotecheck', null, 499, 'eur');
+      raise exception 'FALLITO: un cliente chiama le funzioni del webhook';
+    exception when insufficient_privilege then null; end;
+    reset role;
+    ok := true;
+    begin
+      set local role service_role;
+    exception when others then
+      ok := false;
+      nv := nv || format('pagamento da service_role (%s): verificarlo con un pagamento di prova di Stripe', sqlerrm);
+    end;
+    if ok then
+      if payment_paid(current_setting('remote_check.ordine')::uuid, 'cs_test_remotecheck', 'pi_remotecheck', null, 499, 'eur') ->> 'status' <> 'completed'
+         or (payment_paid(current_setting('remote_check.ordine')::uuid, 'cs_test_remotecheck', 'pi_remotecheck', null, 499, 'eur') ->> 'changed')::boolean then
+        raise exception 'FALLITO: pagamento non applicato o applicato due volte';
+      end if;
+      reset role;
+      set local role authenticated;
+      perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000006', true);
+      perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+      if can_access_explore('it.test.alfa') is not true then raise exception 'FALLITO: esplorazione pagata ma chiusa'; end if;
+      reset role;
+    end if;
+
+    -- ------------------------------------------------------------ contenuti a pagamento (20261027000000)
+    -- V1 senza diritti nessun file; V2 un diritto non apre altro; V4 il rimborso chiude; V5 bucket privato, nessuno
+    -- scrive tranne la pipeline, niente file a pagamento nel bucket pubblico. (V3, i racconti nel file del percorso,
+    -- è una proprietà della compilazione: test del bundle.)
+    if (select public from storage.buckets where id = 'premium') is distinct from false then
+      raise exception 'FALLITO: bucket premium assente o pubblico';
+    end if;
+    if has_function_privilege('anon', 'premium_object_readable(text)', 'execute') then
+      raise exception 'FALLITO: anon può eseguire premium_object_readable';
+    end if;
+    insert into storage.objects (bucket_id, name, owner) values
+      ('premium', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/explore.aaaaaaaaaaaaaaaa.json', null),
+      ('premium', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/route-giro-premium.bbbbbbbbbbbbbbbb.json', null);
+    set local role anon;
+    if exists (select 1 from storage.objects where bucket_id = 'premium') then raise exception 'FALLITO: un anonimo vede file a pagamento'; end if;
+    reset role;
+    insert into auth.users (id, email, raw_user_meta_data) values ('a0000000-0000-0000-0000-000000000007', 'senza-diritti@prova.test', '{}');
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000007', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
+    if exists (select 1 from storage.objects where bucket_id = 'premium') then raise exception 'FALLITO: un visitatore senza diritti vede file a pagamento'; end if;
+    begin
+      insert into storage.objects (bucket_id, name) values ('premium', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/explore.cccccccccccccccc.json');
+      raise exception 'FALLITO: un visitatore scrive nel bucket premium';
+    exception when insufficient_privilege then null; end;
+    reset role;
+    if ok then
+      -- Chi ha pagato l'esplorazione (sopra) vede solo il file dell'esplorazione, non quello del percorso.
+      set local role authenticated;
+      perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000006', true);
+      perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+      if (select array_agg(name order by name) from storage.objects where bucket_id = 'premium')
+         is distinct from array['it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/explore.aaaaaaaaaaaaaaaa.json'] then
+        raise exception 'FALLITO: con il diritto sull''esplorazione si vedono i file sbagliati';
+      end if;
+      reset role;
+      perform revoke_purchase(current_setting('remote_check.ordine')::uuid, 'verifica remote-check');
+      set local role authenticated;
+      perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000006', true);
+      perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+      if exists (select 1 from storage.objects where bucket_id = 'premium') then raise exception 'FALLITO: dopo il rimborso il file resta leggibile'; end if;
+      reset role;
+    else
+      nv := nv || 'lettura dei file a pagamento con diritto e dopo il rimborso: serve service_role (vedi sopra)'::text;
+    end if;
+    -- Singolo luogo (20261028000000): il diritto su un luogo apre solo il file di quel luogo, il rimborso lo richiude.
+    if has_function_privilege('anon', 'has_place_right(text,uuid)', 'execute') then
+      raise exception 'FALLITO: anon può eseguire has_place_right';
+    end if;
+    -- Sottoluoghi (20261101000000): la gerarchia la cambia solo chi modifica il territorio, mai un anonimo.
+    if has_function_privilege('anon', 'studio_set_place_parent(text,text,text)', 'execute') then
+      raise exception 'FALLITO: anon può eseguire studio_set_place_parent';
+    end if;
+    insert into storage.objects (bucket_id, name, owner) values
+      ('premium', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/place-luogo-a.cccccccccccccccc.json', null);
+    insert into narrative_units (pack_id, slug, anchor_node_id, unit_type, locale, duration_s, text) values
+      ('it.test.alfa', 'remote-check-luogo-a', 'b0000000-0000-0000-0000-00000000000a', 'opening', 'it', 20, 'Prova.');
+    insert into products (id, slug, kind, pack_id, place_id, status) values
+      ('e0000000-0000-0000-0000-0000000000f1', 'remote-check-luogo-a', 'place', 'it.test.alfa', 'b0000000-0000-0000-0000-00000000000a', 'active');
+    insert into purchases (id, user_id, product_id, provider, provider_ref, status) values
+      ('e0000000-0000-0000-0000-0000000000f2', 'a0000000-0000-0000-0000-000000000007', 'e0000000-0000-0000-0000-0000000000f1',
+       'verifica', 'verifica-remote-check-luogo', 'completed');
+    perform grant_product('a0000000-0000-0000-0000-000000000007', 'e0000000-0000-0000-0000-0000000000f1', 'purchase',
+                          'e0000000-0000-0000-0000-0000000000f2', null);
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000007', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
+    if (select array_agg(name order by name) from storage.objects where bucket_id = 'premium')
+       is distinct from array['it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/place-luogo-a.cccccccccccccccc.json'] then
+      raise exception 'FALLITO: con il diritto su un luogo si vedono i file sbagliati';
+    end if;
+    if can_access_explore('it.test.alfa') then raise exception 'FALLITO: il diritto su un luogo apre l''esplorazione'; end if;
+    reset role;
+    perform revoke_purchase('e0000000-0000-0000-0000-0000000000f2', 'verifica remote-check');
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000007', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000007","role":"authenticated"}', true);
+    if exists (select 1 from storage.objects where bucket_id = 'premium') then raise exception 'FALLITO: dopo il rimborso il luogo resta leggibile'; end if;
+    reset role;
+    -- Un file a pagamento non entra nel bucket pubblico, nemmeno da chi pubblica.
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+    begin
+      insert into storage.objects (bucket_id, name) values ('bundles', 'it.test.alfa/it/e0000000-0000-0000-0000-0000000000ee/explore.dddddddddddddddd.json');
+      raise exception 'FALLITO: un file a pagamento entra nel bucket pubblico';
+    exception when insufficient_privilege then null; end;
+    reset role;
+
+    -- ------------------------------------------------------------ eventi del giorno (20261031000000)
+    -- Nessun accesso diretto per anon; lettura pubblica solo con public_local_events (definer, search_path fissato).
+    if has_table_privilege('anon', 'local_events', 'select') or has_table_privilege('anon', 'local_events', 'insert') then
+      raise exception 'FALLITO: anon ha privilegi sulla tabella degli eventi';
+    end if;
+    if not has_function_privilege('anon', 'public_local_events(text,date,date,text)', 'execute')
+       or has_function_privilege('anon', 'studio_save_local_event(text,uuid,jsonb,boolean)', 'execute') then
+      raise exception 'FALLITO: privilegi delle funzioni degli eventi';
+    end if;
+    if not (select prosecdef from pg_proc where oid = 'public_local_events(text,date,date,text)'::regprocedure)
+       or (select proconfig from pg_proc where oid = 'public_local_events(text,date,date,text)'::regprocedure) is distinct from array['search_path=public'] then
+      raise exception 'FALLITO: public_local_events deve girare come proprietario con search_path=public';
+    end if;
+    update destinations set status = 'published' where pack_id = 'it.test.alfa';
+    insert into local_events (pack_id, slug, labels, category, start_date, start_time, venue_name, source_url,
+                              verified_at, verified_by, publication, verification_note)
+    values ('it.test.alfa', 'remote-check-bozza', '{"it":{"title":"Bozza"}}', 'culture', (now() at time zone 'Europe/Rome')::date + 1, '18:00',
+            'Piazza', null, null, null, 'draft', null),
+           ('it.test.alfa', 'remote-check-pubblicato', '{"it":{"title":"Pubblicato"}}', 'culture', (now() at time zone 'Europe/Rome')::date + 1, '20:00',
+            'Piazza', 'https://example.org/evento', now(), 'a0000000-0000-0000-0000-000000000002', 'published', 'nota interna di verifica');
+    set local role anon;
+    perform set_config('request.jwt.claim.sub', '', true);
+    perform set_config('request.jwt.claims', '', true);
+    begin
+      perform 1 from local_events limit 1;
+      raise exception 'FALLITO: anon legge la tabella degli eventi';
+    exception when insufficient_privilege then null; end;
+    r := public_local_events('it.test.alfa');
+    if (select array_agg(ev.value ->> 'slug') from jsonb_array_elements(r -> 'events') ev) is distinct from array['remote-check-pubblicato'] then
+      raise exception 'FALLITO: eventi pubblici %', r -> 'events';
+    end if;
+    if r::text like '%nota interna di verifica%' or r::text like '%a0000000-0000-0000-0000-000000000002%' then
+      raise exception 'FALLITO: dati interni degli eventi nella risposta pubblica';
+    end if;
+    begin
+      perform public_local_events('it.test.alfa', (now() at time zone 'Europe/Rome')::date, (now() at time zone 'Europe/Rome')::date + 14);
+      raise exception 'FALLITO: accettato un periodo di 15 giorni';
+    exception when invalid_parameter_value then null; end;
+    reset role;
+    -- L'esperto del territorio è staff ma non legge le bozze degli eventi; il redattore le legge solo nel suo territorio.
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000003', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+    if exists (select 1 from local_events) then raise exception 'FALLITO: l''esperto legge gli eventi'; end if;
+    reset role;
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', 'a0000000-0000-0000-0000-000000000002', true);
+    perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+    if (select count(*) from local_events where pack_id = 'it.test.alfa') <> 2 then raise exception 'FALLITO: il redattore non vede gli eventi del suo territorio'; end if;
+    begin
+      perform studio_set_local_event_publication((select id from local_events where slug = 'remote-check-bozza'), 'published');
+      raise exception 'FALLITO: pubblicato un evento senza fonte';
+    exception when raise_exception then if sqlerrm like 'FALLITO%' then raise; end if; end;
+    begin
+      update local_events set publication = 'published' where slug = 'remote-check-bozza';
+      raise exception 'FALLITO: evento pubblicato con un UPDATE diretto';
+    exception when insufficient_privilege then null; end;
+    begin
+      perform studio_save_local_event('it.test.beta', null, '{"slug":"intruso","category":"culture","startDate":"2030-01-01","labels":{"it":{"title":"I"}},"venueName":"P"}');
+      raise exception 'FALLITO: il redattore crea eventi in un altro territorio';
+    exception when insufficient_privilege then null; end;
+    reset role;
 
     -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
     -- l'elenco dei controlli non verificati.

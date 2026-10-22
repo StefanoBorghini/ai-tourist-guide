@@ -42,6 +42,11 @@ export type RuntimeKind = "explore" | "tour";
 
 export type GuideMode = "auto" | "ask" | "silent";
 
+/** Modalità predefinita: chiede prima di raccontare (niente voce a sorpresa, l'audio parte da un tocco). */
+export const DEFAULT_GUIDE_MODE: GuideMode = "ask";
+/** Modalità ricordata sul dispositivo (chiave `guide-mode`); un valore sconosciuto torna alla predefinita. */
+export const parseGuideMode = (raw: string | null): GuideMode => (raw === "auto" || raw === "ask" || raw === "silent" ? raw : DEFAULT_GUIDE_MODE);
+
 export interface NarrationSegment {
   id: string;
   kind: "unit" | "bridge";
@@ -340,7 +345,9 @@ export class GuideRuntime {
     }
     // Nel percorso, il racconto parte da solo solo per la tappa attesa; per le altre si chiede.
     const expected = !this.routeStops || this.nextStop === placeRef;
-    if (manual || (this.mode === "auto" && expected)) events.push(...this.narrate(placeRef, now));
+    // «Sono qui» vale come un arrivo rilevato dal GPS, per qualunque luogo: segue la modalità scelta (racconta da
+    // sola, chiede prima, oppure solo segna dove si è). Per ascoltare subito c'è «Ascolta la storia».
+    if (this.mode === "auto" && (manual || expected)) events.push(...this.narrate(placeRef, now));
     else if (this.mode !== "silent") {
       this.pendingProposal = placeRef;
       events.push({ type: "proposal", placeRef, name });
@@ -350,7 +357,8 @@ export class GuideRuntime {
 
   /**
    * Il visitatore dichiara di essere arrivato (pulsante "Sono qui"): serve quando il GPS è impreciso
-   * o le coordinate del luogo non sono ancora verificate. Racconta subito.
+   * o le coordinate del luogo non sono ancora verificate. Come un arrivo dal GPS, secondo la modalità (anche se il
+   * luogo era stato rifiutato da poco: qui lo si dichiara di proposito).
    */
   arriveManually(placeRef: string, now: number): RuntimeEvent[] {
     if (!this.places.some((p) => p.id === placeRef)) return [];

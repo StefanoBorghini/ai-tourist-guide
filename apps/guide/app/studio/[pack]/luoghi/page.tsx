@@ -11,6 +11,8 @@ interface PlaceRow {
   importance: number;
   coordinateStatus: string;
   media: number;
+  /** Luogo principale di cui fa parte (migrazione 20261101000000). */
+  parent?: string | null;
 }
 
 export default async function PlacesPage({ params, searchParams }: { params: Promise<{ pack: string }>; searchParams: SearchParams }) {
@@ -21,7 +23,11 @@ export default async function PlacesPage({ params, searchParams }: { params: Pro
     rpc<PlaceRow[]>(session.supabase, "studio_places", { p_pack: pack }),
     rpc<{ canEdit: boolean }>(session.supabase, "studio_pack", { p_pack: pack }),
   ]);
-  const places = data ?? [];
+  // Ogni luogo principale seguito dai suoi sottoluoghi, rientrati.
+  const all = data ?? [];
+  const places = all
+    .filter((p) => !p.parent || !all.some((x) => x.slug === p.parent))
+    .flatMap((p) => [p, ...all.filter((x) => x.parent === p.slug)]);
   return (
     <main className="st-page">
       <StudioHeader session={session} crumbs={[{ label: pack }]} />
@@ -48,10 +54,11 @@ export default async function PlacesPage({ params, searchParams }: { params: Pro
         </thead>
         <tbody>
           {places.map((p) => (
-            <tr key={p.slug}>
+            <tr key={p.slug} className={p.parent ? "st-sub-row" : undefined}>
               <td>
+                {p.parent && <span aria-hidden="true">└ </span>}
                 <Link href={`/studio/${encodeURIComponent(pack)}/luoghi/${encodeURIComponent(p.slug)}`}>{p.name}</Link>
-                <span className="st-meta">{p.slug}</span>
+                <span className="st-meta">{p.slug}{p.parent ? ` · sottoluogo di ${all.find((x) => x.slug === p.parent)?.name ?? p.parent}` : ""}</span>
               </td>
               <td>{p.categories.join(", ")}</td>
               <td>{p.importance}</td>

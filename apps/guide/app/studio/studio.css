@@ -42,6 +42,8 @@
   outline: 2px solid var(--sand); outline-offset: 2px;
 }
 .st-primary { background: var(--ivory); color: var(--on-ivory); border-color: var(--ivory); font-weight: 600; }
+.studio a.st-btn { text-decoration: none; }
+.studio a.st-primary { color: var(--on-ivory); }
 .st-quiet { background: transparent; }
 
 .st-notice { padding: 10px 14px; border-radius: var(--r-sm); margin: 12px 0; font-size: 14px; }
@@ -141,3 +143,29 @@ details.st-create[open] > summary { margin-bottom: 12px; }
 .st-delete h2 { margin-top: 0; }
 
 .st-live { padding: 10px 14px; border-radius: var(--r-sm); background: var(--ok-soft); color: var(--ok); font-size: 14px; margin: 10px 0; }
+
+/* Controllo di pubblicazione in parole semplici e passi della pubblicazione. */
+.st-steps { margin: 0 0 8px; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.st-steps .st-done { color: var(--muted); }
+.st-steps .st-done::marker { content: "✓  "; color: #8fd19e; }
+.st-check h3 { margin: 16px 0 8px; }
+.st-checklist { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.st-checklist > li { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--surface); border: 1px solid var(--line); }
+.st-checklist > li.st-e { border-color: rgba(255, 143, 134, 0.45); }
+.st-checklist > li.st-w { border-color: rgba(231, 178, 94, 0.35); }
+.st-checklist .st-todo { color: var(--muted); }
+.st-checklist details summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.st-checklist details ul { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: var(--muted); word-break: break-word; }
+.st-btn.st-small { padding: 4px 12px; min-height: 0; font-size: 13px; }
+.st-warnings > summary { cursor: pointer; margin-top: 8px; }
+.st-section-title { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--line); }
+.st-checklist .st-detail { margin: 0; padding-left: 18px; font-size: 12px; color: var(--muted); word-break: break-word; }
+.st-checklist .st-detail .st-code { list-style: none; margin-left: -18px; opacity: 0.7; }
+/* Vendita: una riga per luogo, nome e scelta dell'accesso */
+.st-form label.st-place-access { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--ink); }
+.st-place-access > span:first-child { flex: 1 1 160px; }
+.st-form .st-place-access select { flex: 0 1 260px; width: auto; }
+.st-place-access .st-hint { flex-basis: 100%; }
+
+/* Sottoluoghi sotto il loro luogo principale (migrazione 20261101000000). */
+.st-sub-row td:first-child { padding-left: 28px; }

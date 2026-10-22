@@ -46,14 +46,15 @@ export default async function AssertionsPage({ params, searchParams }: { params:
     <main className="st-page">
       <StudioHeader session={session} crumbs={[{ label: pack }]} />
       <PackTabs pack={pack} current="affermazioni" />
-      <h1>Affermazioni</h1>
+      <h1>Fatti</h1>
       <p className="st-hint">
-        Regola dei quattro occhi: un'affermazione la verifica un esperto o la redazione, mai chi l'ha scritta, e solo con almeno una
+        Un fatto (nel formato tecnico: «affermazione») è una frase breve e controllabile su un luogo, con la sua fonte. La guida
+        racconta solo fatti verificati. Regola dei quattro occhi: un fatto lo verifica un esperto o la redazione, mai chi l'ha scritta, e solo con almeno una
         fonte confermata (non dedotta). Il rifiuto e il ritiro di una verifica richiedono un motivo; ogni decisione resta nello storico.
       </p>
       {(perms?.canEdit || perms?.canVerify) && (
         <details className="st-create">
-          <summary>Nuova affermazione</summary>
+          <summary>Nuovo fatto</summary>
           {(places.data ?? []).length === 0 ? (
             <p className="st-hint">Serve almeno un luogo di cui parlare.</p>
           ) : (

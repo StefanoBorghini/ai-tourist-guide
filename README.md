@@ -121,6 +121,9 @@ Variabili d'ambiente (tutte facoltative tranne quelle del fornitore scelto):
 | `ASK_BASE_URL` | — | con `openai-compatible`: indirizzo dell'API (es. `https://…/v1`) |
 | `ASK_API_KEY` | — | con `openai-compatible`: chiave del servizio (solo lato server) |
 | `ANTHROPIC_API_KEY` | — | obbligatoria con `anthropic`; con l'altro fornitore abilita la ricerca web (solo lato server) |
+| `NEXT_PUBLIC_ACCOUNTS_ENABLED`, `NEXT_PUBLIC_TERMS_URL`, `NEXT_PUBLIC_PRIVACY_URL`, `NEXT_PUBLIC_LEGAL_VERSION`, `NEXT_PUBLIC_AUTH_PROVIDERS` | — | account dei visitatori (servono per acquistare, non per visitare): spenti finché non ci sono tutte le prime quattro; configurazione di Supabase in `docs/v0.3-platform/ACCOUNT.md` |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` | — | acquisti con Stripe, **solo modalità test** (una chiave live li spegne); solo server; configurazione in `docs/v0.3-platform/PAGAMENTI.md` |
+| `ASK_MAX_USD_PER_QUESTION` | — | obbligatoria per le domande: dollari massimi **stimati** per domanda (es. `0.15`, con il punto). Assente o non valida: domande spente. Non è un tetto assoluto: vedi `docs/v0.3-platform/COSTI-AI.md` |
 | `ASK_WEB_ENABLED` | `1` | `0` spegne la ricerca web (resta la base locale) |
 | `ASK_WEB_MAX_USES` | `3` | ricerche massime per domanda (1–10) |
 | `ASK_WEB_MODEL` | `claude-opus-5-5` | modello della risposta con ricerca (es. `claude-sonnet-5-5` per spendere meno) |
@@ -132,21 +135,29 @@ Variabili d'ambiente (tutte facoltative tranne quelle del fornitore scelto):
 | `ASK_WEB_TIMEOUT_MS` | `50000` | tempo massimo della risposta con ricerca (ridotto al tempo che resta: la route ha 60 s) |
 | `ASK_DAILY_BUDGET_USD` | `10` | tetto di spesa giornaliero stimato, per istanza del server (0 = nessun tetto) |
 
-Tetto di spesa (`apps/guide/lib/limits.ts`): prima di ogni domanda la riserva prudente della risposta locale deve
-stare nel tetto giornaliero, e la ricerca web chiede anche la sua. Dopo, si conta il costo stimato dal listino o, se
-non è stimabile (modello senza listino, errore a metà), la riserva. Oltre il tetto la guida risponde solo dalla cache e
-dice di non poter rispondere; le emergenze funzionano sempre. La risposta locale ha un solo tentativo da 25 s, e la
-ricerca usa solo il tempo che resta prima dei 55 s: la funzione non viene interrotta dalla piattaforma.
+Emergenze (`apps/guide/lib/emergency.ts`): le domande che segnalano un'emergenza ricevono subito il rimando al 112,
+senza modello, senza configurazione e anche offline.
+
+Ogni chiamata al modello passa dal budget per domanda (`apps/guide/lib/ask-cost.ts`: stima prima, costo reale dopo,
+`max_tokens` e ricerche ridotti al residuo, nessun nuovo tentativo automatico): riduce il rischio ma non è un tetto
+assoluto, perché i token dei risultati della prima ricerca non si conoscono prima della risposta. Sopra c'è il tetto
+giornaliero (`apps/guide/lib/limits.ts`): una domanda parte solo se il suo budget massimo ci sta, e dopo si conta il
+costo reale o stimato. Oltre il tetto la guida risponde solo dalla cache e dice di non poter rispondere; le emergenze
+funzionano sempre. La risposta locale ha un solo tentativo da 25 s, e la ricerca usa solo il tempo che resta prima dei
+55 s: la funzione non viene interrotta dalla piattaforma.
 
 I limiti per indirizzo, per giorno e di spesa valgono per singola istanza del server: con più istanze il tetto
-effettivo si moltiplica. Sono argini, non quote globali. Il tetto di spesa mensile affidabile si imposta nella Console
-del fornitore (per Anthropic, il limite di spesa del workspace a cui appartiene la chiave). `GET /api/guide/ask` dice se la ricerca è attiva e se il modello la supporta (Models API).
-Prove di qualità: `npm run ask:eval -w @guide/app -- --file ../../territories/<id>/ASK-EVAL.json --out rapporto.md`
-(chiama davvero il modello configurato: ha un costo; `--dry` mostra solo cosa sa la base locale). Prima di ogni
-domanda tiene libera una riserva prudente e non parte se supererebbe `--max-usd`; per i modelli senza listino il
-costo non si stima e serve `--max-calls`. `--no-web` per la sola base, `--web-model` per scegliere il modello della
-ricerca, `--area` per una sola area della suite, `--json` per salvare i risultati e confrontare due esecuzioni con
-`npm run ask:compare -w @guide/app -- a.json b.json --out confronto.md` (nessun costo). La suite completa di Gaia è
+effettivo si moltiplica. Sono argini, non quote globali. Il tetto di spesa affidabile si imposta nella Console del
+fornitore (per Anthropic, il limite di spesa del workspace a cui appartiene la chiave). `GET /api/guide/ask` dice se le
+domande sono disponibili, se il budget è configurato, se la ricerca è attiva e se il modello la supporta (Models API).
+Prove di qualità e costo: `npm run ask:eval -w @guide/app -- --file ../../territories/<id>/ASK-EVAL.json --out rapporto.md`
+(chiama davvero il modello configurato: serve la chiave, un budget per domanda — `--max-usd-per-question` o
+`ASK_MAX_USD_PER_QUESTION` — e ha un costo; `--dry` mostra solo cosa sa la base locale). Prima di ogni domanda tiene
+libero l'intero budget per domanda e non parte se supererebbe `--max-usd`; `--file` si può ripetere, `--no-web` per la
+sola base, `--web-model` e `--web-max-uses` per le varianti della ricerca, `--area` per una sola area della suite,
+`--json` per salvare i risultati e confrontare due esecuzioni con
+`npm run ask:compare -w @guide/app -- a.json b.json --out confronto.md` (nessun costo; `--blind` per la valutazione alla
+cieca). Protocollo del confronto e rubrica: `docs/v0.3-platform/COSTI-AI.md`. La suite completa di Gaia è
 `GAIA-EVAL.it.json` / `GAIA-EVAL.en.json` (163 casi per lingua): lo script calcola un punteggio automatico (esito,
 citazioni, luogo, parole vietate, formato, lunghezza), le rubriche per la revisione umana sono in
 `docs/v0.4-gaia/RUBRICHE.md`.

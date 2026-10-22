@@ -6,6 +6,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { POSITION_CITATION, askRequestSchema, buildKnowledge, type AskAnswer, type AskRequest } from "../lib/ask.ts";
 import { askGuide, type Loaded, type WebGate } from "../lib/ask-server.ts";
+import { QuestionBudget, estimateUsd } from "../lib/ask-cost.ts";
 import { AnthropicAdapter, type AskModels } from "../lib/model.ts";
 import {
   DEFAULT_BLOCKED_DOMAINS,
@@ -14,11 +15,9 @@ import {
   WEB_SYSTEM_PROMPT,
   cacheKey,
   cacheable,
-  estimateUsd,
   needsWeb,
   parseWebAnswer,
   redactForLog,
-  reserveUsd,
   sourceTier,
   unsupportedNumbers,
   webConfig,
@@ -76,6 +75,8 @@ function fakeClient(...replies: (object | Error)[]) {
   return { client, create };
 }
 const gate = (o: Partial<WebGate> = {}): WebGate => ({ config: webConfig({}), supported: true, permitted: () => true, ...o });
+/** Budget largo: questi test riguardano il percorso, i limiti di spesa sono in ask-cost.test.ts. */
+const budget = () => new QuestionBudget(10);
 
 // ------------------------------------------------------------------ configurazione
 
@@ -235,7 +236,7 @@ describe("cache e limiti", () => {
 describe("risposta ibrida", () => {
   it("se la base risponde non cerca sul web (una sola chiamata)", async () => {
     const { client, create } = fakeClient(localReply("answered", "Risposta dalla base.", [ref]));
-    const out = await askGuide(client, loaded, req, gate());
+    const out = await askGuide(client, loaded, req, gate(), budget());
     expect(create).toHaveBeenCalledTimes(1);
     expect(out.answer).toMatchObject({ status: "answered", origin: "local", citations: [ref] });
     expect(out.web).toBeUndefined();
@@ -250,7 +251,7 @@ describe("risposta ibrida", () => {
         { type: "text", text: `\n\nLa guida aggiunge un dettaglio [[${ref}]].` },
       ]),
     );
-    const out = await askGuide(client, loaded, req, gate());
+    const out = await askGuide(client, loaded, req, gate(), budget());
     expect(create).toHaveBeenCalledTimes(2);
     const params = create.mock.calls[1]![0] as unknown as { tools: { type: string; max_uses: number; blocked_domains: string[] }[]; output_config: object };
     expect(params.tools[0]).toMatchObject({ type: "web_search_20260318", max_uses: 3 });
@@ -265,7 +266,7 @@ describe("risposta ibrida", () => {
 
   it("l'approfondimento va diretto alla ricerca, senza ripagare la risposta locale", async () => {
     const { client, create } = fakeClient(webReply([{ type: "text", text: "Più a fondo.", citations: [cite("https://www.unige.it/x", "Studio")] }]));
-    const out = await askGuide(client, loaded, { ...req, depth: "deep" }, gate());
+    const out = await askGuide(client, loaded, { ...req, depth: "deep" }, gate(), budget());
     expect(create).toHaveBeenCalledTimes(1);
     const params = create.mock.calls[0]![0] as unknown as { tools?: unknown[]; messages: { content: string }[] };
     expect(params.tools).toHaveLength(1);
@@ -276,7 +277,7 @@ describe("risposta ibrida", () => {
 
   it("se l'approfondimento fallisce interroga la base locale e lo dichiara", async () => {
     const { client, create } = fakeClient(new Error("timeout"), localReply("answered", "Dalla base.", [ref]));
-    const out = await askGuide(client, loaded, { ...req, depth: "deep" }, gate());
+    const out = await askGuide(client, loaded, { ...req, depth: "deep" }, gate(), budget());
     expect(create).toHaveBeenCalledTimes(2);
     expect(out.answer).toMatchObject({ origin: "local", webUnavailable: true, citations: [ref] });
     expect(out.answer.answer).toMatch(/^Dalla base\. /);
@@ -284,7 +285,7 @@ describe("risposta ibrida", () => {
 
   it("l'approfondimento senza ricerca consentita usa la sola base", async () => {
     const { client, create } = fakeClient(localReply("answered", "Dalla base.", [ref]));
-    const out = await askGuide(client, loaded, { ...req, depth: "deep" }, gate({ permitted: () => false }));
+    const out = await askGuide(client, loaded, { ...req, depth: "deep" }, gate({ permitted: () => false }), budget());
     expect(create).toHaveBeenCalledTimes(1);
     expect(out.answer.webUnavailable).toBe(true);
   });
@@ -294,7 +295,7 @@ describe("risposta ibrida", () => {
       localReply("not_in_knowledge", "Non lo so."),
       webReply([{ type: "text", text: "Fu ricostruito.", citations: [cite("https://www.unige.it/x", "Studio")] }]),
     );
-    const out = await askGuide(client, loaded, req, gate());
+    const out = await askGuide(client, loaded, req, gate(), budget());
     expect(out.answer.meter).toMatchObject({ calls: 2, input: 9000, output: 700, webSearches: 1, models: ["claude-opus-5-5"] });
     // 9000 token in ingresso a 4 $/M + 700 in uscita a 20 $/M + 1 ricerca a 0,01 $
     expect(out.answer.meter?.costUsd).toBeCloseTo(0.036 + 0.014 + 0.01, 5);
@@ -308,7 +309,7 @@ describe("risposta ibrida", () => {
       webReply(paused, "pause_turn"),
       webReply([{ type: "text", text: "Risposta completa.", citations: [cite("https://museo.example.it/a", "Museo")] }], "end_turn", 1),
     );
-    const out = await askGuide(client, loaded, req, gate());
+    const out = await askGuide(client, loaded, req, gate(), budget());
     expect(create).toHaveBeenCalledTimes(3);
     const third = create.mock.calls[2]![0] as unknown as { messages: { role: string }[]; tools: { max_uses: number }[] };
     expect(third.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
@@ -318,7 +319,7 @@ describe("risposta ibrida", () => {
 
   it("se la ricerca fallisce risponde con la base locale e lo dichiara", async () => {
     const { client } = fakeClient(localReply("partial", "So solo questo.", [ref]), new Error("timeout"));
-    const out = await askGuide(client, loaded, req, gate());
+    const out = await askGuide(client, loaded, req, gate(), budget());
     expect(out.answer).toMatchObject({ status: "partial", origin: "local", citations: [ref], webUnavailable: true });
     expect(out.answer.answer).toMatch(/^So solo questo\. .*fonti online/);
     expect(out.web).toMatchObject({ attempted: true, error: "timeout" });
@@ -326,7 +327,7 @@ describe("risposta ibrida", () => {
 
   it("una risposta con ricerca senza alcuna fonte citata non si mostra", async () => {
     const { client } = fakeClient(localReply("not_in_knowledge", "Non lo so."), webReply([{ type: "text", text: "Fu costruito nel 1200 da un re." }]));
-    const out = await askGuide(client, loaded, req, gate());
+    const out = await askGuide(client, loaded, req, gate(), budget());
     expect(out.answer.origin).toBe("local");
     expect(out.answer.answer).not.toContain("1200");
     expect(out.answer.answer).toMatch(/non ho trovato fonti attendibili/);
@@ -335,19 +336,19 @@ describe("risposta ibrida", () => {
   it("non cerca se i limiti di uso sono raggiunti, se il modello non la supporta o se è disattivata", async () => {
     for (const g of [gate({ permitted: () => false }), gate({ supported: false })]) {
       const { client, create } = fakeClient(localReply("not_in_knowledge", "Non lo so."));
-      const out = await askGuide(client, loaded, req, g);
+      const out = await askGuide(client, loaded, req, g, budget());
       expect(create).toHaveBeenCalledTimes(1);
       expect(out.answer.webUnavailable).toBe(true);
     }
     const { client, create } = fakeClient(localReply("not_in_knowledge", "Non lo so."));
-    const out = await askGuide(client, loaded, req, gate({ config: webConfig({ ASK_WEB_ENABLED: "off" }) }));
+    const out = await askGuide(client, loaded, req, gate({ config: webConfig({ ASK_WEB_ENABLED: "off" }) }), budget());
     expect(create).toHaveBeenCalledTimes(1);
     expect(out.answer).toMatchObject({ status: "not_in_knowledge", answer: "Non lo so." });
   });
 
   it("senza configurazione web la guida funziona come prima", async () => {
     const { client, create } = fakeClient(localReply("not_in_knowledge", "Non lo so."));
-    const out = await askGuide(client, loaded, req);
+    const out = await askGuide(client, loaded, req, null, budget());
     expect(create).toHaveBeenCalledTimes(1);
     expect(out.answer).toMatchObject({ status: "not_in_knowledge", origin: "local" });
   });
@@ -357,7 +358,7 @@ describe("risposta ibrida", () => {
       localReply("not_in_knowledge", "Non lo so."),
       { ...webReply([{ type: "text", text: "Fu ricostruito.", citations: [cite("https://www.unige.it/x", "Studio")] }]), model: "claude-sonnet-5-5" },
     );
-    const out = await askGuide(client, loaded, req, gate({ config: webConfig({ ASK_WEB_MODEL: "claude-sonnet-5-5" }) }));
+    const out = await askGuide(client, loaded, req, gate({ config: webConfig({ ASK_WEB_MODEL: "claude-sonnet-5-5" }) }), budget());
     const models = create.mock.calls.map((c) => (c[0] as { model: string }).model);
     expect(models).toEqual(["claude-opus-5-5", "claude-sonnet-5-5"]);
     expect(out.answer.meter?.models).toEqual(["claude-opus-5-5", "claude-sonnet-5-5"]);
@@ -365,18 +366,9 @@ describe("risposta ibrida", () => {
     expect(out.answer.meter?.costUsd).toBeCloseTo(0.004 + 0.002 + 0.016 + 0.006 + 0.01, 5);
   });
 
-  it("la riserva prudente per domanda dipende dal modello e dalla ricerca", () => {
-    const opus = reserveUsd("claude-opus-5-5", webConfig({}));
-    const sonnet = reserveUsd("claude-opus-5-5", webConfig({ ASK_WEB_MODEL: "claude-sonnet-5-5" }));
-    const local = reserveUsd("claude-opus-5-5", null);
-    expect(local).toBeLessThan(sonnet);
-    expect(sonnet).toBeLessThan(opus);
-    expect(reserveUsd("claude-opus-5-5", webConfig({ ASK_WEB_ENABLED: "0" }))).toBe(local);
-  });
-
   it("le domande fuori tema non attivano la ricerca", async () => {
     const { client, create } = fakeClient(localReply("off_topic", "Parliamo della visita."));
-    const out = await askGuide(client, loaded, req, gate());
+    const out = await askGuide(client, loaded, req, gate(), budget());
     expect(create).toHaveBeenCalledTimes(1);
     expect(out.answer.answer).toBe("Parliamo della visita.");
   });
@@ -386,7 +378,7 @@ describe("emergenze e tempi della risposta", () => {
   it("un'emergenza riconosciuta dalle parole chiave non chiama il modello, nemmeno con «Approfondisci»", async () => {
     for (const depth of ["auto", "deep"] as const) {
       const { client, create } = fakeClient();
-      const out = await askGuide(client, loaded, { ...req, question: "Aiuto, mio figlio si è perso!", depth }, gate());
+      const out = await askGuide(client, loaded, { ...req, question: "Aiuto, mio figlio si è perso!", depth }, gate(), budget());
       expect(create).not.toHaveBeenCalled();
       expect(out.answer).toMatchObject({ status: "safety", citations: [] });
       expect(out.answer.answer).toContain("112");
@@ -407,7 +399,7 @@ describe("emergenze e tempi della risposta", () => {
         },
       };
       const { client, create } = fakeClient(webReply([{ type: "text", text: "Trovato.", citations: [cite("https://www.unige.it/x", "Studio")] }]));
-      await askGuide({ local: slow, web: client.web }, loaded, req, gate());
+      await askGuide({ local: slow, web: client.web }, loaded, req, gate(), budget());
       const options = create.mock.calls[0]![1] as { timeout: number };
       expect(options.timeout).toBeLessThanOrEqual(15_000);
       expect(options.timeout).toBeGreaterThan(10_000);
@@ -428,7 +420,7 @@ describe("emergenze e tempi della risposta", () => {
         },
       };
       const { client, create } = fakeClient();
-      const out = await askGuide({ local: slow, web: client.web }, loaded, req, gate());
+      const out = await askGuide({ local: slow, web: client.web }, loaded, req, gate(), budget());
       expect(create).not.toHaveBeenCalled();
       expect(out.answer).toMatchObject({ status: "partial", webUnavailable: true });
       expect(out.web).toMatchObject({ attempted: false, error: "tempo insufficiente per la ricerca" });
@@ -439,11 +431,11 @@ describe("emergenze e tempi della risposta", () => {
 
   it("la risposta locale di Anthropic non ripete i tentativi (25 s al massimo)", async () => {
     const { client, create } = fakeClient(localReply("answered", "Dalla base.", [ref]));
-    await askGuide(client, loaded, req);
+    await askGuide(client, loaded, req, null, budget());
     expect(create.mock.calls[0]![1]).toMatchObject({ timeout: 25_000, maxRetries: 0 });
   });
 });
 
 function emptyUsageForTest() {
-  return { input: 100, cacheWrite: 0, cacheRead: 0, output: 10, webSearches: 0 };
+  return { input_tokens: 100, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
 }

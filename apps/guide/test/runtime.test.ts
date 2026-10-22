@@ -4,7 +4,7 @@ import { buildBundle, type BundleContent } from "@guide/bundle";
 import { destination } from "@guide/context-engine";
 import { loadPacks } from "@guide/territory-pack";
 import { beforeAll, describe, expect, it } from "vitest";
-import { DECLINE_COOLDOWN_MS, GuideRuntime, narrationBudgetS, type RuntimeEvent } from "../lib/runtime.ts";
+import { DECLINE_COOLDOWN_MS, DEFAULT_GUIDE_MODE, GuideRuntime, narrationBudgetS, parseGuideMode, type RuntimeEvent } from "../lib/runtime.ts";
 import { simulateWalk } from "../lib/simulator.ts";
 
 /**
@@ -200,13 +200,26 @@ describe("percorso rigoroso e avanzamento manuale", () => {
     expect(runtime.nextStop).toBe(route().stops[0]!.place); // nessuna tappa saltata in automatico
   });
 
-  it("con 'Sono qui' racconta subito, anche senza GPS", () => {
-    const runtime = start("ask");
+  it("con 'Sono qui' (anche senza GPS) segue la modalità: racconta, chiede prima o segna solo dove si è", () => {
     const first = route().stops[0]!.place;
-    const events = runtime.arriveManually(first, T0);
-    expect(events.some((e) => e.type === "narration" && e.placeRef === first)).toBe(true);
-    expect(runtime.manualArrivals).toEqual([first]);
-    expect(runtime.nextStop).toBe(route().stops[1]!.place);
+    const auto = start("auto");
+    expect(auto.arriveManually(first, T0).some((e) => e.type === "narration" && e.placeRef === first)).toBe(true);
+    expect(auto.manualArrivals).toEqual([first]);
+    expect(auto.nextStop).toBe(route().stops[1]!.place);
+
+    const ask = start("ask");
+    const asked = ask.arriveManually(first, T0);
+    expect(asked.some((e) => e.type === "narration")).toBe(false);
+    expect(asked.some((e) => e.type === "proposal" && e.placeRef === first)).toBe(true);
+    expect(ask.manualArrivals).toEqual([first]);
+    expect(ask.acceptProposal(T0).some((e) => e.type === "narration" && e.placeRef === first)).toBe(true);
+    expect(ask.nextStop).toBe(route().stops[1]!.place);
+
+    const silent = start("ask");
+    silent.mode = "silent";
+    const marked = silent.arriveManually(first, T0);
+    expect(marked.map((e) => e.type)).toEqual(["arrived"]);
+    expect(silent.currentPlaceRef).toBe(first);
   });
 
   it("'Salta' passa alla tappa successiva senza raccontare", () => {
@@ -220,6 +233,7 @@ describe("percorso rigoroso e avanzamento manuale", () => {
   it("lo stato salvato si ripristina dopo la riapertura", () => {
     const runtime = start("ask");
     runtime.arriveManually(route().stops[0]!.place, T0);
+    runtime.acceptProposal(T0); // «Mi chiede prima»: si accetta la proposta
     runtime.skipStop(route().stops[1]!.place);
     const saved = JSON.parse(JSON.stringify(runtime.exportState()));
 
@@ -351,6 +365,7 @@ describe("esplorazione libera", () => {
     runtime.startTour({ now: T0, start: content.anchors[0]!.location, route: route.ref });
     const first = route.stops[0]!.place;
     runtime.arriveManually(first, T0);
+    runtime.acceptProposal(T0); // «Mi chiede prima»: si accetta la proposta
     const memory = runtime.memory;
     runtime.startExplore({ keepMemory: true });
     expect(runtime.kind).toBe("explore");
@@ -424,6 +439,7 @@ describe("passaggio tra esplorazione libera e percorso guidato", () => {
     runtime.startTour({ now: T0, start: content.anchors[0]!.location, route: route().ref });
     const first = route().stops[0]!.place;
     runtime.arriveManually(first, T0);
+    runtime.acceptProposal(T0); // «Mi chiede prima»: si accetta la proposta
     const memory = runtime.memory;
     runtime.startExplore({ keepMemory: true });
     expect(runtime.visited).toEqual([]);
@@ -440,10 +456,21 @@ describe("passaggio tra esplorazione libera e percorso guidato", () => {
     const runtime = new GuideRuntime(content, "ask");
     runtime.startTour({ now: T0, start: content.anchors[0]!.location, route: route().ref });
     runtime.arriveManually(route().stops[0]!.place, T0);
+    runtime.acceptProposal(T0); // «Mi chiede prima»: si accetta la proposta
     const { reached: _omit, declined: _old, ...legacy } = JSON.parse(JSON.stringify(runtime.exportState()));
     const reopened = new GuideRuntime(content, "ask");
     reopened.startTour({ now: T0, start: content.anchors[0]!.location, route: route().ref });
     reopened.restoreState(legacy);
     expect(reopened.nextStop).toBe(route().stops[1]!.place);
+  });
+});
+
+describe("modalità ricordata", () => {
+  it("valori validi restano, il resto torna a «Mi chiede prima»", () => {
+    expect(parseGuideMode("auto")).toBe("auto");
+    expect(parseGuideMode("silent")).toBe("silent");
+    expect(parseGuideMode("ask")).toBe("ask");
+    expect(parseGuideMode(null)).toBe(DEFAULT_GUIDE_MODE);
+    expect(parseGuideMode("boh")).toBe("ask");
   });
 });

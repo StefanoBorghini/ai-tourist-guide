@@ -99,8 +99,13 @@ export interface AskMeter {
   cacheRead: number;
   output: number;
   webSearches: number;
-  /** Stima in dollari dal listino pubblico; null se il modello non è in tabella. */
+  /**
+   * Dollari stimati dal listino sui consumi restituiti dall'API (0 se servita dalla cache).
+   * null solo nelle risposte salvate da versioni precedenti.
+   */
   costUsd: number | null;
+  /** measured: consumi dell'API a listino; estimated: chiamate senza consumi, contato il caso peggiore; unknown: modello non in listino. */
+  costQuality?: "measured" | "estimated" | "unknown";
 }
 
 /** Livello di affidabilità presunto dal dominio: 1 istituzioni, 2 archivi e musei, 3 università, 4 opere di riferimento, 5 altro. */

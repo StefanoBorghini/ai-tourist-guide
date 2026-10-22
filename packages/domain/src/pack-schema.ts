@@ -119,11 +119,14 @@ export const territoryConfigSchema = z.strictObject({
    * Con l'esplorazione a pagamento restano gratuiti mappa, luoghi, percorsi non premium e il racconto
    * d'apertura dei luoghi introduttivi (al massimo 3, scelti dalla redazione); il resto non entra nel
    * bundle pubblico. Un percorso premium non entra nel bundle pubblico in nessun caso.
+   * I luoghi gratuiti (`freePlaces`, scelti uno per uno, senza limite) hanno tutti i loro racconti nel bundle
+   * pubblico anche con l'esplorazione a pagamento, e non si vendono da soli.
    */
   access: z
     .strictObject({
       explore: z.enum(ACCESS_TIERS).default("free"),
       introPlaces: z.array(slug).max(3).default([]),
+      freePlaces: z.array(slug).optional(),
       premiumRoutes: z.array(slug).default([]),
     })
     .optional(),

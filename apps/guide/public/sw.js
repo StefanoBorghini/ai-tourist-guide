@@ -6,7 +6,9 @@
  *   vale per i bundle dei file (/bundles/) e per quelli pubblicati dallo Studio (/pub/, stesso dominio);
  * - indice e manifest dei bundle: prima la rete (per vedere le nuove versioni), la cache se manca;
  * - video ambientali: mai in cache (richieste a intervalli, pesanti, non servono offline);
- * - /api/ e /studio: mai in cache (lo Studio mostra dati riservati e funziona solo online).
+ * - /api/, /studio, /account e /auth: mai in cache (dati riservati e sessioni; funzionano solo online);
+ * - sito protetto con nome utente e password (lib/site-lock.ts): alla prima risposta 401 si cancellano tutte le
+ *   copie sul dispositivo, così chi non ha le credenziali non riapre l'app nemmeno senza rete.
  *
  * Le chiavi dei cache devono restare allineate a lib/offline.ts.
  */
@@ -33,7 +35,7 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/") || /^\/studio(\/|$)/.test(url.pathname)) return;
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/") || /^\/(studio|account|auth)(\/|$)/.test(url.pathname)) return;
   if (/\.(mp4|webm)$/i.test(url.pathname) || request.headers.has("range")) return;
 
   if (url.pathname.startsWith("/bundles/") || url.pathname.startsWith("/pub/")) {
@@ -49,12 +51,20 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+/** Accesso riservato (401): nessuna copia deve restare sul dispositivo. */
+async function forgetIfLocked(response) {
+  if (response.status !== 401) return;
+  const keys = await caches.keys();
+  await Promise.all(keys.filter((k) => k.startsWith("guide-")).map((k) => caches.delete(k)));
+}
+
 async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
   const hit = await cache.match(request);
   if (hit) return hit;
   const response = await fetch(request);
   if (response.ok) cache.put(request, response.clone());
+  else await forgetIfLocked(response);
   return response;
 }
 
@@ -64,6 +74,7 @@ async function networkFirst(request, cacheName, fallbackPath) {
   try {
     const response = await withTimeout(fetch(request), NETWORK_TIMEOUT_MS);
     if (response.ok) cache.put(fallbackPath ?? request, response.clone());
+    else await forgetIfLocked(response);
     return response;
   } catch (error) {
     const hit = (await cache.match(request)) ?? (fallbackPath ? await cache.match(fallbackPath) : undefined);

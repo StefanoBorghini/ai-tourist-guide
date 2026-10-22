@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { checkReadiness, requireStaff, rpc } from "../../../../lib/studio/server";
+import { explainIssues } from "../../../../lib/studio/explain";
+import type { ReadinessReport } from "../../../../lib/studio/readiness";
 import { deleteHref, friendlyError } from "../../../../lib/studio/shared";
 import { republishPack, setPackStatus, updatePack } from "../../actions";
 import { KIND_LABELS, Notice, one, PackStatus, PackTabs, STAGE_LABELS, StudioHeader, type SearchParams } from "../../ui";
+import { formatStudioTime } from "../../../../lib/format";
 
 interface PackDetail {
   id: string;
@@ -92,13 +95,13 @@ export default async function OverviewPage({ params, searchParams }: { params: P
           <ul className="st-report">
             <li><Link href={`${base}/luoghi`}>{k.counts.places} luoghi</Link>{k.canEdit && <> · <Link href={`${base}/luoghi/nuovo`}>aggiungi</Link></>}</li>
             <li><Link href={`${base}/fonti`}>{k.counts.sources} fonti</Link></li>
-            <li><Link href={`${base}/affermazioni`}>{k.counts.assertions} affermazioni</Link></li>
+            <li><Link href={`${base}/affermazioni`}>{k.counts.assertions} fatti</Link> (ogni fatto con la sua fonte)</li>
             <li><Link href={`${base}/racconti`}>{k.counts.units} racconti</Link></li>
             <li><Link href={`${base}/percorsi`}>{k.counts.routes} percorsi</Link></li>
             <li><Link href={`${base}/media`}>{k.counts.media} foto</Link></li>
           </ul>
           <p className="st-hint">
-            Ordine consigliato: luoghi → fonti → affermazioni (ogni fatto con la sua fonte) → racconti (legati alle affermazioni) →
+            Ordine consigliato: luoghi → fonti → fatti (ognuno con la sua fonte) → racconti (costruiti sui fatti) →
             percorsi → foto e copertina.
           </p>
         </section>
@@ -108,17 +111,19 @@ export default async function OverviewPage({ params, searchParams }: { params: P
           {!isDestination ? (
             <p className="st-hint">
               {KIND_LABELS[k.kind]}: è un contenitore. Non ha stato e non arriva all'app da sola: arrivano le destinazioni che ne
-              fanno parte, con i suoi luoghi e le sue affermazioni.
+              fanno parte, con i suoi luoghi e i suoi fatti.
             </p>
           ) : (
             <>
-              <p className="st-hint">
-                Pubblicare compila il territorio (testi, luoghi, percorsi, foto) e lo mette nell'app: i visitatori lo vedono
-                subito, senza aggiornare l'app. Le modifiche fatte dopo arrivano nell'app solo quando ripubblichi.
-              </p>
+              <ol className="st-steps">
+                <li className={k.status !== "draft" ? "st-done" : undefined}><strong>Controlla se è pronto</strong>: lo Studio dice cosa manca, in parole semplici.</li>
+                <li className={k.status === "in_review" || k.status === "published" ? "st-done" : undefined}><strong>Manda in revisione</strong> quando il controllo è superato.</li>
+                <li className={k.status === "published" ? "st-done" : undefined}><strong>Approva e pubblica</strong>: il territorio arriva subito nell&apos;app, senza aggiornarla.</li>
+              </ol>
+              <p className="st-hint">Le modifiche fatte dopo arrivano nell&apos;app solo con «Ripubblica con le modifiche».</p>
               {live ? (
                 <p className="st-live">
-                  <strong>Nell'app</strong> dal {new Date(live.createdAt).toLocaleString("it-IT")}
+                  <strong>Nell'app</strong> dal {formatStudioTime(live.createdAt)}
                   {live.report?.pipeline?.bundles?.length
                     ? ` · ${live.report.pipeline.bundles.map((b) => `${b.locale}: ${b.places} luoghi, ${b.units} racconti, ${(b.totalBytes / 1024 / 1024).toFixed(1)} MB`).join(" · ")}`
                     : ""}
@@ -129,12 +134,12 @@ export default async function OverviewPage({ params, searchParams }: { params: P
               )}
               {lastFailed && (
                 <div className="st-notice st-error">
-                  Ultima pubblicazione non riuscita ({new Date(lastFailed.createdAt).toLocaleString("it-IT")}):{" "}
+                  Ultima pubblicazione non riuscita ({formatStudioTime(lastFailed.createdAt)}):{" "}
                   {(lastFailed.report?.pipeline?.errors ?? []).slice(0, 5).join("; ") || "errore sconosciuto"}
                 </div>
               )}
               <div className="st-actions">
-                <Link className="st-btn" href={`${base}/panoramica?controllo=1`}>Esegui il controllo di pubblicazione</Link>
+                <Link className="st-btn" href={`${base}/panoramica?controllo=1#controllo`}>Controlla se è pronto</Link>
                 {k.status === "draft" && k.canEdit && statusForm("in_review", "Manda in revisione")}
                 {k.status === "in_review" && k.canEdit && statusForm("draft", "Riporta in bozza")}
                 {k.status === "in_review" && k.canPublish && statusForm("published", "Approva e pubblica", true)}
@@ -148,33 +153,7 @@ export default async function OverviewPage({ params, searchParams }: { params: P
               </div>
             </>
           )}
-          {report && (
-            <div aria-live="polite">
-              <h3>{report.ok ? "Controllo superato" : `Controllo non superato: ${report.errors.length} errori`}</h3>
-              {report.bundles.length > 0 && (
-                <ul className="st-report">
-                  {report.bundles.map((b) => (
-                    <li key={b.locale}>
-                      Bundle {b.locale}: {b.places} luoghi, {b.units} racconti, {b.assertions} affermazioni, {b.routes} percorsi
-                      {b.preview ? " · anteprima" : ""}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <ul className="st-report">
-                {report.errors.map((e, i) => (
-                  <li key={`e${i}`} className="st-e">
-                    <strong>{e.code}</strong> {e.pack !== pack ? `(${e.pack}) ` : ""}{e.message}
-                  </li>
-                ))}
-                {report.warnings.slice(0, 30).map((w, i) => (
-                  <li key={`w${i}`} className="st-w">
-                    <strong>{w.code}</strong> {w.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {report && <ReadinessView report={report} pack={pack} base={base} />}
         </section>
       </div>
 
@@ -258,5 +237,47 @@ export default async function OverviewPage({ params, searchParams }: { params: P
         </p>
       )}
     </main>
+  );
+}
+
+/** Esito del controllo: prima cosa blocca la pubblicazione, poi cosa migliorare; il dettaglio tecnico resta a richiesta. */
+function ReadinessView({ report, pack, base }: { report: ReadinessReport; pack: string; base: string }) {
+  const errors = explainIssues(report.errors, pack);
+  const warnings = explainIssues(report.warnings, pack);
+  const item = (g: ReturnType<typeof explainIssues>[number]) => (
+    <li key={`${g.level}${g.code}`} className={g.level === "error" ? "st-e" : "st-w"}>
+      <strong>{g.title}</strong>
+      <span className="st-todo">{g.todo}</span>
+      {g.fix && <Link className="st-btn st-small" href={`${base}/${g.fix.tab}`}>{g.fix.label}</Link>}
+      {/* Pochi casi: si vedono subito (dicono quale elemento); molti: a richiesta. */}
+      {g.details.length <= 3 ? (
+        <ul className="st-detail">{g.details.map((d, i) => <li key={i}>{d}</li>)}<li className="st-code">{g.code}</li></ul>
+      ) : (
+        <details>
+          <summary>Quali sono ({g.details.length}) · {g.code}</summary>
+          <ul>{g.details.slice(0, 50).map((d, i) => <li key={i}>{d}</li>)}</ul>
+          {g.details.length > 50 && <p className="st-hint">… e altri {g.details.length - 50}.</p>}
+        </details>
+      )}
+    </li>
+  );
+  return (
+    <div id="controllo" aria-live="polite" className="st-check">
+      <h3>{report.ok ? "✓ Pronto per la pubblicazione" : `Prima di pubblicare: ${errors.length === 1 ? "una cosa da sistemare" : `${errors.length} cose da sistemare`}`}</h3>
+      {report.bundles.length > 0 && (
+        <p className="st-hint">
+          Nell&apos;app arriverebbero:{" "}
+          {report.bundles.map((b) => `${b.locale === "it" ? "italiano" : b.locale === "en" ? "inglese" : b.locale} ${b.places} luoghi, ${b.units} racconti, ${b.routes} percorsi`).join(" · ")}
+          {report.bundles.some((b) => b.preview) ? " (anteprima: anche fatti in revisione, segnalati ai visitatori)" : ""}.
+        </p>
+      )}
+      {errors.length > 0 && <ul className="st-checklist">{errors.map(item)}</ul>}
+      {warnings.length > 0 && (
+        <details className="st-warnings">
+          <summary>Da migliorare, ma non bloccano: {warnings.length === 1 ? "un punto" : `${warnings.length} punti`}</summary>
+          <ul className="st-checklist">{warnings.map(item)}</ul>
+        </details>
+      )}
+    </div>
   );
 }

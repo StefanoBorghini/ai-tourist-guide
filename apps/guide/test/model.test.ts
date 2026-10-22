@@ -5,6 +5,7 @@ import { buildBundle } from "@guide/bundle";
 import { loadPacks } from "@guide/territory-pack";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { ANSWER_JSON_SCHEMA, askRequestSchema, buildKnowledge, type AskRequest } from "../lib/ask.ts";
+import { QuestionBudget } from "../lib/ask-cost.ts";
 import { askGuide, type Loaded } from "../lib/ask-server.ts";
 import { webConfig } from "../lib/ask-web.ts";
 import { AnthropicAdapter, ModelError, OpenAICompatibleAdapter, modelsConfig, modelsFromEnv, type ModelRequest } from "../lib/model.ts";
@@ -44,8 +45,9 @@ describe("adattatore Anthropic", () => {
       { type: "text", text: "persona" },
       { type: "text", text: "base", cache_control: { type: "ephemeral" } },
     ]);
-    expect(options.timeout).toBe(25_000);
-    expect(out).toMatchObject({ text: '{"ok":1}', stop: "end", model: "claude-opus-5-5", usage: { input: 100, cacheRead: 5000, output: 20 } });
+    expect(options).toMatchObject({ timeout: 25_000, maxRetries: 0 });
+    // Consumi così come li dà l'API: li prezza il budget per domanda (lib/ask-cost.ts).
+    expect(out).toMatchObject({ text: '{"ok":1}', stop: "end", model: "claude-opus-5-5", usage: { input_tokens: 100, cache_read_input_tokens: 5000, output_tokens: 20 } });
   });
 
   it("traduce rifiuto e troncamento", async () => {
@@ -85,7 +87,7 @@ describe("adattatore per API compatibili OpenAI", () => {
       { role: "user", content: "domanda" },
     ]);
     expect(body.response_format).toMatchObject({ type: "json_schema", json_schema: { strict: true, schema: ANSWER_JSON_SCHEMA } });
-    expect(out).toEqual({ text: '{"status":"answered"}', stop: "end", model: "modello-aperto-v1", usage: { input: 1000, cacheWrite: 0, cacheRead: 5000, output: 80, webSearches: 0 } });
+    expect(out).toEqual({ text: '{"status":"answered"}', stop: "end", model: "modello-aperto-v1", usage: { input_tokens: 1000, output_tokens: 80, cache_read_input_tokens: 5000, cache_creation_input_tokens: 0 } });
   });
 
   it("traduce troncamento, rifiuto e filtri", async () => {
@@ -153,17 +155,18 @@ describe("risposta con un fornitore diverso da Anthropic", () => {
     const ref = loaded.content.assertions[0]!.ref;
     const fetch = fakeFetch(200, completion({ content: JSON.stringify({ status: "partial", answer: "So solo questo.", citations: [ref] }) }));
     const ai = { local: new OpenAICompatibleAdapter("https://x.eu", "k", "m", fetch), web: null };
-    const out = await askGuide(ai, loaded, req, { config: webConfig({}), supported: true, permitted: () => true });
+    const out = await askGuide(ai, loaded, req, { config: webConfig({}), supported: true, permitted: () => true }, new QuestionBudget(1));
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(out.answer).toMatchObject({ status: "partial", origin: "local", citations: [ref] });
     expect(out.web).toBeUndefined();
-    // Nessun listino per un modello sconosciuto: costo non stimato, non zero.
-    expect(out.costUsd).toBeNull();
+    // Nessun listino per un modello sconosciuto: qualità "unknown", costo contato con le tariffe prudenti, mai zero.
+    expect(out.costQuality).toBe("unknown");
+    expect(out.costUsd).toBeGreaterThan(0);
   });
 
   it("una risposta inventata viene scartata anche dal modello aperto", async () => {
     const fetch = fakeFetch(200, completion({ content: JSON.stringify({ status: "answered", answer: "Fu costruito nel 1312.", citations: [loaded.content.assertions[0]!.ref] }) }));
-    const out = await askGuide({ local: new OpenAICompatibleAdapter("https://x.eu", "k", "m", fetch), web: null }, loaded, req);
+    const out = await askGuide({ local: new OpenAICompatibleAdapter("https://x.eu", "k", "m", fetch), web: null }, loaded, req, null, new QuestionBudget(1));
     expect(out.answer.status).toBe("rejected");
     expect(out.rejected).toContain("1312");
   });

@@ -7,6 +7,7 @@ import {
   type Locale,
   MEDIA_FILES_DIR,
   type TerritoryPack,
+  UNIT_TYPES,
 } from "@guide/domain";
 import { reachablePacks } from "@guide/narrative-planner";
 import { hasErrors, validatePacks, type PackIssue } from "@guide/territory-pack";
@@ -324,9 +325,36 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
   const explorePremium = access?.explore === "premium";
   const premiumRouteRefs = new Set((access?.premiumRoutes ?? []).map(destRef));
   const introPlaces = new Set((access?.introPlaces ?? []).map(destRef));
-  // Esplorazione a pagamento: pubbliche solo le aperture dei luoghi introduttivi, con ciò che serve a capirle.
+  const freePlaces = new Set((access?.freePlaces ?? []).map(destRef));
+  // Luoghi principali e sottoluoghi (decisione del 2026-10-22): un sottoluogo è un luogo della destinazione che fa
+  // parte (partOf) di un altro luogo della destinazione; un solo livello, lo garantisce il validatore. Ogni altro luogo
+  // della destinazione è principale: la sua panoramica (il racconto d'apertura) è gratuita, il resto si sblocca
+  // acquistando il luogo principale, che comprende i suoi sottoluoghi.
+  const destPlaceRefs = new Set(places.filter((p) => p.ref.startsWith(`${destination}:`)).map((p) => p.ref));
+  const parentOf = new Map(
+    places.flatMap((p) => (destPlaceRefs.has(p.ref) && p.partOf && p.partOf !== p.ref && destPlaceRefs.has(p.partOf) ? [[p.ref, p.partOf] as const] : [])),
+  );
+  const isPrincipal = (ref: string) => destPlaceRefs.has(ref) && !parentOf.has(ref);
+  // Panoramica di un luogo principale (decisione del 2026-10-22): i suoi racconti d'apertura; se non ne ha, il suo primo
+  // racconto nell'ordine dei tipi (contesto, dettaglio, curiosità…) e poi del riferimento. Senza racconti, nessuna.
+  const typeRank = (u: BundleUnit) => UNIT_TYPES.indexOf(u.unitType);
+  const overviewRefs = new Set<string>();
+  for (const ref of destPlaceRefs) {
+    if (!isPrincipal(ref)) continue;
+    const own = safeUnits.filter((u) => u.anchor === ref);
+    const openings = own.filter((u) => u.unitType === "opening");
+    const first = [...own].sort((a, b) => typeRank(a) - typeRank(b) || a.ref.localeCompare(b.ref))[0];
+    for (const u of openings.length > 0 ? openings : first ? [first] : []) overviewRefs.add(u.ref);
+  }
+  // Esplorazione a pagamento: pubbliche le panoramiche dei luoghi principali (e le aperture dei luoghi introduttivi)
+  // e tutti i racconti dei luoghi gratuiti, con ciò che serve a capirli.
   const publicUnits = explorePremium
-    ? withPrerequisites(safeUnits.filter((u) => u.unitType === "opening" && introPlaces.has(u.anchor)), safeUnits)
+    ? withPrerequisites(
+        safeUnits.filter(
+          (u) => freePlaces.has(u.anchor) || overviewRefs.has(u.ref) || (u.unitType === "opening" && introPlaces.has(u.anchor)),
+        ),
+        safeUnits,
+      )
     : safeUnits;
   const publicUnitRefs = new Set(publicUnits.map((u) => u.ref));
   // I fatti dei racconti a pagamento non devono arrivare all'app (né alle risposte dell'AI) per altra via.
@@ -373,11 +401,29 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     };
   };
   if (explorePremium) premium.push(part("explore", safeUnits.filter((u) => !publicUnitRefs.has(u.ref)), []));
-  // Percorso premium: solo l'itinerario (tappe, durata, fonti). I racconti delle tappe restano dove sono:
-  // pubblici se l'esplorazione è gratuita, nell'esplorazione completa se è a pagamento. Scelta prudente: un acquisto
-  // di percorso non sblocca racconti dell'esplorazione (vedi docs/v0.3-platform/ACCESSO-CONTENUTI.md, «Percorsi»).
+  // Percorso premium (decisione del 2026-10-18): itinerario completo più i racconti delle sue tappe, con ciò che
+  // serve a capirli, così il percorso è un'esperienza autonoma anche senza l'esplorazione. Solo i racconti non già
+  // pubblici: con l'esplorazione gratuita il file del percorso contiene solo l'itinerario.
+  // Vedi docs/v0.3-platform/ACCESSO-CONTENUTI.md, «Percorsi».
   for (const r of routes.filter((r) => premiumRouteRefs.has(r.ref)).sort(byRef)) {
-    premium.push(part("route", [], [r], r.ref));
+    const stops = new Set(r.stops.map((st) => st.place));
+    const stopUnits = withPrerequisites(safeUnits.filter((u) => stops.has(u.anchor)), safeUnits).filter((u) => !publicUnitRefs.has(u.ref));
+    premium.push(part("route", stopUnits, [r], r.ref));
+  }
+  // Luogo principale (migrazioni 20261028000000, 20261101000000 e 20261102000000): con l'esplorazione a pagamento,
+  // ogni luogo principale non gratuito ha la sua parte con i propri racconti e quelli dei suoi sottoluoghi, più ciò che
+  // serve a capirli; un principale gratuito con sottoluoghi a pagamento ha la parte con i soli sottoluoghi (i suoi
+  // racconti sono già pubblici). Si compra da solo; i sottoluoghi non hanno una parte propria. Chi ha l'esplorazione
+  // completa ha già tutto.
+  if (explorePremium) {
+    const paidSubs = (ref: string) => [...parentOf].filter(([sub, parent]) => parent === ref && !freePlaces.has(sub)).map(([sub]) => sub);
+    for (const p of places.filter((p) => isPrincipal(p.ref) && (!freePlaces.has(p.ref) || paidSubs(p.ref).length > 0)).sort(byRef)) {
+      // Anche senza racconti (decisione del 2026-10-18): chi compra il luogo ha il diritto, e i racconti aggiunti dopo
+      // entrano in questo file alla pubblicazione successiva.
+      const members = new Set([p.ref, ...paidSubs(p.ref)]);
+      const placeUnits = withPrerequisites(safeUnits.filter((u) => members.has(u.anchor)), safeUnits).filter((u) => !publicUnitRefs.has(u.ref));
+      premium.push(part("place", placeUnits, [], p.ref));
+    }
   }
 
   const content: BundleContent = {
@@ -411,6 +457,17 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
               .filter((r) => premiumRouteRefs.has(r.ref))
               .sort(byRef)
               .map((r) => ({ ref: r.ref, name: r.name, durationMin: r.durationMin })),
+            // Luoghi a pagamento: lo decide lo Studio (decisione del 2026-10-18), non la presenza di racconti. Tutti i
+            // luoghi della destinazione tranne i gratuiti, anche quelli ancora senza racconti; dei principali resta
+            // gratuita la panoramica (decisione del 2026-10-22).
+            ...(explorePremium
+              ? {
+                  places: places
+                    .filter((p) => destPlaceRefs.has(p.ref) && !freePlaces.has(p.ref))
+                    .map((p) => p.ref)
+                    .sort(),
+                }
+              : {}),
           },
         }
       : {}),

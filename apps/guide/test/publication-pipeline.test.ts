@@ -14,6 +14,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/static-index", () => ({ staticDestinations: async () => new Set<string>() }));
 const { runPublication } = await import("../lib/studio/server");
+const { uploadRetrying } = await import("../lib/studio/publish");
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TERRITORIES = resolve(here, "../../../territories");
@@ -27,6 +28,8 @@ const LEGACY_CONTENT = "content.0000000000000000.json";
 const LOCALES = ["it", "en"];
 const folder = (loc: string) => `${VILLAGE}/${loc}-full`;
 const UUID = /^[^/]+\/[a-z]{2}-full\/([0-9a-f-]{36})\/(manifest\.json|content\.[0-9a-f]+\.json)$/;
+/** Cartella di una pubblicazione nel bucket privato «premium». */
+const PREMIUM_NS = /^[^/]+\/[a-z]{2}\/([0-9a-f-]{36})\/(explore|(?:route|place)-[a-z0-9-]+)\.[0-9a-f]{16,64}\.json$/;
 
 function snapshots() {
   const packs = structuredClone(loadPacks(TERRITORIES).packs);
@@ -49,6 +52,8 @@ interface Hooks {
   /** Prima di eseguire il caricamento di un file. */
   onUpload?: (path: string) => Promise<void>;
   failUpload?: (path: string) => boolean;
+  /** Errore temporaneo dello Storage (sovraccarico) per i primi N tentativi di quel file. */
+  busyUpload?: (path: string) => number;
   /** Caricamento che risponde «riuscito» ma il file non c'è (lo si scopre solo rileggendo il bucket). */
   loseUpload?: (path: string) => boolean;
   renewError?: boolean;
@@ -57,6 +62,7 @@ interface Hooks {
 /** Database e bucket finti condivisi da più pipeline (A, B, …): ogni presa in carico riceve il prossimo id. */
 function world(claims: string[], hooks: Hooks = {}) {
   const files = new Map<string, string>();
+  const attempts = new Map<string, number>();
   // Versione in linea all'inizio: struttura precedente (manifest unico e index.json).
   for (const loc of LOCALES) {
     files.set(`${folder(loc)}/${LEGACY_CONTENT}`, "{}");
@@ -77,44 +83,54 @@ function world(claims: string[], hooks: Hooks = {}) {
     return !!p && (p.status === "failed" || (p.status === "published" && [...pubs.values()].some((q) => q.status === "published" && q.finished > p.finished && reflected(q.gen))));
   };
   const namespacedLive = () => [...pubs.values()].some((p) => p.status === "published" && reflected(p.gen) && /[0-9a-f-]{36}\/manifest/.test(JSON.stringify(p.entries)));
-  const bucket = (name: string) => ({
-    async list(path: string, opts: { limit: number; sortBy?: { order: string } } = { limit: 100 }) {
-      const names = [...files.keys()].filter((k) => k.startsWith(`${path}/`)).map((k) => k.slice(path.length + 1)).filter((n) => !n.includes("/")).sort();
-      if (opts.sortBy?.order === "desc") names.reverse();
-      return { data: names.slice(0, opts.limit).map((n) => ({ name: n })), error: null };
-    },
-    async upload(path: string, data: Uint8Array, opts: { upsert?: boolean }) {
-      await hooks.onUpload?.(path);
-      if (hooks.failUpload?.(path)) return { data: null, error: { message: "caricamento non riuscito" } };
-      const deny = (why: string) => { log.rejected.push(path); return { data: null, error: { message: why } }; };
-      if (name !== "bundles") return deny("bucket");
-      if (opts.upsert) return deny("upsert non ammesso (nessuna policy di aggiornamento)");
-      if (files.has(path)) return { data: null, error: { message: "The resource already exists" } };
-      const ns = UUID.exec(path);
-      const idx = /^index\/(\d{20})\.json$/.exec(path);
-      const allowed = /^[^/]+\/[a-z]{2}-full\/media\//.test(path) || (ns && pubs.get(ns[1])?.status === "building") || (idx && Number(idx[1]) <= seq);
-      if (!allowed) return deny("new row violates row-level security policy");
-      if (!hooks.loseUpload?.(path)) files.set(path, new TextDecoder().decode(data));
-      log.uploads.push(path);
-      return { data: { path }, error: null };
-    },
-    async download(path: string) {
-      const v = files.get(path);
-      return v === undefined ? { data: null, error: { message: "Object not found" } } : { data: new Blob([v]), error: null };
-    },
-    async remove(paths: string[]) {
-      for (const p of paths) {
-        const ns = UUID.exec(p);
-        const legacyContent = /^[^/]+\/[a-z]{2}-full\/content\.[0-9a-f]+\.json$/.test(p);
-        // Come la policy di cancellazione: solo cartelle di pubblicazioni morte e, dopo la struttura nuova, i vecchi contenuti.
-        if ((ns && dead(ns[1])) || (legacyContent && namespacedLive())) {
-          files.delete(p);
-          log.removed.push(p);
+  // Un solo archivio per i due bucket: i file del bucket privato «premium» hanno il prefisso «premium::».
+  const bucket = (name: string) => {
+    const key = (p: string) => (name === "bundles" ? p : `${name}::${p}`);
+    return {
+      async list(path: string, opts: { limit: number; sortBy?: { order: string } } = { limit: 100 }) {
+        const names = [...files.keys()].filter((k) => k.startsWith(`${key(path)}/`)).map((k) => k.slice(key(path).length + 1)).filter((n) => !n.includes("/")).sort();
+        if (opts.sortBy?.order === "desc") names.reverse();
+        return { data: names.slice(0, opts.limit).map((n) => ({ name: n })), error: null };
+      },
+      async upload(path: string, data: Uint8Array, opts: { upsert?: boolean }) {
+        await hooks.onUpload?.(path);
+        if (hooks.failUpload?.(path)) return { data: null, error: { message: "caricamento non riuscito" } };
+        const busy = hooks.busyUpload?.(path) ?? 0;
+        if (busy > 0 && (attempts.set(key(path), (attempts.get(key(path)) ?? 0) + 1), attempts.get(key(path))!) <= busy) {
+          return { data: null, error: { message: "Too many connections issued to the database" } };
         }
-      }
-      return { data: [], error: null };
-    },
-  });
+        const deny = (why: string) => { log.rejected.push(path); return { data: null, error: { message: why } }; };
+        if (name !== "bundles" && name !== "premium") return deny("bucket");
+        if (opts.upsert) return deny("upsert non ammesso (nessuna policy di aggiornamento)");
+        if (files.has(key(path))) return { data: null, error: { message: "The resource already exists" } };
+        const ns = name === "premium" ? PREMIUM_NS.exec(path) : UUID.exec(path);
+        const idx = /^index\/(\d{20})\.json$/.exec(path);
+        const allowed = name === "premium"
+          ? ns && pubs.get(ns[1])?.status === "building"
+          : /^[^/]+\/[a-z]{2}-full\/media\//.test(path) || (ns && pubs.get(ns[1])?.status === "building") || (idx && Number(idx[1]) <= seq);
+        if (!allowed) return deny("new row violates row-level security policy");
+        if (!hooks.loseUpload?.(path)) files.set(key(path), new TextDecoder().decode(data));
+        log.uploads.push(key(path));
+        return { data: { path }, error: null };
+      },
+      async download(path: string) {
+        const v = files.get(key(path));
+        return v === undefined ? { data: null, error: { message: "Object not found" } } : { data: new Blob([v]), error: null };
+      },
+      async remove(paths: string[]) {
+        for (const p of paths) {
+          const ns = name === "premium" ? PREMIUM_NS.exec(p) : UUID.exec(p);
+          const legacyContent = name === "bundles" && /^[^/]+\/[a-z]{2}-full\/content\.[0-9a-f]+\.json$/.test(p);
+          // Come la policy di cancellazione: solo cartelle di pubblicazioni morte e, dopo la struttura nuova, i vecchi contenuti.
+          if ((ns && dead(ns[1])) || (legacyContent && namespacedLive())) {
+            files.delete(key(p));
+            log.removed.push(key(p));
+          }
+        }
+        return { data: [], error: null };
+      },
+    };
+  };
   const rpc = async (fn: string, args: Record<string, unknown>) => {
     switch (fn) {
       case "studio_publication_claim": {
@@ -288,6 +304,24 @@ describe("pipeline di pubblicazione immutabile (R2)", () => {
     }
   });
 
+  it("Storage sovraccarico («Too many connections»): si riprova e la pubblicazione va in linea", async () => {
+    const w = world([A], { busyUpload: (p) => (/\/content\.|\/place-|manifest\.json$/.test(p) ? 1 : 0) });
+    const r = await runPublication(w.supabase, VILLAGE);
+    expect(r.errors).toEqual([]);
+    expect(r.ok).toBe(true);
+    expect(JSON.stringify(w.served())).toContain(A);
+    expect(w.servedIsComplete()).toBe(true);
+  });
+
+  it("Storage sempre sovraccarico: dopo i tentativi la pubblicazione si ferma e la versione in linea resta", async () => {
+    const w = world([A], { busyUpload: (p) => (/\/content\./.test(p) ? 99 : 0) });
+    const before = JSON.stringify(w.served());
+    const r = await runPublication(w.supabase, VILLAGE);
+    expect(r.ok).toBe(false);
+    expect(r.errors.join(" ")).toMatch(/Too many connections/);
+    expect(JSON.stringify(w.served())).toBe(before);
+  }, 30000);
+
   it("un file risulta caricato ma nel bucket non c'è: la pubblicazione non va in linea", async () => {
     const w = world([A], { loseUpload: (p) => p === `${folder("en")}/${A}/manifest.json` });
     const before = JSON.stringify(w.served());
@@ -310,7 +344,12 @@ describe("pipeline di pubblicazione immutabile (R2)", () => {
     expect(w.servedIsComplete()).toBe(true);
     // A (sostituita) è morta e non più nell'indice: tolta; B resta.
     expect([...w.files.keys()].some((k) => k.includes(`/${A}/`))).toBe(false);
-    expect([...w.files.keys()].filter((k) => k.includes(`/${B}/`)).length).toBe(LOCALES.length * 2);
+    expect([...w.files.keys()].filter((k) => k.includes(`/${B}/`) && !k.startsWith("premium::")).length).toBe(LOCALES.length * 2);
+    // Anche nel bucket privato: via le parti a pagamento di A, restano quelle di B (esplorazione e percorso per lingua,
+    // più i singoli luoghi in vendita).
+    const premiumB = [...w.files.keys()].filter((k) => k.startsWith("premium::") && k.includes(`/${B}/`));
+    expect(premiumB.filter((k) => /\/(explore|route-[a-z0-9-]+)\./.test(k)).length).toBe(LOCALES.length * 2);
+    expect(premiumB.some((k) => /\/place-[a-z0-9-]+\./.test(k))).toBe(true);
   });
 
   it("tre pubblicazioni di fila: l'indice servito va solo avanti e punta sempre a file completi", async () => {
@@ -320,5 +359,35 @@ describe("pipeline di pubblicazione immutabile (R2)", () => {
       expect(JSON.stringify(w.served())).toContain(id);
       expect(w.servedIsComplete()).toBe(true);
     }
+  });
+});
+
+describe("nuovi tentativi di caricamento (uploadRetrying)", () => {
+  const busy = { error: { message: "Too many connections issued to the database" } };
+  const run = (answers: { error: { message: string } | null }[]) => {
+    let i = 0;
+    const waits: number[] = [];
+    const call = () => Promise.resolve(answers[Math.min(i++, answers.length - 1)]!);
+    return { result: uploadRetrying(call, [1, 2, 3], async (ms) => { waits.push(ms); }), waits, calls: () => i };
+  };
+
+  it("riprova solo gli errori temporanei, con attese crescenti", async () => {
+    const ok = run([busy, busy, { error: null }]);
+    expect((await ok.result).error).toBeNull();
+    expect(ok.waits).toEqual([1, 2]);
+    const denied = run([{ error: { message: "new row violates row-level security policy" } }]);
+    expect((await denied.result).error?.message).toMatch(/row-level/);
+    expect(denied.calls()).toBe(1);
+  });
+
+  it("file già presente dopo un errore temporaneo: il tentativo precedente era arrivato; al primo tentativo invece è un errore", async () => {
+    expect((await run([busy, { error: { message: "The resource already exists" } }]).result).error).toBeNull();
+    expect((await run([{ error: { message: "The resource already exists" } }]).result).error).not.toBeNull();
+  });
+
+  it("dopo l'ultimo tentativo resta l'errore", async () => {
+    const r = run([busy]);
+    expect((await r.result).error?.message).toMatch(/Too many connections/);
+    expect(r.calls()).toBe(4);
   });
 });

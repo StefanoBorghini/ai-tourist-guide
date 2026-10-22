@@ -35,19 +35,21 @@ export function Notice({ ok, errore }: { ok?: string; errore?: string }) {
   return null;
 }
 
-export type PackTab = "panoramica" | "luoghi" | "percorsi" | "racconti" | "affermazioni" | "fonti" | "media" | "accesso";
+export type PackTab = "panoramica" | "luoghi" | "percorsi" | "racconti" | "affermazioni" | "fonti" | "media" | "eventi" | "vendita";
 
 export function PackTabs({ pack, current }: { pack: string; current: PackTab | null }) {
   const base = `/studio/${encodeURIComponent(pack)}`;
   const tabs = [
+    // Nell'ordine in cui si lavora: luoghi, fonti, fatti con la loro fonte, racconti costruiti sui fatti, percorsi.
     ["panoramica", "Panoramica"],
     ["luoghi", "Luoghi"],
-    ["percorsi", "Percorsi"],
-    ["racconti", "Racconti"],
-    ["affermazioni", "Affermazioni"],
     ["fonti", "Fonti"],
+    ["affermazioni", "Fatti"],
+    ["racconti", "Racconti"],
+    ["percorsi", "Percorsi"],
     ["media", "Foto"],
-    ["accesso", "Accesso"],
+    ["eventi", "Eventi"],
+    ["vendita", "Vendita"],
   ] as const;
   return (
     <nav className="st-tabs" aria-label="Sezioni del territorio">

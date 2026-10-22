@@ -10,13 +10,15 @@
  * limiti e senza configurazione. Poi limiti per indirizzo e tetto di spesa giornaliero (lib/limits.ts).
  *
  * Il modello della risposta locale si sceglie con le variabili d'ambiente (lib/model.ts → modelsConfig):
- * per default Anthropic con ANTHROPIC_API_KEY. Senza configurazione valida risponde 503 e l'app
- * continua a funzionare (solo racconto, niente domande).
+ * per default Anthropic con ANTHROPIC_API_KEY. Serve anche ASK_MAX_USD_PER_QUESTION (budget stimato
+ * per domanda, lib/ask-cost.ts). Senza configurazione valida risponde 503 e l'app continua a
+ * funzionare (solo racconto, niente domande).
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { askRequestSchema, fallbackAnswer, type AskAnswer } from "../../../../lib/ask";
+import { QuestionBudget, questionBudgetConfig } from "../../../../lib/ask-cost";
 import { PERSONA_VERSION, PROMPT_VERSION, askGuide, bundleVersions, GuideUnavailableError, loadKnowledge, webSearchSupported } from "../../../../lib/ask-server";
-import { DailyCounter, TtlCache, cacheKey, cacheable, redactForLog, reserveUsd, webConfig } from "../../../../lib/ask-web";
+import { DailyCounter, TtlCache, cacheKey, cacheable, redactForLog, webConfig } from "../../../../lib/ask-web";
 import { detectEmergency } from "../../../../lib/emergency";
 import { SpendGuard, WindowLimiter, dailyBudgetUsd } from "../../../../lib/limits";
 import { ModelError, modelsConfig, modelsFromEnv, type AskModels } from "../../../../lib/model";
@@ -31,6 +33,8 @@ const WINDOW_MS = 10 * 60_000;
 const MAX_PER_WINDOW = 20;
 
 const config = webConfig();
+const budgetConfig = questionBudgetConfig();
+if (!budgetConfig.ok) console.error(JSON.stringify({ event: "ask_config_error", error: budgetConfig.error }));
 const askLimiter = new WindowLimiter(MAX_PER_WINDOW, WINDOW_MS);
 const webLimiter = new WindowLimiter(config.perIp, WINDOW_MS);
 const webDaily = new DailyCounter(config.dailyLimit);
@@ -47,19 +51,21 @@ const getModels = () => (models === undefined ? (models = modelsFromEnv()) : mod
  */
 export async function GET(): Promise<Response> {
   const setup = modelsConfig();
-  const web = setup.ok ? (getModels()?.web ?? null) : null;
+  const available = setup.ok && budgetConfig.ok;
+  const web = available ? (getModels()?.web ?? null) : null;
   const [bundles, supported] = await Promise.all([
     bundleVersions().catch(() => []),
     web && config.enabled ? webSearchSupported(web, config.model) : Promise.resolve(null),
   ]);
   return Response.json(
     {
-      available: setup.ok,
+      available,
       ...(setup.ok ? { provider: setup.provider, model: setup.model } : {}),
       prompt: PROMPT_VERSION,
       persona: PERSONA_VERSION,
       bundles,
       web: { enabled: web !== null && config.enabled, model: config.model, tool: "web_search_20260318", maxUses: config.maxUses, supported },
+      budget: { configured: budgetConfig.ok },
     },
     { headers: { "cache-control": "no-store" } },
   );
@@ -77,8 +83,9 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(fallbackAnswer(req.locale, "safety"), { headers: { "cache-control": "no-store" } });
   }
 
-  const ai = getModels();
-  if (!ai) return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 503 });
+  // Senza modello configurato o senza budget valido nessuna chiamata al modello.
+  const ai = budgetConfig.ok ? getModels() : null;
+  if (!ai || !budgetConfig.ok) return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 503 });
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
   if (askLimiter.hit(ip)) return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 429 });
 
@@ -97,33 +104,31 @@ export async function POST(request: Request): Promise<Response> {
   if (hit) {
     console.info(JSON.stringify({ event: "ask", status: hit.status, origin: hit.origin ?? "local", cached: true, kbHash: loaded.kbHash, prompt: PROMPT_VERSION, ms: Date.now() - started }));
     // Dalla cache: nessuna chiamata al modello, costo zero.
-    const meter = { models: [], calls: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, webSearches: 0, costUsd: 0 };
+    const meter = { models: [], calls: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, webSearches: 0, costUsd: 0, costQuality: "measured" as const };
     return Response.json({ ...hit, cached: true, meter });
   }
 
-  // Tetto di spesa: la riserva prudente della risposta locale deve starci; la ricerca chiede la sua.
-  const localReserve = reserveUsd(ai.local.model, null);
-  const webReserve = Math.max(0, reserveUsd(ai.local.model, config) - localReserve);
-  if (!spend.allows(localReserve)) {
+  // Tetto giornaliero per istanza: deve starci il budget massimo di una domanda.
+  if (!spend.allows(budgetConfig.maxUsd)) {
     console.warn(JSON.stringify({ event: "budget_exceeded", dailyUsd: spend.dailyUsd, spentUsd: spend.spentToday() }));
     return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 503, headers: { "retry-after": "3600" } });
   }
 
+  const budget = new QuestionBudget(budgetConfig.maxUsd);
   try {
     const supported = ai.web && config.enabled ? await webSearchSupported(ai.web, config.model) : null;
     const outcome = await askGuide(ai, loaded, req, {
       config,
       supported,
       permitted: () => {
-        if (!webDaily.available() || !webLimiter.allows(ip) || !spend.allows(localReserve + webReserve)) return false;
+        if (!webDaily.available() || !webLimiter.allows(ip)) return false;
         webDaily.take();
         webLimiter.hit(ip);
         return true;
       },
-    });
-    // Costo stimato; se non si può stimare (modello senza listino) si conta la riserva prudente.
-    const calls = outcome.answer.meter?.calls ?? 0;
-    spend.record(outcome.costUsd ?? (calls === 0 ? 0 : localReserve + (outcome.usage.web ? webReserve : 0)));
+    }, budget);
+    // Il costo della domanda (reale o stimato, mai zero se c'è stata una chiamata) entra nel tetto del giorno.
+    spend.record(outcome.costUsd);
     // Lacune della base di conoscenza: domande senza risposta verificata, utili alla redazione.
     if (outcome.answer.status === "not_in_knowledge" || outcome.rejected || outcome.answer.origin === "web") {
       console.info(JSON.stringify({
@@ -153,27 +158,46 @@ export async function POST(request: Request): Promise<Response> {
       persona: PERSONA_VERSION,
       // Modelli che hanno risposto davvero (dalla risposta dell'API; ai.local.model è quello richiesto).
       models: outcome.answer.meter?.models ?? [ai.local.model],
-      calls,
+      calls: outcome.answer.meter?.calls ?? 0,
       usage: outcome.usage,
       costUsd: outcome.costUsd,
+      // measured = consumi dell'API a listino; estimated / unknown = vedi lib/ask-cost.ts.
+      costQuality: outcome.costQuality,
+      budget: outcome.budget,
       spentTodayUsd: spend.spentToday(),
+      modelCalls: outcome.calls.map(callLog),
       otherPlaceCitations: outcome.answer.otherPlaceCitations ?? [],
-      web: outcome.web ? { attempted: outcome.web.attempted, searches: outcome.web.searches, sources: outcome.web.sources.length, error: outcome.web.error, searchErrors: outcome.web.searchErrors } : null,
+      web: outcome.web ? { attempted: outcome.web.attempted, searches: outcome.web.searches, rounds: outcome.web.rounds, sources: outcome.web.sources.length, error: outcome.web.error, searchErrors: outcome.web.searchErrors } : null,
       ms: Date.now() - started,
     }));
     if (key && cacheable(outcome.answer)) answers.set(key, { ...outcome.answer, meter: undefined });
     return Response.json(outcome.answer);
   } catch (error) {
-    // La chiamata può essere costata anche se è fallita: si conta la riserva della risposta locale.
-    spend.record(localReserve);
-    if ((error instanceof ModelError && error.kind === "rate_limit") || error instanceof Anthropic.RateLimitError) {
-      return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 429 });
-    }
-    if (error instanceof ModelError || error instanceof Anthropic.APIError) {
-      console.error(JSON.stringify({ event: "ask_error", provider: ai.local.provider, status: error.status, message: error.message }));
+    // Anche quando la risposta non arriva, ciò che è stato speso (o stimato) finisce nei log e nel tetto.
+    spend.record(budget.spentUsd);
+    const cost = { budget: budget.summary(), modelCalls: budget.calls.map(callLog) };
+    if (error instanceof Anthropic.APIError || error instanceof ModelError) {
+      console.error(JSON.stringify({ event: "ask_error", provider: ai.local.provider, status: error.status, message: error.message, ...cost }));
     } else {
-      console.error(JSON.stringify({ event: "ask_error", provider: ai.local.provider, message: (error as Error).message }));
+      console.error(JSON.stringify({ event: "ask_error", provider: ai.local.provider, message: (error as Error).message, ...cost }));
+    }
+    if (error instanceof Anthropic.RateLimitError || (error instanceof ModelError && error.kind === "rate_limit")) {
+      return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 429 });
     }
     return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 502 });
   }
 }
+
+/** Una chiamata al modello nei log: piano, esito, consumi e costo, nessun contenuto. */
+const callLog = (c: QuestionBudget["calls"][number]) => ({
+  kind: c.kind,
+  round: c.round,
+  models: c.models,
+  maxTokens: c.maxTokens,
+  searchesAllowed: c.searchesAllowed,
+  outcome: c.outcome,
+  error: c.error,
+  usage: c.usage,
+  usd: c.usd,
+  quality: c.quality,
+});

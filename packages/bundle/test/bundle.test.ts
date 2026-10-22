@@ -9,6 +9,8 @@ import { loadPacks } from "@guide/territory-pack";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
   allowedPremiumParts,
+  mergePremium,
+  type BundleContent,
   BundleBuildError,
   BundleIntegrityError,
   buildBundle,
@@ -276,9 +278,26 @@ describe("anteprima per i territori non ancora in produzione", () => {
   });
 });
 
+/**
+ * Panoramiche (racconti d'apertura) anche per chiesa, torre e belvedere, come in un territorio reale: senza, la
+ * panoramica gratuita di un luogo principale sarebbe il suo primo racconto (decisione del 2026-10-22, testata a parte).
+ */
+const OPENED = ["belvedere", "chiesa-di-san-test", "torre-di-prova"];
+const withOpenings = (src: Map<string, TerritoryPack>) => {
+  const copy = structuredClone(src);
+  for (const place of OPENED) {
+    copy.get(D)!.units.push({
+      id: `${place}-panoramica-it`, anchor: place, unitType: "opening", locale: "it", audience: "general", durationS: 15,
+      text: "Panoramica di prova.", assertions: ["porta-funzione"], introduces: [], requires: [], hooks: [],
+    });
+  }
+  return copy;
+};
+const OPENING_REFS = OPENED.map((p) => ref(`${p}-panoramica-it`));
+
 describe("contenuti a pagamento (config.access)", () => {
   const withAccess = (access: NonNullable<TerritoryPack["config"]["access"]>) => {
-    const copy = structuredClone(packs);
+    const copy = withOpenings(packs);
     copy.get(D)!.config.access = access;
     return buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
   };
@@ -287,23 +306,31 @@ describe("contenuti a pagamento (config.access)", () => {
   const PREMIUM_TEXTS = ["cantasse", "1150", "1220", "sue poesie", "presidiata"];
 
   it("senza configurazione tutto è pubblico e il bundle non cambia", () => {
-    const free = build();
+    const free = buildBundle(withOpenings(packs), { destination: D, locale: "it", allowFictional: true });
     const explicit = withAccess({ explore: "free", introPlaces: [], premiumRoutes: [] });
     expect(free.premium).toEqual([]);
     expect(free.content.locked).toBeUndefined();
     expect(contentJson(explicit)).toBe(contentJson(free));
   });
 
-  it("esplorazione a pagamento: pubbliche solo le aperture dei luoghi introduttivi e ciò che serve a capirle", () => {
+  it("esplorazione a pagamento: pubbliche solo le panoramiche (aperture) dei luoghi principali e ciò che serve a capirle", () => {
     const b = withAccess({ explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: [] });
-    expect(b.content.units.map((u) => u.ref)).toEqual(["it.test:repubblica-introduzione-it", ref("porta-apertura-it")]);
+    expect(b.content.units.map((u) => u.ref)).toEqual(
+      ["it.test:repubblica-introduzione-it", ...OPENING_REFS, ref("porta-apertura-it")].sort((a, b) => a.localeCompare(b)),
+    );
     expect(b.content.assertions.map((a) => a.ref).sort()).toEqual(
       ["it.test:repubblica-controllo-costa", ref("porta-funzione"), ref("porta-larghezza")].sort(),
     );
     // Mappa, luoghi e percorsi gratuiti restano.
     expect(b.content.places).toHaveLength(5);
     expect(b.content.routes.map((r) => r.ref)).toEqual([ref("giro-breve")]);
-    expect(b.content.locked).toEqual({ explore: true, routes: [] });
+    // Bloccati i luoghi a pagamento secondo lo Studio: tutti tranne i gratuiti, anche il carrugio, che non ha ancora
+    // racconti (decisione del 2026-10-18), e la porta, luogo principale di cui resta gratuita la sola panoramica
+    // (decisione del 2026-10-22).
+    expect(b.content.locked).toEqual({
+      explore: true, routes: [],
+      places: [ref("belvedere"), ref("carrugio-centrale"), ref("chiesa-di-san-test"), ref("porta-del-borgo"), ref("torre-di-prova")],
+    });
     // Nessun testo a pagamento in nessun file pubblico.
     const files = [...b.files.values()].filter((f): f is string => typeof f === "string").join("\n");
     for (const text of PREMIUM_TEXTS) expect(files).not.toContain(text);
@@ -319,6 +346,35 @@ describe("contenuti a pagamento (config.access)", () => {
     expect(explore!.sources.map((s) => s.ref)).toContain(ref("racconto-orale-fittizio"));
   });
 
+  it("la panoramica di un luogo principale è gratuita anche se non è introduttivo; quella di un sottoluogo no", () => {
+    const b = withAccess({ explore: "premium", introPlaces: [], premiumRoutes: [] });
+    expect(b.content.units.map((u) => u.ref)).toContain(ref("porta-apertura-it"));
+    // Il carrugio è un sottoluogo della porta: la sua apertura, se fosse un sottoluogo, resterebbe a pagamento.
+    const copy = withOpenings(packs);
+    const units = copy.get(D)!.units;
+    const porta = units.find((u) => u.id === "porta-apertura-it")!;
+    porta.anchor = "carrugio-centrale";
+    copy.get(D)!.config.access = { explore: "premium", introPlaces: [], premiumRoutes: [] };
+    const sub = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+    expect(sub.content.units.some((u) => u.anchor === ref("carrugio-centrale"))).toBe(false);
+    expect(sub.premium.find((p) => p.kind === "place" && p.ref === ref("porta-del-borgo"))!.units.map((u) => u.anchor)).toContain(ref("carrugio-centrale"));
+  });
+
+  it("senza racconto d'apertura la panoramica gratuita è il primo racconto del luogo principale (per tipo, poi riferimento)", () => {
+    const copy = structuredClone(packs);
+    copy.get(D)!.config.access = { explore: "premium", introPlaces: [], premiumRoutes: [] };
+    const b = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+    const refs = new Set(b.content.units.map((u) => u.ref));
+    // Chiesa (solo contesto) e torre (solo dettaglio): il loro unico racconto; belvedere: la curiosità prima della leggenda.
+    expect(refs.has(ref("chiesa-datazione-it"))).toBe(true);
+    expect(refs.has(ref("torre-dettaglio-it"))).toBe(true);
+    expect(refs.has(ref("belvedere-ada-it"))).toBe(true);
+    expect(refs.has(ref("belvedere-leggenda-it"))).toBe(false);
+    // Il carrugio è un sottoluogo: nessuna panoramica sua; la leggenda resta solo a pagamento.
+    expect(JSON.stringify(b.content.units)).not.toContain("cantasse");
+    expect(b.premium.find((p) => p.kind === "place" && p.ref === ref("belvedere"))!.units.map((u) => u.ref)).toEqual([ref("belvedere-leggenda-it")]);
+  });
+
   it("percorso premium: fuori dal bundle pubblico, presentato solo con nome e durata", () => {
     const b = withAccess({ explore: "free", introPlaces: [], premiumRoutes: ["giro-breve"] });
     expect(b.content.routes).toEqual([]);
@@ -327,18 +383,27 @@ describe("contenuti a pagamento (config.access)", () => {
     expect(b.premium[0]).toMatchObject({ kind: "route", ref: ref("giro-breve"), units: [] });
     expect(b.premium[0]!.routes[0]!.stops).toHaveLength(4);
     // Con l'esplorazione gratuita i racconti delle tappe restano pubblici.
-    expect(b.content.units.length).toBe(build().content.units.length);
+    expect(b.content.units.length).toBe(build().content.units.length + OPENED.length);
   });
 
-  it("percorso premium: la parte a pagamento è solo l'itinerario, nessun racconto dell'esplorazione", () => {
+  it("percorso premium: la parte a pagamento ha l'itinerario e i racconti delle sue tappe (decisione 2026-10-18)", () => {
     const b = withAccess({ explore: "premium", introPlaces: ["porta-del-borgo"], premiumRoutes: ["giro-breve"] });
     const route = b.premium.find((p) => p.kind === "route")!;
-    expect(route.units).toEqual([]);
-    expect(route.assertions).toEqual([]);
-    expect(route.routes.map((r) => r.ref)).toEqual([ref("giro-breve")]);
-    // I racconti delle tappe restano solo nell'esplorazione completa: comprare il percorso non li sblocca.
     const explore = b.premium.find((p) => p.kind === "explore")!;
-    expect(explore.units.map((u) => u.ref)).toContain(ref("torre-dettaglio-it"));
+    const stops = new Set(route.routes[0]!.stops.map((st) => st.place));
+    expect(route.routes.map((r) => r.ref)).toEqual([ref("giro-breve")]);
+    // Racconti delle tappe, con i loro fatti e fonti: il percorso si ascolta senza l'esplorazione.
+    expect(route.units.length).toBeGreaterThan(0);
+    expect(route.units.filter((u) => stops.has(u.anchor)).length).toBeGreaterThan(0);
+    for (const u of route.units) for (const a of u.assertions) expect(route.assertions.map((x) => x.ref)).toContain(a);
+    // Nessun racconto già pubblico, e nessuno dei luoghi fuori dal percorso se non serve a capire le tappe.
+    const publicRefs = new Set(b.content.units.map((u) => u.ref));
+    for (const u of route.units) expect(publicRefs.has(u.ref)).toBe(false);
+    const exploreRefs = new Set(explore.units.map((u) => u.ref));
+    for (const u of route.units) expect(exploreRefs.has(u.ref)).toBe(true);
+    // Ogni racconto del percorso è di una tappa o serve a capire una tappa (prerequisito introdotto altrove).
+    const stopRequires = new Set(route.units.filter((u) => stops.has(u.anchor)).flatMap((u) => u.requires));
+    for (const u of route.units) expect(stops.has(u.anchor) || u.introduces.some((c) => stopRequires.has(c))).toBe(true);
     expect(contentJson(b)).not.toContain("\"stops\"");
   });
 
@@ -369,7 +434,7 @@ describe("contenuti a pagamento (config.access)", () => {
   });
 
   it("le note di curatela restano nelle anteprime gratuite e spariscono con i contenuti a pagamento", () => {
-    const copy = structuredClone(packs);
+    const copy = withOpenings(packs);
     const dest = copy.get(D)!;
     dest.manifest.releaseStage = "research";
     dest.places[0]!.curation = { storyStatus: "da verificare", notes: ["Appunto della redazione sul racconto riservato"] };
@@ -391,7 +456,8 @@ describe("contenuti a pagamento (config.access)", () => {
     const library = libraryFromBundle(b.content);
     const at = (slug: string) => planStop({ library, memory: emptyMemory(), placeRef: ref(slug), locale: "it", timeBudgetS: 120 });
     expect(JSON.stringify(at("porta-del-borgo").items)).toContain(ref("porta-apertura-it"));
-    expect(at("torre-di-prova").items).toEqual([]);
+    // Della torre si racconta solo la panoramica gratuita, non il dettaglio a pagamento.
+    expect(JSON.stringify(at("torre-di-prova").items)).not.toContain(ref("torre-dettaglio-it"));
   });
 });
 
@@ -407,9 +473,17 @@ describe("diritti e parti a pagamento", () => {
     expect(kinds([{ scope: "explore", destination: D }])).toEqual(["explore:"]);
   });
 
-  it("un percorso dà solo quel percorso, nessun racconto dell'esplorazione", () => {
+  it("un percorso dà solo quel percorso, con i racconti delle sue tappe ma non l'esplorazione completa", () => {
     expect(kinds([{ scope: "route", route: ref("giro-breve") }])).toEqual([`route:${ref("giro-breve")}`]);
-    expect(allowedPremiumParts(D, parts(), [{ scope: "route", route: ref("giro-breve") }]).flatMap((p) => p.units)).toEqual([]);
+    const got = allowedPremiumParts(D, parts(), [{ scope: "route", route: ref("giro-breve") }]);
+    expect(got.flatMap((p) => p.units).length).toBeGreaterThan(0);
+    expect(got.some((p) => p.kind === "explore")).toBe(false);
+  });
+
+  it("un luogo dà solo quel luogo, mai l'esplorazione né un percorso", () => {
+    const place = parts().find((p) => p.kind === "place")!;
+    expect(kinds([{ scope: "place", place: place.ref! }])).toEqual([`place:${place.ref}`]);
+    expect(kinds([{ scope: "place", place: ref("luogo-inesistente") }])).toEqual([]);
   });
 
   it("senza diritti, o con diritti di un'altra destinazione o di un altro percorso, niente", () => {
@@ -419,5 +493,114 @@ describe("diritti e parti a pagamento", () => {
 
   it("esplorazione e percorso insieme: entrambe le parti", () => {
     expect(kinds([{ scope: "explore", destination: D }, { scope: "route", route: ref("giro-breve") }])).toEqual(["explore:", `route:${ref("giro-breve")}`]);
+  });
+});
+
+describe("unione dei contenuti acquistati (mergePremium)", () => {
+  const ACCESS = { explore: "premium" as const, introPlaces: ["porta-del-borgo"], premiumRoutes: ["giro-breve"] };
+  const built = () => {
+    const copy = withOpenings(packs);
+    copy.get(D)!.config.access = ACCESS;
+    return buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+  };
+  const told = (c: BundleContent) => new Set(c.units.map((u) => u.anchor));
+
+  it("percorso acquistato: il percorso si apre e i racconti delle sue tappe valgono anche nell'esplorazione libera", () => {
+    const b = built();
+    const route = b.premium.find((p) => p.kind === "route")!;
+    const merged = mergePremium(b.content, [route]);
+    expect(merged.routes.map((r) => r.ref)).toContain(ref("giro-breve"));
+    // Le tappe del percorso comprato escono dai luoghi bloccati; gli altri restano.
+    const stops = new Set(route.routes[0]!.stops.map((st) => st.place));
+    expect(merged.locked).toEqual({ explore: true, routes: [], places: b.content.locked!.places!.filter((r) => !stops.has(r)) });
+    expect(merged.locked!.places!.length).toBeGreaterThan(0);
+    // I luoghi delle tappe ora hanno i loro racconti nel contenuto: l'esplorazione libera li racconta.
+    for (const st of route.routes[0]!.stops) {
+      if (route.units.some((u) => u.anchor === st.place)) expect(told(merged).has(st.place)).toBe(true);
+    }
+    // Nessun racconto dell'esplorazione completa che non sia del percorso.
+    const extra = merged.units.filter((u) => !b.content.units.some((x) => x.ref === u.ref));
+    expect(extra.map((u) => u.ref).sort()).toEqual(route.units.map((u) => u.ref).sort());
+  });
+
+  it("esplorazione acquistata dopo il percorso: nessun racconto duplicato, tutto sbloccato tranne i percorsi non comprati", () => {
+    const b = built();
+    const route = b.premium.find((p) => p.kind === "route")!;
+    const explore = b.premium.find((p) => p.kind === "explore")!;
+    const both = mergePremium(mergePremium(b.content, [route]), [explore]);
+    const refs = both.units.map((u) => u.ref);
+    expect(new Set(refs).size).toBe(refs.length);
+    expect(both.locked).toBeUndefined();
+    // Stesso risultato in qualunque ordine arrivino le parti.
+    expect(mergePremium(b.content, [explore, route])).toEqual(both);
+  });
+
+  it("parti dei luoghi principali: una per principale, nessuna per i sottoluoghi; comprato il principale si sbloccano anche i sottoluoghi", () => {
+    const b = built();
+    const places = b.premium.filter((p) => p.kind === "place");
+    expect(places.map((p) => p.ref)).toEqual([ref("belvedere"), ref("chiesa-di-san-test"), ref("porta-del-borgo"), ref("torre-di-prova")]);
+    const porta = places.find((p) => p.ref === ref("porta-del-borgo"))!;
+    const withPorta = mergePremium(b.content, [porta]);
+    expect(withPorta.locked?.places).not.toContain(ref("porta-del-borgo"));
+    expect(withPorta.locked?.places).not.toContain(ref("carrugio-centrale"));
+    expect(withPorta.locked?.places).toContain(ref("belvedere"));
+    const one = places.find((p) => p.ref === ref("belvedere"))!;
+    // Prima dell'acquisto del belvedere c'è solo la sua panoramica, nessuno dei suoi racconti a pagamento.
+    expect(one.units.some((u) => b.content.units.some((x) => x.ref === u.ref))).toBe(false);
+    const merged = mergePremium(b.content, [one]);
+    expect(told(merged).has(one.ref!)).toBe(true);
+    expect(merged.locked?.explore).toBe(true);
+    expect(merged.locked?.places).not.toContain(one.ref);
+    expect(merged.locked?.places?.length).toBe(b.content.locked!.places!.length - 1);
+    // Gli altri luoghi in vendita restano senza i loro racconti a pagamento (al più la panoramica pubblica).
+    const mergedRefs = new Set(merged.units.map((u) => u.ref));
+    for (const other of places.filter((p) => p !== one)) {
+      for (const u of other.units.filter((x) => !one.units.some((y) => y.ref === x.ref))) expect(mergedRefs.has(u.ref)).toBe(false);
+    }
+    // Esplorazione comprata dopo il luogo: nessun racconto doppio.
+    const explore = b.premium.find((p) => p.kind === "explore")!;
+    const all = mergePremium(merged, [explore]);
+    expect(new Set(all.units.map((u) => u.ref)).size).toBe(all.units.length);
+    expect(all.locked).toEqual({ explore: false, routes: [{ ref: ref("giro-breve"), name: expect.any(String), durationMin: expect.any(Number) }] });
+  });
+
+  it("luogo gratuito: tutti i suoi racconti nel bundle pubblico, nessuna parte a pagamento, mai bloccato", () => {
+    const copy = withOpenings(packs);
+    copy.get(D)!.config.access = { ...ACCESS, freePlaces: ["belvedere"] };
+    const b = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+    const belvedere = b.content.units.filter((u) => u.anchor === ref("belvedere"));
+    expect(belvedere.length).toBeGreaterThan(1);
+    expect(b.premium.some((p) => p.kind === "place" && p.ref === ref("belvedere"))).toBe(false);
+    expect(b.content.locked?.places).not.toContain(ref("belvedere"));
+    expect(b.premium.find((p) => p.kind === "explore")!.units.some((u) => u.anchor === ref("belvedere"))).toBe(false);
+  });
+
+  const withFree = (free: string[]) => {
+    const copy = withOpenings(packs);
+    copy.get(D)!.config.access = { ...ACCESS, freePlaces: free };
+    return buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+  };
+  it("luogo principale gratuito con sottoluoghi a pagamento: la sua parte contiene solo i sottoluoghi e si compra", () => {
+    const copy = withOpenings(packs);
+    // La torre diventa sottoluogo del belvedere, che è gratuito.
+    copy.get(D)!.places.find((p) => p.id === "torre-di-prova")!.partOf = "belvedere";
+    copy.get(D)!.config.access = { ...ACCESS, freePlaces: ["belvedere"] };
+    const b = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+    expect(b.content.locked?.places).not.toContain(ref("belvedere"));
+    expect(b.content.locked?.places).toContain(ref("torre-di-prova"));
+    const part = b.premium.find((p) => p.kind === "place" && p.ref === ref("belvedere"))!;
+    expect(part.units.length).toBeGreaterThan(0);
+    expect(part.units.every((u) => u.anchor !== ref("belvedere"))).toBe(true);
+    expect(part.units.some((u) => u.anchor === ref("torre-di-prova"))).toBe(true);
+    const merged = mergePremium(b.content, [part]);
+    expect(merged.locked?.places).not.toContain(ref("torre-di-prova"));
+    // Un principale gratuito senza sottoluoghi a pagamento non ha parte.
+    const plain = withFree(["chiesa-di-san-test"]);
+    expect(plain.premium.some((p) => p.kind === "place" && p.ref === ref("chiesa-di-san-test"))).toBe(false);
+  });
+
+  it("senza parti il contenuto resta identico", () => {
+    const b = built();
+    expect(mergePremium(b.content, [])).toBe(b.content);
   });
 });

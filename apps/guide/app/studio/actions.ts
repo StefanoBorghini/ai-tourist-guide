@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { checkReadiness, refreshPublicIndex, requireStaff, rpc, runPublication, signedMediaUrls, studioClient, studioConfig, type PublicationResult } from "../../lib/studio/server";
 import { copyRepoMedia } from "../../lib/studio/repo-media";
+import { formatEuro, parseEuro, PLACE_DEFAULT_CENTS, priceProblem } from "../../lib/studio/catalog";
 import { premiumBlockedByStatic } from "../../lib/static-bundles";
 import { staticDestinations } from "../../lib/static-index";
 import { afterDeleteHref, checkMediaRights, checkStops, DELETE_KINDS, filesInPack, friendlyError, isDeleteKind, MEDIA_BUCKET, MEDIA_LICENSES, MEDIA_SOURCES } from "../../lib/studio/shared";
@@ -54,6 +55,29 @@ export async function signOut() {
 }
 
 // ---------------------------------------------------------------- luoghi
+
+/**
+ * Spunta «È un sottoluogo di …» (migrazione 20261101000000): il luogo diventa sottoluogo del luogo principale scelto, o
+ * torna principale. Un solo livello: le regole stanno nel database (studio_set_place_parent).
+ */
+export async function setPlaceParent(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const slug = text(form, "slug");
+  const path = `${packPath(pack)}/luoghi/${encodeURIComponent(slug)}`;
+  const isSub = form.get("isSub") === "1";
+  const parent = isSub ? text(form, "parent") : "";
+  if (isSub && !parent) back(path, { errore: "Scegli il luogo principale di cui fa parte." });
+  const { error } = await rpc(supabase, "studio_set_place_parent", { p_pack: pack, p_slug: slug, p_parent: parent || null });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(path);
+  revalidatePath(`${packPath(pack)}/luoghi`);
+  back(path, {
+    ok: isSub
+      ? "Ora è un sottoluogo: si sblocca con il suo luogo principale. Vale nell'app dalla prossima «Ripubblica»."
+      : "Ora è un luogo principale. Vale nell'app dalla prossima «Ripubblica».",
+  });
+}
 
 export async function updatePlace(form: FormData) {
   const { supabase } = await requireStaff();
@@ -234,9 +258,12 @@ export async function updatePack(form: FormData) {
 export async function setAccess(form: FormData) {
   const { supabase } = await requireStaff();
   const pack = text(form, "pack");
-  const path = `${packPath(pack)}/accesso`;
+  const path = `${packPath(pack)}/vendita`;
   const explore = text(form, "explore") === "premium" ? "premium" : "free";
-  const introPlaces = list(form, "introPlaces");
+  // Per ogni luogo «place:<slug>» = paid | intro | free (pagina Vendita); «introPlaces» resta per le pagine vecchie.
+  const choices = [...form.entries()].flatMap(([k, v]) => (k.startsWith("place:") && typeof v === "string" ? [[k.slice(6), v] as const] : []));
+  const introPlaces = [...new Set([...list(form, "introPlaces"), ...choices.filter(([, v]) => v === "intro").map(([s]) => s)])];
+  const freePlaces = choices.filter(([, v]) => v === "free").map(([s]) => s);
   const premiumRoutes = list(form, "premiumRoutes");
   if (introPlaces.length > 3) back(path, { errore: "Al massimo 3 luoghi introduttivi." });
   // Le destinazioni con bundle compilati dai file non possono avere contenuti a pagamento (lo ricontrolla la pubblicazione).
@@ -244,11 +271,83 @@ export async function setAccess(form: FormData) {
   if (blocked) back(path, { errore: `Non salvato: ${blocked}.` });
   const { error } = await rpc(supabase, "studio_set_access", {
     p_pack: pack,
-    p: { explore, introPlaces, premiumRoutes },
+    p: { explore, introPlaces, freePlaces, premiumRoutes },
   });
   if (error) back(path, { errore: friendlyError(error) });
   revalidatePath("/studio", "layout");
   back(path, { ok: "Accesso salvato. Nell'app cambia alla prossima pubblicazione." });
+}
+
+// ---------------------------------------------------------------- catalogo (solo amministratore, regole nel database)
+
+export async function saveProduct(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/vendita`;
+  const id = text(form, "id");
+  const p = {
+    ...(id ? { id } : { kind: text(form, "kind"), route: text(form, "route") || undefined }),
+    name: { it: text(form, "name_it"), en: text(form, "name_en") },
+    description: { it: text(form, "description_it"), en: text(form, "description_en") },
+    status: text(form, "status") || "draft",
+    availability: text(form, "availability") || "available",
+    sortOrder: Number(text(form, "sort_order") || "0") || 0,
+    // Solo i pacchetti hanno un elenco di percorsi (anche vuoto, se si tolgono tutti).
+    ...(form.get("bundle") === "1" || (!id && text(form, "kind") === "bundle") ? { routes: list(form, "routes") } : {}),
+  };
+  const { error } = await rpc(supabase, "studio_product_save", { p_pack: pack, p });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(path);
+  back(path, { ok: p.status === "active" ? "Prodotto salvato e attivo." : "Prodotto salvato." });
+}
+
+export async function setDraftPrice(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/vendita`;
+  const clear = form.get("clear") === "1";
+  const cents = clear ? null : parseEuro(text(form, "price"));
+  if (!clear) {
+    const problem = priceProblem(cents);
+    if (problem) back(path, { errore: problem });
+  }
+  const { error } = await rpc(supabase, "studio_price_draft", { p_product: text(form, "product"), p_amount: cents });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(path);
+  back(path, { ok: clear ? "Bozza del prezzo tolta." : `Prezzo in bozza: ${formatEuro(cents!)}. Vale solo dopo «Pubblica i prezzi».` });
+}
+
+/**
+ * Crea i prodotti dei luoghi principali vendibili ancora senza prodotto, con il prezzo in bozza indicato (1,99 € se
+ * vuoto), e ritira quelli dei luoghi diventati sottoluoghi.
+ */
+export async function placesOnSale(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/vendita`;
+  const cents = text(form, "price") ? parseEuro(text(form, "price")) : PLACE_DEFAULT_CENTS;
+  const problem = priceProblem(cents);
+  if (problem) back(path, { errore: problem });
+  const { data, error } = await rpc<{ created: number; retired: number }>(supabase, "studio_places_on_sale", { p_pack: pack, p_amount: cents });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(path);
+  const created = data?.created ?? 0;
+  const retired = data?.retired ?? 0;
+  const parts = [
+    created ? `Creati ${created} prodotti «Luogo principale» a ${formatEuro(cents!)} in bozza: valgono dopo «Pubblica i prezzi».` : "",
+    retired ? `Ritirati ${retired} prodotti di sottoluoghi: ora si vendono con il loro luogo principale.` : "",
+  ].filter(Boolean);
+  back(path, { ok: parts.join(" ") || "Tutti i luoghi principali hanno già un prodotto." });
+}
+
+export async function publishPrices(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/vendita`;
+  const { data, error } = await rpc<number>(supabase, "studio_prices_publish", { p_pack: pack });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(path);
+  back(path, { ok: `Pubblicati ${data} prezzi: il listino pubblico li mostra subito.` });
 }
 
 /** Cambio di stato. Per pubblicare rifà il controllo completo sul server e lo registra con la richiesta. */

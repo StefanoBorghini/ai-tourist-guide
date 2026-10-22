@@ -1,6 +1,6 @@
 import type { EngineInputs } from "@guide/context-engine";
 import type { LibraryUnit, NarrativeLibrary } from "@guide/narrative-planner";
-import { BUNDLE_SCHEMA_VERSION, type BundleContent, type BundleManifest } from "./format.ts";
+import { BUNDLE_SCHEMA_VERSION, type BundleContent, type BundleManifest, type PremiumFile, type PremiumPart } from "./format.ts";
 
 /**
  * Lettura di un bundle sul dispositivo: verifica l'integrità e prepara gli
@@ -32,6 +32,19 @@ export async function verifyBundle(manifest: BundleManifest, contentJson: string
     throw new BundleIntegrityError("contenuto di un'altra destinazione o lingua");
   }
   return content;
+}
+
+/**
+ * Una parte a pagamento scaricata: l'impronta deve essere quella del manifest, tipo e percorso quelli attesi.
+ * Solo così si unisce al contenuto (mergePremium).
+ */
+export async function verifyPremiumPart(entry: PremiumFile, json: string): Promise<PremiumPart> {
+  if ((await sha256Hex(json)) !== entry.sha256) throw new BundleIntegrityError("parte a pagamento corrotta o non corrispondente al manifest");
+  const part = JSON.parse(json) as PremiumPart;
+  if (part.kind !== entry.kind || (part.ref ?? null) !== (entry.ref ?? null)) {
+    throw new BundleIntegrityError("parte a pagamento diversa da quella attesa");
+  }
+  return part;
 }
 
 /** Libreria narrativa dal bundle (stessa struttura di quella costruita dai pack). */

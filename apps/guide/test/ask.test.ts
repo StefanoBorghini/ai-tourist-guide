@@ -4,7 +4,7 @@ import { buildBundle, type BundleContent } from "@guide/bundle";
 import { loadPacks } from "@guide/territory-pack";
 import { beforeAll, describe, expect, it } from "vitest";
 import { destination } from "@guide/context-engine";
-import { POSITION_CITATION, SYSTEM_PROMPT, askRequestSchema, buildKnowledge, buildQuestionMessage, centuriesIn, checkModelAnswer, fallbackAnswer, positionContext, type AskRequest } from "../lib/ask.ts";
+import { HISTORY_ANSWER_CHARS, POSITION_CITATION, SYSTEM_PROMPT, askRequestSchema, buildKnowledge, buildQuestionMessage, centuriesIn, checkModelAnswer, fallbackAnswer, positionContext, sanitizeRequest, type AskRequest } from "../lib/ask.ts";
 import { PERSONA_CITATION, PERSONA_PROMPT } from "../lib/persona.ts";
 
 /** Prove sul bundle del territorio di test, senza nomi di territorio scritti qui. */
@@ -261,5 +261,29 @@ describe("conversazione precedente", () => {
     const withHistory = { ...req, history: [{ question: "Quando?", answer: "Nel 1161." }] };
     const r = checkModelAnswer(json({ status: "answered", answer: "Fu costruita nel 1161.", citations: [a.ref] }), content, withHistory);
     expect(r).toMatchObject({ ok: false, reason: expect.stringContaining("1161") });
+  });
+});
+
+describe("pulizia dei campi inviati dal client", () => {
+  it("tiene solo luoghi e affermazioni del bundle, senza doppioni, e accorcia le risposte precedenti", () => {
+    const place = content.places[0]!.ref;
+    const assertion = content.assertions[0]!.ref;
+    const dirty = askRequestSchema.parse({
+      destination: content.destination,
+      locale: "it",
+      question: "Cos'è?",
+      currentPlace: "x:inventato",
+      selectedPlace: place,
+      nearby: [place, place, "x:altro"],
+      told: [assertion, assertion, ...Array.from({ length: 150 }, (_, i) => `x:${"a".repeat(150)}-${i}`)],
+      history: [{ question: "Prima?", answer: "a".repeat(2000) }],
+    });
+    const clean = sanitizeRequest(content, dirty);
+    expect(clean.currentPlace).toBeNull();
+    expect(clean.selectedPlace).toBe(place);
+    expect(clean.nearby).toEqual([place]);
+    expect(clean.told).toEqual([assertion]);
+    expect(clean.history[0]!.answer).toHaveLength(HISTORY_ANSWER_CHARS);
+    expect(buildQuestionMessage(content, clean).length).toBeLessThan(buildQuestionMessage(content, dirty).length / 4);
   });
 });

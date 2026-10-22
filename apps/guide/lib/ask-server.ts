@@ -20,6 +20,7 @@ import {
   buildQuestionMessage,
   checkModelAnswer,
   fallbackAnswer,
+  sanitizeRequest,
   webNote,
   type AskAnswer,
   type AskMeter,
@@ -39,6 +40,7 @@ import {
   type Usage,
   type WebConfig,
 } from "./ask-web";
+import { detectEmergency } from "./emergency";
 import { DEFAULT_ANTHROPIC_MODEL, type AskModels, type ModelAdapter } from "./model";
 import { PERSONA, PERSONA_PROMPT } from "./persona";
 
@@ -180,6 +182,16 @@ const toUsage = (u: Anthropic.Beta.Messages.BetaUsage): Usage => ({
   webSearches: u.server_tool_use?.web_search_requests ?? 0,
 });
 
+/**
+ * Tempi: la route ha 60 s (maxDuration). La risposta locale ha un solo tentativo da 25 s; la ricerca
+ * web usa il tempo che resta fino a ASK_DEADLINE_MS dall'inizio della domanda (lasciando 25 s alla
+ * risposta locale di ripiego quando l'approfondimento va diretto alla ricerca) e non parte se ne
+ * restano meno di WEB_MIN_MS. Così la funzione non viene interrotta dalla piattaforma senza risposta.
+ */
+export const LOCAL_TIMEOUT_MS = 25_000;
+export const ASK_DEADLINE_MS = 55_000;
+export const WEB_MIN_MS = 10_000;
+
 /** Livello A: risposta dalla sola base verificata, con controllo rigoroso di citazioni e numeri. */
 export async function askLocal(model: ModelAdapter, loaded: Loaded, req: AskRequest): Promise<LocalResult> {
   const response = await model.generate({
@@ -188,7 +200,7 @@ export async function askLocal(model: ModelAdapter, loaded: Loaded, req: AskRequ
     user: buildQuestionMessage(loaded.content, req),
     jsonSchema: ANSWER_JSON_SCHEMA,
     maxTokens: 4000,
-    timeoutMs: 25_000,
+    timeoutMs: LOCAL_TIMEOUT_MS,
   });
   const { usage } = response;
 
@@ -288,7 +300,10 @@ export interface WebGate {
  * diretti alla ricerca (la base è comunque nel contesto) e la si interroga di nuovo solo se la
  * ricerca non è disponibile o non produce fonti. Così non si paga due volte la stessa risposta locale.
  */
-export async function askGuide(ai: AskModels, loaded: Loaded, req: AskRequest, webGate: WebGate | null = null): Promise<AskOutcome> {
+export async function askGuide(ai: AskModels, loaded: Loaded, rawReq: AskRequest, webGate: WebGate | null = null): Promise<AskOutcome> {
+  const started = Date.now();
+  // Solo luoghi e affermazioni del bundle, risposte precedenti accorciate: il client non gonfia il prompt.
+  const req = sanitizeRequest(loaded.content, rawReq);
   // Senza client Anthropic la ricerca web non c'è: la guida risponde con la sola base, come senza configurazione.
   const client = ai.web;
   const gate = client ? webGate : null;
@@ -323,6 +338,9 @@ export async function askGuide(ai: AskModels, loaded: Loaded, req: AskRequest, w
     return done(withWebNote(l.answer, req.locale, kind), web, webUsage);
   };
 
+  // Emergenza riconosciuta dalle parole chiave: 112 subito, nessuna chiamata, nessuna ricerca, anche con «Approfondisci».
+  if (detectEmergency(req.question)) return done(fallbackAnswer(req.locale, "safety"));
+
   const direct = req.depth === "deep" && webOn && permit();
   if (!direct) {
     const l = await getLocal();
@@ -332,9 +350,13 @@ export async function askGuide(ai: AskModels, loaded: Loaded, req: AskRequest, w
     }
   }
 
+  // Tempo per la ricerca: quello che resta, meno la risposta locale di ripiego se non c'è ancora.
+  const webMs = Math.min(gate!.config.timeoutMs, started + ASK_DEADLINE_MS - Date.now() - (local ? 0 : LOCAL_TIMEOUT_MS));
+  if (webMs < WEB_MIN_MS) return fallback("webUnavailable", { attempted: false, error: "tempo insufficiente per la ricerca", searches: 0, sources: [] });
+
   let web: WebResult;
   try {
-    web = await askWeb(client!, loaded, req, local ? (local as LocalResult).answer : null, gate!.config);
+    web = await askWeb(client!, loaded, req, local ? (local as LocalResult).answer : null, { ...gate!.config, timeoutMs: webMs });
     webModel = web.model;
   } catch (error) {
     const message = error instanceof Anthropic.APIError ? `API ${error.status ?? "?"}: ${error.message}` : (error as Error).message;

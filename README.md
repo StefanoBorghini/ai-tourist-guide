@@ -97,9 +97,15 @@ perché la redazione le valuti e, se reggono, le porti nel Territory Pack.
 
 **La guida, Gaia.** Le risposte hanno la voce di Gaia: identità e stile sono in `apps/guide/lib/persona.ts`
 (documento di riferimento `docs/v0.4-gaia/CHARACTER-BIBLE.md`), separati dalle regole di verità di `ask.ts`, che
-vengono prima. Le domande su di sé citano `persona:gaia`; un'emergenza (malore, persona dispersa) ha l'esito `safety`
-e rimanda sempre al 112, senza ricerca web. I log riportano l'impronta delle istruzioni (`prompt`) e la versione della
-persona (`persona`).
+vengono prima. Le domande su di sé citano `persona:gaia`. I log riportano l'impronta delle istruzioni (`prompt`) e la
+versione della persona (`persona`).
+
+**Emergenze.** Un'emergenza (malore, persona dispersa, incidente, pericolo) riceve subito il rimando al 112, con l'esito
+`safety`. Il riconoscimento è deterministico, per parole chiave in italiano e in inglese (`apps/guide/lib/emergency.ts`),
+e gira in tre punti: nel browser prima della richiesta, quindi anche senza rete; nella route prima di configurazione,
+limiti e contenuti; in `askGuide` prima del modello, anche con «Approfondisci». Nessuna chiamata, nessun costo. Per i
+casi che le parole chiave non coprono resta la regola del prompt: il modello risponde `safety` e il controllo pretende
+il 112.
 
 **Il modello è sostituibile.** La risposta dalla base locale passa da un `ModelAdapter` (`apps/guide/lib/model.ts`):
 Anthropic per default, oppure qualunque servizio con API compatibile OpenAI ("chat completions" con output JSON
@@ -123,11 +129,18 @@ Variabili d'ambiente (tutte facoltative tranne quelle del fornitore scelto):
 | `ASK_WEB_DAILY_LIMIT` | `300` | domande con ricerca al giorno per istanza del server |
 | `ASK_WEB_BLOCKED_DOMAINS` | recensioni e social | domini esclusi, separati da virgole (vuoto = nessuno) |
 | `ASK_CACHE_TTL_HOURS` | `24` | durata della cache delle risposte (0 = niente cache) |
-| `ASK_WEB_TIMEOUT_MS` | `50000` | tempo massimo della risposta con ricerca |
+| `ASK_WEB_TIMEOUT_MS` | `50000` | tempo massimo della risposta con ricerca (ridotto al tempo che resta: la route ha 60 s) |
+| `ASK_DAILY_BUDGET_USD` | `10` | tetto di spesa giornaliero stimato, per istanza del server (0 = nessun tetto) |
 
-I limiti per indirizzo e per giorno valgono per singola istanza del server: sono argini, non quote globali.
-Il tetto di spesa mensile affidabile si imposta nella Console Anthropic (limite di spesa del workspace a cui
-appartiene la chiave). `GET /api/guide/ask` dice se la ricerca è attiva e se il modello la supporta (Models API).
+Tetto di spesa (`apps/guide/lib/limits.ts`): prima di ogni domanda la riserva prudente della risposta locale deve
+stare nel tetto giornaliero, e la ricerca web chiede anche la sua. Dopo, si conta il costo stimato dal listino o, se
+non è stimabile (modello senza listino, errore a metà), la riserva. Oltre il tetto la guida risponde solo dalla cache e
+dice di non poter rispondere; le emergenze funzionano sempre. La risposta locale ha un solo tentativo da 25 s, e la
+ricerca usa solo il tempo che resta prima dei 55 s: la funzione non viene interrotta dalla piattaforma.
+
+I limiti per indirizzo, per giorno e di spesa valgono per singola istanza del server: con più istanze il tetto
+effettivo si moltiplica. Sono argini, non quote globali. Il tetto di spesa mensile affidabile si imposta nella Console
+del fornitore (per Anthropic, il limite di spesa del workspace a cui appartiene la chiave). `GET /api/guide/ask` dice se la ricerca è attiva e se il modello la supporta (Models API).
 Prove di qualità: `npm run ask:eval -w @guide/app -- --file ../../territories/<id>/ASK-EVAL.json --out rapporto.md`
 (chiama davvero il modello configurato: ha un costo; `--dry` mostra solo cosa sa la base locale). Prima di ogni
 domanda tiene libera una riserva prudente e non parte se supererebbe `--max-usd`; per i modelli senza listino il

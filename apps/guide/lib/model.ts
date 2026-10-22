@@ -74,7 +74,9 @@ export class AnthropicAdapter implements ModelAdapter {
           system: req.system.map((b) => ({ type: "text" as const, text: b.text, ...(b.cache ? { cache_control: { type: "ephemeral" as const } } : {}) })),
           messages: [{ role: "user", content: req.user }],
         },
-        { timeout: req.timeoutMs },
+        // Nessun nuovo tentativo automatico: tre tentativi da timeoutMs supererebbero il tempo massimo
+        // della route, che verrebbe interrotta senza risposta. Il visitatore può sempre richiedere.
+        { timeout: req.timeoutMs, maxRetries: 0 },
       );
     } catch (error) {
       if (error instanceof Anthropic.RateLimitError) throw new ModelError("rate_limit", "limite di richieste del fornitore", 429);

@@ -859,6 +859,9 @@ details.card[open] > summary::after { content: "–"; }
   animation: rise 0.35s var(--ease);
 }
 .ask-answer > p:not(.small), .bubble-a > p:not(.small) { font-size: 17px; line-height: 1.6; color: var(--ink); }
+/* Emergenza: il rimando al 112 deve distinguersi da ogni altra risposta. */
+.ask-answer.safety { background: var(--danger-soft); border: 1px solid var(--danger); }
+.ask-answer.safety > p:not(.small) { font-size: 19px; font-weight: 600; }
 .ask-answer .muted.small, .bubble-a .muted.small { font-size: 13px; }
 .answer-tools { display: flex; flex-wrap: wrap; gap: 8px; }
 .answer-tools .chip { background: var(--surface); }

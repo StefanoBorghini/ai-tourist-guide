@@ -281,6 +281,28 @@ export function positionContext(content: BundleContent, req: AskRequest): Positi
   };
 }
 
+/** Lunghezza massima di ogni risposta precedente passata al modello (il client può inviarne fino a 2000). */
+export const HISTORY_ANSWER_CHARS = 600;
+
+/**
+ * Campi del contesto che arrivano dal client, ripuliti prima di arrivare al modello: restano solo
+ * luoghi e affermazioni che esistono nel bundle (senza doppioni) e le risposte precedenti vengono
+ * accorciate. Così un client non può gonfiare il prompt, e i costi, con riferimenti inventati.
+ */
+export function sanitizeRequest(content: BundleContent, req: AskRequest): AskRequest {
+  const places = new Set(content.places.map((p) => p.ref));
+  const assertions = new Set(content.assertions.map((a) => a.ref));
+  const known = (ref: string | null | undefined) => (ref && places.has(ref) ? ref : null);
+  return {
+    ...req,
+    currentPlace: known(req.currentPlace),
+    selectedPlace: known(req.selectedPlace),
+    nearby: [...new Set(req.nearby.filter((r) => places.has(r)))],
+    told: [...new Set(req.told.filter((r) => assertions.has(r)))],
+    history: req.history.map((h) => ({ question: h.question, answer: h.answer.slice(0, HISTORY_ANSWER_CHARS) })),
+  };
+}
+
 /** Messaggio variabile: contesto della visita e domanda. */
 export function buildQuestionMessage(content: BundleContent, req: AskRequest): string {
   const name = (ref: string) => content.places.find((p) => p.ref === ref)?.name ?? ref;
@@ -459,7 +481,7 @@ const FALLBACK = {
     rejected: "Ho provato a risponderti, ma la risposta non ha superato il controllo sulle fonti, quindi preferisco non leggertela. Prova a chiedere in un altro modo.",
     webUnavailable: "In questo momento non riesco a cercare fonti online, quindi ti ho risposto solo con le informazioni della guida.",
     webNoSources: "Ho cercato anche online, ma non ho trovato fonti attendibili da citarti su questo.",
-    safety: "Se è un'emergenza, chiama subito il 112. Se c'è qualcuno vicino a te, chiedi aiuto.",
+    safety: "Se è un'emergenza, chiama subito il 112, il numero unico di emergenza. Se puoi, chiedi aiuto a chi ti è vicino e mettiti al sicuro.",
   },
   en: {
     not_in_knowledge: "I have no verified information about that, so I'd rather not guess.",
@@ -468,7 +490,7 @@ const FALLBACK = {
     rejected: "I tried to answer, but the answer did not pass the source check, so I'd rather not read it to you. Try asking in another way.",
     webUnavailable: "I can't search online sources right now, so I answered only with the guide's own information.",
     webNoSources: "I also searched online, but found no reliable sources I could cite on this.",
-    safety: "If this is an emergency, call 112 right away. If anyone is near you, ask them for help.",
+    safety: "If this is an emergency, call 112 right away, the European emergency number. If you can, ask anyone near you for help and get somewhere safe.",
   },
 } as const;
 

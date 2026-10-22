@@ -5,6 +5,7 @@ import type { BundleContent } from "@guide/bundle/client";
 import { distanceM } from "@guide/context-engine";
 import { rememberAssertions } from "@guide/narrative-planner";
 import { ASK_LIMITS, fallbackAnswer, type AskAnswer, type WebSource } from "../lib/ask";
+import { detectEmergency } from "../lib/emergency";
 import type { PositionSource } from "../lib/field-points";
 import type { GuideRuntime } from "../lib/runtime";
 import type { GuideVoice } from "../lib/speech";
@@ -112,7 +113,9 @@ export function AskBox(props: {
           .map((p) => p.ref)
       : [];
     let answer: AskAnswer;
-    try {
+    // Emergenza: il 112 subito, sul dispositivo, anche senza rete e senza aspettare il server.
+    if (detectEmergency(q)) answer = fallbackAnswer(locale, "safety");
+    else try {
       // Con rete debole meglio un "non riesco" dopo un minuto che un'attesa senza fine
       // (la risposta con ricerca online può richiedere fino a ~50 secondi).
       const res = await fetch("/api/guide/ask", {

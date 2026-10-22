@@ -381,3 +381,69 @@ describe("risposta ibrida", () => {
     expect(out.answer.answer).toBe("Parliamo della visita.");
   });
 });
+
+describe("emergenze e tempi della risposta", () => {
+  it("un'emergenza riconosciuta dalle parole chiave non chiama il modello, nemmeno con «Approfondisci»", async () => {
+    for (const depth of ["auto", "deep"] as const) {
+      const { client, create } = fakeClient();
+      const out = await askGuide(client, loaded, { ...req, question: "Aiuto, mio figlio si è perso!", depth }, gate());
+      expect(create).not.toHaveBeenCalled();
+      expect(out.answer).toMatchObject({ status: "safety", citations: [] });
+      expect(out.answer.answer).toContain("112");
+      expect(out.costUsd).toBe(0);
+    }
+  });
+
+  it("la ricerca usa solo il tempo che resta prima della scadenza della route", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // La risposta locale impiega 40 secondi: alla ricerca ne restano 15 (55 − 40), meno di 50.
+      const slow: AskModels["local"] = {
+        provider: "test",
+        model: "claude-opus-5-5",
+        generate: async () => {
+          vi.setSystemTime(Date.now() + 40_000);
+          return { text: JSON.stringify({ status: "not_in_knowledge", answer: "Non lo so.", citations: [] }), stop: "end", usage: emptyUsageForTest(), model: "claude-opus-5-5" };
+        },
+      };
+      const { client, create } = fakeClient(webReply([{ type: "text", text: "Trovato.", citations: [cite("https://www.unige.it/x", "Studio")] }]));
+      await askGuide({ local: slow, web: client.web }, loaded, req, gate());
+      const options = create.mock.calls[0]![1] as { timeout: number };
+      expect(options.timeout).toBeLessThanOrEqual(15_000);
+      expect(options.timeout).toBeGreaterThan(10_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("se non resta tempo per la ricerca risponde con la base locale e lo dichiara", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const slow: AskModels["local"] = {
+        provider: "test",
+        model: "claude-opus-5-5",
+        generate: async () => {
+          vi.setSystemTime(Date.now() + 50_000);
+          return { text: JSON.stringify({ status: "partial", answer: "So solo questo.", citations: [ref] }), stop: "end", usage: emptyUsageForTest(), model: "claude-opus-5-5" };
+        },
+      };
+      const { client, create } = fakeClient();
+      const out = await askGuide({ local: slow, web: client.web }, loaded, req, gate());
+      expect(create).not.toHaveBeenCalled();
+      expect(out.answer).toMatchObject({ status: "partial", webUnavailable: true });
+      expect(out.web).toMatchObject({ attempted: false, error: "tempo insufficiente per la ricerca" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("la risposta locale di Anthropic non ripete i tentativi (25 s al massimo)", async () => {
+    const { client, create } = fakeClient(localReply("answered", "Dalla base.", [ref]));
+    await askGuide(client, loaded, req);
+    expect(create.mock.calls[0]![1]).toMatchObject({ timeout: 25_000, maxRetries: 0 });
+  });
+});
+
+function emptyUsageForTest() {
+  return { input: 100, cacheWrite: 0, cacheRead: 0, output: 10, webSearches: 0 };
+}

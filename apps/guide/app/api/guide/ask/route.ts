@@ -6,6 +6,9 @@
  *    di approfondire, entro i limiti configurati (vedi lib/ask-web.ts → webConfig);
  * C. risposta finale con le fonti.
  *
+ * Prima di tutto le emergenze (lib/emergency.ts): rimando al 112 immediato, senza modello, senza
+ * limiti e senza configurazione. Poi limiti per indirizzo e tetto di spesa giornaliero (lib/limits.ts).
+ *
  * Il modello della risposta locale si sceglie con le variabili d'ambiente (lib/model.ts → modelsConfig):
  * per default Anthropic con ANTHROPIC_API_KEY. Senza configurazione valida risponde 503 e l'app
  * continua a funzionare (solo racconto, niente domande).
@@ -13,42 +16,25 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { askRequestSchema, fallbackAnswer, type AskAnswer } from "../../../../lib/ask";
 import { PERSONA_VERSION, PROMPT_VERSION, askGuide, bundleVersions, GuideUnavailableError, loadKnowledge, webSearchSupported } from "../../../../lib/ask-server";
-import { DailyCounter, TtlCache, cacheKey, cacheable, redactForLog, webConfig } from "../../../../lib/ask-web";
+import { DailyCounter, TtlCache, cacheKey, cacheable, redactForLog, reserveUsd, webConfig } from "../../../../lib/ask-web";
+import { detectEmergency } from "../../../../lib/emergency";
+import { SpendGuard, WindowLimiter, dailyBudgetUsd } from "../../../../lib/limits";
 import { ModelError, modelsConfig, modelsFromEnv, type AskModels } from "../../../../lib/model";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// La risposta con ricerca può richiedere fino a ~50 secondi.
+// La risposta con ricerca può richiedere fino a ~50 secondi (tempi in lib/ask-server.ts).
 export const maxDuration = 60;
 
 // Limiti per indirizzo, per istanza: un argine contro gli abusi, non una quota precisa.
 const WINDOW_MS = 10 * 60_000;
 const MAX_PER_WINDOW = 20;
 
-class WindowLimiter {
-  private readonly hits = new Map<string, number[]>();
-  constructor(private readonly max: number) {}
-  /** Registra un uso e dice se il limite è superato. */
-  hit(key: string, now = Date.now()): boolean {
-    const recent = this.peek(key, now);
-    recent.push(now);
-    this.hits.set(key, recent);
-    if (this.hits.size > 5000) this.hits.clear();
-    return recent.length > this.max;
-  }
-  /** C'è ancora spazio, senza registrare l'uso? */
-  allows(key: string, now = Date.now()): boolean {
-    return this.peek(key, now).length < this.max;
-  }
-  private peek(key: string, now: number): number[] {
-    return (this.hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
-  }
-}
-
 const config = webConfig();
-const askLimiter = new WindowLimiter(MAX_PER_WINDOW);
-const webLimiter = new WindowLimiter(config.perIp);
+const askLimiter = new WindowLimiter(MAX_PER_WINDOW, WINDOW_MS);
+const webLimiter = new WindowLimiter(config.perIp, WINDOW_MS);
 const webDaily = new DailyCounter(config.dailyLimit);
+const spend = new SpendGuard(dailyBudgetUsd());
 const answers = new TtlCache<AskAnswer>(config.cacheTtlHours * 3_600_000);
 
 let models: AskModels | null | undefined;
@@ -85,6 +71,12 @@ export async function POST(request: Request): Promise<Response> {
   if (!parsed.success) return Response.json({ error: "richiesta non valida" }, { status: 400 });
   const req = parsed.data;
 
+  // Emergenza: subito il 112, prima di configurazione, limiti, contenuti e modello. Nessun costo.
+  if (detectEmergency(req.question)) {
+    console.info(JSON.stringify({ event: "emergency", source: "keywords", locale: req.locale, ms: Date.now() - started }));
+    return Response.json(fallbackAnswer(req.locale, "safety"), { headers: { "cache-control": "no-store" } });
+  }
+
   const ai = getModels();
   if (!ai) return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 503 });
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
@@ -109,18 +101,29 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ...hit, cached: true, meter });
   }
 
+  // Tetto di spesa: la riserva prudente della risposta locale deve starci; la ricerca chiede la sua.
+  const localReserve = reserveUsd(ai.local.model, null);
+  const webReserve = Math.max(0, reserveUsd(ai.local.model, config) - localReserve);
+  if (!spend.allows(localReserve)) {
+    console.warn(JSON.stringify({ event: "budget_exceeded", dailyUsd: spend.dailyUsd, spentUsd: spend.spentToday() }));
+    return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 503, headers: { "retry-after": "3600" } });
+  }
+
   try {
     const supported = ai.web && config.enabled ? await webSearchSupported(ai.web, config.model) : null;
     const outcome = await askGuide(ai, loaded, req, {
       config,
       supported,
       permitted: () => {
-        if (!webDaily.available() || !webLimiter.allows(ip)) return false;
+        if (!webDaily.available() || !webLimiter.allows(ip) || !spend.allows(localReserve + webReserve)) return false;
         webDaily.take();
         webLimiter.hit(ip);
         return true;
       },
     });
+    // Costo stimato; se non si può stimare (modello senza listino) si conta la riserva prudente.
+    const calls = outcome.answer.meter?.calls ?? 0;
+    spend.record(outcome.costUsd ?? (calls === 0 ? 0 : localReserve + (outcome.usage.web ? webReserve : 0)));
     // Lacune della base di conoscenza: domande senza risposta verificata, utili alla redazione.
     if (outcome.answer.status === "not_in_knowledge" || outcome.rejected || outcome.answer.origin === "web") {
       console.info(JSON.stringify({
@@ -150,9 +153,10 @@ export async function POST(request: Request): Promise<Response> {
       persona: PERSONA_VERSION,
       // Modelli che hanno risposto davvero (dalla risposta dell'API; ai.local.model è quello richiesto).
       models: outcome.answer.meter?.models ?? [ai.local.model],
-      calls: outcome.answer.meter?.calls ?? 0,
+      calls,
       usage: outcome.usage,
       costUsd: outcome.costUsd,
+      spentTodayUsd: spend.spentToday(),
       otherPlaceCitations: outcome.answer.otherPlaceCitations ?? [],
       web: outcome.web ? { attempted: outcome.web.attempted, searches: outcome.web.searches, sources: outcome.web.sources.length, error: outcome.web.error, searchErrors: outcome.web.searchErrors } : null,
       ms: Date.now() - started,
@@ -160,6 +164,8 @@ export async function POST(request: Request): Promise<Response> {
     if (key && cacheable(outcome.answer)) answers.set(key, { ...outcome.answer, meter: undefined });
     return Response.json(outcome.answer);
   } catch (error) {
+    // La chiamata può essere costata anche se è fallita: si conta la riserva della risposta locale.
+    spend.record(localReserve);
     if ((error instanceof ModelError && error.kind === "rate_limit") || error instanceof Anthropic.RateLimitError) {
       return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 429 });
     }

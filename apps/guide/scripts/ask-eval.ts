@@ -124,6 +124,8 @@ const out: string[] = [
 let totalUsd = 0;
 let totalSearches = 0;
 let calls = 0;
+/** Domande con costo non stimabile, contate nel totale con la riserva prudente. */
+let unpricedCalls = 0;
 const rows: { web: boolean; usd: number; input: number; cacheRead: number; cacheWrite: number; output: number }[] = [];
 let stopped = "";
 const results: { id: string; area: string; question: string; webModel: string | null; ms: number; answer: AskAnswer; score: EvalScore; error?: string }[] = [];
@@ -182,7 +184,12 @@ for (const q of selected) {
   const searches = outcome.usage.web?.webSearches ?? 0;
   const m = a.meter;
   if (m) rows.push({ web: outcome.usage.web !== undefined, usd: m.costUsd ?? 0, input: m.input, cacheRead: m.cacheRead, cacheWrite: m.cacheWrite, output: m.output });
-  totalUsd += outcome.costUsd ?? 0;
+  // Costo non stimabile (per esempio un modello di ripiego senza listino): conta la riserva prudente,
+  // mai zero, altrimenti il tetto --max-usd non lo vedrebbe.
+  if (outcome.costUsd === null && (m?.calls ?? 0) > 0) {
+    unpricedCalls++;
+    totalUsd += reserve;
+  } else totalUsd += outcome.costUsd ?? 0;
   totalSearches += searches;
   const origin = a.origin ?? "local";
   const asExpected = q.expect === "none" ? searches === 0 : q.expect === origin;
@@ -242,6 +249,7 @@ if (ai) {
     group(false),
     group(true),
     `- Totale: ${rows.length} domande · ${totalSearches} ricerche · stima ${priced ? `${totalUsd.toFixed(4)} $ · media ${(rows.length ? totalUsd / rows.length : 0).toFixed(4)} $ a domanda` : "non disponibile (modello senza listino)"}`,
+    ...(unpricedCalls > 0 ? [`- ${unpricedCalls} domande con costo non stimabile (modello senza listino): contate nel totale con la riserva prudente di ${reserve.toFixed(2)} $ ciascuna`] : []),
     "- Costi stimati dal listino pubblico sui token restituiti dall'API: il dato fatturato è nella console del fornitore.",
     "- I controlli automatici sono un primo filtro: fedeltà, gradi di certezza e voce si valutano leggendo.",
     ...(stopped ? [`- ${stopped}`] : []),

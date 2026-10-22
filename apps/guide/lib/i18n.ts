@@ -251,6 +251,8 @@ export const UI = {
         : `Sblocca ${name} per ascoltare tutti i suoi racconti.`,
     buyPrincipal: (name: string, n: number) => (n > 0 ? `Sblocca ${name} · ${n + 1} luoghi` : `Sblocca ${name}`),
     partOf: (parent: string) => `Fa parte di ${parent}`,
+    showSubPlaces: (n: number) => (n === 1 ? "Mostra il luogo incluso" : `Mostra i ${n} luoghi inclusi`),
+    hideSubPlaces: "Nascondi i luoghi inclusi",
     freePrincipalHint: (name: string, n: number) =>
       `I racconti di ${name} sono gratuiti. ${n === 1 ? "Il luogo che comprende si sblocca" : `I ${n} luoghi che comprende si sbloccano`} qui.`,
     buySubPlaces: (name: string, n: number) => (n === 1 ? `Sblocca il luogo di ${name}` : `Sblocca i ${n} luoghi di ${name}`),
@@ -557,6 +559,8 @@ export const UI = {
         : `Unlock ${name} to hear all its stories.`,
     buyPrincipal: (name: string, n: number) => (n > 0 ? `Unlock ${name} · ${n + 1} places` : `Unlock ${name}`),
     partOf: (parent: string) => `Part of ${parent}`,
+    showSubPlaces: (n: number) => (n === 1 ? "Show the included place" : `Show the ${n} included places`),
+    hideSubPlaces: "Hide the included places",
     freePrincipalHint: (name: string, n: number) =>
       `${name}'s stories are free. ${n === 1 ? "The place it includes is" : `The ${n} places it includes are`} unlocked here.`,
     buySubPlaces: (name: string, n: number) => (n === 1 ? `Unlock the place of ${name}` : `Unlock the ${n} places of ${name}`),

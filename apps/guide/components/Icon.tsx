@@ -5,6 +5,8 @@
 const PATHS = {
   back: "M15 18l-6-6 6-6",
   forward: "M9 18l6-6-6-6",
+  down: "M6 9l6 6 6-6",
+  up: "M6 15l6-6 6 6",
   close: "M6 6l12 12M18 6L6 18",
   play: "M8 5.5v13l10.5-6.5z",
   pause: "M8 5v14M16 5v14",

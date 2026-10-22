@@ -212,6 +212,8 @@ export function GuideApp() {
   // Nella pagina iniziale e nel profilo vale la lingua scelta; dentro un territorio, quella del suo bundle.
   const locale = tab === "home" || tab === "profilo" ? uiLocale : (content?.locale ?? uiLocale);
   const [view, setView] = useState<"map" | "list">("map");
+  /** Luoghi principali con i sottoluoghi aperti nell'elenco. */
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [openRoute, setOpenRoute] = useState<string | null>(null);
   const t = uiFor(locale);
   const rerender = useCallback(() => setTick((n) => n + 1), []);
@@ -1657,28 +1659,55 @@ export function GuideApp() {
         </>
       ) : (
         <ul className="places">
-          {allPlaces
-            .filter(({ p }) => !principalOf(p.ref))
-            .flatMap((x) => [x, ...allPlaces.filter(({ p }) => principalOf(p.ref) === x.p.ref)])
-            .map(({ p, d }) => (
-            <li key={p.ref} className={principalOf(p.ref) ? "sub" : undefined}>
-              <button className={`place-row ${p.ref === cardRef ? "on" : ""} ${lockedPlaces.has(p.ref) ? "locked" : ""}`} onClick={() => choosePlace(p.ref)}>
+          {/* Solo i luoghi principali; i sottoluoghi si aprono sotto il loro principale (decisione del 2026-10-22). */}
+          {allPlaces.filter(({ p }) => !principalOf(p.ref)).map(({ p, d }) => {
+            const subs = allPlaces.filter(({ p: x }) => principalOf(x.ref) === p.ref);
+            // Aperto se scelto dal visitatore o se la scheda aperta è di uno dei suoi sottoluoghi.
+            const open = openGroups.has(p.ref) || (cardRef !== null && subs.some(({ p: x }) => x.ref === cardRef));
+            const row = (q: typeof p, dist: number | null, sub: boolean) => (
+              <button className={`place-row ${q.ref === cardRef ? "on" : ""} ${lockedPlaces.has(q.ref) ? "locked" : ""}`} onClick={() => choosePlace(q.ref)}>
                 <span className="lock-wrap">
-                  <PlaceThumb content={content} placeRef={p.ref} base={bundleBase} name={p.name} className="thumb" />
-                  {lockedPlaces.has(p.ref) && <span className="lock-band" aria-label={t.paidRoutes}>{t.unlock}</span>}
+                  <PlaceThumb content={content} placeRef={q.ref} base={bundleBase} name={q.name} className="thumb" />
+                  {lockedPlaces.has(q.ref) && <span className="lock-band" aria-label={t.paidRoutes}>{t.unlock}</span>}
                 </span>
                 <span>
-                  <span className="name">{p.name}</span>
-                  {principalOf(p.ref) && <span className="short partof">{t.partOf(placeByRef.get(principalOf(p.ref)!)?.name ?? "")}</span>}
-                  {p.short && <span className="short">{p.short}</span>}
+                  <span className="name">{q.name}</span>
+                  {sub && <span className="short partof">{t.partOf(p.name)}</span>}
+                  {q.short && <span className="short">{q.short}</span>}
                 </span>
                 <span className="dist">
-                  {d !== null && fixHere ? <>{formatDistance(d, content.locale)}<br />{compass(bearingDeg(fixHere, p.location), t.dirs)}</> : null}
-                  {runtime.wasNarrated(p.ref) && <span className="heard" style={{ display: "block" }}>✓</span>}
+                  {dist !== null && fixHere ? <>{formatDistance(dist, content.locale)}<br />{compass(bearingDeg(fixHere, q.location), t.dirs)}</> : null}
+                  {runtime.wasNarrated(q.ref) && <span className="heard" style={{ display: "block" }}>✓</span>}
                 </span>
               </button>
-            </li>
-          ))}
+            );
+            return (
+              <li key={p.ref}>
+                {row(p, d, false)}
+                {subs.length > 0 && (
+                  <>
+                    <button
+                      className="subs-toggle"
+                      aria-expanded={open}
+                      aria-controls={`subs-${p.ref}`}
+                      onClick={() => setOpenGroups((g) => {
+                        const next = new Set(g);
+                        if (open) next.delete(p.ref); else next.add(p.ref);
+                        return next;
+                      })}
+                    >
+                      <Icon name={open ? "up" : "down"} size={16} /> {open ? t.hideSubPlaces : t.showSubPlaces(subs.length)}
+                    </button>
+                    {open && (
+                      <ul className="places sub-places" id={`subs-${p.ref}`}>
+                        {subs.map(({ p: q, d: dq }) => <li key={q.ref} className="sub">{row(q, dq, true)}</li>)}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </>

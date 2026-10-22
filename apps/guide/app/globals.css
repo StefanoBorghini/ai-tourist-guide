@@ -1244,6 +1244,9 @@ html { -webkit-tap-highlight-color: transparent; }
 
 /* Sottoluoghi nell'elenco: rientrati sotto il loro luogo principale (decisione del 2026-10-22). */
 .places li.sub { padding-left: 26px; position: relative; }
+/* Elenco: i sottoluoghi si aprono sotto il principale. */
+.subs-toggle { appearance: none; display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 0 16px; min-height: 40px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--sand); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.places.sub-places { margin-top: 8px; }
 .places li.sub::before { content: ""; position: absolute; left: 10px; top: -8px; bottom: 50%; width: 12px; border-left: 2px solid var(--line); border-bottom: 2px solid var(--line); border-bottom-left-radius: 8px; }
 .place-row .short.partof { color: var(--sand); }
 .place-card .place-partof { margin: -4px 0 6px; }

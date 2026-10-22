@@ -79,7 +79,8 @@ concedere subito dopo il pagamento; una copia immutabile del contenuto acquistat
 - Un luogo principale **gratuito** con sottoluoghi a pagamento si vende lo stesso (migrazione 20261102000000): i suoi
   racconti restano tutti gratuiti, il suo file contiene solo i sottoluoghi a pagamento e nell'app la sua scheda propone
   «Sblocca i N luoghi di <principale>». Un luogo gratuito senza sottoluoghi a pagamento non si vende.
-- Nell'app: elenco con i sottoluoghi rientrati sotto il principale; scheda del principale con «Ascolta la panoramica
+- Nell'app: l'elenco mostra solo i luoghi principali, e sotto ciascuno «Mostra i N luoghi inclusi» apre i suoi sottoluoghi
+  (si apre da solo se la scheda aperta è di un sottoluogo); scheda del principale con «Ascolta la panoramica
   gratuita» e «Sblocca <principale> · N luoghi»; scheda del sottoluogo con «Fa parte di <principale>» e lo stesso acquisto.
 
 ## Percorsi premium (P6)

@@ -2,6 +2,7 @@
 --   S1 la spunta dello Studio: solo chi modifica il territorio, un solo livello, solo luoghi della stessa destinazione;
 --   S2 si vendono solo i luoghi principali (1,99 € proposto); i prodotti di chi diventa sottoluogo si ritirano;
 --      un sottoluogo non si attiva né si compra da solo;
+--   S4 un principale gratuito si vende se ha sottoluoghi a pagamento (20261102000000);
 --   S3 il diritto sul principale apre il suo file, non quello di un altro principale; chi aveva comprato un luogo poi
 --      diventato sottoluogo riceve il file del principale.
 \set ON_ERROR_STOP 1
@@ -187,6 +188,25 @@ do $$ begin
   end if;
 end $$;
 
+-- ---------------------------------------------------------------- S4: principale gratuito con sottoluoghi a pagamento
+-- (20261102000000) L'isola gratuita si vende lo stesso, per i suoi sottoluoghi; la piazza gratuita senza sottoluoghi no.
+update packs set config = config || '{"access":{"explore":"premium","introPlaces":[],"freePlaces":["isola","piazza"],"premiumRoutes":[]}}' where id = 'zs.sigma';
+do $$ begin
+  if catalog_problem_place('zs.sigma', '9b000000-0000-0000-0000-0000000000a1') is not null then
+    raise exception 'FALLITO S4: l''isola gratuita con sottoluoghi a pagamento non si vende (%)', catalog_problem_place('zs.sigma', '9b000000-0000-0000-0000-0000000000a1');
+  end if;
+  if catalog_problem_place('zs.sigma', '9b000000-0000-0000-0000-0000000000a4') is null then
+    raise exception 'FALLITO S4: si vende la piazza gratuita senza sottoluoghi';
+  end if;
+end $$;
+-- Gratuiti anche tutti i sottoluoghi: l'isola non ha più niente da sbloccare.
+update packs set config = config || '{"access":{"explore":"premium","introPlaces":[],"freePlaces":["isola","grotta","faro"],"premiumRoutes":[]}}' where id = 'zs.sigma';
+do $$ begin
+  if catalog_problem_place('zs.sigma', '9b000000-0000-0000-0000-0000000000a1') is null then
+    raise exception 'FALLITO S4: si vende l''isola gratuita con i sottoluoghi tutti gratuiti';
+  end if;
+end $$;
+
 -- Pulizia (come amministratore del DB).
 delete from storage.objects where bucket_id = 'premium' and name like 'zs.sigma/%';
 delete from entitlements where pack_id = 'zs.sigma';
@@ -201,4 +221,4 @@ delete from destinations where pack_id in ('zs.sigma', 'zs.tau');
 delete from packs where id in ('zs.sigma', 'zs.tau');
 delete from organizations where id = '9b000000-0000-0000-0000-00000000000f';
 delete from auth.users where id::text like '9b000000-%';
-select 'sottoluoghi: S1–S3 superati';
+select 'sottoluoghi: S1–S4 superati';

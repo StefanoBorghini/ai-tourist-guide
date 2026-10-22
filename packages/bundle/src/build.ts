@@ -398,14 +398,17 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     const stopUnits = withPrerequisites(safeUnits.filter((u) => stops.has(u.anchor)), safeUnits).filter((u) => !publicUnitRefs.has(u.ref));
     premium.push(part("route", stopUnits, [r], r.ref));
   }
-  // Luogo principale (migrazioni 20261028000000 e 20261101000000): con l'esplorazione a pagamento, ogni luogo
-  // principale non gratuito ha la sua parte con i propri racconti e quelli dei suoi sottoluoghi, più ciò che serve a
-  // capirli. Si compra da solo; i sottoluoghi non hanno una parte propria. Chi ha l'esplorazione completa ha già tutto.
+  // Luogo principale (migrazioni 20261028000000, 20261101000000 e 20261102000000): con l'esplorazione a pagamento,
+  // ogni luogo principale non gratuito ha la sua parte con i propri racconti e quelli dei suoi sottoluoghi, più ciò che
+  // serve a capirli; un principale gratuito con sottoluoghi a pagamento ha la parte con i soli sottoluoghi (i suoi
+  // racconti sono già pubblici). Si compra da solo; i sottoluoghi non hanno una parte propria. Chi ha l'esplorazione
+  // completa ha già tutto.
   if (explorePremium) {
-    for (const p of places.filter((p) => isPrincipal(p.ref) && !freePlaces.has(p.ref)).sort(byRef)) {
+    const paidSubs = (ref: string) => [...parentOf].filter(([sub, parent]) => parent === ref && !freePlaces.has(sub)).map(([sub]) => sub);
+    for (const p of places.filter((p) => isPrincipal(p.ref) && (!freePlaces.has(p.ref) || paidSubs(p.ref).length > 0)).sort(byRef)) {
       // Anche senza racconti (decisione del 2026-10-18): chi compra il luogo ha il diritto, e i racconti aggiunti dopo
       // entrano in questo file alla pubblicazione successiva.
-      const members = new Set([p.ref, ...[...parentOf].filter(([sub, parent]) => parent === p.ref && !freePlaces.has(sub)).map(([sub]) => sub)]);
+      const members = new Set([p.ref, ...paidSubs(p.ref)]);
       const placeUnits = withPrerequisites(safeUnits.filter((u) => members.has(u.anchor)), safeUnits).filter((u) => !publicUnitRefs.has(u.ref));
       premium.push(part("place", placeUnits, [], p.ref));
     }

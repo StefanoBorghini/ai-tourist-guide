@@ -15,7 +15,7 @@ test `supabase/tests/95_catalog.sql` e blocco «catalogo» in `remote-check.sql`
 | Esplorazione | L'esplorazione completa della destinazione (uno solo non ritirato per destinazione) | nell'Accesso l'esplorazione è a pagamento |
 | Percorso | Un percorso premium (uno solo non ritirato per percorso) | il percorso è premium nell'Accesso |
 | Pacchetto | Più percorsi della stessa destinazione | ha almeno un percorso e sono tutti premium |
-| Luogo principale | Un luogo principale con i suoi sottoluoghi (uno solo non ritirato per luogo; migrazioni `20261028000000_place_products.sql` e `20261101000000_sub_places.sql`) | l'esplorazione è a pagamento, il luogo non è gratuito e non è un sottoluogo |
+| Luogo principale | Un luogo principale con i suoi sottoluoghi (uno solo non ritirato per luogo; migrazioni `20261028000000_place_products.sql` e `20261101000000_sub_places.sql`) | l'esplorazione è a pagamento, il luogo non è un sottoluogo e non è gratuito (o, se gratuito, ha sottoluoghi a pagamento: migrazione `20261102000000_free_principal_sale.sql`) |
 
 I prodotti «Luogo principale» si creano tutti insieme con **«Metti in vendita i luoghi principali»** (prezzo in bozza
 proposto: 1,99 €, decisione del 2026-10-22; prima 0,50 € per ogni luogo), che ritira anche i prodotti dei luoghi diventati

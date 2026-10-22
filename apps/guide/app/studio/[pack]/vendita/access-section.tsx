@@ -51,7 +51,8 @@ export async function AccessSection({ pack, session }: { pack: string; session: 
         pagamento ogni luogo può essere: <strong>a pagamento</strong>{" "}(si sblocca con l&apos;esplorazione completa o comprando il
         suo luogo principale; di un luogo principale resta gratuita la panoramica, cioè il racconto d&apos;apertura),{" "}
         <strong>introduttivo</strong>{" "}(gratuito il racconto d&apos;apertura anche se è un sottoluogo, al massimo 3 luoghi) o{" "}
-        <strong>gratuito</strong>{" "}(tutti i suoi racconti nell&apos;app pubblica, non si vende). I sottoluoghi si indicano nella
+        <strong>gratuito</strong>{" "}(tutti i suoi racconti nell&apos;app pubblica; si vende solo se ha sottoluoghi a pagamento, per
+        sbloccare quelli). I sottoluoghi si indicano nella
         scheda di ogni luogo (sezione Luoghi) e si sbloccano con il loro luogo principale. I racconti a pagamento, e i fatti che citano, non entrano
         nell&apos;app pubblica. Un percorso a pagamento non entra nell&apos;app pubblica in nessun caso.
       </p>

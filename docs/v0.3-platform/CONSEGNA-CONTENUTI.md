@@ -73,6 +73,13 @@ diritto su un luogo diventato sottoluogo apre il file del principale). Il file `
 racconti dei sottoluoghi; i file escono alla prossima «Ripubblica». La revoca torna alle funzioni precedenti senza toccare
 dati (la gerarchia resta, i prodotti ritirati restano ritirati).
 
+## Principale gratuito con sottoluoghi a pagamento: migrazione 33
+
+`supabase/migrations/20261102000000_free_principal_sale.sql` (revoca in `supabase/rollback/`, test S4 in
+`supabase/tests/99b_sub_places.sql`, controllo in `remote-check.sql`). Cambia solo `catalog_problem_place`: un luogo
+principale gratuito si vende se ha almeno un sottoluogo a pagamento; il suo file `place-<principale>` contiene solo quei
+sottoluoghi.
+
 ## Luoghi gratuiti: migrazione 29
 
 Decisione del 2026-10-18: nella scheda Vendita ogni luogo si sceglie fra **A pagamento** (si sblocca con

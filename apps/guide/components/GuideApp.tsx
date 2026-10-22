@@ -1318,7 +1318,8 @@ export function GuideApp() {
   const placeParts = new Set((opened?.manifest.premium ?? []).flatMap((f) => (f.kind === "place" && f.ref ? [f.ref] : [])));
   const offers = offersFor(content.locked, shopOn ? catalog.items : [], content.locale, {
     destination: content.destination,
-    refs: [...lockedPlaces].filter((r) => placeParts.has(r)),
+    // I luoghi principali che hanno un file a pagamento: anche quelli gratuiti con sottoluoghi a pagamento.
+    refs: [...placeParts],
   });
   // Immagine per i percorsi a pagamento (il bundle pubblico non ne descrive le tappe): la copertina della destinazione.
   const lockedCover = (() => {
@@ -1498,9 +1499,20 @@ export function GuideApp() {
         const principal = principalOf(cardRef) ?? cardRef;
         const isSub = principal !== cardRef;
         const principalName = placeByRef.get(principal)?.name ?? principal;
-        if (!lockedPlaces.has(cardRef)) return isSub ? { partOf: principalName } : {};
-        const n = subCount(principal);
         const offer = offers.places.get(principal);
+        // Principale gratuito: i suoi racconti si ascoltano, i suoi sottoluoghi a pagamento si sbloccano da qui.
+        const freePrincipal = !lockedPlaces.has(principal);
+        const paidSubs = content.places.filter((p) => p.partOf === principal && p.ref !== principal && lockedPlaces.has(p.ref)).length;
+        if (!lockedPlaces.has(cardRef)) {
+          return {
+            ...(isSub ? { partOf: principalName } : {}),
+            ...(!isSub && offer && paidSubs > 0
+              ? { extra: <><p className="muted">{t.freePrincipalHint(principalName, paidSubs)}</p>{buy(offer, t.buySubPlaces(principalName, paidSubs))}</> }
+              : {}),
+          };
+        }
+        const n = subCount(principal);
+        const buyLabel = freePrincipal ? t.buySubPlaces(principalName, paidSubs) : t.buyPrincipal(principalName, n);
         return {
           ...(isSub ? { partOf: principalName } : {}),
           // La panoramica gratuita si ascolta anche senza acquisto (solo dei luoghi principali).
@@ -1508,7 +1520,7 @@ export function GuideApp() {
           locked: offer ? (
             <>
               <p className="muted">{isSub ? t.lockedSubHint(principalName) : t.lockedPrincipalHint(principalName, n)}</p>
-              {buy(offer, t.buyPrincipal(principalName, n))}
+              {buy(offer, buyLabel)}
               {offers.explore && buy(offers.explore, t.buyAllPlaces)}
             </>
           ) : (

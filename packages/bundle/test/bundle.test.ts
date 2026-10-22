@@ -539,6 +539,30 @@ describe("unione dei contenuti acquistati (mergePremium)", () => {
     expect(b.premium.find((p) => p.kind === "explore")!.units.some((u) => u.anchor === ref("belvedere"))).toBe(false);
   });
 
+  const withFree = (free: string[]) => {
+    const copy = structuredClone(packs);
+    copy.get(D)!.config.access = { ...ACCESS, freePlaces: free };
+    return buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+  };
+  it("luogo principale gratuito con sottoluoghi a pagamento: la sua parte contiene solo i sottoluoghi e si compra", () => {
+    const copy = structuredClone(packs);
+    // La torre diventa sottoluogo del belvedere, che è gratuito.
+    copy.get(D)!.places.find((p) => p.id === "torre-di-prova")!.partOf = "belvedere";
+    copy.get(D)!.config.access = { ...ACCESS, freePlaces: ["belvedere"] };
+    const b = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
+    expect(b.content.locked?.places).not.toContain(ref("belvedere"));
+    expect(b.content.locked?.places).toContain(ref("torre-di-prova"));
+    const part = b.premium.find((p) => p.kind === "place" && p.ref === ref("belvedere"))!;
+    expect(part.units.length).toBeGreaterThan(0);
+    expect(part.units.every((u) => u.anchor !== ref("belvedere"))).toBe(true);
+    expect(part.units.some((u) => u.anchor === ref("torre-di-prova"))).toBe(true);
+    const merged = mergePremium(b.content, [part]);
+    expect(merged.locked?.places).not.toContain(ref("torre-di-prova"));
+    // Un principale gratuito senza sottoluoghi a pagamento non ha parte.
+    const plain = withFree(["chiesa-di-san-test"]);
+    expect(plain.premium.some((p) => p.kind === "place" && p.ref === ref("chiesa-di-san-test"))).toBe(false);
+  });
+
   it("senza parti il contenuto resta identico", () => {
     const b = built();
     expect(mergePremium(b.content, [])).toBe(b.content);

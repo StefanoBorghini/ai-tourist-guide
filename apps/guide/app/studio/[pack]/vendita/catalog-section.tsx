@@ -65,7 +65,8 @@ export async function CatalogSection({ pack, session }: { pack: string; session:
               <p className="st-hint">
                 Con l&apos;esplorazione a pagamento si vende ogni luogo principale: la sua panoramica resta gratuita, l&apos;acquisto
                 sblocca tutti i suoi racconti e quelli dei suoi sottoluoghi (si indicano nella scheda del luogo, sezione Luoghi). I
-                sottoluoghi e i luoghi gratuiti non si vendono da soli.{" "}
+                sottoluoghi non si vendono da soli; un luogo gratuito si vende solo se ha sottoluoghi a pagamento, e sblocca
+                solo quelli.{" "}
                 {placesToSell.length > 0
                   ? `${placesToSell.length} luoghi principali non hanno ancora un prodotto: il pulsante li crea tutti, attivi, con il prezzo in bozza.`
                   : "Tutti i luoghi principali hanno già un prodotto: il prezzo di ciascuno si cambia nella sua scheda qui sotto."}

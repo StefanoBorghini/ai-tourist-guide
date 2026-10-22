@@ -75,7 +75,9 @@ concedere subito dopo il pagamento; una copia immutabile del contenuto acquistat
   i sottoluoghi (`mergePremium`). «Esplorazione completa» continua a sbloccare tutto.
 - Chi aveva comprato un luogo prima che diventasse un sottoluogo riceve il file del suo principale (`has_place_right`):
   l'acquisto non va perso.
-- Un sottoluogo di un luogo gratuito si sblocca solo con l'esplorazione completa (o rendendo gratuito anche lui).
+- Un luogo principale **gratuito** con sottoluoghi a pagamento si vende lo stesso (migrazione 20261102000000): i suoi
+  racconti restano tutti gratuiti, il suo file contiene solo i sottoluoghi a pagamento e nell'app la sua scheda propone
+  «Sblocca i N luoghi di <principale>». Un luogo gratuito senza sottoluoghi a pagamento non si vende.
 - Nell'app: elenco con i sottoluoghi rientrati sotto il principale; scheda del principale con «Ascolta la panoramica
   gratuita» e «Sblocca <principale> · N luoghi»; scheda del sottoluogo con «Fa parte di <principale>» e lo stesso acquisto.
 

@@ -242,11 +242,14 @@ export const UI = {
     listenOverview: "Ascolta la panoramica gratuita",
     lockedPrincipalHint: (name: string, n: number) =>
       n > 0
-        ? `La panoramica è gratuita. Sblocca ${name} per ascoltare tutti i suoi racconti e quelli dei ${n === 1 ? "luogo" : `${n} luoghi`} che comprende.`
+        ? `La panoramica è gratuita. Sblocca ${name} per ascoltare tutti i suoi racconti e ${n === 1 ? "quelli del luogo" : `quelli dei ${n} luoghi`} che comprende.`
         : `La panoramica è gratuita. Sblocca ${name} per ascoltare tutti i suoi racconti.`,
     lockedSubHint: (parent: string) => `Fa parte di ${parent}: si sblocca con ${parent}.`,
     buyPrincipal: (name: string, n: number) => (n > 0 ? `Sblocca ${name} · ${n + 1} luoghi` : `Sblocca ${name}`),
     partOf: (parent: string) => `Fa parte di ${parent}`,
+    freePrincipalHint: (name: string, n: number) =>
+      `I racconti di ${name} sono gratuiti. ${n === 1 ? "Il luogo che comprende si sblocca" : `I ${n} luoghi che comprende si sbloccano`} qui.`,
+    buySubPlaces: (name: string, n: number) => (n === 1 ? `Sblocca il luogo di ${name}` : `Sblocca i ${n} luoghi di ${name}`),
     lockedPlaceBuyHint: "Sblocca solo questo luogo, oppure tutti i luoghi con l'esplorazione completa.",
     buyPlace: "Solo questo luogo",
     buyAllPlaces: "Tutti i luoghi",
@@ -546,6 +549,9 @@ export const UI = {
     lockedSubHint: (parent: string) => `Part of ${parent}: unlocked with ${parent}.`,
     buyPrincipal: (name: string, n: number) => (n > 0 ? `Unlock ${name} · ${n + 1} places` : `Unlock ${name}`),
     partOf: (parent: string) => `Part of ${parent}`,
+    freePrincipalHint: (name: string, n: number) =>
+      `${name}'s stories are free. ${n === 1 ? "The place it includes is" : `The ${n} places it includes are`} unlocked here.`,
+    buySubPlaces: (name: string, n: number) => (n === 1 ? `Unlock the place of ${name}` : `Unlock the ${n} places of ${name}`),
     lockedPlaceBuyHint: "Unlock just this place, or every place with the full exploration.",
     buyPlace: "Just this place",
     buyAllPlaces: "Every place",

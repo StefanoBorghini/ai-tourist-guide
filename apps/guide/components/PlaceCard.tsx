@@ -59,6 +59,8 @@ export function PlaceCard(props: {
   overview?: boolean;
   /** Nome del luogo principale, per un sottoluogo (si mostra sotto il nome). */
   partOf?: string;
+  /** Sotto le azioni di un luogo già ascoltabile: l'acquisto dei suoi sottoluoghi (principale gratuito). */
+  extra?: ReactNode;
 }) {
   const { content, placeRef, base, fix, isHere, heard, canAsk, t } = props;
   const place = content.places.find((p) => p.ref === placeRef);
@@ -148,6 +150,7 @@ export function PlaceCard(props: {
           )}
         </div>
         )}
+        {!props.locked && props.extra && <div className="place-actions locked">{props.extra}</div>}
         <p className={`place-status ${verified ? "good" : ""}`}>
           <span className="dot" />
           {verified ? t.map.verified : place.coordinateStatus === "map_verified" ? t.map.mapVerified : t.map.provisional}

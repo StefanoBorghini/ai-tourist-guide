@@ -6,7 +6,7 @@
 -- Esito: una tabella con «superato»; se qualcosa non va, un errore che inizia con «FALLITO».
 -- Colonne: esito, dati di prova rimasti (atteso 0), amministratori della piattaforma, controlli NON verificati
 -- (atteso «nessuno»: altrimenti l'elenco dice cosa va verificato a mano, e quei controlli non sono superati).
--- Presuppone le migrazioni fino a 20261101000000 (… → 29 → 30 → 31 → 32): senza, si ferma con «FALLITO: funzione assente».
+-- Presuppone le migrazioni fino a 20261102000000 (… → 30 → 31 → 32 → 33): senza, si ferma con «FALLITO: funzione assente».
 -- Non verificabile da SQL: lo scaricamento pubblico da /pub/ e la Storage API (qui si provano le regole sulle righe
 -- di storage.objects, non il servizio HTTP).
 -- Gli stessi controlli girano in locale con `npm run db:check` (10_platform_security.sql e seguenti).
@@ -85,6 +85,10 @@ begin
     end if;
     if (select prosrc from pg_proc where oid = 'catalog_problem_place(text,uuid)'::regprocedure) like '%non ha racconti%' then
       raise exception 'FALLITO: migrazione 20261030000000_places_without_stories non applicata (i luoghi senza racconti non si vendono)';
+    end if;
+    -- 20261102000000 cambia solo catalog_problem_place: un principale gratuito con sottoluoghi a pagamento si vende.
+    if (select prosrc from pg_proc where oid = 'catalog_problem_place(text,uuid)'::regprocedure) not like '%senza sottoluoghi a pagamento%' then
+      raise exception 'FALLITO: migrazione 20261102000000_free_principal_sale non applicata (un luogo principale gratuito non si vende per i suoi sottoluoghi)';
     end if;
     -- 20261101000000: «Metti in vendita» restituisce quanti prodotti ha creato e quanti ha ritirato.
     if (select prorettype from pg_proc where oid = 'studio_places_on_sale(text,integer)'::regprocedure) <> 'jsonb'::regtype then

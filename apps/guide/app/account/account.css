@@ -44,3 +44,7 @@
 .acc-orders { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .acc-orders li { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
 .acc-orders a { color: var(--sea-bright); }
+
+/* Conferma dell'indirizzo: passi numerati e «Non è arrivata?». */
+.acc-steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; line-height: 1.5; }
+.acc-subtitle { font-size: 20px; margin: 18px 0 0; }

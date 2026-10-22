@@ -9,6 +9,7 @@ pagine dicono «Gli account non sono ancora disponibili» e la pagina iniziale n
 | Pagina | Cosa fa |
 |---|---|
 | `/account/registrati` | Email, password (8–72 caratteri, ripetuta), lingua, accettazione delle condizioni e presa visione dell'informativa (obbligatorie, controllate anche sul server). Invia l'email di conferma. Stessa risposta per indirizzi nuovi e già registrati: nessuno scopre chi ha un account |
+| `/account/conferma` | Dopo la registrazione: cosa fare con l'email, consigli (spam, scadenza del link) e «Invia di nuovo l'email». Pubblica, l'indirizzo non passa nell'URL |
 | `/account/accedi` | Email e password; accesso social se attivo. Ritorno alla pagina richiesta solo se interna (`safeNext`) |
 | `/account/password` | Link per una nuova password. Stessa risposta per indirizzi registrati e non |
 | `/auth/confirm` | Link delle email (conferma, recupero): `token_hash` (consigliato, funziona anche su un altro dispositivo) oppure `code` (modello predefinito di Supabase, solo nello stesso browser) |
@@ -62,6 +63,25 @@ Senza condizioni, informativa e versione gli account restano spenti anche con l'
 5. **Password:** lunghezza minima 8 (come l'app); facoltativo il controllo delle password trapelate.
 6. **Collegamento delle identità (D5):** attiva *Manual linking* solo quando attivi Google o Apple. Il collegamento
    automatico di Supabase per email verificata va valutato prima: l'app propone solo quello manuale dal profilo.
+
+### L'email di conferma non arriva
+
+Il codice chiede l'invio a Supabase; l'email la manda il servizio configurato in **Emails → SMTP**. Nell'ordine:
+
+1. **SMTP proprio non configurato.** Quello incluso in Supabase scrive solo agli indirizzi del team del progetto e con
+   un limite di poche email l'ora: per chiunque altro l'email non parte. Serve un fornitore (per esempio Resend, Brevo,
+   Postmark, Amazon SES) con il dominio del mittente verificato (SPF e DKIM), poi host, porta, utente e password in
+   *Emails → SMTP* e un mittente del tipo `AI Guide <no-reply@dominio>`.
+2. **Limite di invio.** In *Rate Limits* il limite delle email l'ora: con l'SMTP proprio si può alzare.
+3. **Spam.** Senza SPF/DKIM sul dominio del mittente le email finiscono spesso nella posta indesiderata.
+4. **Link.** *URL Configuration* (punto 2 qui sopra) deve contenere il dominio da cui ci si registra, compresa
+   l'anteprima Vercel; altrimenti il link porta al *Site URL*.
+
+L'app aiuta a capirlo: se il servizio rifiuta l'invio il visitatore legge «In questo momento non riusciamo a inviare
+l'email» (codice `invio-email`) e nei log del server compare `[account] errore in registrazione: codice=… stato=…`
+(mai l'indirizzo email). Dopo la registrazione la pagina `/account/conferma` spiega cosa fare e ha «Invia di nuovo
+l'email» (`auth.resend`, stessa risposta per indirizzi registrati e no); l'accesso con l'indirizzo non confermato porta
+lì con un link.
 
 ### Google e Apple (dopo)
 

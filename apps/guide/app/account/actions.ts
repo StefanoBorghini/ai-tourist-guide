@@ -62,13 +62,43 @@ export async function signUp(form: FormData) {
     },
   });
   // Un indirizzo già registrato riceve la stessa risposta di uno nuovo (Supabase non rivela nulla).
-  if (error) go("/account/registrati", { errore: authErrorCode(error) });
+  if (error) {
+    logAuthFailure("registrazione", error);
+    go("/account/registrati", { errore: authErrorCode(error) });
+  }
   if (data.session && data.user) {
     // Conferma dell'email disattivata nel progetto: sessione subito (sconsigliato in produzione).
     await recordConsents(supabase, data.user);
     go("/account");
   }
-  go(SIGN_IN, { ok: "controlla-email" });
+  go("/account/conferma", { ok: "controlla-email" });
+}
+
+/**
+ * «Non è arrivata?»: nuova email di conferma della registrazione. Stessa risposta per indirizzi registrati e no
+ * (nessuno scopre chi ha un account); si dicono solo il limite di invio e il servizio email che rifiuta.
+ */
+export async function resendConfirmation(form: FormData) {
+  const config = configured();
+  const email = text(form, "email");
+  if (!EMAIL_RE.test(email)) go("/account/conferma", { errore: "email" });
+  const supabase = await accountClient(config);
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+    options: { emailRedirectTo: `${await siteOrigin()}/auth/confirm?next=/account` },
+  });
+  if (error) {
+    const code = authErrorCode(error);
+    logAuthFailure("reinvio conferma", error);
+    if (code === "troppi-tentativi" || code === "invio-email") go("/account/conferma", { errore: code });
+  }
+  go("/account/conferma", { ok: "email-reinviata" });
+}
+
+/** Nei log del server solo codice e stato dell'errore, mai l'indirizzo email: serve a capire perché un'email non parte. */
+function logAuthFailure(step: string, error: { code?: string; status?: number; message?: string }) {
+  console.error(`[account] errore in ${step}: codice=${error.code ?? "-"} stato=${error.status ?? "-"} (${(error.message ?? "").slice(0, 120)})`);
 }
 
 export async function requestPasswordReset(form: FormData) {
@@ -77,8 +107,12 @@ export async function requestPasswordReset(form: FormData) {
   if (!EMAIL_RE.test(email)) go("/account/password", { errore: "email" });
   const supabase = await accountClient(config);
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${await siteOrigin()}/auth/confirm?next=/auth/reimposta` });
-  // Solo il limite di invio si dice; per il resto la stessa risposta, registrato o no.
-  if (error && authErrorCode(error) === "troppi-tentativi") go("/account/password", { errore: "troppi-tentativi" });
+  // Solo il limite di invio e il servizio email che rifiuta si dicono; per il resto la stessa risposta, registrato o no.
+  if (error) {
+    logAuthFailure("recupero password", error);
+    const code = authErrorCode(error);
+    if (code === "troppi-tentativi" || code === "invio-email") go("/account/password", { errore: code });
+  }
   go(SIGN_IN, { ok: "email-recupero" });
 }
 

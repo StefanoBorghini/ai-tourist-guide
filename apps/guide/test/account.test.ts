@@ -46,7 +46,7 @@ describe("configurazione degli account", () => {
 describe("percorsi e redirect", () => {
   it("pagine protette e pagine pubbliche dell'account", () => {
     for (const p of ["/account", "/account/", "/account/elimina", "/account/esporta", "/auth/reimposta"]) expect(requiresSession(p), p).toBe(true);
-    for (const p of ["/account/accedi", "/account/registrati", "/account/password", "/auth/confirm", "/auth/callback", "/", "/studio"]) expect(requiresSession(p), p).toBe(false);
+    for (const p of ["/account/accedi", "/account/registrati", "/account/password", "/account/conferma", "/auth/confirm", "/auth/callback", "/", "/studio"]) expect(requiresSession(p), p).toBe(false);
   });
   it("dopo l'accesso solo pagine interne note, mai un altro sito", () => {
     expect(safeNext("/account")).toBe("/account");
@@ -83,6 +83,10 @@ describe("password, messaggi, errori", () => {
     expect(authErrorCode({ code: "otp_expired" })).toBe("link");
     expect(authErrorCode({ code: "over_email_send_rate_limit" })).toBe("troppi-tentativi");
     expect(authErrorCode({ status: 429 })).toBe("troppi-tentativi");
+    // Servizio email che rifiuta l'invio (per esempio quello incluso in Supabase, solo per gli indirizzi del team).
+    expect(authErrorCode({ code: "email_address_not_authorized" })).toBe("invio-email");
+    expect(authErrorCode({ status: 500, message: "Error sending confirmation email" })).toBe("invio-email");
+    expect(authErrorCode({ status: 500, message: "Error sending recovery email" })).toBe("invio-email");
     expect(authErrorCode({ code: "identity_already_exists" })).toBe("gia-collegato");
     expect(authErrorCode({ code: "qualcosa_di_nuovo" })).toBe("servizio");
   });

@@ -62,7 +62,7 @@ export const accountEnv = () => ({
 export const ACCOUNT_HOME = "/account";
 export const SIGN_IN = "/account/accedi";
 /** Pagine dell'account raggiungibili senza sessione. */
-const PUBLIC_ACCOUNT_PAGES = new Set(["/account/accedi", "/account/registrati", "/account/password"]);
+const PUBLIC_ACCOUNT_PAGES = new Set(["/account/accedi", "/account/registrati", "/account/password", "/account/conferma"]);
 
 /** La pagina richiede un utente autenticato? (/auth/reimposta sì: ci si arriva con la sessione del link di recupero.) */
 export function requiresSession(pathname: string): boolean {
@@ -103,6 +103,7 @@ export function checkPassword(password: string, confirm?: string): string | null
  */
 export const MESSAGES = {
   "controlla-email": "Ti abbiamo scritto: apri il link nell'email per confermare l'indirizzo, poi accedi.",
+  "email-reinviata": "Se l'indirizzo è registrato e non ancora confermato, ti abbiamo inviato una nuova email di conferma.",
   "email-recupero": "Se l'indirizzo è registrato, riceverai un'email con il link per scegliere una nuova password.",
   "password-aggiornata": "Password aggiornata.",
   "profilo-salvato": "Profilo salvato.",
@@ -133,6 +134,7 @@ export const ERRORS = {
   "conferma-eliminazione": "Per eliminare l'account scrivi ELIMINA nel campo di conferma.",
   "nome": "Il nome può avere al massimo 80 caratteri.",
   "servizio": "Il servizio non risponde: riprova tra poco.",
+  "invio-email": "In questo momento non riusciamo a inviare l'email: riprova tra qualche minuto. Se continua, scrivici.",
   "gia-acquistato": "Hai già acquistato questo contenuto: lo trovi in «I miei acquisti».",
   "esaurito": "Questo contenuto al momento non è acquistabile.",
   "non-pubblicata": "Questa destinazione non è ancora disponibile per gli acquisti.",
@@ -162,6 +164,9 @@ export function authErrorCode(error: { code?: string; status?: number; message?:
   if (code === "email_exists" || code === "user_already_exists") return "altro-metodo";
   if (code === "provider_disabled" || code === "manual_linking_disabled") return "metodo";
   if (code.startsWith("over_") || error.status === 429) return "troppi-tentativi";
+  // Il servizio email del progetto ha rifiutato l'invio (per esempio quello incluso in Supabase, che scrive solo agli
+  // indirizzi del team): l'account può essere stato creato, ma l'email non parte.
+  if (code === "email_address_not_authorized" || /error sending .*email/i.test(msg)) return "invio-email";
   return "servizio";
 }
 

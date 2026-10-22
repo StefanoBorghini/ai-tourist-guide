@@ -17,6 +17,11 @@ export default async function SignInPage({ searchParams }: { searchParams: Searc
     <AccountPage title="Accedi">
       <p className="muted">Serve un account solo per acquistare e ritrovare i tuoi acquisti su altri dispositivi.</p>
       <Outcome ok={one(q.ok)} errore={one(q.errore)} />
+      {one(q.errore) === "non-confermata" && (
+        <p className="muted small">
+          L&apos;email non è arrivata o il link è scaduto? <Link href="/account/conferma">Invia di nuovo l&apos;email di conferma</Link>
+        </p>
+      )}
       {SIGNED_OUT.has(one(q.ok) ?? "") && <ClearPurchases />}
       <form action={signIn} className="acc-form">
         <input type="hidden" name="next" value={next} />

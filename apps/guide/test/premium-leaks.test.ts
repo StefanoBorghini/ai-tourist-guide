@@ -37,6 +37,16 @@ function studioSnapshots(access?: TerritoryPack["config"]["access"]) {
     pack.sources = pack.sources.map((src) => ({ ...src, fictional: false }));
     pack.media = [];
     if (id === VILLAGE && access) pack.config.access = access;
+    // Panoramiche (racconti d'apertura) anche per chiesa, torre e belvedere, come in un territorio reale: senza, la
+    // panoramica gratuita di un luogo principale sarebbe il suo primo racconto (decisione del 2026-10-22).
+    if (id === VILLAGE) {
+      for (const place of ["belvedere", "chiesa-di-san-test", "torre-di-prova"]) {
+        pack.units.push({
+          id: `${place}-panoramica-it`, anchor: place, unitType: "opening", locale: "it", audience: "general", durationS: 15,
+          text: "Panoramica di prova.", assertions: ["porta-funzione"], introduces: [], requires: [], hooks: [],
+        });
+      }
+    }
     // Nessuna foto: il descrittore dei file non viene mai chiamato.
     out.set(id, JSON.parse(JSON.stringify(packToSnapshot(pack, () => { throw new Error("nessun file"); }))) as Record<string, unknown>);
   }

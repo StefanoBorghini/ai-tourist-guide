@@ -377,9 +377,11 @@ describe("accesso a pagamento", () => {
     // Senza introduttivi la porta, luogo principale, ha comunque la sua panoramica gratuita.
     village(packs).config.access = { explore: "premium", introPlaces: [], premiumRoutes: [] };
     expect(warningCodes(packs)).not.toContain("ACCESS_NO_INTRO");
-    // Se la porta diventa un sottoluogo, nessun luogo principale ha più una panoramica.
+    // Se tutti i luoghi con racconti diventano sottoluoghi del carrugio (senza racconti), non resta nessuna panoramica.
     village(packs).places.find((p) => p.id === "carrugio-centrale")!.partOf = undefined;
-    village(packs).places.find((p) => p.id === "porta-del-borgo")!.partOf = "chiesa-di-san-test";
+    for (const id of ["porta-del-borgo", "chiesa-di-san-test", "torre-di-prova", "belvedere"]) {
+      village(packs).places.find((p) => p.id === id)!.partOf = "carrugio-centrale";
+    }
     expect(warningCodes(packs)).toContain("ACCESS_NO_INTRO");
   });
 });

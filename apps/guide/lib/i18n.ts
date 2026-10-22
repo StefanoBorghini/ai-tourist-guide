@@ -245,6 +245,10 @@ export const UI = {
         ? `La panoramica è gratuita. Sblocca ${name} per ascoltare tutti i suoi racconti e ${n === 1 ? "quelli del luogo" : `quelli dei ${n} luoghi`} che comprende.`
         : `La panoramica è gratuita. Sblocca ${name} per ascoltare tutti i suoi racconti.`,
     lockedSubHint: (parent: string) => `Fa parte di ${parent}: si sblocca con ${parent}.`,
+    lockedPrincipalNoOverview: (name: string, n: number) =>
+      n > 0
+        ? `Sblocca ${name} per ascoltare tutti i suoi racconti e ${n === 1 ? "quelli del luogo" : `quelli dei ${n} luoghi`} che comprende.`
+        : `Sblocca ${name} per ascoltare tutti i suoi racconti.`,
     buyPrincipal: (name: string, n: number) => (n > 0 ? `Sblocca ${name} · ${n + 1} luoghi` : `Sblocca ${name}`),
     partOf: (parent: string) => `Fa parte di ${parent}`,
     freePrincipalHint: (name: string, n: number) =>
@@ -547,6 +551,10 @@ export const UI = {
         ? `The overview is free. Unlock ${name} to hear all its stories and those of the ${n === 1 ? "place" : `${n} places`} it includes.`
         : `The overview is free. Unlock ${name} to hear all its stories.`,
     lockedSubHint: (parent: string) => `Part of ${parent}: unlocked with ${parent}.`,
+    lockedPrincipalNoOverview: (name: string, n: number) =>
+      n > 0
+        ? `Unlock ${name} to hear all its stories and those of the ${n === 1 ? "place" : `${n} places`} it includes.`
+        : `Unlock ${name} to hear all its stories.`,
     buyPrincipal: (name: string, n: number) => (n > 0 ? `Unlock ${name} · ${n + 1} places` : `Unlock ${name}`),
     partOf: (parent: string) => `Part of ${parent}`,
     freePrincipalHint: (name: string, n: number) =>

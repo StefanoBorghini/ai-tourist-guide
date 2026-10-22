@@ -1519,7 +1519,11 @@ export function GuideApp() {
           overview: !isSub && publicAnchors.has(cardRef),
           locked: offer ? (
             <>
-              <p className="muted">{isSub ? t.lockedSubHint(principalName) : t.lockedPrincipalHint(principalName, n)}</p>
+              <p className="muted">
+                {isSub
+                  ? t.lockedSubHint(principalName)
+                  : publicAnchors.has(cardRef) ? t.lockedPrincipalHint(principalName, n) : t.lockedPrincipalNoOverview(principalName, n)}
+              </p>
               {buy(offer, buyLabel)}
               {offers.explore && buy(offers.explore, t.buyAllPlaces)}
             </>

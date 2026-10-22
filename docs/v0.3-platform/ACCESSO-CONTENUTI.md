@@ -67,8 +67,9 @@ concedere subito dopo il pagamento; una copia immutabile del contenuto acquistat
   stessa destinazione: nello Studio, scheda del luogo, spunta «È un sottoluogo di …». Un solo livello: il validatore
   (`PART_OF_DEPTH`) e il database (`studio_set_place_parent`) rifiutano un sottoluogo di un sottoluogo e un luogo con
   sottoluoghi che diventa sottoluogo. Ogni altro luogo della destinazione è **principale**.
-- Con l'esplorazione a pagamento la **panoramica** di ogni luogo principale (il suo racconto d'apertura) è nel bundle
-  pubblico; tutti gli altri racconti del principale e **tutti** quelli dei suoi sottoluoghi stanno nel file a pagamento del
+- Con l'esplorazione a pagamento la **panoramica** di ogni luogo principale è nel bundle pubblico: il suo racconto
+  d'apertura o, se non ne ha, il suo primo racconto nell'ordine dei tipi (contesto, dettaglio, curiosità, leggenda…),
+  così ogni principale con racconti ha un ascolto gratuito; un principale senza racconti non ne ha, e l'app non lo dice; tutti gli altri racconti del principale e **tutti** quelli dei suoi sottoluoghi stanno nel file a pagamento del
   principale (`place-<principale>`). I sottoluoghi non hanno un file proprio e non si vendono da soli.
 - Si vende il **luogo principale** (prodotto «Luogo principale», 1,99 € proposto da «Metti in vendita i luoghi
   principali», che ritira anche i prodotti dei luoghi diventati sottoluoghi). Comprato il principale, l'app sblocca anche

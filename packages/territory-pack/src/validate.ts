@@ -648,25 +648,27 @@ function checkAccess(pack: TerritoryPack, ctx: Context): void {
     if (!routes.has(id)) ctx.out.error({ code: "ACCESS_ROUTE_UNKNOWN", packId, file, item: id, message: `percorso premium inesistente: ${id}` });
   }
   if (access.explore !== "premium") return;
-  // Anteprima gratuita: le panoramiche (racconti d'apertura) dei luoghi principali e dei luoghi introduttivi
-  // (decisione del 2026-10-22). Se nessuno ne ha una, chi non ha comprato non sente nessun racconto.
+  // Anteprima gratuita: le panoramiche dei luoghi principali (racconto d'apertura o, se manca, il primo racconto) e le
+  // aperture dei luoghi introduttivi (decisione del 2026-10-22). Se non ce n'è nessuna, chi non ha comprato non sente
+  // nessun racconto.
   const subPlaces = new Set(
     pack.places.filter((pl) => {
       const parent = pl.partOf ? resolveRef(pl.partOf, packId) : null;
       return parent?.packId === packId && parent.slug !== pl.id && places.has(parent.slug);
     }).map((pl) => pl.id),
   );
-  const previewed = new Set([...access.introPlaces, ...[...places].filter((id) => !subPlaces.has(id))]);
+  const principals = new Set([...places].filter((id) => !subPlaces.has(id)));
   const hasPreview = pack.units.some((u) => {
     const anchor = resolveRef(u.anchor, packId);
-    return u.unitType === "opening" && anchor?.packId === packId && previewed.has(anchor.slug);
+    if (anchor?.packId !== packId) return false;
+    return principals.has(anchor.slug) || (u.unitType === "opening" && access.introPlaces.includes(anchor.slug));
   });
   if (!hasPreview) {
     ctx.out.warning({
       code: "ACCESS_NO_INTRO",
       packId,
       file,
-      message: "esplorazione a pagamento senza panoramiche: nessun luogo principale ha il racconto d'apertura, l'anteprima non avrà racconti",
+      message: "esplorazione a pagamento senza panoramiche: nessun luogo principale ha racconti, l'anteprima non avrà racconti",
     });
   }
   for (const id of access.introPlaces) {

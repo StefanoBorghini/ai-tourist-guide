@@ -7,6 +7,7 @@ import {
   type Locale,
   MEDIA_FILES_DIR,
   type TerritoryPack,
+  UNIT_TYPES,
 } from "@guide/domain";
 import { reachablePacks } from "@guide/narrative-planner";
 import { hasErrors, validatePacks, type PackIssue } from "@guide/territory-pack";
@@ -334,12 +335,23 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     places.flatMap((p) => (destPlaceRefs.has(p.ref) && p.partOf && p.partOf !== p.ref && destPlaceRefs.has(p.partOf) ? [[p.ref, p.partOf] as const] : [])),
   );
   const isPrincipal = (ref: string) => destPlaceRefs.has(ref) && !parentOf.has(ref);
+  // Panoramica di un luogo principale (decisione del 2026-10-22): i suoi racconti d'apertura; se non ne ha, il suo primo
+  // racconto nell'ordine dei tipi (contesto, dettaglio, curiosità…) e poi del riferimento. Senza racconti, nessuna.
+  const typeRank = (u: BundleUnit) => UNIT_TYPES.indexOf(u.unitType);
+  const overviewRefs = new Set<string>();
+  for (const ref of destPlaceRefs) {
+    if (!isPrincipal(ref)) continue;
+    const own = safeUnits.filter((u) => u.anchor === ref);
+    const openings = own.filter((u) => u.unitType === "opening");
+    const first = [...own].sort((a, b) => typeRank(a) - typeRank(b) || a.ref.localeCompare(b.ref))[0];
+    for (const u of openings.length > 0 ? openings : first ? [first] : []) overviewRefs.add(u.ref);
+  }
   // Esplorazione a pagamento: pubbliche le panoramiche dei luoghi principali (e le aperture dei luoghi introduttivi)
   // e tutti i racconti dei luoghi gratuiti, con ciò che serve a capirli.
   const publicUnits = explorePremium
     ? withPrerequisites(
         safeUnits.filter(
-          (u) => freePlaces.has(u.anchor) || (u.unitType === "opening" && (introPlaces.has(u.anchor) || isPrincipal(u.anchor))),
+          (u) => freePlaces.has(u.anchor) || overviewRefs.has(u.ref) || (u.unitType === "opening" && introPlaces.has(u.anchor)),
         ),
         safeUnits,
       )

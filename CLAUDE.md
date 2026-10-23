@@ -41,6 +41,10 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   modello), `lib/model.ts` (il modello dietro un'interfaccia: Anthropic o API compatibili OpenAI, scelti con
   `ASK_PROVIDER`; la ricerca web resta di Anthropic), `lib/emergency.ts` (emergenze riconosciute senza modello: 112
   subito, anche offline), `lib/limits.ts` (limiti per indirizzo e tetto di spesa giornaliero, per istanza),
+  `lib/question-gaps.ts` e `lib/question-gaps-server.ts` (registro delle domande senza risposta: dall'esito della risposta, testo
+  mascherato ma non anonimo, niente IP né conversazioni, scadenza 90 giorni, spento senza `QUESTION_GAPS_ENABLED=1`; tabella
+  `question_gaps` scritta solo da `gap_record()` con la chiave di servizio, tetto globale di righe nuove al giorno; scheda «Domande»
+  dello Studio in `app/studio/[pack]/domande/`; migrazione `20261103000000_question_gaps.sql`, vedi `docs/v0.3-platform/DOMANDE-SENZA-RISPOSTA.md`),
   `lib/persona.ts` (Gaia: identità e voce, separate dalle regole
   di verità; `docs/v0.4-gaia/`) e `app/api/guide/ask` per le domande all'AI; `lib/ask-cost.ts` listino, consumi e budget per domanda
   (`ASK_MAX_USD_PER_QUESTION` obbligatoria, stime prima di ogni chiamata, nessun nuovo tentativo automatico; non è un tetto

@@ -312,13 +312,18 @@ export function unsupportedNumbers(parsed: ParsedWebAnswer, blocks: ContentBlock
 // ------------------------------------------------------------------ log
 
 /**
- * Testo della domanda per i log: indirizzi email e numeri di telefono mascherati. La domanda serve alla
- * redazione per trovare le lacune della base, i dati di contatto di chi la scrive no.
+ * Testo della domanda per i log e per il registro delle domande senza risposta: indirizzi web, email, IBAN, codici
+ * fiscali e numeri di telefono (o altri numeri lunghi, come le carte) mascherati. La domanda serve alla redazione per
+ * trovare le lacune della base, i dati di chi la scrive no. Riconosce solo forme fisse: nomi, indirizzi di casa e
+ * altri riferimenti scritti a parole restano, quindi il testo non è anonimo.
  */
 export function redactForLog(text: string): string {
   return (
     text
+      .replace(/(?:\bhttps?:\/\/|\bwww\.)\S+/giu, "[link]")
       .replace(/[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/gu, "[email]")
+      .replace(/\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}\b/giu, (m) => (/\d.*\d.*\d.*\d.*\d.*\d/.test(m.slice(4)) ? "[iban]" : m))
+      .replace(/\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b/giu, "[codice fiscale]")
       // Almeno 9 cifre: i numeri di telefono italiani sì, un intervallo di anni ("1256-1277") no.
       .replace(/(?<![\p{L}\p{N}])\+?\d[\d\s./-]{6,}\d(?![\p{L}\p{N}])/gu, (m) => (m.replace(/\D/g, "").length >= 9 ? "[telefono]" : m))
   );

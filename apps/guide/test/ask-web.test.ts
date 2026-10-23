@@ -142,6 +142,12 @@ describe("log delle domande", () => {
     expect(redactForLog("scrivimi a mario.rossi@example.it per info")).toBe("scrivimi a [email] per info");
     expect(redactForLog("chiamami al +39 347 123 4567 o allo 0187 790000")).toBe("chiamami al [telefono] o allo [telefono]");
     expect(redactForLog("fu costruita tra il 1256-1277 e restaurata nel 1929")).toBe("fu costruita tra il 1256-1277 e restaurata nel 1929");
+    expect(redactForLog("ho pagato con IT60 X054 2811 1010 0000 0123 456, rimborso?")).toBe("ho pagato con [iban], rimborso?");
+    expect(redactForLog("il mio codice è RSSMRA85T10A562S")).toBe("il mio codice è [codice fiscale]");
+    expect(redactForLog("ho letto su https://example.it/pagina?utente=mario e www.esempio.it/x")).toBe("ho letto su [link] e [link]");
+    expect(redactForLog("carta 4111 1111 1111 1111 smarrita")).toBe("carta [telefono] smarrita");
+    // Parole lunghe con poche cifre non sono IBAN; nomi e riferimenti scritti a parole restano (limite dichiarato).
+    expect(redactForLog("la grotta AB12 è chiusa? Sono Mario Rossi")).toBe("la grotta AB12 è chiusa? Sono Mario Rossi");
   });
 });
 

@@ -1,0 +1,41 @@
+# Espressioni di Gaia ↔ stati dell'app (bozza 0.1).
+# Le immagini sono fisse (nessun labiale animato): si passa da una all'altra con una dissolvenza.
+# I nomi delle espressioni vengono dai mockup del proprietario. I file immagine non esistono ancora:
+# vanno prodotti da un'unica scheda visiva (model sheet) per avere lo stesso volto in ogni stato.
+
+modelSheet:
+  status: to_do
+  mustFix:
+    - stesso volto, proporzioni e corporatura in tutte le immagini (oggi ritratto e mockup differiscono)
+    - un solo abito di riferimento (scegliere tra bianco/blu e verde/oro)
+    - stile dell'abito adatto a famiglie e scuole (scelta di brand del proprietario)
+    - verificare i diritti d'uso commerciale del generatore e l'assenza di somiglianza con persone reali
+
+states:
+  welcome:
+    expression: felice_accogliente
+    when: primo saluto, apertura della destinazione
+  listening:
+    expression: in_ascolto
+    when: microfono attivo (push-to-talk, Fase 5)
+  thinking:
+    expression: riflessiva
+    when: in attesa della risposta del modello (da 1–2 s fino a ~50 s con ricerca web)
+    note: oltre 3 s mostrare anche un testo ("Sto controllando le fonti…")
+  speaking:
+    expression: in_conversazione
+    when: la voce sta leggendo una risposta o un'unità narrativa
+  pointing:
+    expression: indicando_un_luogo
+    when: risposte di orientamento (usedPosition) o proposta di un luogo vicino
+  smiling:
+    expression: sorridente
+    when: chiusura cordiale, ringraziamenti
+    note: la variante con l'occhiolino solo per l'ironia, rara, mai su temi delicati
+  serious:
+    expression: seria_attenta
+    when: emergenze e temi delicati (guerre, naufragi, lutti)
+    note: espressione MANCANTE nei mockup — da aggiungere al model sheet
+  unavailable:
+    expression: riflessiva
+    when: offline o servizio non disponibile, insieme al messaggio onesto

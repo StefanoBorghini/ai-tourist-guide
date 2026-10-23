@@ -1,9 +1,13 @@
 /**
- * Parte server delle domande alla guida: legge il bundle compilato e interroga Claude.
+ * Parte server delle domande alla guida: legge il bundle compilato e interroga il modello.
  *
  * La conoscenza arriva dallo stesso bundle che usa l'app (public/bundles, verificato con gli hash),
  * mai dal client: chi fa la domanda non può aggiungere "fatti" alla base.
+ * La risposta locale passa da un ModelAdapter (model.ts): il fornitore si cambia con la configurazione.
+ * La ricerca web usa lo strumento lato server di Anthropic. Ogni chiamata passa dal budget della
+ * domanda (ask-cost.ts).
  */
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
@@ -17,12 +21,16 @@ import {
   buildQuestionMessage,
   checkModelAnswer,
   fallbackAnswer,
+  sanitizeRequest,
   webNote,
   type AskAnswer,
   type AskMeter,
   type AskRequest,
 } from "./ask";
 import { WEB_SYSTEM_PROMPT, buildWebAddendum, needsWeb, parseWebAnswer, unsupportedNumbers, type ContentBlockLike, type ParsedWebAnswer, type WebConfig } from "./ask-web";
+import { detectEmergency } from "./emergency";
+import { DEFAULT_ANTHROPIC_MODEL, ModelError, type AskModels, type ModelAdapter } from "./model";
+import { PERSONA, PERSONA_PROMPT } from "./persona";
 import {
   addUsage,
   emptyUsage,
@@ -35,7 +43,22 @@ import {
   type Usage,
 } from "./ask-cost";
 
-export const ASK_MODEL = "claude-opus-5-5";
+/** Modello della risposta locale quando ASK_MODEL non è impostato (fornitore Anthropic). */
+export const ASK_MODEL = DEFAULT_ANTHROPIC_MODEL;
+
+/** Versioni di istruzioni e persona, per i log: dicono con quali regole è stata data una risposta. */
+export const PROMPT_VERSION = createHash("sha256").update(`${SYSTEM_PROMPT}\n${WEB_SYSTEM_PROMPT}\n${PERSONA_PROMPT}`).digest("hex").slice(0, 12);
+export const PERSONA_VERSION = `${PERSONA.id}@${PERSONA.version}`;
+
+/**
+ * Tempi: la route ha 60 s (maxDuration). La risposta locale ha un solo tentativo da 25 s; la ricerca
+ * web usa il tempo che resta fino a ASK_DEADLINE_MS dall'inizio della domanda (lasciando 25 s alla
+ * risposta locale di ripiego quando l'approfondimento va diretto alla ricerca) e non parte se ne
+ * restano meno di WEB_MIN_MS. Così la funzione non viene interrotta dalla piattaforma senza risposta.
+ */
+export const LOCAL_TIMEOUT_MS = 25_000;
+export const ASK_DEADLINE_MS = 55_000;
+export const WEB_MIN_MS = 10_000;
 
 /** Token massimi in uscita (ragionamento compreso) e minimi utili, per chiamata. */
 export const LOCAL_MAX_TOKENS = 4000;
@@ -174,20 +197,24 @@ export interface AskOutcome {
 
 type LocalResult = { answer: AskAnswer; rejected?: string; usage: Usage | null; model: string };
 
-/** Un rifiuto HTTP 4xx dell'API vuol dire richiesta non eseguita; tutto il resto può aver consumato. */
+/**
+ * Un rifiuto HTTP 4xx (richiesta non eseguita) non consuma; tutto il resto può aver consumato.
+ * Vale per gli errori dell'SDK di Anthropic e per quelli degli adattatori (ModelError).
+ */
 function failureInfo(error: unknown): { message: string; rejectedByApi: boolean } {
-  if (error instanceof Anthropic.APIError) {
+  if (error instanceof Anthropic.APIError || error instanceof ModelError) {
     const status = typeof error.status === "number" ? error.status : undefined;
-    return { message: `API ${status ?? "?"}: ${error.message}`, rejectedByApi: status !== undefined && status >= 400 && status < 500 };
+    const message = error instanceof ModelError ? error.message : `API ${status ?? "?"}: ${error.message}`;
+    return { message, rejectedByApi: status !== undefined && status >= 400 && status < 500 };
   }
   return { message: (error as Error)?.message ?? String(error), rejectedByApi: false };
 }
 
 /** Piano della risposta locale (anche solo per sapere quanto tenere da parte per un ripiego). */
-function planLocal(loaded: Loaded, req: AskRequest, budget: QuestionBudget, maxTokens = LOCAL_MAX_TOKENS) {
+function planLocal(model: ModelAdapter, loaded: Loaded, req: AskRequest, budget: QuestionBudget, maxTokens = LOCAL_MAX_TOKENS) {
   return budget.plan({
-    model: ASK_MODEL,
-    inputTokens: estimateInputTokens(SYSTEM_PROMPT, loaded.knowledge, buildQuestionMessage(loaded.content, req), JSON.stringify(ANSWER_JSON_SCHEMA)),
+    model: model.model,
+    inputTokens: estimateInputTokens(SYSTEM_PROMPT, PERSONA_PROMPT, loaded.knowledge, buildQuestionMessage(loaded.content, req), JSON.stringify(ANSWER_JSON_SCHEMA)),
     maxTokens,
     minTokens: LOCAL_MIN_TOKENS,
   });
@@ -197,48 +224,40 @@ function planLocal(loaded: Loaded, req: AskRequest, budget: QuestionBudget, maxT
  * Livello A: risposta dalla sola base verificata, con controllo rigoroso di citazioni e numeri.
  * Se il budget non basta nemmeno per la risposta minima, nessuna chiamata: risposta "non disponibile".
  */
-export async function askLocal(client: Anthropic, loaded: Loaded, req: AskRequest, budget: QuestionBudget): Promise<LocalResult> {
-  const plan = planLocal(loaded, req, budget);
+export async function askLocal(model: ModelAdapter, loaded: Loaded, req: AskRequest, budget: QuestionBudget): Promise<LocalResult> {
+  const plan = planLocal(model, loaded, req, budget);
   if (!plan.ok) {
     budget.stopped(`risposta locale non avviata: ${plan.reason}`);
-    return { answer: fallbackAnswer(req.locale, "unavailable"), usage: null, model: ASK_MODEL };
+    return { answer: fallbackAnswer(req.locale, "unavailable"), usage: null, model: model.model };
   }
-  let response: Anthropic.Beta.Messages.BetaMessage;
+  let response: Awaited<ReturnType<ModelAdapter["generate"]>>;
   try {
-    response = await client.beta.messages.create(
-      {
-        model: ASK_MODEL,
-        max_tokens: plan.maxTokens,
-        // Se il modello declina, l'API ripete la richiesta sul modello di ripiego consigliato.
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-        // Risposte da leggere a voce: poca riflessione, latenza bassa.
-        output_config: { effort: "low", format: { type: "json_schema", schema: ANSWER_JSON_SCHEMA } },
-        system: [
-          { type: "text", text: SYSTEM_PROMPT },
-          { type: "text", text: loaded.knowledge, cache_control: { type: "ephemeral" } },
-        ],
-        messages: [{ role: "user", content: buildQuestionMessage(loaded.content, req) }],
-      },
-      // Nessun nuovo tentativo automatico: un tempo scaduto può essere già stato pagato.
-      { timeout: 25_000, maxRetries: 0 },
-    );
+    response = await model.generate({
+      // Istruzioni e persona fisse, poi la base: tutto il prefisso resta in cache tra una domanda e l'altra.
+      system: [{ text: SYSTEM_PROMPT }, { text: PERSONA_PROMPT }, { text: loaded.knowledge, cache: true }],
+      user: buildQuestionMessage(loaded.content, req),
+      jsonSchema: ANSWER_JSON_SCHEMA,
+      maxTokens: plan.maxTokens,
+      timeoutMs: LOCAL_TIMEOUT_MS,
+    });
   } catch (error) {
     budget.recordFailure("local", plan, failureInfo(error));
     throw error;
   }
-  // Il modello che ha risposto davvero (con il ripiego automatico può non essere ASK_MODEL).
-  const model = response.model || ASK_MODEL;
-  const usage = budget.recordSuccess("local", plan, response.usage, model).usage!;
+  // Il modello che ha risposto davvero (con il ripiego automatico può non essere quello richiesto).
+  const usage = budget.recordSuccess("local", plan, response.usage, response.model).usage!;
 
-  if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") {
-    const reason = response.stop_reason === "refusal" ? "il modello ha rifiutato la richiesta" : "risposta troncata (limite di lunghezza)";
-    return { answer: fallbackAnswer(req.locale, "rejected", reason), rejected: reason, usage, model };
+  if (response.stop !== "end") {
+    const reason = response.stop === "refusal" ? "il modello ha rifiutato la richiesta" : "risposta troncata (limite di lunghezza)";
+    return { answer: fallbackAnswer(req.locale, "rejected", reason), rejected: reason, usage, model: response.model };
   }
-  const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-  const checked = checkModelAnswer(text, loaded.content, req);
-  if (!checked.ok) return { answer: fallbackAnswer(req.locale, "rejected", checked.reason), rejected: checked.reason, usage, model };
-  return { answer: { ...checked.answer, origin: "local" }, usage, model };
+  const checked = checkModelAnswer(response.text, loaded.content, req);
+  if (!checked.ok) {
+    // Un'emergenza scartata dal controllo non diventa mai un «riprova»: si rimanda comunque al 112.
+    const answer = fallbackAnswer(req.locale, checked.safety ? "safety" : "rejected", checked.reason);
+    return { answer, rejected: checked.reason, usage, model: response.model };
+  }
+  return { answer: { ...checked.answer, origin: "local" }, usage, model: response.model };
 }
 
 type WebResult =
@@ -260,7 +279,7 @@ export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest,
   const first = buildQuestionMessage(loaded.content, req) + "\n" + buildWebAddendum(local, req);
   const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: "user", content: first }];
   const blocks: ContentBlockLike[] = [];
-  let contextTokens = estimateInputTokens(WEB_SYSTEM_PROMPT, loaded.knowledge, first);
+  let contextTokens = estimateInputTokens(WEB_SYSTEM_PROMPT, PERSONA_PROMPT, loaded.knowledge, first);
   for (let round = 1; round <= WEB_MAX_ROUNDS; round++) {
     const remainingMs = config.timeoutMs - (Date.now() - started);
     const remainingSearches = config.maxUses - usage.webSearches;
@@ -288,6 +307,7 @@ export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest,
           tools: [tool],
           system: [
             { type: "text", text: WEB_SYSTEM_PROMPT },
+            { type: "text", text: PERSONA_PROMPT },
             { type: "text", text: loaded.knowledge, cache_control: { type: "ephemeral" } },
           ],
           messages,
@@ -341,10 +361,18 @@ export interface WebGate {
  *
  * Budget: ogni chiamata passa da `budget` (stima prima, costo reale dopo). Nell'approfondimento la
  * ricerca lascia da parte il costo della risposta locale minima, così il ripiego resta possibile.
+ *
+ * Prima di tutto: i campi del client si ripuliscono sul bundle, e un'emergenza riconosciuta dalle
+ * parole chiave riceve il 112 senza nessuna chiamata. Senza client Anthropic la ricerca non c'è.
  */
-export async function askGuide(client: Anthropic, loaded: Loaded, req: AskRequest, gate: WebGate | null, budget: QuestionBudget): Promise<AskOutcome> {
+export async function askGuide(ai: AskModels, loaded: Loaded, rawReq: AskRequest, webGate: WebGate | null, budget: QuestionBudget): Promise<AskOutcome> {
+  const started = Date.now();
+  // Solo luoghi e affermazioni del bundle, risposte precedenti accorciate: il client non gonfia il prompt.
+  const req = sanitizeRequest(loaded.content, rawReq);
+  const client = ai.web;
+  const gate = client ? webGate : null;
   let local: LocalResult | null = null;
-  const getLocal = async () => (local ??= await askLocal(client, loaded, req, budget));
+  const getLocal = async () => (local ??= await askLocal(ai.local, loaded, req, budget));
   const webOn = gate !== null && gate.config.enabled && gate.supported !== false;
   let permitted: boolean | undefined;
   const permit = () => (permitted ??= gate!.permitted());
@@ -374,16 +402,19 @@ export async function askGuide(client: Anthropic, loaded: Loaded, req: AskReques
   /** Ripiego: la risposta locale (calcolata ora se serve) con la dichiarazione del limite. */
   const fallback = async (kind: "webUnavailable" | "webNoSources", web: AskOutcome["web"], webUsage?: Usage) => {
     const l = await getLocal();
-    // Fuori tema o senza servizio: la nota sulla ricerca non avrebbe senso.
-    if (l.answer.status === "off_topic" || l.answer.status === "unavailable") return done(l.answer, web, webUsage);
+    // Fuori tema, emergenza o senza servizio: la nota sulla ricerca non avrebbe senso.
+    if (l.answer.status === "off_topic" || l.answer.status === "safety" || l.answer.status === "unavailable") return done(l.answer, web, webUsage);
     return done(withWebNote(l.answer, req.locale, kind), web, webUsage);
   };
+
+  // Emergenza riconosciuta dalle parole chiave: 112 subito, nessuna chiamata, nessuna ricerca, anche con «Approfondisci».
+  if (detectEmergency(req.question)) return done(fallbackAnswer(req.locale, "safety"));
 
   const direct = req.depth === "deep" && webOn && permit();
   let keepUsd = 0;
   if (direct) {
     // Il ripiego sulla base locale (risposta minima) deve restare pagabile anche se la ricerca usa tutto il resto.
-    const reserve = planLocal(loaded, req, budget, LOCAL_MIN_TOKENS);
+    const reserve = planLocal(ai.local, loaded, req, budget, LOCAL_MIN_TOKENS);
     keepUsd = reserve.ok ? reserve.worstUsd : 0;
   } else {
     const l = await getLocal();
@@ -393,9 +424,13 @@ export async function askGuide(client: Anthropic, loaded: Loaded, req: AskReques
     }
   }
 
+  // Tempo per la ricerca: quello che resta, meno la risposta locale di ripiego se non c'è ancora.
+  const webMs = Math.min(gate!.config.timeoutMs, started + ASK_DEADLINE_MS - Date.now() - (local ? 0 : LOCAL_TIMEOUT_MS));
+  if (webMs < WEB_MIN_MS) return fallback("webUnavailable", { attempted: false, error: "tempo insufficiente per la ricerca", searches: 0, rounds: 0, sources: [] });
+
   let web: WebResult;
   try {
-    web = await askWeb(client, loaded, req, local ? (local as LocalResult).answer : null, gate!.config, budget, keepUsd);
+    web = await askWeb(client!, loaded, req, local ? (local as LocalResult).answer : null, { ...gate!.config, timeoutMs: webMs }, budget, keepUsd);
   } catch (error) {
     return fallback("webUnavailable", { attempted: true, error: failureInfo(error).message.slice(0, 300), searches: 0, rounds: 0, sources: [] });
   }

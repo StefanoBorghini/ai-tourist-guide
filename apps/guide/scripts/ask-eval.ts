@@ -2,11 +2,12 @@
  * Prove di qualità e costo delle risposte ibride: esegue le domande di uno o più file di prova (nel
  * Territory Pack) con lo stesso codice della route e scrive un rapporto da rileggere a mano.
  *
- *   npm run ask:eval -- --file <percorso.json> [--file <altro.json>] [--only <id,id>] [--no-web]
- *                       [--web-model <id>] [--web-max-uses <n>] [--max-usd 2] [--max-usd-per-question 0.5]
- *                       [--dry] [--out rapporto.md] [--json risultati.json]
+ *   npm run ask:eval -- --file <percorso.json> [--file <altro.json>] [--only <id,id>] [--area <area,area>]
+ *                       [--no-web] [--web-model <id>] [--web-max-uses <n>] [--max-usd 2]
+ *                       [--max-usd-per-question 0.5] [--dry] [--out rapporto.md] [--json risultati.json]
  *
- * Senza --dry chiama davvero l'API (serve ANTHROPIC_API_KEY, ha un costo). Due tetti, entrambi stime:
+ * Il modello della risposta locale è quello configurato per la route (ASK_PROVIDER, ASK_MODEL…: vedi
+ * lib/model.ts). Senza --dry chiama davvero il modello (ha un costo). Due tetti, entrambi stime:
  * - per domanda: --max-usd-per-question, oppure ASK_MAX_USD_PER_QUESTION (obbligatorio, come nella
  *   route): ogni chiamata passa dal budget della domanda (lib/ask-cost.ts);
  * - per l'esecuzione: --max-usd (default 2 $): prima di ogni domanda si tiene libero l'intero budget
@@ -20,21 +21,26 @@
  * --json: risultati per domanda, da confrontare con `npm run ask:compare -- a.json b.json`.
  * --dry: solo cosa la base locale sa su ogni domanda, nessuna chiamata.
  *
- * Il rapporto non giudica la qualità da solo: riporta per ogni domanda le informazioni locali, se è
- * stata fatta la ricerca, le fonti (con dominio e livello), i numeri da verificare, i token e il costo.
- * Pertinenza delle citazioni e affermazioni non supportate vanno controllate leggendo le fonti.
+ * Il rapporto riporta per ogni domanda le informazioni locali, se è stata fatta la ricerca, le fonti
+ * (con dominio e livello), i numeri da verificare, i token, il costo e un punteggio automatico
+ * (lib/eval-score.ts) quando il file indica gli esiti e le citazioni attesi (`status`, `cite`). Il
+ * punteggio è un primo filtro: fedeltà, gradi di certezza e voce si valutano leggendo
+ * (docs/v0.4-gaia/RUBRICHE.md).
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import Anthropic from "@anthropic-ai/sdk";
 import { askRequestSchema, type AskAnswer } from "../lib/ask";
 import { QuestionBudget, questionBudgetConfig, type BudgetSummary, type CallRecord, type CostQuality } from "../lib/ask-cost";
 import { formatStats, stats } from "../lib/ask-eval-stats";
-import { ASK_MODEL, askGuide, loadKnowledge, webSearchSupported } from "../lib/ask-server";
+import { PERSONA_VERSION, PROMPT_VERSION, askGuide, loadKnowledge, webSearchSupported } from "../lib/ask-server";
 import { webConfig } from "../lib/ask-web";
+import { scoreAnswer, scoreNote, type EvalScore } from "../lib/eval-score";
+import { modelsConfig, modelsFromEnv } from "../lib/model";
 
 interface EvalQuestion {
   id: string;
+  /** Area della suite (GAIA-EVAL); nei file più vecchi c'è solo la categoria. */
+  area?: string;
   category: string;
   question: string;
   place?: string;
@@ -42,6 +48,14 @@ interface EvalQuestion {
   at?: string;
   depth?: "auto" | "deep";
   expect: "local" | "web" | "none";
+  /** Esito atteso senza ricerca web (uno o più). */
+  status?: string | string[];
+  /** Affermazioni attese tra le citazioni. */
+  cite?: string[];
+  /** Conversazione precedente simulata (arriva dal dispositivo: può essere falsa, apposta). */
+  history?: { question: string; answer: string }[];
+  /** Affermazioni già raccontate. */
+  told?: string[];
   check: string;
 }
 
@@ -50,6 +64,8 @@ export interface EvalResult {
   id: string;
   question: string;
   category: string;
+  area: string;
+  score: EvalScore;
   expect: EvalQuestion["expect"];
   depth: "auto" | "deep";
   webModel: string | null;
@@ -68,6 +84,7 @@ const { values } = parseArgs({
   options: {
     file: { type: "string", multiple: true },
     only: { type: "string" },
+    area: { type: "string" },
     dry: { type: "boolean", default: false },
     "no-web": { type: "boolean", default: false },
     "max-usd": { type: "string", default: "2" },
@@ -83,7 +100,7 @@ const fail = (message: string): never => {
   process.exit(2);
 };
 if (!values.file?.length) fail("Uso: npm run ask:eval -- --file <percorso.json> [--file <altro.json>] [--only <id>] [--dry] [--out rapporto.md]");
-const specs = values.file!.map((f) => JSON.parse(readFileSync(f, "utf8")) as { destination: string; locale: "it" | "en"; questions: EvalQuestion[] });
+const specs = values.file!.map((f) => JSON.parse(readFileSync(f, "utf8")) as { destination: string; locale: "it" | "en"; version?: string; questions: EvalQuestion[] });
 const spec = specs[0]!;
 if (specs.some((s) => s.destination !== spec.destination || s.locale !== spec.locale)) fail("I file di prova devono avere la stessa destinazione e la stessa lingua.");
 const allQuestions = specs.flatMap((s) => s.questions);
@@ -92,8 +109,10 @@ if (dup) fail(`Domanda ripetuta nei file di prova: ${dup.id}`);
 
 const loaded = await loadKnowledge(spec.destination, spec.locale);
 if (!loaded) fail(`Bundle non trovato: ${spec.destination}/${spec.locale}. Esegui prima \`npm run bundles\`.`);
-if (!values.dry && !process.env.ANTHROPIC_API_KEY) fail("ANTHROPIC_API_KEY non impostata: usa --dry per vedere solo il contesto locale.");
+const setup = modelsConfig();
+if (!values.dry && !setup.ok) fail(`Modello non configurato (${setup.ok ? "" : setup.reason}): usa --dry per vedere solo il contesto locale.`);
 const kb = loaded!;
+const localModel = setup.ok ? setup.model : "—";
 
 const ref = (slug?: string) => (slug ? (slug.includes(":") ? slug : `${spec.destination}:${slug}`) : null);
 const base = webConfig();
@@ -115,26 +134,30 @@ const perQuestionUsd = perQuestion.ok ? perQuestion.maxUsd : 0;
 if (!values.dry && perQuestionUsd > maxUsd) fail("Il budget per domanda supera il tetto dell'esecuzione (--max-usd): nessuna domanda partirebbe.");
 
 const only = values.only ? new Set(values.only.split(",")) : null;
-const selected = allQuestions.filter((x) => !only || only.has(x.id));
+const areas = values.area ? new Set(values.area.split(",")) : null;
+const selected = allQuestions.filter((x) => (!only || only.has(x.id)) && (!areas || areas.has(x.area ?? x.category)));
+// Stessi client della route: nessun nuovo tentativo automatico.
+const ai = values.dry ? null : modelsFromEnv();
+if (ai && !ai.web) config.enabled = false;
 console.error(
-  `${selected.length} domande · budget stimato ${perQuestionUsd || "—"} $ a domanda · tetto ${maxUsd} $ · ricerca ${config.enabled ? `attiva (${config.model}, max ${config.maxUses} ricerche, effort ${config.effort})` : "spenta"}`,
+  `${selected.length} domande · modello ${localModel}${setup.ok ? ` (${setup.provider})` : ""} · budget stimato ${perQuestionUsd || "—"} $ a domanda · tetto ${maxUsd} $ · ricerca ${config.enabled ? `attiva (${config.model}, max ${config.maxUses} ricerche, effort ${config.effort})` : "spenta"}`,
 );
-// Nessun nuovo tentativo automatico, come nella route.
-const client = values.dry ? null : new Anthropic({ maxRetries: 0 });
-const supported = client ? await webSearchSupported(client, config.model) : null;
+const supported = ai?.web && config.enabled ? await webSearchSupported(ai.web, config.model) : null;
+const version = specs.map((s) => s.version).filter(Boolean).join(", ") || "—";
 const out: string[] = [
   `# Prove delle risposte ibride — ${spec.destination}/${spec.locale}`,
   "",
-  `Base: \`${kb.kbHash.slice(0, 12)}\` · ${kb.content.assertions.length} affermazioni · modello locale ${ASK_MODEL} · modello con ricerca ${config.model} · max ${config.maxUses} ricerche · effort ${config.effort} · budget stimato per domanda ${perQuestionUsd || "—"} $ · ricerca supportata (Models API): ${supported ?? "non verificato"}`,
+  `Base: \`${kb.kbHash.slice(0, 12)}\` · ${kb.content.assertions.length} affermazioni · suite ${version} · istruzioni \`${PROMPT_VERSION}\` · persona ${PERSONA_VERSION} · modello locale ${localModel}${setup.ok ? ` (${setup.provider})` : ""} · modello con ricerca ${config.enabled ? config.model : "—"} · max ${config.maxUses} ricerche · effort ${config.effort} · budget stimato per domanda ${perQuestionUsd || "—"} $ · ricerca supportata (Models API): ${supported ?? "non verificato"}`,
   "",
 ];
 let totalUsd = 0;
 let totalSearches = 0;
 let stopped = "";
 const results: EvalResult[] = [];
-const summary: string[] = ["| Prova | Atteso | Esito | Origine | Ricerche | Giri | Fonti web | Parole | Costo $ |", "|---|---|---|---|---|---|---|---|---|"];
+const summary: string[] = ["| Prova | Area | Atteso | Esito | Origine | Ricerche | Giri | Fonti web | Parole | Costo $ | Controlli |", "|---|---|---|---|---|---|---|---|---|---|---|"];
 
 for (const q of selected) {
+  const area = q.area ?? q.category;
   const at = ref(q.at);
   const location = at ? kb.content.places.find((p) => p.ref === at)?.location : undefined;
   const req = askRequestSchema.parse({
@@ -144,13 +167,17 @@ for (const q of selected) {
     currentPlace: ref(q.place) ?? at,
     selectedPlace: ref(q.selected),
     position: location ? { lon: location[0], lat: location[1], accuracyM: 8, simulated: true } : null,
+    history: q.history ?? [],
+    told: (q.told ?? []).map((t) => ref(t)!),
     depth: q.depth ?? "auto",
   });
   const about = [req.selectedPlace, req.currentPlace].filter((r): r is string => !!r);
   const localFacts = kb.content.assertions.filter((a) => about.includes(a.subject));
-  out.push(`## ${q.id} — ${q.category}`, "", `**Domanda:** ${q.question}${q.depth === "deep" ? " _(approfondimento)_" : ""}`, "", `**Da verificare:** ${q.check}`, "");
+  out.push(`## ${q.id} — ${area}`, "", `**Domanda:** ${q.question}${q.depth === "deep" ? " _(approfondimento)_" : ""}`, "", `**Da verificare:** ${q.check}`, "");
+  if (q.history?.length) out.push(`**Conversazione simulata:** ${q.history.map((h) => `D: ${h.question} / R: ${h.answer}`).join(" · ")}`, "");
+  if (q.status || q.cite?.length) out.push(`**Atteso senza ricerca:** ${[q.status].flat().join(" o ") || "—"} · citazioni ${q.cite?.join(", ") || "nessuna"}`, "");
   out.push(`**Informazioni locali sul luogo (${localFacts.length}):** ${localFacts.map((a) => `\`${a.ref.split(":").pop()}\``).join(", ") || "nessuna"}`, "");
-  if (!client) continue;
+  if (!ai) continue;
   if (totalUsd + perQuestionUsd > maxUsd) {
     stopped = `Interrotto prima di «${q.id}»: speso ${totalUsd.toFixed(4)} $, la prossima prova potrebbe superare il tetto di ${maxUsd} $.`;
     console.error(stopped);
@@ -161,7 +188,7 @@ for (const q of selected) {
   const budget = new QuestionBudget(perQuestionUsd);
   let outcome: Awaited<ReturnType<typeof askGuide>>;
   try {
-    outcome = await askGuide(client, kb, req, { config, supported, permitted: () => true }, budget);
+    outcome = await askGuide(ai, kb, req, { config, supported, permitted: () => true }, budget);
   } catch (error) {
     // Errore dell'API (credito esaurito, limite, rete): si conta ciò che è stato speso o stimato e ci si ferma.
     totalUsd += budget.spentUsd;
@@ -175,10 +202,13 @@ for (const q of selected) {
   const ms = Date.now() - started;
   const searches = outcome.web?.searches ?? 0;
   const rounds = outcome.web?.rounds ?? 0;
+  const score = scoreAnswer({ status: q.status, cite: q.cite }, a, { destination: spec.destination, locale: spec.locale, depth: req.depth });
   results.push({
     id: q.id,
     question: q.question,
     category: q.category,
+    area,
+    score,
     expect: q.expect,
     depth: req.depth,
     webModel: outcome.usage.web ? (a.meter?.models.at(-1) ?? config.model) : null,
@@ -198,15 +228,17 @@ for (const q of selected) {
   const origin = a.origin ?? "local";
   const asExpected = q.expect === "none" ? searches === 0 : q.expect === origin;
   const quality = outcome.costQuality === "measured" ? "" : ` (${outcome.costQuality})`;
-  summary.push(`| ${q.id} | ${q.expect} | ${a.status} | ${origin}${asExpected ? "" : " ⚠"} | ${searches} | ${rounds} | ${a.webSources?.length ?? 0} | ${words} | ${outcome.costUsd}${quality} |`);
+  summary.push(`| ${q.id} | ${area} | ${q.expect} | ${a.status} | ${origin}${asExpected ? "" : " ⚠"} | ${searches} | ${rounds} | ${a.webSources?.length ?? 0} | ${words} | ${outcome.costUsd}${quality} | ${score.pass ? "ok" : `⚠ ${scoreNote(score)}`} |`);
   out.push(
     `**Esito:** ${a.status} · origine ${origin} · ${words} parole · ${(ms / 1000).toFixed(1)} s${a.webUnavailable ? " · ricerca NON disponibile" : ""}${outcome.rejected ? ` · scarto locale: ${outcome.rejected}` : ""}${outcome.budget.stop ? ` · fermata dal budget: ${outcome.budget.stop}` : ""}`,
+    "",
+    `**Controlli automatici:** ${score.pass ? "superati" : scoreNote(score)}`,
     "",
     "**Risposta:**",
     "",
     ...a.answer.split(/\n{2,}/).map((p) => `> ${p}\n>`),
     "",
-    `**Affermazioni della base citate:** ${a.citations.map((c) => `\`${c.split(":").pop()}\``).join(", ") || "nessuna"}`,
+    `**Affermazioni della base citate:** ${a.citations.map((c) => `\`${c.split(":").pop()}\``).join(", ") || "nessuna"}${a.usedPosition ? " · distanze del sistema" : ""}${a.usedPersona ? " · persona" : ""}`,
     "",
   );
   if (a.webSources?.length) {
@@ -225,8 +257,20 @@ for (const q of selected) {
     );
   }
   out.push("");
-  console.error(`${q.id}: ${a.status}/${origin}, ${searches} ricerche, ${rounds} giri, ${a.webSources?.length ?? 0} fonti, $${outcome.costUsd} (${outcome.costQuality})`);
+  console.error(`${q.id}: ${a.status}/${origin}, ${searches} ricerche, ${rounds} giri, ${a.webSources?.length ?? 0} fonti, $${outcome.costUsd} (${outcome.costQuality}), controlli ${score.pass ? "ok" : scoreNote(score)}`);
 }
+
+/** Controlli automatici superati, per area. */
+const byArea = () => {
+  const counts = new Map<string, { pass: number; total: number }>();
+  for (const r of results) {
+    const c = counts.get(r.area) ?? { pass: 0, total: 0 };
+    c.total++;
+    if (r.score.pass) c.pass++;
+    counts.set(r.area, c);
+  }
+  return ["| Area | Controlli superati |", "|---|---|", ...[...counts].map(([area, c]) => `| ${area} | ${c.pass}/${c.total} |`)];
+};
 
 const group = (label: string, rows: EvalResult[]) => {
   if (rows.length === 0) return `- ${label}: nessuna domanda`;
@@ -242,7 +286,7 @@ const group = (label: string, rows: EvalResult[]) => {
     `  - tempo s ${formatStats(stats(rows.map((r) => r.ms / 1000)), 1)}`,
   ].join("\n");
 };
-if (client) {
+if (ai) {
   const notMeasured = results.filter((r) => r.costQuality !== "measured").length;
   out.splice(
     4,
@@ -251,12 +295,15 @@ if (client) {
     "",
     ...summary,
     "",
+    ...byArea(),
+    "",
     group("Domande normali (attese senza ricerca)", results.filter((r) => r.expect !== "web")),
     group("Domande che richiedono la ricerca (attese)", results.filter((r) => r.expect === "web")),
     group("Risposte con origine web (osservate)", results.filter((r) => r.answer.origin === "web")),
     `- Totale: ${results.length} domande · ${totalSearches} ricerche · stima ${totalUsd.toFixed(4)} $ · media ${(results.length ? totalUsd / results.length : 0).toFixed(4)} $ a domanda`,
     `- Fermate dal budget: ${results.filter((r) => r.budget.stop).length} · risposte non disponibili: ${results.filter((r) => r.answer.status === "unavailable").length} · ricerca non disponibile o fallita: ${results.filter((r) => r.answer.webUnavailable).length}`,
-    "- Costi stimati dal listino pubblico sui token restituiti dall'API: il dato fatturato è nella Console Anthropic.",
+    "- Costi stimati dal listino pubblico sui token restituiti dall'API: il dato fatturato è nella console del fornitore.",
+    "- I controlli automatici sono un primo filtro: fedeltà, gradi di certezza e voce si valutano leggendo.",
     ...(notMeasured ? [`- ${notMeasured} domande con costo non misurato (consumi mancanti o modello fuori listino): contato il caso peggiore stimato.`] : []),
     ...(stopped ? [`- ${stopped}`] : []),
     "",
@@ -269,7 +316,11 @@ if (values.json) {
       {
         destination: spec.destination,
         kbHash: kb.kbHash,
-        localModel: ASK_MODEL,
+        suite: version,
+        prompt: PROMPT_VERSION,
+        persona: PERSONA_VERSION,
+        provider: setup.ok ? setup.provider : null,
+        localModel,
         webModel: config.enabled ? config.model : null,
         webMaxUses: config.enabled ? config.maxUses : null,
         webEffort: config.enabled ? config.effort : null,

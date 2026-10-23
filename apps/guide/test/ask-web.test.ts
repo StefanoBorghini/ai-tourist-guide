@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { POSITION_CITATION, askRequestSchema, buildKnowledge, type AskAnswer, type AskRequest } from "../lib/ask.ts";
 import { askGuide, type Loaded, type WebGate } from "../lib/ask-server.ts";
 import { QuestionBudget, estimateUsd } from "../lib/ask-cost.ts";
+import { AnthropicAdapter, type AskModels } from "../lib/model.ts";
 import {
   DEFAULT_BLOCKED_DOMAINS,
   DailyCounter,
@@ -16,6 +17,7 @@ import {
   cacheable,
   needsWeb,
   parseWebAnswer,
+  redactForLog,
   sourceTier,
   unsupportedNumbers,
   webConfig,
@@ -67,7 +69,10 @@ function fakeClient(...replies: (object | Error)[]) {
     if (next instanceof Error) throw next;
     return next;
   });
-  return { client: { beta: { messages: { create } } } as unknown as Anthropic, create };
+  const anthropic = { beta: { messages: { create } } } as unknown as Anthropic;
+  // Risposta locale e ricerca sullo stesso client finto, come in produzione con il fornitore Anthropic.
+  const client: AskModels = { local: new AnthropicAdapter(anthropic), web: anthropic };
+  return { client, create };
 }
 const gate = (o: Partial<WebGate> = {}): WebGate => ({ config: webConfig({}), supported: true, permitted: () => true, ...o });
 /** Budget largo: questi test riguardano il percorso, i limiti di spesa sono in ask-cost.test.ts. */
@@ -110,6 +115,18 @@ describe("quando cercare", () => {
     expect(needsWeb(a("answered"), deep)).toBe(true);
     expect(needsWeb(a("off_topic"), deep)).toBe(false);
     expect(needsWeb(a("unavailable"), deep)).toBe(false);
+  });
+  it("in un'emergenza non cerca mai", () => {
+    expect(needsWeb(a("safety"), req)).toBe(false);
+    expect(needsWeb(a("safety"), { ...req, depth: "deep" })).toBe(false);
+  });
+});
+
+describe("log delle domande", () => {
+  it("maschera email e numeri di telefono, non gli anni", () => {
+    expect(redactForLog("scrivimi a mario.rossi@example.it per info")).toBe("scrivimi a [email] per info");
+    expect(redactForLog("chiamami al +39 347 123 4567 o allo 0187 790000")).toBe("chiamami al [telefono] o allo [telefono]");
+    expect(redactForLog("fu costruita tra il 1256-1277 e restaurata nel 1929")).toBe("fu costruita tra il 1256-1277 e restaurata nel 1929");
   });
 });
 
@@ -356,3 +373,69 @@ describe("risposta ibrida", () => {
     expect(out.answer.answer).toBe("Parliamo della visita.");
   });
 });
+
+describe("emergenze e tempi della risposta", () => {
+  it("un'emergenza riconosciuta dalle parole chiave non chiama il modello, nemmeno con «Approfondisci»", async () => {
+    for (const depth of ["auto", "deep"] as const) {
+      const { client, create } = fakeClient();
+      const out = await askGuide(client, loaded, { ...req, question: "Aiuto, mio figlio si è perso!", depth }, gate(), budget());
+      expect(create).not.toHaveBeenCalled();
+      expect(out.answer).toMatchObject({ status: "safety", citations: [] });
+      expect(out.answer.answer).toContain("112");
+      expect(out.costUsd).toBe(0);
+    }
+  });
+
+  it("la ricerca usa solo il tempo che resta prima della scadenza della route", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // La risposta locale impiega 40 secondi: alla ricerca ne restano 15 (55 − 40), meno di 50.
+      const slow: AskModels["local"] = {
+        provider: "test",
+        model: "claude-opus-5-5",
+        generate: async () => {
+          vi.setSystemTime(Date.now() + 40_000);
+          return { text: JSON.stringify({ status: "not_in_knowledge", answer: "Non lo so.", citations: [] }), stop: "end", usage: emptyUsageForTest(), model: "claude-opus-5-5" };
+        },
+      };
+      const { client, create } = fakeClient(webReply([{ type: "text", text: "Trovato.", citations: [cite("https://www.unige.it/x", "Studio")] }]));
+      await askGuide({ local: slow, web: client.web }, loaded, req, gate(), budget());
+      const options = create.mock.calls[0]![1] as { timeout: number };
+      expect(options.timeout).toBeLessThanOrEqual(15_000);
+      expect(options.timeout).toBeGreaterThan(10_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("se non resta tempo per la ricerca risponde con la base locale e lo dichiara", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const slow: AskModels["local"] = {
+        provider: "test",
+        model: "claude-opus-5-5",
+        generate: async () => {
+          vi.setSystemTime(Date.now() + 50_000);
+          return { text: JSON.stringify({ status: "partial", answer: "So solo questo.", citations: [ref] }), stop: "end", usage: emptyUsageForTest(), model: "claude-opus-5-5" };
+        },
+      };
+      const { client, create } = fakeClient();
+      const out = await askGuide({ local: slow, web: client.web }, loaded, req, gate(), budget());
+      expect(create).not.toHaveBeenCalled();
+      expect(out.answer).toMatchObject({ status: "partial", webUnavailable: true });
+      expect(out.web).toMatchObject({ attempted: false, error: "tempo insufficiente per la ricerca" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("la risposta locale di Anthropic non ripete i tentativi (25 s al massimo)", async () => {
+    const { client, create } = fakeClient(localReply("answered", "Dalla base.", [ref]));
+    await askGuide(client, loaded, req, null, budget());
+    expect(create.mock.calls[0]![1]).toMatchObject({ timeout: 25_000, maxRetries: 0 });
+  });
+});
+
+function emptyUsageForTest() {
+  return { input_tokens: 100, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+}

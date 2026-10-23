@@ -6,73 +6,65 @@
  *    di approfondire, entro i limiti configurati (vedi lib/ask-web.ts → webConfig);
  * C. risposta finale con le fonti.
  *
- * Richiede ANTHROPIC_API_KEY e ASK_MAX_USD_PER_QUESTION (budget stimato per domanda, lib/ask-cost.ts)
- * nelle variabili d'ambiente del progetto; senza, risponde 503 e l'app continua a funzionare
- * (solo racconto, niente domande).
+ * Prima di tutto le emergenze (lib/emergency.ts): rimando al 112 immediato, senza modello, senza
+ * limiti e senza configurazione. Poi limiti per indirizzo e tetto di spesa giornaliero (lib/limits.ts).
+ *
+ * Il modello della risposta locale si sceglie con le variabili d'ambiente (lib/model.ts → modelsConfig):
+ * per default Anthropic con ANTHROPIC_API_KEY. Serve anche ASK_MAX_USD_PER_QUESTION (budget stimato
+ * per domanda, lib/ask-cost.ts). Senza configurazione valida risponde 503 e l'app continua a
+ * funzionare (solo racconto, niente domande).
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { askRequestSchema, fallbackAnswer, type AskAnswer } from "../../../../lib/ask";
-import { ASK_MODEL, askGuide, bundleVersions, GuideUnavailableError, loadKnowledge, webSearchSupported } from "../../../../lib/ask-server";
-import { DailyCounter, TtlCache, cacheKey, cacheable, webConfig } from "../../../../lib/ask-web";
 import { QuestionBudget, questionBudgetConfig } from "../../../../lib/ask-cost";
+import { PERSONA_VERSION, PROMPT_VERSION, askGuide, bundleVersions, GuideUnavailableError, loadKnowledge, webSearchSupported } from "../../../../lib/ask-server";
+import { DailyCounter, TtlCache, cacheKey, cacheable, redactForLog, webConfig } from "../../../../lib/ask-web";
+import { detectEmergency } from "../../../../lib/emergency";
+import { SpendGuard, WindowLimiter, dailyBudgetUsd } from "../../../../lib/limits";
+import { ModelError, modelsConfig, modelsFromEnv, type AskModels } from "../../../../lib/model";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// La risposta con ricerca può richiedere fino a ~50 secondi.
+// La risposta con ricerca può richiedere fino a ~50 secondi (tempi in lib/ask-server.ts).
 export const maxDuration = 60;
 
 // Limiti per indirizzo, per istanza: un argine contro gli abusi, non una quota precisa.
 const WINDOW_MS = 10 * 60_000;
 const MAX_PER_WINDOW = 20;
 
-class WindowLimiter {
-  private readonly hits = new Map<string, number[]>();
-  constructor(private readonly max: number) {}
-  /** Registra un uso e dice se il limite è superato. */
-  hit(key: string, now = Date.now()): boolean {
-    const recent = this.peek(key, now);
-    recent.push(now);
-    this.hits.set(key, recent);
-    if (this.hits.size > 5000) this.hits.clear();
-    return recent.length > this.max;
-  }
-  /** C'è ancora spazio, senza registrare l'uso? */
-  allows(key: string, now = Date.now()): boolean {
-    return this.peek(key, now).length < this.max;
-  }
-  private peek(key: string, now: number): number[] {
-    return (this.hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
-  }
-}
-
 const config = webConfig();
 const budgetConfig = questionBudgetConfig();
 if (!budgetConfig.ok) console.error(JSON.stringify({ event: "ask_config_error", error: budgetConfig.error }));
-const askLimiter = new WindowLimiter(MAX_PER_WINDOW);
-const webLimiter = new WindowLimiter(config.perIp);
+const askLimiter = new WindowLimiter(MAX_PER_WINDOW, WINDOW_MS);
+const webLimiter = new WindowLimiter(config.perIp, WINDOW_MS);
 const webDaily = new DailyCounter(config.dailyLimit);
+const spend = new SpendGuard(dailyBudgetUsd());
 const answers = new TtlCache<AskAnswer>(config.cacheTtlHours * 3_600_000);
 
-let client: Anthropic | null = null;
-// Nessun nuovo tentativo automatico dell'SDK (default 2): una chiamata scaduta può essere già pagata.
-const getClient = () => (client ??= new Anthropic({ maxRetries: 0 }));
+let models: AskModels | null | undefined;
+const getModels = () => (models === undefined ? (models = modelsFromEnv()) : models);
 
 /**
  * Le domande sono disponibili? (L'app lo chiede per decidere se invitare a farle.)
  * Riporta anche le impronte dei bundle con cui il server risponde e lo stato della ricerca web.
- * Nessun segreto: solo presenza della chiave, impronte e parametri pubblici.
+ * Nessun segreto: solo presenza della configurazione, fornitore, versioni e parametri pubblici.
  */
 export async function GET(): Promise<Response> {
-  const available = Boolean(process.env.ANTHROPIC_API_KEY) && budgetConfig.ok;
+  const setup = modelsConfig();
+  const available = setup.ok && budgetConfig.ok;
+  const web = available ? (getModels()?.web ?? null) : null;
   const [bundles, supported] = await Promise.all([
     bundleVersions().catch(() => []),
-    available && config.enabled ? webSearchSupported(getClient(), config.model) : Promise.resolve(null),
+    web && config.enabled ? webSearchSupported(web, config.model) : Promise.resolve(null),
   ]);
   return Response.json(
     {
       available,
+      ...(setup.ok ? { provider: setup.provider, model: setup.model } : {}),
+      prompt: PROMPT_VERSION,
+      persona: PERSONA_VERSION,
       bundles,
-      web: { enabled: available && config.enabled, model: config.model, tool: "web_search_20260318", maxUses: config.maxUses, supported },
+      web: { enabled: web !== null && config.enabled, model: config.model, tool: "web_search_20260318", maxUses: config.maxUses, supported },
       budget: { configured: budgetConfig.ok },
     },
     { headers: { "cache-control": "no-store" } },
@@ -85,10 +77,15 @@ export async function POST(request: Request): Promise<Response> {
   if (!parsed.success) return Response.json({ error: "richiesta non valida" }, { status: 400 });
   const req = parsed.data;
 
-  // Senza chiave o senza budget valido nessuna chiamata al modello.
-  if (!process.env.ANTHROPIC_API_KEY || !budgetConfig.ok) {
-    return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 503 });
+  // Emergenza: subito il 112, prima di configurazione, limiti, contenuti e modello. Nessun costo.
+  if (detectEmergency(req.question)) {
+    console.info(JSON.stringify({ event: "emergency", source: "keywords", locale: req.locale, ms: Date.now() - started }));
+    return Response.json(fallbackAnswer(req.locale, "safety"), { headers: { "cache-control": "no-store" } });
   }
+
+  // Senza modello configurato o senza budget valido nessuna chiamata al modello.
+  const ai = budgetConfig.ok ? getModels() : null;
+  if (!ai || !budgetConfig.ok) return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 503 });
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
   if (askLimiter.hit(ip)) return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 429 });
 
@@ -105,16 +102,21 @@ export async function POST(request: Request): Promise<Response> {
   const key = cacheKey(req, loaded.kbHash);
   const hit = key ? answers.get(key) : undefined;
   if (hit) {
-    console.info(JSON.stringify({ event: "ask", status: hit.status, origin: hit.origin ?? "local", cached: true, kbHash: loaded.kbHash, ms: Date.now() - started }));
+    console.info(JSON.stringify({ event: "ask", status: hit.status, origin: hit.origin ?? "local", cached: true, kbHash: loaded.kbHash, prompt: PROMPT_VERSION, ms: Date.now() - started }));
     // Dalla cache: nessuna chiamata al modello, costo zero.
     const meter = { models: [], calls: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, webSearches: 0, costUsd: 0, costQuality: "measured" as const };
     return Response.json({ ...hit, cached: true, meter });
   }
 
-  const ai = getClient();
+  // Tetto giornaliero per istanza: deve starci il budget massimo di una domanda.
+  if (!spend.allows(budgetConfig.maxUsd)) {
+    console.warn(JSON.stringify({ event: "budget_exceeded", dailyUsd: spend.dailyUsd, spentUsd: spend.spentToday() }));
+    return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 503, headers: { "retry-after": "3600" } });
+  }
+
   const budget = new QuestionBudget(budgetConfig.maxUsd);
   try {
-    const supported = config.enabled ? await webSearchSupported(ai, config.model) : null;
+    const supported = ai.web && config.enabled ? await webSearchSupported(ai.web, config.model) : null;
     const outcome = await askGuide(ai, loaded, req, {
       config,
       supported,
@@ -125,6 +127,8 @@ export async function POST(request: Request): Promise<Response> {
         return true;
       },
     }, budget);
+    // Il costo della domanda (reale o stimato, mai zero se c'è stata una chiamata) entra nel tetto del giorno.
+    spend.record(outcome.costUsd);
     // Lacune della base di conoscenza: domande senza risposta verificata, utili alla redazione.
     if (outcome.answer.status === "not_in_knowledge" || outcome.rejected || outcome.answer.origin === "web") {
       console.info(JSON.stringify({
@@ -134,7 +138,8 @@ export async function POST(request: Request): Promise<Response> {
         place: req.currentPlace ?? null,
         selected: req.selectedPlace ?? null,
         kbHash: loaded.kbHash,
-        question: req.question,
+        // Email e numeri di telefono mascherati: alla redazione serve la domanda, non i contatti.
+        question: redactForLog(req.question),
         rejected: outcome.rejected ?? null,
         // Fonti web da valutare: entrano nel Territory Pack solo dopo la revisione della redazione.
         webSources: outcome.web?.sources ?? [],
@@ -148,29 +153,35 @@ export async function POST(request: Request): Promise<Response> {
       depth: req.depth,
       cached: false,
       kbHash: loaded.kbHash,
-      // Modelli che hanno risposto davvero (dalla risposta dell'API; ASK_MODEL è quello richiesto).
-      models: outcome.answer.meter?.models ?? [ASK_MODEL],
+      provider: ai.local.provider,
+      prompt: PROMPT_VERSION,
+      persona: PERSONA_VERSION,
+      // Modelli che hanno risposto davvero (dalla risposta dell'API; ai.local.model è quello richiesto).
+      models: outcome.answer.meter?.models ?? [ai.local.model],
       calls: outcome.answer.meter?.calls ?? 0,
       usage: outcome.usage,
       costUsd: outcome.costUsd,
       // measured = consumi dell'API a listino; estimated / unknown = vedi lib/ask-cost.ts.
       costQuality: outcome.costQuality,
       budget: outcome.budget,
+      spentTodayUsd: spend.spentToday(),
       modelCalls: outcome.calls.map(callLog),
+      otherPlaceCitations: outcome.answer.otherPlaceCitations ?? [],
       web: outcome.web ? { attempted: outcome.web.attempted, searches: outcome.web.searches, rounds: outcome.web.rounds, sources: outcome.web.sources.length, error: outcome.web.error, searchErrors: outcome.web.searchErrors } : null,
       ms: Date.now() - started,
     }));
     if (key && cacheable(outcome.answer)) answers.set(key, { ...outcome.answer, meter: undefined });
     return Response.json(outcome.answer);
   } catch (error) {
-    // Anche quando la risposta non arriva, ciò che è stato speso (o stimato) finisce nei log.
+    // Anche quando la risposta non arriva, ciò che è stato speso (o stimato) finisce nei log e nel tetto.
+    spend.record(budget.spentUsd);
     const cost = { budget: budget.summary(), modelCalls: budget.calls.map(callLog) };
-    if (error instanceof Anthropic.APIError) {
-      console.error(JSON.stringify({ event: "ask_error", status: error.status, message: error.message, ...cost }));
+    if (error instanceof Anthropic.APIError || error instanceof ModelError) {
+      console.error(JSON.stringify({ event: "ask_error", provider: ai.local.provider, status: error.status, message: error.message, ...cost }));
     } else {
-      console.error(JSON.stringify({ event: "ask_error", message: (error as Error).message, ...cost }));
+      console.error(JSON.stringify({ event: "ask_error", provider: ai.local.provider, message: (error as Error).message, ...cost }));
     }
-    if (error instanceof Anthropic.RateLimitError) {
+    if (error instanceof Anthropic.RateLimitError || (error instanceof ModelError && error.kind === "rate_limit")) {
       return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 429 });
     }
     return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 502 });

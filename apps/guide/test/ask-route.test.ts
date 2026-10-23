@@ -89,7 +89,8 @@ describe("route delle domande", () => {
     h.create.mockResolvedValueOnce(localReply());
     const r = await route({ ANTHROPIC_API_KEY: "x", ASK_MAX_USD_PER_QUESTION: "0.5" });
     await r.POST(post({ destination, locale: "it", question: "Perché fu costruito qui?" }));
-    expect(h.clientOptions).toEqual([{ maxRetries: 0 }]);
+    // La chiave arriva da modelsFromEnv (lib/model.ts); qui conta che non ci siano nuovi tentativi.
+    expect(h.clientOptions).toEqual([expect.objectContaining({ maxRetries: 0 })]);
     expect((h.create.mock.calls[0]![1] as { maxRetries: number }).maxRetries).toBe(0);
   });
 

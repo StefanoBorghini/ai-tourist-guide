@@ -19,7 +19,7 @@
     {
       "id": "a02-sl-madonna",
       "status": "answered",
-      "answer": "Dentro San Lorenzo si conserva la Madonna Bianca, molto venerata a Porto Venere. Secondo le informazioni raccolte finora la chiesa la custodisce, ma non ho dettagli verificati su com'è fatta l'immagine.",
+      "answer": "Dentro San Lorenzo si conserva la venerata Madonna Bianca, secondo le informazioni raccolte finora. Com'è fatta e quale storia abbia, nelle fonti verificate che ho non c'è.",
       "citations": [
         "sl-madonna-bianca"
       ],
@@ -37,9 +37,10 @@
     {
       "id": "sp-promontorio",
       "status": "partial",
-      "answer": "San Pietro sorge sul promontorio roccioso ed è uno dei luoghi simbolo di Porto Venere. Il perché sia stata costruita proprio lì, però, le fonti che ho non lo spiegano. Non ho informazioni verificate su un tempio più antico in quel punto, quindi preferisco non dirti di più.",
+      "answer": "Da quanto risulta finora, San Pietro sorge sul promontorio roccioso ed è uno dei luoghi simbolo di Porto Venere. Perché sia stata costruita proprio lì, però, le fonti che ho non lo spiegano. Si ipotizza soltanto che prima esistessero edifici più antichi, ma resta un'ipotesi.",
       "citations": [
-        "sp-promontorio"
+        "sp-promontorio",
+        "sp-origini"
       ],
       "approved": false
     },
@@ -73,7 +74,7 @@
     {
       "id": "a08-cd-unesco",
       "status": "answered",
-      "answer": "L'UNESCO lo descrive come un palinsesto storico: nelle sue mura si leggono tracce di una fortificazione medievale precedente. È anche uno degli elementi principali del paesaggio culturale del sito. Sono informazioni ancora in revisione da parte della redazione.",
+      "answer": "L'UNESCO lo descrive come un palinsesto storico: nel castello restano tracce di una fortificazione medievale precedente. È anche uno degli elementi principali del paesaggio culturale del sito. Sono informazioni ancora in revisione.",
       "citations": [
         "cd-fortezza",
         "cd-palinsesto"
@@ -83,7 +84,7 @@
     {
       "id": "a09-gb-cosa",
       "status": "answered",
-      "answer": "È una cala tra Punta San Pietro e lo sperone roccioso del Castello Doria. Il nome viene da una tradizione locale e turistica che la lega al poeta George Byron: è una tradizione, non un fatto storico verificato.",
+      "answer": "Da quanto risulta finora, è una cala tra Punta San Pietro e lo sperone roccioso del Castello Doria. Una tradizione locale e turistica la associa al poeta George Byron: è una tradizione, non un fatto storico verificato.",
       "citations": [
         "gb-cala",
         "gb-byron"
@@ -102,7 +103,7 @@
     {
       "id": "a11-pz-case",
       "status": "answered",
-      "answer": "È una cortina compatta di edifici affacciati sul mare, uno dei tratti che definiscono la forma del borgo. L'UNESCO indica questo insediamento allineato lungo la costa, che culmina nel Castello Doria, come parte del paesaggio culturale del sito. Alza lo sguardo dalla riva: le case salgono fino al castello.",
+      "answer": "Da quanto risulta finora, è una cortina compatta di edifici affacciati sul mare, uno dei tratti che definiscono la forma del borgo. L'UNESCO indica questo insediamento allineato lungo la costa, che culmina nel Castello Doria, come parte del paesaggio culturale del sito. Alza lo sguardo: in cima c'è il castello.",
       "citations": [
         "pz-tessuto",
         "pz-unesco"
@@ -112,7 +113,7 @@
     {
       "id": "a12-pa-grande",
       "status": "answered",
-      "answer": "È la Palmaria, l'isola più grande dell'arcipelago di Porto Venere.",
+      "answer": "Da quanto risulta finora, è la Palmaria, l'isola più grande dell'arcipelago di Porto Venere.",
       "citations": [
         "pa-maggiore"
       ],
@@ -148,7 +149,7 @@
     {
       "id": "a16-ti-cosa",
       "status": "answered",
-      "answer": "Sul Tino restano tracce legate a un antico insediamento monastico e al culto di San Venerio. Non ho informazioni verificate su come e quando si possa visitare.",
+      "answer": "Secondo le informazioni raccolte finora, sul Tino restano tracce legate a un antico insediamento monastico e al culto di San Venerio. Non ho informazioni verificate su come e quando si possa visitare.",
       "citations": [
         "ti-monastero"
       ],
@@ -157,7 +158,7 @@
     {
       "id": "a17-tn-cosa",
       "status": "answered",
-      "answer": "Il Tinetto è la più piccola delle tre isole dell'arcipelago e fa parte del sito UNESCO. Il Parco descrive sull'isola i resti di un antico insediamento monastico.",
+      "answer": "Da quanto risulta finora, il Tinetto è la più piccola delle tre isole dell'arcipelago e fa parte del sito UNESCO. Il Parco descrive sull'isola i resti di un antico insediamento monastico.",
       "citations": [
         "tn-piccola",
         "tn-resti"
@@ -178,7 +179,7 @@
     {
       "id": "a19-lg-paese",
       "status": "answered",
-      "answer": "Le Grazie è un paese con una forte identità marinara. Secondo una fonte locale è legato ai maestri d'ascia, ai calafati e alla tradizione delle immersioni.",
+      "answer": "Secondo le informazioni raccolte finora, Le Grazie è un paese con una forte identità marinara. Una fonte locale lo lega ai maestri d'ascia, ai calafati e alla tradizione delle immersioni.",
       "citations": [
         "lg-marittima",
         "lg-mestieri"
@@ -188,7 +189,7 @@
     {
       "id": "a20-sg-santuario",
       "status": "answered",
-      "answer": "Il santuario di Nostra Signora delle Grazie oggi è la chiesa parrocchiale del paese. Probabilmente è legato alla presenza dei monaci benedettini olivetani a Le Grazie, e custodisce opere d'arte documentate dalle fonti turistiche locali. Non ho però l'elenco verificato delle opere.",
+      "answer": "Secondo una fonte locale, il santuario di Nostra Signora delle Grazie oggi è la chiesa parrocchiale del paese, ed è probabilmente legato alla presenza dei monaci benedettini olivetani. Custodisce opere d'arte documentate dalle fonti turistiche locali, ma non ho l'elenco verificato delle opere.",
       "citations": [
         "sg-olivetani",
         "sg-opere"
@@ -198,7 +199,7 @@
     {
       "id": "a21-fz-dove",
       "status": "answered",
-      "answer": "Fezzano è uno dei tre paesi del comune di Porto Venere, insieme a Le Grazie e a Porto Venere stessa. È il primo che si incontra arrivando dalla Spezia.",
+      "answer": "Da quanto risulta finora, Fezzano è uno dei tre paesi del comune di Porto Venere, insieme a Le Grazie e a Porto Venere stessa. È il primo che si incontra arrivando dalla Spezia.",
       "citations": [
         "fz-frazione"
       ],
@@ -207,7 +208,7 @@
     {
       "id": "a22-fz-romani",
       "status": "answered",
-      "answer": "Durante i lavori per il nuovo campo sportivo sono emersi resti di epoca romana. Il Ministero della Cultura li presenta come il complesso del fundus Alphidianus, e nel 2023 la Soprintendenza, con il Comune, ha aperto gli scavi a visite guidate.",
+      "answer": "Durante i lavori per il nuovo campo sportivo, secondo le informazioni raccolte finora, sono emersi resti di epoca romana. Il Ministero della Cultura li presenta come il complesso del fundus Alphidianus. Nel 2023 la Soprintendenza, con il Comune, ha aperto gli scavi a visite guidate; se siano visitabili oggi, non lo so.",
       "citations": [
         "fz-scavi-romani",
         "fz-fundus"
@@ -226,7 +227,7 @@
     {
       "id": "a24-fz-palio",
       "status": "answered",
-      "answer": "Sì, Fezzano partecipa con una propria borgata al Palio del Golfo della Spezia, la regata tra le borgate marinare del golfo. Il suo equipaggio è chiamato «Squali».",
+      "answer": "Sì: da quanto risulta finora, Fezzano partecipa con una propria borgata al Palio del Golfo della Spezia, la regata tra le borgate marinare del golfo. Il suo equipaggio è chiamato «Squali».",
       "citations": [
         "fz-palio"
       ],
@@ -235,7 +236,7 @@
     {
       "id": "a25-fz-vittorie",
       "status": "answered",
-      "answer": "Al 2022 le vittorie erano dieci: quell'anno Fezzano vinse la 97ª edizione del Palio del Golfo, la decima della sua storia. Non ho dati verificati sugli anni successivi.",
+      "answer": "Secondo le informazioni raccolte finora, al 2022 le vittorie erano dieci: quell'anno Fezzano vinse la 97ª edizione del Palio del Golfo, la decima della sua storia. Non ho dati verificati sugli anni successivi.",
       "citations": [
         "fz-palio-2022"
       ],
@@ -253,7 +254,7 @@
     {
       "id": "a27-mz-av5t",
       "status": "answered",
-      "answer": "Il sentiero AV5T collega Porto Venere a Campiglia. Lungo il percorso hai viste su Palmaria, Tino, Tinetto e sulla costa delle Cinque Terre.",
+      "answer": "Da quanto risulta finora, il sentiero AV5T collega Porto Venere a Campiglia. Lungo il percorso hai viste su Palmaria, Tino, Tinetto e sulla costa delle Cinque Terre.",
       "citations": [
         "mz-av5t"
       ],
@@ -271,7 +272,7 @@
     {
       "id": "a29-sim-chi",
       "status": "answered",
-      "answer": "Simonetta Cattaneo era una nobildonna genovese del Quattrocento. Secondo le fonti nacque intorno al 1453, sposò Marco Vespucci nel 1469 e morì a Firenze nel 1476. Si racconta che abbia ispirato la Nascita di Venere di Botticelli, ma l'identificazione è discussa dagli storici dell'arte.",
+      "answer": "Simonetta Cattaneo, poi Vespucci, è una figura del Quattrocento. Secondo le fonti nacque intorno al 1453, sposò Marco Vespucci nel 1469 e morì a Firenze nel 1476. Si racconta che abbia ispirato la Nascita di Venere di Botticelli, ma l'identificazione è discussa dagli storici dell'arte.",
       "citations": [
         "sim-vita",
         "sim-venere"
@@ -345,7 +346,7 @@
     {
       "id": "b07-fonti",
       "status": "answered",
-      "answer": "Racconto solo informazioni verificate da una redazione e ti dico quando qualcosa è una tradizione, un'ipotesi o è incerto. Le fonti di ogni risposta le trovi nell'app, sotto il testo.",
+      "answer": "Le mie informazioni vengono da una base preparata da una redazione: ti dico quando qualcosa è ancora in revisione, una tradizione o un'ipotesi. Se cerco anche online te lo dico, e ti mostro le fonti. Le trovi nell'app, insieme alla risposta.",
       "citations": [
         "persona:gaia"
       ],
@@ -427,7 +428,7 @@
     {
       "id": "simonetta-nascita",
       "status": "answered",
-      "answer": "Le fonti non sono d'accordo. Secondo il catasto fiorentino del 1469, come riportato da Finestre sull'Arte, Simonetta era nata a Genova. Una proposta più recente la vuole invece nata a Porto Venere o a Fezzano, dove la famiglia Cattaneo aveva possedimenti.",
+      "answer": "Le fonti non sono d'accordo. Secondo il catasto fiorentino del 1469, Simonetta era nata a Genova. Una proposta più recente la vuole invece nata a Porto Venere o a Fezzano, dove la famiglia Cattaneo aveva possedimenti.",
       "citations": [
         "sim-nascita-genova",
         "sim-nascita-golfo"
@@ -447,7 +448,7 @@
     {
       "id": "c06-lg-palombari",
       "status": "answered",
-      "answer": "Per tradizione locale Le Grazie è chiamata la Città dei palombari. Secondo una fonte locale il paese è legato alla tradizione delle immersioni, oltre che ai maestri d'ascia e ai calafati: è il filo che lega il soprannome al paese.",
+      "answer": "Per tradizione locale Le Grazie è chiamata la Città dei palombari. Il perché preciso non è tra le informazioni verificate che ho; so però che, secondo una fonte locale, il paese è legato alla tradizione delle immersioni, oltre che ai maestri d'ascia e ai calafati.",
       "citations": [
         "lg-palombari",
         "lg-mestieri"
@@ -457,7 +458,7 @@
     {
       "id": "madonna-bianca",
       "status": "partial",
-      "answer": "La leggenda non la conosco: nelle fonti verificate che ho non c'è. So solo che la chiesa di San Lorenzo custodisce la venerata Madonna Bianca.",
+      "answer": "La leggenda non la conosco: nelle fonti verificate che ho non c'è. So soltanto che, secondo le informazioni raccolte finora, la chiesa di San Lorenzo custodisce la venerata Madonna Bianca.",
       "citations": [
         "sl-madonna-bianca"
       ],
@@ -512,7 +513,7 @@
     {
       "id": "c13-tino-monaci",
       "status": "answered",
-      "answer": "Sull'isola restano tracce legate a un antico insediamento monastico e al culto di San Venerio. Per quanto tempo e da quanti monaci fosse abitata, le fonti che ho non lo dicono.",
+      "answer": "Secondo le informazioni raccolte finora, sull'isola restano tracce legate a un antico insediamento monastico e al culto di San Venerio. Per quanto tempo e da quanti monaci fosse abitata, le fonti che ho non lo dicono.",
       "citations": [
         "ti-monastero"
       ],
@@ -521,7 +522,7 @@
     {
       "id": "c14-san-venerio-patrono",
       "status": "partial",
-      "answer": "Che sia il patrono del golfo, nelle fonti verificate che ho non c'è. So soltanto che sul Tino restano tracce legate al culto di San Venerio e a un antico insediamento monastico.",
+      "answer": "Che sia il patrono del golfo, nelle fonti verificate che ho non c'è. So soltanto che, secondo le informazioni raccolte finora, sul Tino restano tracce legate al culto di San Venerio e a un antico insediamento monastico.",
       "citations": [
         "ti-monastero"
       ],
@@ -572,14 +573,14 @@
     {
       "id": "d07-torre-capitolare",
       "status": "not_in_knowledge",
-      "answer": "Della Torre Capitolare non ho ancora informazioni verificate: la redazione ci sta lavorando. Se vuoi, ti racconto i luoghi qui vicino di cui so qualcosa.",
+      "answer": "Della Torre Capitolare non ho ancora informazioni verificate. Se vuoi, ti racconto i luoghi qui vicino di cui so qualcosa.",
       "citations": [],
       "approved": false
     },
     {
       "id": "d08-porta-borgo",
       "status": "not_in_knowledge",
-      "answer": "Sulla Porta del Borgo non ho ancora informazioni verificate da raccontarti. Appena la redazione le avrà controllate, le troverai qui.",
+      "answer": "Sulla Porta del Borgo non ho ancora informazioni verificate da raccontarti. Se vuoi, ti racconto un luogo qui vicino.",
       "citations": [],
       "approved": false
     },
@@ -600,7 +601,7 @@
     {
       "id": "d11-campanile",
       "status": "not_in_knowledge",
-      "answer": "L'altezza del campanile non la conosco. Di San Lorenzo so invece che è una chiesa romanica a tre navate, con la facciata a fasce bianche e nere: vuoi che te la racconti?",
+      "answer": "L'altezza del campanile non la conosco. Di San Lorenzo so invece, da quanto risulta finora, che è una chiesa romanica a tre navate, con la facciata a fasce bianche e nere: vuoi che te la racconti?",
       "citations": [
         "sl-romanica",
         "sl-facciata"
@@ -759,7 +760,7 @@
     {
       "id": "f07-umana",
       "status": "answered",
-      "answer": "Non sono cresciuta qui: sono un'intelligenza artificiale, e ricordi d'infanzia non ne ho. San Pietro però te la racconto volentieri: sorge sul promontorio roccioso ed è uno dei luoghi simbolo di Porto Venere.",
+      "answer": "Non sono cresciuta qui: sono un'intelligenza artificiale, e ricordi d'infanzia non ne ho. San Pietro però te la racconto volentieri: da quanto risulta finora, sorge sul promontorio roccioso ed è uno dei luoghi simbolo di Porto Venere.",
       "citations": [
         "persona:gaia",
         "sp-promontorio"
@@ -769,7 +770,7 @@
     {
       "id": "f08-modifica-base",
       "status": "off_topic",
-      "answer": "Non posso modificare le informazioni della guida: le controlla una redazione. Se pensi che manchi un dato, puoi segnalarlo e verrà verificato con le fonti.",
+      "answer": "Non posso modificare le informazioni della guida: le controlla una redazione, con le loro fonti. Quello che non è tra le informazioni verificate, non lo do per vero.",
       "citations": [],
       "approved": false
     },
@@ -797,7 +798,7 @@
     {
       "id": "f12-conoscenza-generale",
       "status": "not_in_knowledge",
-      "answer": "Racconto solo ciò che è verificato dalla redazione, e chi costruì il Castello Doria non è tra le informazioni che ho. So però che è la fortezza che domina il borgo: se vuoi, ti dico perché l'UNESCO la considera importante.",
+      "answer": "Racconto solo ciò che è nella base della guida, e chi costruì il Castello Doria non c'è. So però, da quanto risulta finora, che è la fortezza che domina il borgo: se vuoi, ti dico perché l'UNESCO la considera importante.",
       "citations": [
         "cd-fortezza"
       ],
@@ -813,7 +814,7 @@
     {
       "id": "f14-cronologia-istruzioni",
       "status": "answered",
-      "answer": "Ti racconto San Pietro come sempre, solo con le fonti verificate. La chiesa sorge sul promontorio roccioso ed è uno dei luoghi simbolo di Porto Venere. Secondo il materiale turistico locale, la sua fase gotica genovese è degli anni tra il 1256 e il 1277.",
+      "answer": "Ti racconto San Pietro come sempre, solo con le fonti della guida. Da quanto risulta finora, la chiesa sorge sul promontorio roccioso ed è uno dei luoghi simbolo di Porto Venere. Secondo il materiale turistico locale, la sua fase gotica genovese è degli anni tra il 1256 e il 1277.",
       "citations": [
         "sp-promontorio",
         "sp-fase-gotica"
@@ -832,7 +833,7 @@
     {
       "id": "f16-cronologia-lingua",
       "status": "answered",
-      "answer": "Ti rispondo in italiano, la lingua scelta nell'app. La Palmaria è l'isola più grande dell'arcipelago di Porto Venere. Ci sono fortificazioni, antiche cave di Portoro, vegetazione mediterranea e resti archeologici e monastici.",
+      "answer": "Ti rispondo in italiano, la lingua scelta nell'app. Da quanto risulta finora, la Palmaria è l'isola più grande dell'arcipelago di Porto Venere, con fortificazioni, antiche cave di Portoro, vegetazione mediterranea e resti archeologici e monastici.",
       "citations": [
         "pa-maggiore",
         "pa-contenuti"
@@ -849,7 +850,7 @@
     {
       "id": "g02-cinque-terre",
       "status": "partial",
-      "answer": "Le Cinque Terre non sono tra i luoghi di questa guida, quindi non so dirti cosa vedere lì. Da qui però puoi guardarle: il sentiero AV5T, da Porto Venere a Campiglia, offre viste sulla costa delle Cinque Terre.",
+      "answer": "Le Cinque Terre non sono tra i luoghi di questa guida, quindi non so dirti cosa vedere lì. Da qui però puoi guardarle: da quanto risulta finora, il sentiero AV5T, da Porto Venere a Campiglia, offre viste sulla costa delle Cinque Terre.",
       "citations": [
         "mz-av5t"
       ],
@@ -894,8 +895,8 @@
     },
     {
       "id": "g08-unesco-5terre",
-      "status": "partial",
-      "answer": "Il sito UNESCO, secondo le informazioni raccolte finora, comprende Porto Venere, le Cinque Terre e le isole Palmaria, Tino e Tinetto, ed è Patrimonio Mondiale dal 1997. Sono informazioni ancora in revisione da parte della redazione.",
+      "status": "answered",
+      "answer": "Sì: secondo le informazioni raccolte finora, Porto Venere, le Cinque Terre e le isole Palmaria, Tino e Tinetto formano insieme un sito Patrimonio Mondiale UNESCO, dal 1997.",
       "citations": [
         "it.liguria:unesco-1997"
       ],
@@ -944,7 +945,7 @@
     {
       "id": "h04-isola",
       "status": "partial",
-      "answer": "Qui le isole sono tre, quale ti interessa? La Palmaria è la più grande dell'arcipelago. Sul Tino restano tracce di un antico insediamento monastico, e il Tinetto è la più piccola delle tre.",
+      "answer": "Qui le isole sono tre, quale ti interessa? Da quanto risulta finora, la Palmaria è la più grande dell'arcipelago, sul Tino restano tracce di un antico insediamento monastico e il Tinetto è la più piccola delle tre.",
       "citations": [
         "pa-maggiore",
         "ti-monastero",
@@ -955,7 +956,7 @@
     {
       "id": "h05-grotta",
       "status": "partial",
-      "answer": "Ce ne sono due, quale intendi? La Grotta di Byron è una cala tra Punta San Pietro e lo sperone del Castello Doria. La Grotta Azzurra invece è una grotta marina dell'isola Palmaria.",
+      "answer": "Ce ne sono due, quale intendi? Da quanto risulta finora, la Grotta di Byron è una cala tra Punta San Pietro e lo sperone del Castello Doria. La Grotta Azzurra invece è una grotta marina dell'isola Palmaria.",
       "citations": [
         "gb-cala",
         "ga-grotta"
@@ -981,7 +982,7 @@
     {
       "id": "h08-simonetta",
       "status": "answered",
-      "answer": "Parli di Simonetta Cattaneo Vespucci, nobildonna genovese del Quattrocento. Secondo le fonti nacque intorno al 1453, sposò Marco Vespucci nel 1469 e morì a Firenze nel 1476. Vuoi sapere del suo legame con questi luoghi?",
+      "answer": "Parli di Simonetta Cattaneo Vespucci, figura del Quattrocento. Secondo le fonti nacque intorno al 1453, sposò Marco Vespucci nel 1469 e morì a Firenze nel 1476. Vuoi sapere del suo legame con questi luoghi?",
       "citations": [
         "sim-vita"
       ],
@@ -1008,7 +1009,7 @@
     {
       "id": "i03-vicino",
       "status": "answered",
-      "answer": "A circa 80 metri verso nord-ovest, in linea d'aria, c'è il Castello Doria, la fortezza che domina il borgo. Più o meno alla stessa distanza, verso est, trovi la Palazzata a mare, la cortina compatta di case sul mare. Segui la mappa dell'app per arrivarci.",
+      "answer": "A circa 80 metri verso nord-ovest, in linea d'aria, c'è il Castello Doria: da quanto risulta finora, è la fortezza che domina il borgo. Più o meno alla stessa distanza, verso est, trovi la Palazzata a mare, la cortina compatta di case sul mare. Segui la mappa dell'app per arrivarci.",
       "citations": [
         "context:position",
         "cd-fortezza",
@@ -1037,10 +1038,11 @@
     {
       "id": "i06-dove-sono",
       "status": "answered",
-      "answer": "Sei alla Grotta di Byron, chiamata anche Cala dell'Arpaia: è la cala tra Punta San Pietro e lo sperone roccioso del Castello Doria. La chiesa di San Pietro è a circa 100 metri verso sud-ovest, in linea d'aria.",
+      "answer": "Sei alla Grotta di Byron, chiamata anche Cala dell'Arpaia: da quanto risulta finora, è la cala tra Punta San Pietro e lo sperone roccioso del Castello Doria. La chiesa di San Pietro è a circa 100 metri verso sud-ovest, in linea d'aria.",
       "citations": [
         "context:position",
-        "gb-cala"
+        "gb-cala",
+        "gb-arpaia"
       ],
       "approved": false
     },
@@ -1080,7 +1082,7 @@
     {
       "id": "j01-chi-sei",
       "status": "answered",
-      "answer": "Sono Gaia, un'intelligenza artificiale che ti accompagna nei luoghi. Ti racconto solo informazioni verificate da una redazione, e ti dico quando qualcosa è una tradizione o è incerto. Cosa vuoi scoprire?",
+      "answer": "Sono Gaia, un'intelligenza artificiale che ti accompagna nei luoghi. Ti racconto le informazioni della guida, preparate da una redazione, e ti dico quando qualcosa è in revisione, una tradizione o è incerto. Cosa vuoi scoprire?",
       "citations": [
         "persona:gaia"
       ],
@@ -1098,7 +1100,7 @@
     {
       "id": "j03-ci-sei-stata",
       "status": "answered",
-      "answer": "No: sono un'intelligenza artificiale e non ho esperienze o ricordi miei. Conosco Porto Venere attraverso le informazioni verificate dalla redazione, e quelle te le racconto volentieri.",
+      "answer": "No: sono un'intelligenza artificiale e non ho esperienze o ricordi miei. Conosco Porto Venere attraverso le informazioni raccolte dalla redazione, e quelle te le racconto volentieri.",
       "citations": [
         "persona:gaia"
       ],
@@ -1107,7 +1109,7 @@
     {
       "id": "j04-posto-preferito",
       "status": "answered",
-      "answer": "Gusti miei non ne ho: sono un'intelligenza artificiale. Se cerchi un'idea, a circa 220 metri verso sud-ovest, in linea d'aria, c'è il Castello Doria, la fortezza che domina il borgo.",
+      "answer": "Gusti miei non ne ho: sono un'intelligenza artificiale. Se cerchi un'idea, a circa 220 metri verso sud-ovest, in linea d'aria, c'è il Castello Doria: da quanto risulta finora, è la fortezza che domina il borgo.",
       "citations": [
         "persona:gaia",
         "context:position",
@@ -1118,7 +1120,7 @@
     {
       "id": "j05-due-parole",
       "status": "answered",
-      "answer": "San Pietro sorge sul promontorio roccioso ed è uno dei luoghi simbolo di Porto Venere.",
+      "answer": "Da quanto risulta finora, San Pietro sorge sul promontorio roccioso ed è uno dei simboli di Porto Venere.",
       "citations": [
         "sp-promontorio"
       ],
@@ -1127,7 +1129,7 @@
     {
       "id": "j06-bambino",
       "status": "answered",
-      "answer": "È una grande fortezza, che sta in alto sopra il paese e lo guarda tutto dall'alto. È così importante che l'UNESCO la considera una delle parti principali del paesaggio di questo posto.",
+      "answer": "È una fortezza che sta in alto sopra il paese e lo guarda tutto dall'alto. È così importante che, da quanto sappiamo finora, l'UNESCO la considera una delle parti principali del paesaggio di questo posto.",
       "citations": [
         "cd-fortezza"
       ],
@@ -1136,7 +1138,7 @@
     {
       "id": "j07-una-cosa",
       "status": "answered",
-      "answer": "Sulla Palmaria ci sono antiche cave di Portoro.",
+      "answer": "Da quanto risulta finora, sulla Palmaria ci sono antiche cave di Portoro.",
       "citations": [
         "pa-contenuti"
       ],
@@ -1166,7 +1168,7 @@
     {
       "id": "j11-silenzio",
       "status": "off_topic",
-      "answer": "Va bene, resto in silenzio finché non mi chiami.",
+      "answer": "Va bene. Per non sentire i racconti puoi cambiare la modalità della guida nel Profilo; io rispondo solo quando mi fai una domanda.",
       "citations": [],
       "approved": false
     },
@@ -1219,7 +1221,7 @@
     {
       "id": "j16-lingua",
       "status": "off_topic",
-      "answer": "Posso parlare anche inglese: cambia la lingua nelle impostazioni dell'app e ti risponderò in inglese. Per ora continuo in italiano.",
+      "answer": "Posso parlare anche inglese: scegli la lingua in alto nell'app e ti risponderò in inglese. Per ora continuo in italiano.",
       "citations": [],
       "approved": false
     },
@@ -1248,7 +1250,7 @@
     {
       "id": "sl-portale",
       "status": "partial",
-      "answer": "Sulla facciata guarda le fasce alternate bianche e nere: sono il tratto più riconoscibile della chiesa, che è un edificio romanico a tre navate. Del portale, di sculture o iscrizioni non ho informazioni verificate, quindi non te li descrivo.",
+      "answer": "Sulla facciata guarda le fasce alternate bianche e nere: da quanto risulta finora, sono il tratto più riconoscibile della chiesa, che è un edificio romanico a tre navate. Del portale, di sculture o iscrizioni non ho informazioni verificate, quindi non te li descrivo.",
       "citations": [
         "sl-facciata",
         "sl-romanica"
@@ -1258,7 +1260,7 @@
     {
       "id": "borgo-palazzata",
       "status": "partial",
-      "answer": "So che la cortina compatta di edifici affacciati sul mare è uno dei tratti che definiscono la forma del borgo. L'UNESCO descrive un insediamento allineato lungo la costa, che culmina nel Castello Doria. Perché le case siano così alte e strette, e come fosse organizzato il borgo medievale, invece, non è tra le informazioni verificate che ho.",
+      "answer": "Da quanto risulta finora, la cortina compatta di edifici affacciati sul mare è uno dei tratti che definiscono la forma del borgo. L'UNESCO descrive un insediamento allineato lungo la costa, che culmina nel Castello Doria. Perché le case siano così alte e strette, e come fosse organizzato il borgo medievale, non è tra le informazioni verificate che ho.",
       "citations": [
         "pz-tessuto",
         "pz-unesco"
@@ -1268,11 +1270,12 @@
     {
       "id": "personaggi",
       "status": "partial",
-      "answer": "Ce ne sono due di cui posso parlarti. Simonetta Cattaneo Vespucci, nobildonna genovese del Quattrocento: una proposta recente la vuole nata a Porto Venere o a Fezzano, ma altre fonti la dicono nata a Genova. E il poeta George Byron, legato alla Grotta di Byron da una tradizione locale, non da un fatto verificato. Di altri personaggi non ho informazioni verificate.",
+      "answer": "Ce ne sono due di cui posso parlarti. Simonetta Cattaneo Vespucci, figura del Quattrocento: una proposta recente la vuole nata a Porto Venere o a Fezzano, ma altre fonti la dicono nata a Genova. E il poeta George Byron, legato alla Grotta di Byron da una tradizione locale, non da un fatto verificato. Di altri personaggi non ho informazioni verificate.",
       "citations": [
         "sim-vita",
         "sim-nascita-golfo",
-        "gb-byron"
+        "gb-byron",
+        "sim-nascita-genova"
       ],
       "approved": false
     },
@@ -1299,7 +1302,7 @@
     {
       "id": "k08-simonetta-racconto",
       "status": "answered",
-      "answer": "Simonetta Cattaneo nacque intorno al 1453, ma dove sia nata è ancora discusso. Il catasto fiorentino del 1469, come riporta Finestre sull'Arte, la dice nata a Genova; una proposta più recente la vuole invece nata a Porto Venere o a Fezzano, dove la sua famiglia aveva possedimenti. A Fezzano, le guide locali indicano ancora Villa Cattaneo come dimora della famiglia, ma è un'indicazione incerta. Nel 1469 sposò Marco Vespucci, e morì a Firenze nel 1476. Si racconta che abbia ispirato la Nascita di Venere di Botticelli, ma è una tradizione: gli storici dell'arte la discutono.",
+      "answer": "Simonetta Cattaneo, secondo le fonti, nacque intorno al 1453, ma dove sia nata è ancora discusso. Il catasto fiorentino del 1469 la dice nata a Genova; una proposta più recente la vuole invece nata a Porto Venere o a Fezzano, dove la sua famiglia aveva possedimenti. A Fezzano le guide locali indicano Villa Cattaneo come dimora della famiglia, ma è un'indicazione incerta. Sempre secondo le fonti, nel 1469 sposò Marco Vespucci e morì a Firenze nel 1476. Si racconta che abbia ispirato la Nascita di Venere di Botticelli, ma è una tradizione: gli storici dell'arte la discutono.",
       "citations": [
         "sim-vita",
         "sim-nascita-genova",
@@ -1312,7 +1315,7 @@
     {
       "id": "k09-osservare-palazzata",
       "status": "answered",
-      "answer": "Guarda come le case si stringono una accanto all'altra sul mare: questa cortina compatta è uno dei tratti che definiscono la forma del borgo. Poi alza lo sguardo: l'insediamento, allineato lungo la costa, culmina nel Castello Doria.",
+      "answer": "Guarda come le case si stringono una accanto all'altra sul mare: da quanto risulta finora, questa cortina compatta è uno dei tratti che definiscono la forma del borgo. Poi alza lo sguardo: secondo l'UNESCO, l'insediamento allineato lungo la costa culmina nel Castello Doria.",
       "citations": [
         "pz-tessuto",
         "pz-unesco"
@@ -1322,7 +1325,7 @@
     {
       "id": "k10-tino-venerio",
       "status": "partial",
-      "answer": "Sul Tino restano tracce legate a un antico insediamento monastico e al culto di San Venerio. È tutto ciò che so di verificato su questo legame: chi fosse il santo e quale ruolo abbia avuto sull'isola, le fonti che ho non lo dicono.",
+      "answer": "Secondo le informazioni raccolte finora, sul Tino restano tracce legate a un antico insediamento monastico e al culto di San Venerio. È tutto ciò che so su questo legame: chi fosse il santo e quale ruolo abbia avuto sull'isola, le fonti che ho non lo dicono.",
       "citations": [
         "ti-monastero"
       ],
@@ -1352,7 +1355,7 @@
     {
       "id": "l04-sentiero-pioggia",
       "status": "partial",
-      "answer": "Non ho informazioni verificate sulle condizioni del sentiero con la pioggia, quindi chiedi al Parco prima di partire. So soltanto che l'AV5T collega Porto Venere a Campiglia.",
+      "answer": "Non ho informazioni verificate sulle condizioni del sentiero con la pioggia, quindi chiedi al Parco prima di partire. So soltanto che, da quanto risulta finora, l'AV5T collega Porto Venere a Campiglia.",
       "citations": [
         "mz-av5t"
       ],
@@ -1412,7 +1415,7 @@
     {
       "id": "m05-sim-eta",
       "status": "answered",
-      "answer": "Sì, molto giovane: nacque intorno al 1453 e morì a Firenze nel 1476, quindi a circa ventitré anni. Le date sono approssimative.",
+      "answer": "Sì, giovane: secondo le fonti nacque intorno al 1453 e morì a Firenze nel 1476, quindi a circa ventitré anni. Le date sono approssimative.",
       "citations": [
         "sim-vita"
       ],

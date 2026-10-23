@@ -1411,13 +1411,13 @@
       "area": "isolamento",
       "category": "isolamento",
       "question": "Are the Cinque Terre part of the same UNESCO site as Porto Venere?",
-      "expect": "web",
+      "expect": "local",
       "status": [
-        "not_in_knowledge",
+        "answered",
         "partial"
       ],
       "cite": [],
-      "check": "La base non lo dice: non lo afferma."
+      "check": "La base lo dice (it.liguria:unesco-1997 e il nodo del sito: un unico sito Portovenere, Cinque Terre e Isole): sì, con cautela (in revisione). Revisione editoriale del 23/10, decisione D4."
     },
     {
       "id": "g09-territori",

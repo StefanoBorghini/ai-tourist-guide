@@ -1,4 +1,5 @@
 /** Testi dell'interfaccia. I contenuti dei luoghi arrivano dal bundle, non da qui. */
+import { PERSONA } from "./persona";
 
 export const UI = {
   it: {
@@ -20,7 +21,9 @@ export const UI = {
     progress: (n: number, of: number) => `Tappa ${n} di ${of}`,
     routeStops: "Le tappe",
     preferences: "Preferenze",
-    guideTitle: "La tua guida",
+    guideTitle: `${PERSONA.name}, la tua guida`,
+    // Trasparenza: chi risponde è un'intelligenza artificiale (AI Act, art. 50).
+    guideDisclosure: `${PERSONA.name} è un'intelligenza artificiale e può sbagliare: sotto ogni risposta trovi le fonti.`,
     guideSubtitle: (name: string) => `Chiedi qualsiasi cosa su ${name}.`,
     guideSubtitleAny: "Chiedi della storia, delle leggende o di cosa vedere qui intorno.",
     askSuggestFor: (name: string) => [`${name}: perché proprio qui?`, `${name}: c'è una leggenda?`, `${name}: cosa osservare dal vivo?`],
@@ -328,7 +331,8 @@ export const UI = {
     progress: (n: number, of: number) => `Stop ${n} of ${of}`,
     routeStops: "The stops",
     preferences: "Preferences",
-    guideTitle: "Your guide",
+    guideTitle: `${PERSONA.name}, your guide`,
+    guideDisclosure: `${PERSONA.name} is an artificial intelligence and can make mistakes: the sources are shown under each answer.`,
     guideSubtitle: (name: string) => `Ask anything about ${name}.`,
     guideSubtitleAny: "Ask about the history, the legends or what to see around here.",
     askSuggestFor: (name: string) => [`${name}: why right here?`, `${name}: is there a legend?`, `${name}: what to look for?`],

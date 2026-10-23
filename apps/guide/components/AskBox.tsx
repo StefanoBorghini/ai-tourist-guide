@@ -202,6 +202,7 @@ export function AskBox(props: {
         <div>
           <h2>{t.guideTitle}</h2>
           <p className="muted small ask-context">{aboutName ? t.askContext(aboutName) : t.guideSubtitleAny}</p>
+          <p className="muted small ask-context">{t.guideDisclosure}</p>
         </div>
       </div>
 

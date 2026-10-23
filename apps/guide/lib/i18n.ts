@@ -23,7 +23,7 @@ export const UI = {
     preferences: "Preferenze",
     guideTitle: `${PERSONA.name}, la tua guida`,
     // Trasparenza: chi risponde è un'intelligenza artificiale (AI Act, art. 50).
-    guideDisclosure: `${PERSONA.name} è un'intelligenza artificiale e può sbagliare: sotto ogni risposta trovi le fonti.`,
+    guideDisclosure: `${PERSONA.name} è un'intelligenza artificiale e può sbagliare: quando ci sono, sotto la risposta trovi le fonti.`,
     guideSubtitle: (name: string) => `Chiedi qualsiasi cosa su ${name}.`,
     guideSubtitleAny: "Chiedi della storia, delle leggende o di cosa vedere qui intorno.",
     askSuggestFor: (name: string) => [`${name}: perché proprio qui?`, `${name}: c'è una leggenda?`, `${name}: cosa osservare dal vivo?`],
@@ -332,7 +332,7 @@ export const UI = {
     routeStops: "The stops",
     preferences: "Preferences",
     guideTitle: `${PERSONA.name}, your guide`,
-    guideDisclosure: `${PERSONA.name} is an artificial intelligence and can make mistakes: the sources are shown under each answer.`,
+    guideDisclosure: `${PERSONA.name} is an artificial intelligence and can make mistakes: sources are shown under the answer when available.`,
     guideSubtitle: (name: string) => `Ask anything about ${name}.`,
     guideSubtitleAny: "Ask about the history, the legends or what to see around here.",
     askSuggestFor: (name: string) => [`${name}: why right here?`, `${name}: is there a legend?`, `${name}: what to look for?`],

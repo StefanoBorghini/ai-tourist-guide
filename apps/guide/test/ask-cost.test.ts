@@ -33,7 +33,7 @@ beforeAll(() => {
   const dest = [...packs.values()].find((p) => p.manifest.kind === "destination")!;
   const content = buildBundle(packs, { destination: dest.manifest.id, locale: "it", allowFictional: true }).content;
   loaded = { content, knowledge: buildKnowledge(content), kbHash: "kb-test" };
-  req = askRequestSchema.parse({ destination: content.destination, locale: "it", question: "Perché fu costruito qui?" });
+  req = askRequestSchema.parse({ destination: content.destination, locale: "it", question: "Perché fu costruito il porto?" });
   ref = content.assertions[0]!.ref;
 });
 

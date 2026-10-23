@@ -13,6 +13,7 @@ import {
   DailyCounter,
   TtlCache,
   WEB_SYSTEM_PROMPT,
+  ambiguousWithoutPlace,
   cacheKey,
   cacheable,
   needsWeb,
@@ -36,7 +37,7 @@ beforeAll(() => {
   const dest = [...packs.values()].find((p) => p.manifest.kind === "destination")!;
   content = buildBundle(packs, { destination: dest.manifest.id, locale: "it", allowFictional: true }).content;
   loaded = { content, knowledge: buildKnowledge(content), kbHash: "kb-test" };
-  req = askRequestSchema.parse({ destination: content.destination, locale: "it", question: "Perché fu costruito qui?" });
+  req = askRequestSchema.parse({ destination: content.destination, locale: "it", question: "Perché fu costruito il porto?" });
   ref = content.assertions[0]!.ref;
 });
 
@@ -116,6 +117,20 @@ describe("quando cercare", () => {
     expect(needsWeb(a("off_topic"), deep)).toBe(false);
     expect(needsWeb(a("unavailable"), deep)).toBe(false);
   });
+  it("non cerca da sola se la domanda rimanda a un luogo non indicato", () => {
+    const vague = { ...req, question: "Perché è stato costruito proprio qui?" };
+    expect(ambiguousWithoutPlace(vague)).toBe(true);
+    expect(needsWeb(a("not_in_knowledge"), vague)).toBe(false);
+    expect(needsWeb(a("partial"), { ...vague, locale: "en" as const, question: "Why was it built right here?" })).toBe(false);
+    expect(needsWeb(a("not_in_knowledge"), { ...vague, question: "C'è una leggenda legata a questo luogo?" })).toBe(false);
+    // Con il luogo aperto o corrente si sa di cosa si parla; con «Approfondisci» la ricerca è chiesta.
+    expect(needsWeb(a("not_in_knowledge"), { ...vague, currentPlace: content.places[0]!.ref })).toBe(true);
+    expect(needsWeb(a("not_in_knowledge"), { ...vague, selectedPlace: content.places[0]!.ref })).toBe(true);
+    expect(needsWeb(a("not_in_knowledge"), { ...vague, depth: "deep" as const })).toBe(true);
+    // Senza rimandi a un luogo si cerca come prima; «questione» o «quindi» non sono rimandi.
+    expect(needsWeb(a("not_in_knowledge"), { ...vague, question: "Chi era Byron?" })).toBe(true);
+    expect(ambiguousWithoutPlace({ ...vague, question: "Qual è la questione, quindi?" })).toBe(false);
+  });
   it("in un'emergenza non cerca mai", () => {
     expect(needsWeb(a("safety"), req)).toBe(false);
     expect(needsWeb(a("safety"), { ...req, depth: "deep" })).toBe(false);
@@ -190,7 +205,7 @@ describe("lettura della risposta con ricerca", () => {
 describe("cache e limiti", () => {
   it("la chiave dipende da contenuti, luogo, posizione e profondità, non da maiuscole e punteggiatura", () => {
     const k = cacheKey(req, "h1")!;
-    expect(cacheKey({ ...req, question: "  perché FU costruito qui " }, "h1")).toBe(k);
+    expect(cacheKey({ ...req, question: "  perché FU costruito il porto " }, "h1")).toBe(k);
     expect(cacheKey(req, "h2")).not.toBe(k);
     expect(cacheKey({ ...req, selectedPlace: "pack:altro" }, "h1")).not.toBe(k);
     expect(cacheKey({ ...req, depth: "deep" }, "h1")).not.toBe(k);

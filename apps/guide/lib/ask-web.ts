@@ -3,8 +3,8 @@
  *
  * Il percorso è in due tempi:
  * 1. la base locale verificata risponde per prima (ask.ts, controllo rigoroso di citazioni e numeri);
- * 2. solo se la base non basta (esito "partial", "not_in_knowledge" o "rejected"; mai "off_topic" o "safety") o se il visitatore chiede di
- *    approfondire, il modello riceve la stessa base più lo strumento ufficiale di ricerca web
+ * 2. solo se la base non basta (esito "partial", "not_in_knowledge" o "rejected"; mai "off_topic" o "safety", né in automatico
+ *    se la domanda rimanda a un luogo non indicato) o se il visitatore chiede di approfondire, il modello riceve la stessa base più lo strumento ufficiale di ricerca web
  *    dell'API Anthropic e compone la risposta finale.
  *
  * Le informazioni trovate online NON diventano conoscenza verificata: si mostrano con le loro fonti,
@@ -77,13 +77,26 @@ export function webConfig(env: Record<string, string | undefined> = process.env)
 
 // ------------------------------------------------------------------ quando cercare
 
+/** Parole che rimandano a un luogo non detto («qui», «questo», «here», «this»…). */
+const DEICTIC = /(?<![\p{L}])(?:qui|qua|questo|questa|quest'|quello|quella|quel|lì|là|here|this|that|there)(?![\p{L}])/iu;
+
+/**
+ * La domanda rimanda a un luogo («perché è stato costruito qui?») ma non ce n'è uno aperto né corrente:
+ * la base non sa di cosa si parla e una ricerca online non lo saprebbe meglio.
+ */
+export function ambiguousWithoutPlace(req: AskRequest): boolean {
+  return !req.selectedPlace && !req.currentPlace && DEICTIC.test(req.question);
+}
+
 /**
  * La ricerca web è un costo: si fa solo quando la base locale non basta o quando il visitatore
- * chiede esplicitamente di approfondire. Mai per domande fuori tema.
+ * chiede esplicitamente di approfondire. Mai per domande fuori tema, né in automatico per una domanda
+ * che rimanda a un luogo non indicato (resta «Approfondisci»).
  */
 export function needsWeb(local: AskAnswer, req: AskRequest): boolean {
   if (local.status === "off_topic" || local.status === "safety" || local.status === "unavailable") return false;
   if (req.depth === "deep") return true;
+  if (ambiguousWithoutPlace(req)) return false;
   return local.status === "partial" || local.status === "not_in_knowledge" || local.status === "rejected";
 }
 

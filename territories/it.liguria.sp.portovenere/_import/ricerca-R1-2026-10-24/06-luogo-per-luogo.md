@@ -1,6 +1,6 @@
 # Porto Venere — cosa sa Gaia, luogo per luogo
 
-**Fonte dei dati:** fotografia del database (`pack_snapshot('it.liguria.sp.portovenere')`) del 24 ottobre 2026, dopo le correzioni dei luoghi.
+**Fonte dei dati:** fotografia del database (`pack_snapshot('it.liguria.sp.portovenere')`) del 24 ottobre 2026 (query 28), dopo le correzioni dei luoghi e la verifica delle 51 affermazioni.
 È lo stato reale dello Studio, non quello dei file del repository.
 
 **Come si legge:**
@@ -23,7 +23,7 @@ Il racconto d'apertura dei luoghi principali è gratuito. I luoghi introduttivi 
 | ↳ [Isola del Tinetto](#tinetto) | 2 | 1 | 2 / 1 |
 | ↳ [Isola del Tino](#tino) | 2 | 1 | 5 / 4 |
 | [Le Grazie](#le-grazie) | 3 | 2 | 3 / 2 |
-| ↳ [Forte / sistema fortificato di San Pietro](#forte-san-pietro) · **muto** | 1 | 0 | 0 / 0 |
+| ↳ [Forte / sistema fortificato di San Pietro](#forte-san-pietro) · **muto** | 0 | 0 | 0 / 0 |
 | ↳ [Muzzerone / palestra di roccia](#muzzerone) | 2 | 2 | 0 / 0 |
 | ↳ [Santuario di Nostra Signora delle Grazie](#santuario-le-grazie) | 2 | 1 | 3 / 2 |
 | [Portovenere](#portovenere) · **muto** | 0 | 0 | 3 / 2 |
@@ -33,11 +33,11 @@ Il racconto d'apertura dei luoghi principali è gratuito. I luoghi introduttivi 
 | ↳ [Grotta di Byron / Cala dell'Arpaia](#grotta-byron) | 3 | 2 | 0 / 0 |
 | ↳ [Mater Naturae](#mater-naturae) · **muto** | 0 | 0 | 0 / 0 |
 | ↳ [Palazzata a mare](#palazzata-a-mare) | 2 | 1 | 0 / 0 |
-| ↳ [Piazza Bastreri](#piazza-bastreri) · **muto** | 1 | 0 | 0 / 0 |
+| ↳ [Piazza Bastreri](#piazza-bastreri) · **muto** | 0 | 0 | 0 / 0 |
 | ↳ [Piazza Paolo Centinaro](#piazza-paolo-centinaro) · **muto** | 0 | 0 | 0 / 0 |
-| ↳ [Porta del Borgo](#porta-del-borgo) · **muto** | 1 | 0 | 0 / 0 |
-| ↳ [Scalinata / salita verso San Pietro](#scalinata-san-pietro) · **muto** | 1 | 0 | 0 / 0 |
-| ↳ [Torre Capitolare](#torre-capitolare) · **muto** | 1 | 0 | 0 / 0 |
+| ↳ [Porta del Borgo](#porta-del-borgo) · **muto** | 0 | 0 | 0 / 0 |
+| ↳ [Scalinata / salita verso San Pietro](#scalinata-san-pietro) · **muto** | 0 | 0 | 0 / 0 |
+| ↳ [Torre Capitolare](#torre-capitolare) · **muto** | 0 | 0 | 0 / 0 |
 
 ---
 
@@ -69,54 +69,54 @@ Il racconto d'apertura dei luoghi principali è gratuito. I luoghi introduttivi 
 
 **Fatti (16)**
 
-- `fz-chiesa-1740` · controverso · in revisione · controversia `fezzano-chiesa-data`
+- `fz-chiesa-1740` · controverso · verificata · controversia `fezzano-chiesa-data`
   > Le guide locali datano al 1740 la chiesa parrocchiale di San Giovanni Battista, nel centro di Fezzano, a navata unica con altari barocchi.
-  - Fonte: Fezzano (C) — dedotta, da confermare; Fezzano (C) — dedotta, da confermare
-- `fz-chiesa-catalogo` · controverso · in revisione · controversia `fezzano-chiesa-data`
+  - Fonte: Fezzano (C) — confermata; Fezzano (C) — dedotta, da confermare
+- `fz-chiesa-catalogo` · controverso · verificata · controversia `fezzano-chiesa-data`
   > Il catalogo nazionale dei beni culturali registra una chiesa parrocchiale di San Giovanni Battista, in piazza San Giovanni Battista, datata a prima del 1739 e opera di maestranze locali.
-  - Fonte: Chiesa di San Giovanni Battista (scheda 0700208306) (A) — dedotta, da confermare
-- `fz-chiesa-opere` · fatto · incerto · in revisione · ⚠️ **non raccontato**
+  - Fonte: Chiesa di San Giovanni Battista (scheda 0700208306) (A) — confermata
+- `fz-chiesa-opere` · fatto · incerto · verificata · ⚠️ **non raccontato**
   > Secondo una guida locale, nella chiesa si conservano cinque grandi tele del pittore locale Giuseppe Tori e una statua attribuita ad Anton Maria Maragliano.
-  - Fonte: Fezzano (C) — dedotta, da confermare
-- `fz-donazione` · fatto · incerto · in revisione
+  - Fonte: Fezzano (C) — confermata
+- `fz-donazione` · fatto · incerto · verificata
   > Secondo una guida turistica locale, il 6 gennaio 1052 Guidone Malaspina donò Fezzano al monastero di San Venerio.
-  - Fonte: Fezzano (C) — dedotta, da confermare
-- `fz-frazione` · fatto · accertato · in revisione · ⚠️ **non raccontato**
+  - Fonte: Fezzano (C) — confermata
+- `fz-frazione` · fatto · accertato · verificata · ⚠️ **non raccontato**
   > Fezzano è uno dei tre paesi del comune di Porto Venere, con Le Grazie e Porto Venere: è il primo che si incontra arrivando dalla Spezia.
-  - Fonte: I borghi: Porto Venere, Le Grazie, Fezzano (B) — dedotta, da confermare; Porto Venere (C) — dedotta, da confermare; Fezzano (C) — dedotta, da confermare
-- `fz-fundus` · fatto · accertato · in revisione
+  - Fonte: I borghi: Porto Venere, Le Grazie, Fezzano (B) — confermata; Porto Venere (C) — dedotta, da confermare; Fezzano (C) — dedotta, da confermare
+- `fz-fundus` · fatto · accertato · verificata
   > Il Ministero della Cultura presenta i resti romani scoperti a Fezzano come il complesso del «fundus Alphidianus».
-  - Fonte: Scoperte archeologiche a Fezzano di Porto Venere (SP): visita guidata agli scavi del complesso romano del fundus Alphidianus (B) — dedotta, da confermare
-- `fz-mezzano` · fatto · incerto · in revisione
+  - Fonte: Scoperte archeologiche a Fezzano di Porto Venere (SP): visita guidata agli scavi del complesso romano del fundus Alphidianus (B) — confermata
+- `fz-mezzano` · fatto · incerto · verificata
   > Secondo una guida turistica locale, fino al IX secolo il paese era chiamato Mezzano.
-  - Fonte: Fezzano (C) — dedotta, da confermare
-- `fz-napoleone` · fatto · incerto · in revisione
+  - Fonte: Fezzano (C) — confermata
+- `fz-napoleone` · fatto · incerto · verificata
   > Secondo una guida turistica locale, Fezzano fu per secoli possedimento genovese e nel 1805, in età napoleonica, divenne comune autonomo.
-  - Fonte: Fezzano (C) — dedotta, da confermare
-- `fz-paese` · fatto · accertato · in revisione
+  - Fonte: Fezzano (C) — confermata
+- `fz-paese` · fatto · accertato · verificata
   > Fezzano è un paese del comune e fa parte della più ampia rete territoriale del Parco.
-  - Fonte: Official Park site (B) — dedotta, da confermare
-- `fz-palio` · fatto · accertato · in revisione
+  - Fonte: Official Park site (B) — confermata
+- `fz-palio` · fatto · accertato · verificata
   > Fezzano partecipa con una propria borgata al Palio del Golfo della Spezia, la regata tra le borgate marinare del golfo; il suo equipaggio è chiamato «Squali».
-  - Fonte: Il Palio della ripartenza è tutto del Fezzano (C) — dedotta, da confermare; Prepalio, sfide accese: Fezzano primo (C) — dedotta, da confermare
-- `fz-palio-2022` · fatto · probabile · in revisione
+  - Fonte: Il Palio della ripartenza è tutto del Fezzano (C) — confermata; Prepalio, sfide accese: Fezzano primo (C) — dedotta, da confermare
+- `fz-palio-2022` · fatto · probabile · verificata
   > Nel 2022 Fezzano vinse la 97ª edizione del Palio del Golfo, la decima vittoria della sua storia.
-  - Fonte: Il Palio della ripartenza è tutto del Fezzano (C) — dedotta, da confermare
-- `fz-san-nicola` · fatto · probabile · in revisione
+  - Fonte: Il Palio della ripartenza è tutto del Fezzano (C) — confermata
+- `fz-san-nicola` · fatto · probabile · verificata
   > Secondo la scheda del FAI, l'oratorio di San Nicola fu eretto nel 1543 per volontà del capitano Nicolino Porretta e della moglie Bianchetta, accanto all'allora palazzo Porretta; sopra l'altare c'è un dipinto della Madonna del Rosario.
-  - Fonte: Oratorio di San Nicola al Fezzano (I Luoghi del Cuore) (C) — dedotta, da confermare
-- `fz-scavi-romani` · fatto · accertato · in revisione
+  - Fonte: Oratorio di San Nicola al Fezzano (I Luoghi del Cuore) (C) — confermata
+- `fz-scavi-romani` · fatto · accertato · verificata
   > Durante i lavori per il nuovo campo sportivo di Fezzano sono emersi resti di epoca romana; nel 2023 la Soprintendenza di Genova e La Spezia, con il Comune, ha aperto gli scavi a visite guidate.
-  - Fonte: Scoperte archeologiche a Fezzano di Porto Venere (SP): visita guidata agli scavi del complesso romano del fundus Alphidianus (B) — dedotta, da confermare
-- `fz-strada-1812` · fatto · probabile · in revisione
+  - Fonte: Scoperte archeologiche a Fezzano di Porto Venere (SP): visita guidata agli scavi del complesso romano del fundus Alphidianus (B) — confermata
+- `fz-strada-1812` · fatto · probabile · verificata
   > La strada costiera che collega Porto Venere alla Spezia passando per Fezzano e Le Grazie fu costruita nel 1812, in età napoleonica.
-  - Fonte: Porto Venere (C) — dedotta, da confermare
-- `fz-toponimo` · ipotesi · in revisione
+  - Fonte: Porto Venere (C) — confermata
+- `fz-toponimo` · ipotesi · verificata
   > Si ipotizza che il nome Fezzano derivi proprio dal latino «fundus Alphidianus».
-  - Fonte: Fezzano (C) — dedotta, da confermare; Fezzano (C) — dedotta, da confermare
-- `fz-villa-cattaneo` · fatto · incerto · in revisione
+  - Fonte: Fezzano (C) — confermata; Fezzano (C) — dedotta, da confermare
+- `fz-villa-cattaneo` · fatto · incerto · verificata
   > Le guide locali indicano a Fezzano Villa Cattaneo, del Quattrocento, come dimora della famiglia di Simonetta Cattaneo.
-  - Fonte: Fezzano (C) — dedotta, da confermare; Fezzano (C) — dedotta, da confermare
+  - Fonte: Fezzano (C) — confermata; Fezzano (C) — dedotta, da confermare
 
 **Dalla ricerca R1 (anteprima, non nello Studio)**
 
@@ -153,18 +153,18 @@ Il racconto d'apertura dei luoghi principali è gratuito. I luoghi introduttivi 
 
 **Fatti (4)**
 
-- `pa-contenuti` · fatto · accertato · in revisione
+- `pa-contenuti` · fatto · accertato · verificata
   > Sull'isola si trovano fortificazioni, antiche cave di Portoro, vegetazione mediterranea e resti archeologici e monastici.
-  - Fonte: L'Arcipelago: Palmaria – Tino – Tinetto (B) — dedotta, da confermare
-- `pa-maggiore` · fatto · accertato · in revisione
+  - Fonte: L'Arcipelago: Palmaria – Tino – Tinetto (B) — confermata
+- `pa-maggiore` · fatto · accertato · verificata
   > La Palmaria è l'isola più grande dell'arcipelago di Porto Venere.
-  - Fonte: L'Arcipelago: Palmaria – Tino – Tinetto (B) — dedotta, da confermare
-- `pa-periplo` · fatto · accertato · in revisione
+  - Fonte: L'Arcipelago: Palmaria – Tino – Tinetto (B) — confermata
+- `pa-periplo` · fatto · accertato · verificata
   > Secondo il Parco, il periplo ufficiale dell'isola richiede circa 3 ore e 30 minuti, ha difficoltà media e 198 metri di dislivello complessivo.
   - Fonte: Periplo dell'isola Palmaria (B) — confermata
-- `pa-unesco` · fatto · accertato · in revisione
+- `pa-unesco` · fatto · accertato · verificata
   > La Palmaria fa parte del sito Patrimonio Mondiale UNESCO.
-  - Fonte: Portovenere, Cinque Terre, and the Islands (B) — dedotta, da confermare
+  - Fonte: Portovenere, Cinque Terre, and the Islands (B) — confermata
 
 **Dalla ricerca R1 (anteprima, non nello Studio)**
 
@@ -241,7 +241,7 @@ Il racconto d'apertura dei luoghi principali è gratuito. I luoghi introduttivi 
 
 **Fatti (1)**
 
-- `ga-grotta` · fatto · accertato · in revisione
+- `ga-grotta` · fatto · accertato · verificata
   > La Grotta Azzurra è una grotta marina dell'isola Palmaria; secondo una fonte turistica locale vi si accede con piccole barche o a remi.
   - Fonte: Grotta Azzurra e Grotta Byron (C) — confermata
 
@@ -265,10 +265,10 @@ Il racconto d'apertura dei luoghi principali è gratuito. I luoghi introduttivi 
 
 **Fatti (2)**
 
-- `tn-piccola` · fatto · accertato · in revisione
+- `tn-piccola` · fatto · accertato · verificata
   > Il Tinetto è la più piccola delle tre isole dell'arcipelago e fa parte del sito UNESCO.
-  - Fonte: L'Arcipelago: Palmaria – Tino – Tinetto (B) — dedotta, da confermare; Portovenere, Cinque Terre, and the Islands (B) — dedotta, da confermare
-- `tn-resti` · fatto · accertato · in revisione
+  - Fonte: L'Arcipelago: Palmaria – Tino – Tinetto (B) — confermata; Portovenere, Cinque Terre, and the Islands (B) — dedotta, da confermare
+- `tn-resti` · fatto · accertato · verificata
   > Il materiale ufficiale del Parco descrive sull'isola resti di un antico insediamento monastico e ne sottolinea l'importanza storica e biogeografica.
   - Fonte: L'Arcipelago: Palmaria – Tino – Tinetto (B) — confermata
 
@@ -303,12 +303,12 @@ Il racconto d'apertura dei luoghi principali è gratuito. I luoghi introduttivi 
 
 **Fatti (2)**
 
-- `ti-monastero` · fatto · accertato · in revisione
+- `ti-monastero` · fatto · accertato · verificata
   > Sull'isola restano tracce legate a un antico insediamento monastico e al culto di San Venerio.
-  - Fonte: L'Arcipelago: Palmaria – Tino – Tinetto (B) — dedotta, da confermare
-- `ti-unesco` · fatto · accertato · in revisione
+  - Fonte: L'Arcipelago: Palmaria – Tino – Tinetto (B) — confermata
+- `ti-unesco` · fatto · accertato · verificata
   > L'isola del Tino è una delle tre isole comprese nel sito UNESCO.
-  - Fonte: Portovenere, Cinque Terre, and the Islands (B) — dedotta, da confermare
+  - Fonte: Portovenere, Cinque Terre, and the Islands (B) — confermata
 
 **Dalla ricerca R1 (anteprima, non nello Studio)**
 
@@ -358,15 +358,15 @@ Il racconto d'apertura dei luoghi principali è gratuito. I luoghi introduttivi 
 
 **Fatti (3)**
 
-- `lg-marittima` · fatto · accertato · in revisione
+- `lg-marittima` · fatto · accertato · verificata
   > Le Grazie è un paese del comune con una forte identità marinara.
-  - Fonte: Le Grazie (C) — dedotta, da confermare
-- `lg-mestieri` · fatto · probabile · in revisione
+  - Fonte: Le Grazie (C) — confermata
+- `lg-mestieri` · fatto · probabile · verificata
   > Secondo una fonte locale, il paese è legato ai maestri d'ascia, ai calafati e alla tradizione delle immersioni.
   - Fonte: Le Grazie (C) — confermata
-- `lg-palombari` · tradizione · in revisione
+- `lg-palombari` · tradizione · verificata
   > Per tradizione locale Le Grazie è chiamata «la Città dei palombari».
-  - Fonte: Le Grazie (C) — dedotta, da confermare
+  - Fonte: Le Grazie (C) — confermata
 
 **Dalla ricerca R1 (anteprima, non nello Studio)**
 
@@ -401,11 +401,9 @@ Il racconto d'apertura dei luoghi principali è gratuito. I luoghi introduttivi 
 
 _Nessun racconto: Gaia non ha niente da dire qui._
 
-**Fatti (1)**
+**Fatti (0)**
 
-- `fs-strutture` · fatto · probabile · bozza · ⚠️ **non raccontato**
-  > Strutture militari occupano e rafforzano il promontorio di San Pietro.
-  - Fonte: **nessuna fonte**
+_Nessun fatto._
 
 ---
 
@@ -429,12 +427,12 @@ _Nessun racconto: Gaia non ha niente da dire qui._
 
 **Fatti (2)**
 
-- `mz-arrampicata` · fatto · accertato · in revisione
+- `mz-arrampicata` · fatto · accertato · verificata
   > Il Parco indica il Muzzerone come una delle principali aree per l'arrampicata e le attività all'aperto, con viste panoramiche.
   - Fonte: I sentieri del Parco (B) — confermata
-- `mz-av5t` · fatto · accertato · in revisione
+- `mz-av5t` · fatto · accertato · verificata
   > Il sentiero AV5T collega Porto Venere a Campiglia, con viste su Palmaria, Tino, Tinetto e sulla costa delle Cinque Terre.
-  - Fonte: I sentieri del Parco (B) — dedotta, da confermare
+  - Fonte: I sentieri del Parco (B) — confermata
 
 ---
 
@@ -456,12 +454,12 @@ _Nessun racconto: Gaia non ha niente da dire qui._
 
 **Fatti (2)**
 
-- `sg-olivetani` · fatto · probabile · in revisione
+- `sg-olivetani` · fatto · probabile · verificata
   > Il santuario, oggi chiesa parrocchiale, è legato alla presenza dei monaci benedettini olivetani a Le Grazie.
-  - Fonte: Le Grazie (C) — dedotta, da confermare
-- `sg-opere` · fatto · accertato · in revisione
+  - Fonte: Le Grazie (C) — confermata
+- `sg-opere` · fatto · accertato · verificata
   > Il santuario custodisce opere d'arte documentate dalle fonti turistiche locali.
-  - Fonte: Le Grazie (C) — dedotta, da confermare
+  - Fonte: Le Grazie (C) — confermata
 
 **Dalla ricerca R1 (anteprima, non nello Studio)**
 
@@ -538,10 +536,10 @@ _Nessun fatto._
 
 **Fatti (2)**
 
-- `cd-fortezza` · fatto · accertato · in revisione
+- `cd-fortezza` · fatto · accertato · verificata
   > Il Castello Doria è la fortezza che domina il borgo ed è uno degli elementi principali del paesaggio culturale riconosciuto dall'UNESCO.
-  - Fonte: Portovenere, Cinque Terre, and the Islands (B) — dedotta, da confermare
-- `cd-palinsesto` · fatto · accertato · in revisione
+  - Fonte: Portovenere, Cinque Terre, and the Islands (B) — confermata
+- `cd-palinsesto` · fatto · accertato · verificata
   > L'UNESCO descrive il castello come un palinsesto storico, con tracce di una fortificazione medievale precedente.
   - Fonte: Portovenere, Cinque Terre, and the Islands (B) — confermata
 
@@ -578,16 +576,16 @@ _Nessun fatto._
 
 **Fatti (4)**
 
-- `sl-consacrazione` · fatto · probabile · in revisione
+- `sl-consacrazione` · fatto · probabile · verificata
   > Secondo il materiale turistico locale, la chiesa fu consacrata nel 1130 da papa Innocenzo II.
   - Fonte: Le Chiese di Porto Venere (C) — confermata
-- `sl-facciata` · fatto · accertato · in revisione
+- `sl-facciata` · fatto · accertato · verificata
   > La facciata ha fasce alternate bianche e nere.
-  - Fonte: Le Chiese di Porto Venere (C) — dedotta, da confermare
-- `sl-madonna-bianca` · fatto · accertato · in revisione
+  - Fonte: Le Chiese di Porto Venere (C) — confermata
+- `sl-madonna-bianca` · fatto · accertato · verificata
   > La chiesa custodisce la venerata Madonna Bianca.
-  - Fonte: Le Chiese di Porto Venere (C) — dedotta, da confermare
-- `sl-romanica` · fatto · accertato · in revisione
+  - Fonte: Le Chiese di Porto Venere (C) — confermata
+- `sl-romanica` · fatto · accertato · verificata
   > La chiesa di San Lorenzo è un edificio romanico a tre navate.
   - Fonte: Le Chiese di Porto Venere (C) — confermata
 
@@ -616,18 +614,18 @@ _Nessun fatto._
 
 **Fatti (4)**
 
-- `sp-fase-gotica` · fatto · probabile · in revisione
+- `sp-fase-gotica` · fatto · probabile · verificata
   > Secondo il materiale turistico locale, la fase gotica genovese della chiesa risale agli anni tra il 1256 e il 1277.
   - Fonte: Le Chiese di Porto Venere (C) — confermata
-- `sp-origini` · ipotesi · in revisione
+- `sp-origini` · ipotesi · verificata
   > Si ipotizza che prima della chiesa attuale esistessero edifici cristiani più antichi, e forse romani: è un'ipotesi, non un fatto accertato.
-  - Fonte: Le Chiese di Porto Venere (C) — dedotta, da confermare
-- `sp-promontorio` · fatto · accertato · in revisione
+  - Fonte: Le Chiese di Porto Venere (C) — confermata
+- `sp-promontorio` · fatto · accertato · verificata
   > La chiesa di San Pietro sorge sul promontorio roccioso ed è uno dei luoghi simbolo di Porto Venere.
-  - Fonte: Le Chiese di Porto Venere (C) — dedotta, da confermare
-- `sp-restauro` · fatto · probabile · in revisione
+  - Fonte: Le Chiese di Porto Venere (C) — confermata
+- `sp-restauro` · fatto · probabile · verificata
   > In seguito la chiesa subì danni di natura militare e fu restaurata tra il 1929 e il 1934.
-  - Fonte: Le Chiese di Porto Venere (C) — dedotta, da confermare
+  - Fonte: Le Chiese di Porto Venere (C) — confermata
 
 **Dalla ricerca R1 (anteprima, non nello Studio)**
 
@@ -660,15 +658,15 @@ _Nessun fatto._
 
 **Fatti (3)**
 
-- `gb-arpaia` · fatto · accertato · in revisione
+- `gb-arpaia` · fatto · accertato · verificata
   > Il luogo è conosciuto localmente come Cala dell'Arpaia.
-  - Fonte: Grotta Azzurra e Grotta Byron (C) — dedotta, da confermare
-- `gb-byron` · tradizione · in revisione
+  - Fonte: Grotta Azzurra e Grotta Byron (C) — confermata
+- `gb-byron` · tradizione · verificata
   > Per una tradizione locale e turistica il luogo è associato al poeta George Byron, e si racconta che Byron arrivò a Porto Venere a nuoto partendo da Lerici. È una tradizione letteraria e locale, non un fatto storico verificato.
-  - Fonte: Grotta Azzurra e Grotta Byron (C) — dedotta, da confermare
-- `gb-cala` · fatto · accertato · in revisione
+  - Fonte: Grotta Azzurra e Grotta Byron (C) — confermata
+- `gb-cala` · fatto · accertato · verificata
   > È una cala tra Punta San Pietro e lo sperone roccioso del Castello Doria.
-  - Fonte: Grotta Azzurra e Grotta Byron (C) — dedotta, da confermare
+  - Fonte: Grotta Azzurra e Grotta Byron (C) — confermata
 
 ---
 
@@ -711,10 +709,10 @@ _Nessun fatto._
 
 **Fatti (2)**
 
-- `pz-tessuto` · fatto · accertato · in revisione
+- `pz-tessuto` · fatto · accertato · verificata
   > La cortina compatta di edifici affacciati sul mare è uno dei tratti che definiscono la forma del borgo.
-  - Fonte: Portovenere, Cinque Terre, and the Islands (B) — dedotta, da confermare
-- `pz-unesco` · fatto · accertato · in revisione
+  - Fonte: Portovenere, Cinque Terre, and the Islands (B) — confermata
+- `pz-unesco` · fatto · accertato · verificata
   > L'UNESCO indica l'insediamento compatto, allineato lungo la costa e culminante nel Castello Doria, come parte dell'eccezionale paesaggio culturale del sito.
   - Fonte: Portovenere, Cinque Terre, and the Islands (B) — confermata
 
@@ -736,11 +734,9 @@ _Nessun fatto._
 
 _Nessun racconto: Gaia non ha niente da dire qui._
 
-**Fatti (1)**
+**Fatti (0)**
 
-- `bs-passaggio` · fatto · probabile · bozza · ⚠️ **non raccontato**
-  > La piazza è il punto di passaggio tra la zona di accesso moderna e il borgo storico.
-  - Fonte: **nessuna fonte**
+_Nessun fatto._
 
 ---
 
@@ -781,11 +777,9 @@ _Nessun fatto._
 
 _Nessun racconto: Gaia non ha niente da dire qui._
 
-**Fatti (1)**
+**Fatti (0)**
 
-- `pb-accesso` · fatto · probabile · bozza · ⚠️ **non raccontato**
-  > Era un accesso medievale al borgo storico e faceva parte del sistema urbano fortificato.
-  - Fonte: **nessuna fonte**
+_Nessun fatto._
 
 ---
 
@@ -805,11 +799,9 @@ _Nessun racconto: Gaia non ha niente da dire qui._
 
 _Nessun racconto: Gaia non ha niente da dire qui._
 
-**Fatti (1)**
+**Fatti (0)**
 
-- `ss-salita` · fatto · probabile · bozza · ⚠️ **non raccontato**
-  > È un percorso ripido verso il promontorio di San Pietro e le fortificazioni.
-  - Fonte: **nessuna fonte**
+_Nessun fatto._
 
 ---
 
@@ -829,11 +821,9 @@ _Nessun racconto: Gaia non ha niente da dire qui._
 
 _Nessun racconto: Gaia non ha niente da dire qui._
 
-**Fatti (1)**
+**Fatti (0)**
 
-- `tc-difesa` · fatto · probabile · bozza · ⚠️ **non raccontato**
-  > La torre è legata all'ingresso e al sistema difensivo del borgo storico.
-  - Fonte: **nessuna fonte**
+_Nessun fatto._
 
 ---
 
@@ -843,18 +833,18 @@ _Nessun racconto: Gaia non ha niente da dire qui._
 
 _Nobildonna genovese del Quattrocento, sposa di Marco Vespucci_ · raccontata nei racconti di Fezzano
 
-- `sim-nascita-genova` · controverso · in revisione · controversia `nascita-simonetta`
+- `sim-nascita-genova` · controverso · verificata · controversia `nascita-simonetta`
   > Secondo il catasto fiorentino del 1469, come riportato da Finestre sull'Arte, Simonetta era nata a Genova.
-  - Fonte: Simonetta Vespucci: era davvero musa e amante di Sandro Botticelli? (C) — dedotta, da confermare
-- `sim-nascita-golfo` · controverso · in revisione · controversia `nascita-simonetta`
+  - Fonte: Simonetta Vespucci: era davvero musa e amante di Sandro Botticelli? (C) — confermata
+- `sim-nascita-golfo` · controverso · verificata · controversia `nascita-simonetta`
   > Una proposta più recente la vuole invece nata a Porto Venere o a Fezzano, dove la famiglia Cattaneo aveva possedimenti.
-  - Fonte: Simonetta Vespucci: era davvero musa e amante di Sandro Botticelli? (C) — dedotta, da confermare; Simonetta Vespucci (C) — dedotta, da confermare
-- `sim-venere` · tradizione · in revisione
+  - Fonte: Simonetta Vespucci: era davvero musa e amante di Sandro Botticelli? (C) — confermata; Simonetta Vespucci (C) — dedotta, da confermare
+- `sim-venere` · tradizione · verificata
   > Si racconta che Simonetta abbia ispirato la «Nascita di Venere» di Botticelli; l'identificazione è discussa dagli storici dell'arte.
-  - Fonte: Simonetta Vespucci: era davvero musa e amante di Sandro Botticelli? (C) — dedotta, da confermare; Simonetta Vespucci (C) — dedotta, da confermare
-- `sim-vita` · fatto · probabile · in revisione · ⚠️ **non raccontato**
+  - Fonte: Simonetta Vespucci: era davvero musa e amante di Sandro Botticelli? (C) — confermata; Simonetta Vespucci (C) — dedotta, da confermare
+- `sim-vita` · fatto · probabile · verificata · ⚠️ **non raccontato**
   > Simonetta Cattaneo nacque intorno al 1453, sposò Marco Vespucci nel 1469 e morì a Firenze nel 1476.
-  - Fonte: Simonetta Vespucci: era davvero musa e amante di Sandro Botticelli? (C) — dedotta, da confermare; Simonetta Vespucci (C) — dedotta, da confermare
+  - Fonte: Simonetta Vespucci: era davvero musa e amante di Sandro Botticelli? (C) — confermata; Simonetta Vespucci (C) — dedotta, da confermare
 - Dalla ricerca R1: `fz-venere-golfo` · ipotesi · bozza
   > Secondo un'interpretazione locale, il paesaggio sullo sfondo della «Nascita di Venere» rappresenterebbe il Golfo dei Poeti; è un'ipotesi, non un fatto documentato.
 

@@ -31,5 +31,6 @@ I rapporti citano la «scratchpad» o le «anteprime»: sono questi stessi file,
 | `02-fotografia-database-e-confronto.md` | Confronto database ↔ file. Spiega perché servono i racconti: con l'esplorazione a pagamento, il bundle contiene solo le affermazioni citate da un racconto |
 | `03-scheda-lettura-fonti.md` | Scheda per la redazione: 17 pagine, cosa cercare su ciascuna |
 | `04-correzioni-luoghi.md`, `05-checklist-correzioni-luoghi.md` | Anomalie dei luoghi e checklist operativa. Lo stato «nessuna correzione applicata» è superato: vedi la tabella sopra |
+| `06-luogo-per-luogo.md` | Cosa sa Gaia oggi, luogo per luogo (dalla fotografia del database del 24/10): scheda, racconti, fatti con fonte e stato, e cosa aggiungerebbe la ricerca |
 | `fotografia-commerciale.sql` | Query in sola lettura su accessi, prodotti, prezzi, acquisti e pubblicazioni: da lanciare prima e dopo ogni intervento |
 | `anteprima/` | Fonti, affermazioni (soggetti v2) e racconti proposti, più `LEGGIMI.md` con l'ordine di inserimento nello Studio |

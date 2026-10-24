@@ -339,7 +339,7 @@ export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest,
 
 /** Risposta locale con la dichiarazione del limite della ricerca online. */
 function withWebNote(local: AskAnswer, locale: "it" | "en", kind: "webUnavailable" | "webNoSources"): AskAnswer {
-  return { ...local, answer: `${local.answer} ${webNote(locale, kind)}`, ...(kind === "webUnavailable" ? { webUnavailable: true } : {}) };
+  return { ...local, answer: `${local.answer} ${webNote(locale, kind)}`, ...(kind === "webUnavailable" ? { webUnavailable: true } : { webNoSources: true }) };
 }
 
 export interface WebGate {
@@ -418,7 +418,7 @@ export async function askGuide(ai: AskModels, loaded: Loaded, rawReq: AskRequest
     keepUsd = reserve.ok ? reserve.worstUsd : 0;
   } else {
     const l = await getLocal();
-    if (!gate || !gate.config.enabled || !needsWeb(l.answer, req)) return done(l.answer);
+    if (!gate || !gate.config.enabled || !needsWeb(l.answer, req, gate.config.auto)) return done(l.answer);
     if (gate.supported === false || !permit()) {
       return done(withWebNote(l.answer, req.locale, "webUnavailable"), { attempted: false, error: gate.supported === false ? "modello senza ricerca web" : "limite di uso raggiunto", searches: 0, rounds: 0, sources: [] });
     }

@@ -142,6 +142,45 @@ describe("route delle domande", () => {
   });
 });
 
+describe("ricerca online solo su richiesta", () => {
+  const env = { ANTHROPIC_API_KEY: "x", ASK_MAX_USD_PER_QUESTION: "0.5" };
+  const notFound = () => ({
+    ...localReply(),
+    content: [{ type: "text", text: JSON.stringify({ status: "not_in_knowledge", answer: "Non ho questa informazione.", citations: [] }) }],
+  });
+  const tools = (i: number) => (h.create.mock.calls[i]![0] as { tools?: unknown[] }).tools;
+
+  it("una domanda senza risposta fa una sola chiamata, senza ricerca, e ripetuta arriva dalla cache a costo zero", async () => {
+    h.create.mockResolvedValueOnce(notFound());
+    const r = await route(env);
+    const body = { destination, locale: "it", question: "Ci sono spiagge?" };
+    const first = await (await r.POST(post(body))).json();
+    expect(first).toMatchObject({ status: "not_in_knowledge", meter: { calls: 1, webSearches: 0 } });
+    expect(first.origin ?? "local").toBe("local");
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(tools(0)).toBeUndefined();
+    const second = await (await r.POST(post(body))).json();
+    expect(second).toMatchObject({ status: "not_in_knowledge", cached: true, meter: { calls: 0, costUsd: 0 } });
+    expect(h.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("con «Approfondisci» la ricerca parte", async () => {
+    h.create.mockRejectedValue(new Error("fine della prova"));
+    const r = await route(env);
+    await r.POST(post({ destination, locale: "it", question: "Ci sono spiagge?", depth: "deep" }));
+    expect(h.create).toHaveBeenCalled();
+    expect(JSON.stringify(tools(0))).toContain("web_search");
+  });
+
+  it("con ASK_WEB_AUTO=1 la ricerca riparte da sola quando la base non basta", async () => {
+    h.create.mockResolvedValueOnce(notFound()).mockRejectedValue(new Error("fine della prova"));
+    const r = await route({ ...env, ASK_WEB_AUTO: "1" });
+    await r.POST(post({ destination, locale: "it", question: "Ci sono spiagge?" }));
+    expect(h.create).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(tools(1))).toContain("web_search");
+  });
+});
+
 describe("registro delle domande senza risposta", () => {
   const SERVICE_KEY = "chiave-di-servizio-segreta-0123456789";
   const gapsEnv = {

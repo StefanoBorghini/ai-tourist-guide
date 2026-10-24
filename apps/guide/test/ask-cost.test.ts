@@ -79,7 +79,8 @@ function fakeClient(...replies: (object | Error)[]) {
 const params = (create: ReturnType<typeof fakeClient>["create"], i: number) =>
   create.mock.calls[i]![0] as { model: string; max_tokens: number; tools?: { max_uses: number }[] };
 const options = (create: ReturnType<typeof fakeClient>["create"], i: number) => create.mock.calls[i]![1] as { maxRetries?: number; timeout?: number };
-const gate = (env: Record<string, string> = {}): WebGate => ({ config: webConfig(env), supported: true, permitted: () => true });
+// Il percorso automatico (ricerca quando la base non basta) resta provato con ASK_WEB_AUTO=1.
+const gate = (env: Record<string, string> = {}): WebGate => ({ config: webConfig({ ASK_WEB_AUTO: "1", ...env }), supported: true, permitted: () => true });
 
 /** Caso peggiore della risposta locale piena (come lo calcola il budget). */
 const localInputTokens = (r: AskRequest = req) =>

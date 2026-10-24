@@ -182,8 +182,8 @@ export function AskBox(props: {
 
   const last = answers.at(-1);
   const earlier = answers.slice(-4, -1);
-  // Si può approfondire una risposta della base locale, se il server ha la ricerca online.
-  const canDeepen = webAvailable && online && last && last.answer.origin !== "web" && !last.answer.webUnavailable && last.answer.status !== "off_topic" && last.answer.status !== "safety" && last.answer.status !== "unavailable";
+  // Si può approfondire una risposta della base locale, se il server ha la ricerca online e non l'ha già fatta senza trovare fonti.
+  const canDeepen = webAvailable && online && last && last.answer.origin !== "web" && !last.answer.webUnavailable && !last.answer.webNoSources && last.answer.status !== "off_topic" && last.answer.status !== "safety" && last.answer.status !== "unavailable";
   const aboutName = about ? runtime.name(about) : null;
   // Suggerimenti legati al luogo di cui si parla; senza luogo, quelli generali.
   const suggestions = aboutName ? t.askSuggestFor(aboutName) : t.askSuggest;

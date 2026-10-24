@@ -14,8 +14,9 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
    (mai `draft`), marcate e dichiarate all'utente; in `production` il validatore impone affermazioni verificate,
    coordinate `field_verified` e percorsi `field_calibrated`.
    **Ricerca web (decisione del proprietario, 2026-10):** il racconto dei luoghi non usa mai il web; le *risposte alle
-   domande* possono approfondire con lo strumento ufficiale di ricerca web dell'API Anthropic, solo dopo la base locale
-   e solo se questa non basta o se il visitatore chiede di approfondire (`lib/ask-web.ts`). Ciò che viene dal web si
+   domande* possono approfondire con lo strumento ufficiale di ricerca web dell'API Anthropic, dopo la base locale e
+   solo quando il visitatore chiede di approfondire («Approfondisci»; decisione del 24/10: da sola costava molto e spesso
+   non trovava fonti; `ASK_WEB_AUTO=1` riaccende la ricerca automatica quando la base non basta) (`lib/ask-web.ts`). Ciò che viene dal web si
    mostra con le sue fonti, marcato come non verificato dalla redazione, e **non entra mai da solo nel Territory Pack**:
    ci arriva solo con il processo normale di revisione. Si spegne con `ASK_WEB_ENABLED=0`.
 4. **Il Territory Pack è l'unica porta d'ingresso dei contenuti.** Il formato è definito in
@@ -37,7 +38,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato; distanze e direzioni in linea d'aria le calcola il
   sistema dalla posizione, l'AI le riferisce soltanto), `lib/ask-web.ts` (approfondimento con ricerca web: quando
-  cercare, mai in automatico se la domanda rimanda a un luogo non indicato, lettura di fonti e citazioni, cache, limiti; puro e testato), `lib/ask-server.ts` (chiamate al
+  cercare, solo su richiesta salvo `ASK_WEB_AUTO=1` e mai in automatico se la domanda rimanda a un luogo non indicato, cache anche dei «non lo so», lettura di fonti e citazioni, cache, limiti; puro e testato), `lib/ask-server.ts` (chiamate al
   modello), `lib/model.ts` (il modello dietro un'interfaccia: Anthropic o API compatibili OpenAI, scelti con
   `ASK_PROVIDER`; la ricerca web resta di Anthropic), `lib/emergency.ts` (emergenze riconosciute senza modello: 112
   subito, anche offline), `lib/limits.ts` (limiti per indirizzo e tetto di spesa giornaliero, per istanza),

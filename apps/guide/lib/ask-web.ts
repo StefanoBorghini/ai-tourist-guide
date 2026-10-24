@@ -3,9 +3,10 @@
  *
  * Il percorso è in due tempi:
  * 1. la base locale verificata risponde per prima (ask.ts, controllo rigoroso di citazioni e numeri);
- * 2. solo se la base non basta (esito "partial", "not_in_knowledge" o "rejected"; mai "off_topic" o "safety", né in automatico
- *    se la domanda rimanda a un luogo non indicato) o se il visitatore chiede di approfondire, il modello riceve la stessa base più lo strumento ufficiale di ricerca web
- *    dell'API Anthropic e compone la risposta finale.
+ * 2. quando il visitatore chiede di approfondire («Approfondisci»), il modello riceve la stessa base più lo strumento
+ *    ufficiale di ricerca web dell'API Anthropic e compone la risposta finale. Solo con ASK_WEB_AUTO=1 la ricerca parte
+ *    anche da sola quando la base non basta (esito "partial", "not_in_knowledge" o "rejected"), ma mai per una domanda
+ *    che rimanda a un luogo non indicato. Mai per "off_topic" o "safety".
  *
  * Le informazioni trovate online NON diventano conoscenza verificata: si mostrano con le loro fonti,
  * marcate come non verificate dalla redazione, e si registrano nei log perché la redazione possa
@@ -38,6 +39,11 @@ export const DEFAULT_BLOCKED_DOMAINS = [
 
 export interface WebConfig {
   enabled: boolean;
+  /**
+   * Ricerca automatica quando la base non basta (ASK_WEB_AUTO=1). Spenta per default (decisione del 24/10): la ricerca
+   * parte solo quando il visitatore chiede di approfondire, perché da sola costava molto e spesso non trovava fonti.
+   */
+  auto: boolean;
   model: string;
   /** Ricerche massime per domanda (max_uses dello strumento). */
   maxUses: number;
@@ -64,6 +70,7 @@ export function webConfig(env: Record<string, string | undefined> = process.env)
   const effort = env.ASK_WEB_EFFORT;
   return {
     enabled: !["0", "false", "no", "off"].includes((env.ASK_WEB_ENABLED ?? "1").trim().toLowerCase()),
+    auto: ["1", "true", "yes", "on"].includes((env.ASK_WEB_AUTO ?? "").trim().toLowerCase()),
     model: env.ASK_WEB_MODEL?.trim() || "claude-opus-5-5",
     maxUses: int(env.ASK_WEB_MAX_USES, 3, 1, 10),
     blockedDomains: blocked === undefined ? [...DEFAULT_BLOCKED_DOMAINS] : blocked.split(",").map((d) => d.trim()).filter(Boolean),
@@ -89,14 +96,14 @@ export function ambiguousWithoutPlace(req: AskRequest): boolean {
 }
 
 /**
- * La ricerca web è un costo: si fa solo quando la base locale non basta o quando il visitatore
- * chiede esplicitamente di approfondire. Mai per domande fuori tema, né in automatico per una domanda
- * che rimanda a un luogo non indicato (resta «Approfondisci»).
+ * La ricerca web è un costo: si fa quando il visitatore chiede esplicitamente di approfondire. Solo con la ricerca
+ * automatica accesa (`auto`, ASK_WEB_AUTO=1) anche quando la base locale non basta, ma mai per una domanda che rimanda
+ * a un luogo non indicato. Mai per domande fuori tema o emergenze.
  */
-export function needsWeb(local: AskAnswer, req: AskRequest): boolean {
+export function needsWeb(local: AskAnswer, req: AskRequest, auto = false): boolean {
   if (local.status === "off_topic" || local.status === "safety" || local.status === "unavailable") return false;
   if (req.depth === "deep") return true;
-  if (ambiguousWithoutPlace(req)) return false;
+  if (!auto || ambiguousWithoutPlace(req)) return false;
   return local.status === "partial" || local.status === "not_in_knowledge" || local.status === "rejected";
 }
 
@@ -345,9 +352,12 @@ export function cacheKey(req: AskRequest, kbHash: string): string | null {
     .digest("hex");
 }
 
-/** Si mettono in cache solo risposte utili che non dipendono dalla posizione del momento. */
+/**
+ * Si mettono in cache le risposte che non dipendono dalla posizione del momento, compresi i «non lo so»: con la stessa
+ * versione dei contenuti la risposta non cambia, e una domanda ripetuta non si paga di nuovo.
+ */
 export function cacheable(answer: AskAnswer): boolean {
-  return (answer.status === "answered" || answer.status === "partial") && !answer.usedPosition && !answer.webUnavailable;
+  return (answer.status === "answered" || answer.status === "partial" || answer.status === "not_in_knowledge") && !answer.usedPosition && !answer.webUnavailable;
 }
 
 /** Cache in memoria con scadenza e dimensione massima (per istanza del server). */

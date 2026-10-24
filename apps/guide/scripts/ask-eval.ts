@@ -17,6 +17,8 @@
  * I costi sono stimati dal listino sui token restituiti dall'API; una domanda fallita conta la sua
  * stima prudente. Una domanda già partita non si può interrompere a metà.
  * --no-web: solo base locale (fase A). --web-model: modello della ricerca (come ASK_WEB_MODEL).
+ * La ricerca parte da sola solo con ASK_WEB_AUTO=1 (come nella route): senza, le domande con expect "web" la fanno solo
+ * se hanno depth "deep".
  * --web-max-uses: ricerche per domanda (come ASK_WEB_MAX_USES), per confrontare 1 e 3.
  * --json: risultati per domanda, da confrontare con `npm run ask:compare -- a.json b.json`.
  * --dry: solo cosa la base locale sa su ogni domanda, nessuna chiamata.

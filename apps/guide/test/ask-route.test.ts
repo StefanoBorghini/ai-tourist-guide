@@ -46,6 +46,7 @@ vi.mock("../lib/ask-server.ts", async (importOriginal) => ({
 const here = dirname(fileURLToPath(import.meta.url));
 let destination = "";
 let ref = "";
+let placeRef = "";
 beforeAll(() => {
   const { packs } = loadPacks(resolve(here, "../../../territories/_synthetic"));
   const dest = [...packs.values()].find((p) => p.manifest.kind === "destination")!;
@@ -53,6 +54,7 @@ beforeAll(() => {
   h.loaded = { content, knowledge: buildKnowledge(content), kbHash: "kb-test" } satisfies Loaded;
   destination = content.destination;
   ref = content.assertions[0]!.ref;
+  placeRef = content.places[0]!.ref;
 });
 
 beforeEach(() => {
@@ -172,6 +174,26 @@ describe("registro delle domande senza risposta", () => {
     expect(JSON.stringify(args)).not.toContain("203.0.113.7");
     expect(h.create).toHaveBeenCalledTimes(1);
     expect(allLogs()).not.toContain(SERVICE_KEY);
+  });
+
+  it("nella riga solo i campi previsti: niente cronologia, già raccontato, vicini, posizione o luoghi inventati", async () => {
+    h.create.mockResolvedValueOnce(reply("not_in_knowledge"));
+    const r = await route(gapsEnv);
+    await r.POST(post({
+      destination, locale: "it", question: "A che ora apre?",
+      currentPlace: "Mario Rossi via Roma 3", selectedPlace: placeRef,
+      position: { lon: 9.81234, lat: 44.05678, accuracyM: 8 },
+      nearby: [placeRef], told: [ref],
+      history: [{ question: "Mi chiamo Mario", answer: "Risposta precedente riservata" }],
+    }));
+    await vi.waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
+    const args = h.rpc.mock.calls[0]![1] as Record<string, unknown>;
+    expect(Object.keys(args).sort()).toEqual(
+      ["p_kb_hash", "p_key", "p_kind", "p_locale", "p_pack", "p_place", "p_prompt", "p_question", "p_reason", "p_selected", "p_web_sources"].sort(),
+    );
+    expect(args).toMatchObject({ p_place: null, p_selected: placeRef, p_question: "A che ora apre?" });
+    const text = JSON.stringify(args);
+    for (const leak of ["Mario", "Roma", "riservata", "9.81", "44.05", "203.0.113.7", ref]) expect(text, leak).not.toContain(leak);
   });
 
   it("le risposte complete, le emergenze e il registro spento non scrivono nulla", async () => {

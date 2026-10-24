@@ -48,6 +48,8 @@ const answers = new TtlCache<AskAnswer>(config.cacheTtlHours * 3_600_000);
 // indirizzo, oltre al tetto giornaliero globale del database. L'indirizzo resta in memoria, mai nel registro.
 const gapsConfig = questionGapsConfig(process.env);
 const gapLimiter = new WindowLimiter(5, WINDOW_MS);
+/** Luoghi della base caricata: solo questi riferimenti entrano nel registro. */
+const isPlaceOf = (loaded: { content: { places: { ref: string }[] } }) => (ref: string) => loaded.content.places.some((p) => p.ref === ref);
 const noteGap = (make: () => GapRecord | null, ip: string) => {
   if (!gapsConfig) return;
   try {
@@ -123,7 +125,7 @@ export async function POST(request: Request): Promise<Response> {
     // Dalla cache: nessuna chiamata al modello, costo zero.
     const meter = { models: [], calls: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, webSearches: 0, costUsd: 0, costQuality: "measured" as const };
     // Una risposta parziale servita dalla cache è ancora una lacuna: si conta, senza chiamare il modello.
-    noteGap(() => gapRecord(req, { answer: hit, kbHash: loaded.kbHash, prompt: PROMPT_VERSION }), ip);
+    noteGap(() => gapRecord(req, { answer: hit, kbHash: loaded.kbHash, prompt: PROMPT_VERSION, isPlace: isPlaceOf(loaded) }), ip);
     return Response.json({ ...hit, cached: true, meter });
   }
 
@@ -190,7 +192,7 @@ export async function POST(request: Request): Promise<Response> {
       ms: Date.now() - started,
     }));
     if (key && cacheable(outcome.answer)) answers.set(key, { ...outcome.answer, meter: undefined });
-    noteGap(() => gapRecord(req, { answer: outcome.answer, rejected: outcome.rejected, kbHash: loaded.kbHash, prompt: PROMPT_VERSION }), ip);
+    noteGap(() => gapRecord(req, { answer: outcome.answer, rejected: outcome.rejected, kbHash: loaded.kbHash, prompt: PROMPT_VERSION, isPlace: isPlaceOf(loaded) }), ip);
     return Response.json(outcome.answer);
   } catch (error) {
     // Anche quando la risposta non arriva, ciò che è stato speso (o stimato) finisce nei log e nel tetto.

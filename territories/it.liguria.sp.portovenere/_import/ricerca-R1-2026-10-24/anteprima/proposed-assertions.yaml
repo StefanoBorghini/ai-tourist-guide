@@ -1,0 +1,542 @@
+# ANTEPRIMA — affermazioni NUOVE proposte dal pacchetto PV-GAIA-RESEARCH-2026-10-24-R1.
+# Tutte in stato «draft» (mai raccontate, nemmeno in anteprima) e con fonte «inferred»: il collegamento
+# affermazione → pagina è quello dichiarato dal pacchetto, non ancora letto da una persona sulla pagina.
+# Percorso previsto nello Studio: crea in bozza → apri la fonte → «Conferma fonte» con il punto della pagina →
+# «Invia in revisione» → verifica a quattro occhi. Ogni riga «originalClaim» è il testo del pacchetto.
+# Le note «# CONTROLLO» indicano cosa ho trovato cercando conferme indirette (motore di ricerca, non la pagina).
+
+# ---------------------------------------------------------------- Borgo di Porto Venere (PV-002) — sul luogo «portovenere» (v2)
+- id: bpv-portus-veneris
+  subject: portovenere   # v2: luogo creato dallo Studio, al posto del nodo borgo-porto-venere
+  predicate: described_as
+  type: fact
+  certainty: uncertain
+  status: draft
+  texts:
+    it: Secondo il Parco, il nome Portus Veneris compare già nel II secolo d.C. in un itinerario nautico romano.
+    en: According to the Park, the name Portus Veneris already appears in a Roman sailing itinerary in the 2nd century AD.
+  evidence:
+  - source: parco-borghi
+    attribution: inferred
+    locator: PV-002-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La pagina del Parco riferisce l'attestazione del toponimo Portus Veneris dal II secolo d.C.
+  # CONTROLLO: le fonti secondarie attribuiscono la citazione all'Itinerario di Antonino (161 d.C.), datazione
+  # discussa: serve una fonte specialistica prima di passare a «probable».
+- id: bpv-genova-1113
+  subject: portovenere   # v2: luogo creato dallo Studio, al posto del nodo borgo-porto-venere
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Dal 1113 Porto Venere passò sotto il controllo di Genova, dopo la cessione da parte dei Signori di Vezzano, e divenne un suo avamposto.
+    en: From 1113 Porto Venere came under Genoese control, after being ceded by the Lords of Vezzano, and became one of Genoa's outposts.
+  evidence:
+  - source: parco-borghi
+    attribution: inferred
+    locator: PV-002-C2 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Il Parco collega il passaggio sotto l'influenza genovese al 1113 e descrive mura, porta, Castello Doria, chiese e Palazzata.
+  # CONTROLLO: data confermata da fonti secondarie (Wikipedia, guide); manca una fonte primaria.
+- id: bpv-sistema-difensivo
+  subject: portovenere   # v2: luogo creato dallo Studio, al posto del nodo borgo-porto-venere
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Il borgo storico è un sistema unico di mura e porta, Castello Doria, chiese di San Lorenzo e San Pietro e la Palazzata, la fila di case-torri sul mare.
+    en: The historic village forms a single system of walls and gate, Doria Castle, the churches of San Lorenzo and San Pietro, and the Palazzata, the row of tower houses along the sea.
+  evidence:
+  - source: parco-borghi
+    attribution: inferred
+    locator: PV-002-C2 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Il Parco collega il passaggio sotto l'influenza genovese al 1113 e descrive mura, porta, Castello Doria, chiese e Palazzata.
+
+# ---------------------------------------------------------------- San Pietro (PV-003)
+- id: sp-due-corpi
+  subject: san-pietro
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: La chiesa unisce un corpo più antico in stile romanico e una parte gotica più recente, collegati da aperture ad arco.
+    en: The church joins an older Romanesque section and a later Gothic one, connected by arched openings.
+  evidence:
+  - source: parco-chiese
+    attribution: inferred
+    locator: PV-003-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Il complesso unisce una parte romanica più antica e una parte gotica avviata nel 1256 e completata nel 1277 secondo la scheda del Parco.
+
+# ---------------------------------------------------------------- Castello Doria (PV-004)
+- id: cd-pianta
+  subject: castello-doria
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: La fortezza ha pianta pentagonale, con un bastione rivolto a sud; all'interno si trovano la Sala Ipostila, coperta da volte a crociera, e la Casa del Capitano.
+    en: The fortress has a pentagonal plan with a south-facing bastion; inside are the Hypostyle Hall, with cross vaults, and the Captain's House.
+  evidence:
+  - source: parco-castello
+    attribution: inferred
+    locator: PV-004-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La scheda del Parco descrive una fortezza a pianta pentagonale con Sala Ipostila e Casa del Capitano.
+  # CONTROLLO: pianta pentagonale e Sala Ipostila confermate da fonti secondarie; alcune chiamano l'edificio
+  # «Casa del Castellano» (sede del Capitano del Popolo): controllare il nome sulla pagina del Parco.
+
+# ---------------------------------------------------------------- Le Grazie e santuario (PV-005)
+- id: sg-quattrocento
+  subject: santuario-le-grazie
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Secondo il Parco, la chiesa di Nostra Signora delle Grazie è di origine quattrocentesca e fu modificata in seguito.
+    en: According to the Park, the church of Our Lady of Grace dates back to the 15th century and was later altered.
+  evidence:
+  - source: parco-borghi
+    attribution: inferred
+    locator: PV-005-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La chiesa è di origine quattrocentesca, con successive modifiche; la scheda del Parco attribuisce opere e affreschi a specifici artisti.
+  # CONTROLLO: una guida locale indica il XIV secolo: possibile contraddizione, da risolvere con il catalogo MiC.
+- id: sg-attribuzioni
+  subject: santuario-le-grazie
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Il Parco attribuisce il coro ligneo a Fra Paolo da Recco, l'immagine della Madonna ad Andrea de Aste e gli affreschi del refettorio, della fine del Quattrocento, a Nicolò Corso.
+    en: The Park attributes the wooden choir to Fra Paolo da Recco, the image of the Virgin to Andrea de Aste and the late 15th-century refectory frescoes to Nicolò Corso.
+  evidence:
+  - source: parco-borghi
+    attribution: inferred
+    locator: PV-005-C1 e rapporto §PV-005 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La chiesa è di origine quattrocentesca, con successive modifiche; la scheda del Parco attribuisce opere e affreschi a specifici artisti.
+- id: sg-olivetani-privato
+  subject: santuario-le-grazie
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Il complesso fu legato ai monaci Olivetani; secondo il Parco, parte degli edifici oggi è di proprietà privata.
+    en: The complex was linked to the Olivetan monks; according to the Park, part of the buildings is now privately owned.
+  evidence:
+  - source: parco-borghi
+    attribution: inferred
+    locator: rapporto §PV-005 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Il complesso fu legato ai monaci Olivetani; parte degli edifici è oggi a uso privato.
+
+# ---------------------------------------------------------------- Villa romana del Varignano (PV-006)
+# Sul luogo le-grazie finché non esiste un luogo «villa-varignano» con coordinate da fonte ufficiale.
+- id: vv-complesso
+  subject: le-grazie
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Al Varignano Vecchio, vicino a Le Grazie, si trova una villa romana con parte residenziale, terme, cisterna e area produttiva; il Ministero della Cultura vi indica il frantoio oleario più antico della Liguria.
+    en: At Varignano Vecchio, near Le Grazie, there is a Roman villa with living quarters, baths, a cistern and a production area; the Ministry of Culture describes its olive press as the oldest in Liguria.
+  evidence:
+  - source: varignano-sito
+    attribution: inferred
+    locator: PV-006-C1 (pacchetto R1); pagina non aperta dalla redazione
+  - source: mic-varignano
+    attribution: inferred
+    locator: PV-006-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La villa comprende aree residenziali e produttive, terme, cisterna e un impianto oleario; il sito istituzionale descrive il frantoio come il più antico della Liguria.
+  # CONTROLLO: la frase sul frantoio più antico della Liguria risulta dal sito MiC nei risultati di ricerca.
+- id: vv-cronologia
+  subject: le-grazie
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: La villa del Varignano ha fasi dalla fine del II secolo a.C.; l'impianto oggi visibile risale al 90–80 a.C. e il luogo fu frequentato fino al VI secolo d.C.
+    en: The Varignano villa has phases from the late 2nd century BC; the layout visible today dates to 90–80 BC and the site was used until the 6th century AD.
+  evidence:
+  - source: mic-varignano
+    attribution: inferred
+    locator: PV-006-C2 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La pagina ufficiale riporta fasi dalla fine del II secolo a.C. e sviluppo visibile datato al 90–80 a.C.
+  # CONTROLLO: le tre date compaiono nei risultati di ricerca del sito MiC.
+- id: vv-luna
+  subject: le-grazie
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: La villa faceva parte di un sistema di proprietà agricole e approdi romani del Golfo della Spezia, legato al porto di Luna.
+    en: The villa belonged to a network of Roman farms and landing places in the Gulf of La Spezia, linked to the port of Luna.
+  evidence:
+  - source: mic-varignano
+    attribution: inferred
+    locator: rapporto §PV-006 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La villa faceva parte di un sistema di proprietà agricole e approdi romani nel Golfo della Spezia, in relazione al porto di Luna.
+
+# ---------------------------------------------------------------- Fezzano (PV-007)
+- id: fz-patrono
+  subject: fezzano
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: A Fezzano il patrono San Giovanni Battista si festeggia il 24 giugno.
+    en: In Fezzano the patron saint, John the Baptist, is celebrated on 24 June.
+  evidence:
+  - source: parco-borghi
+    attribution: inferred
+    locator: rapporto §PV-007 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La chiesa di San Giovanni Battista è indicata dal Parco come costruita nel 1740; il patrono viene celebrato il 24 giugno.
+- id: fz-venere-golfo
+  subject: simonetta-cattaneo-vespucci
+  predicate: described_as
+  type: hypothesis
+  status: draft
+  texts:
+    it: Secondo un'interpretazione locale, il paesaggio sullo sfondo della «Nascita di Venere» rappresenterebbe il Golfo dei Poeti; è un'ipotesi, non un fatto documentato.
+    en: According to a local interpretation, the landscape behind Botticelli's «Birth of Venus» would show the Gulf of Poets; this is a hypothesis, not a documented fact.
+  evidence:
+  - source: parco-borghi
+    attribution: inferred
+    locator: PV-007-C2 (pacchetto R1); non è chiaro se la pagina del Parco lo affermi
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: L'identificazione di Simonetta Cattaneo/Vespucci come modella certa della Venere di Botticelli e l'interpretazione del paesaggio dipinto come Golfo dei Poeti sono da trattare come tradizione/ipotesi.
+
+# ---------------------------------------------------------------- Palmaria (PV-008)
+- id: pa-versanti
+  subject: palmaria
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Il versante orientale della Palmaria scende dolcemente ed è coperto di vegetazione; quello occidentale è fatto di falesie ripide, alte fino a circa 188 metri.
+    en: Palmaria's eastern side slopes gently and is covered in vegetation; the western side is made of steep cliffs up to about 188 metres high.
+  evidence:
+  - source: parco-archipelago
+    attribution: inferred
+    locator: PV-008-C1 e rapporto §PV-008 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: L'isola presenta versanti con morfologia e copertura vegetale differenti; il lato occidentale è caratterizzato da falesie.
+  # CONTROLLO: i 188 m compaiono solo nel rapporto Markdown, non nel JSON.
+- id: pa-carsismo
+  subject: palmaria
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Le rocce calcaree della Palmaria ospitano fenomeni carsici, con cavità, pozzi e forme scavate dall'acqua in superficie.
+    en: Palmaria's limestone rocks show karst features, with cavities, shafts and water-carved surface forms.
+  evidence:
+  - source: parco-territorio
+    attribution: inferred
+    locator: PV-008-C2 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La Palmaria presenta fenomeni carsici e tracce di cave di portoro.
+- id: pa-nome-balma
+  subject: palmaria
+  predicate: described_as
+  type: hypothesis
+  status: draft
+  texts:
+    it: Il Parco propone che il nome Palmaria derivi da «balma», antica parola per grotta, più che dalle palme nane; è un'ipotesi etimologica.
+    en: The Park suggests that the name Palmaria comes from «balma», an old word for cave, rather than from dwarf palms; this is an etymological hypothesis.
+  evidence:
+  - source: parco-archipelago
+    attribution: inferred
+    locator: PV-008-C3 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: L'origine del nome da balma è una proposta etimologica, non una certezza.
+  # CONTROLLO: guide locali riportano la stessa spiegazione («balme» in dialetto); nessuno studio linguistico trovato.
+
+# ---------------------------------------------------------------- Grotta dei Colombi (PV-009), sulla Palmaria
+- id: pa-grotta-colombi
+  subject: palmaria
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: La Grotta dei Colombi, in alto su una falesia nella punta meridionale della Palmaria, fu studiata da Giovanni Capellini nel 1869; vi furono trovati strumenti in pietra, resti umani e resti di animali, anche di specie legate a climi freddi.
+    en: The Grotta dei Colombi, high on a cliff at Palmaria's southern tip, was studied by Giovanni Capellini in 1869; stone tools, human remains and animal remains, including cold-climate species, were found there.
+  evidence:
+  - source: parco-colombi
+    attribution: inferred
+    locator: PV-009-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La grotta fu studiata da Giovanni Capellini nel 1869 e ha restituito manufatti e resti umani e animali.
+  # CONTROLLO: resti umani e animali paleolitici confermati da italia.it; Capellini e il 1869 NON trovati altrove.
+
+# ---------------------------------------------------------------- Portoro (PV-010)
+- id: po-descrizione
+  subject: palmaria   # v2: sulla Palmaria, al posto del nodo portoro
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Il portoro, chiamato tradizionalmente marmo, è una roccia calcarea nera con venature giallo-dorate; secondo il Parco il nero viene dalla sostanza organica e le venature da dolomitizzazione e ossidazione.
+    en: Portoro, traditionally called marble, is a black limestone with golden-yellow veins; according to the Park the black comes from organic matter and the veins from dolomitisation and oxidation.
+  evidence:
+  - source: parco-portoro
+    attribution: inferred
+    locator: PV-010-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Il Parco descrive il portoro come roccia calcarea nera con venature dorate e ricostruisce una lunga storia estrattiva.
+- id: po-estrazione
+  subject: palmaria   # v2: sulla Palmaria, al posto del nodo portoro
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Il portoro si estraeva già in epoca romana e fu rilanciato nel Cinquecento; secondo il Parco nel 1862 si contavano 30 cave, cinque delle quali sulla Palmaria.
+    en: Portoro was already quarried in Roman times and revived in the 16th century; according to the Park there were 30 quarries in 1862, five of them on Palmaria.
+  evidence:
+  - source: parco-portoro
+    attribution: inferred
+    locator: rapporto §PV-010 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La pagina colloca attività estrattive già in epoca romana e una ripresa/valorizzazione nel XVI secolo; riporta inoltre 30 cave censite nel 1862, cinque sulla Palmaria.
+  # CONTROLLO: estrazione romana su Palmaria e Tino confermata da una fonte ISPRA nei risultati di ricerca (da
+  # aggiungere come fonte A); il censimento del 1862 non trovato: ISPRA cita Capellini 1862 per il nome «Portoro».
+
+# ---------------------------------------------------------------- Fortificazioni della Palmaria (PV-011)
+- id: pa-batteria-umberto
+  subject: palmaria
+  predicate: described_as
+  type: fact
+  certainty: uncertain
+  status: draft
+  texts:
+    it: Secondo il Parco, la Batteria Umberto I, detta anche Fortezza del Mare, fu costruita dalla Regia Marina tra il 1887 e il 1889 per la difesa del Golfo.
+    en: According to the Park, the Umberto I Battery, also called the Fortress of the Sea, was built by the Royal Navy between 1887 and 1889 to defend the Gulf.
+  evidence:
+  - source: parco-forti
+    attribution: inferred
+    locator: PV-011-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La Batteria Umberto I è datata dal Parco al 1887–1889.
+  # CONTROLLO: altre fonti danno 1887–1890: possibile contraddizione, da aprire come controversia se confermata.
+- id: pa-forte-cavour
+  subject: palmaria
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Il Forte Cavour, o Forte Palmaria, nasce da un'idea di epoca napoleonica del 1808, ripresa con un progetto piemontese tra il 1857 e il 1859.
+    en: Fort Cavour, or Fort Palmaria, grew from a Napoleonic-era idea of 1808, taken up again in a Piedmontese project between 1857 and 1859.
+  evidence:
+  - source: parco-forti
+    attribution: inferred
+    locator: PV-011-C2 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Il Forte Cavour riprende un progetto concepito in epoca napoleonica e sviluppato in epoca piemontese.
+  # CONTROLLO: 1808 e 1857–1859 confermati dalla scheda FAI nei risultati di ricerca.
+
+# ---------------------------------------------------------------- Tino (PV-012)
+- id: ti-militare
+  subject: tino
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: L'isola del Tino è zona militare e non è liberamente accessibile.
+    en: Tino island is a military zone and is not freely accessible.
+  evidence:
+  - source: parco-archipelago
+    attribution: inferred
+    locator: PV-012-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: L'isola è zona militare ad accesso limitato; la scheda del Parco documenta una chiesa attorno al 1050.
+- id: ti-chiesa-1050
+  subject: tino
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Secondo il Parco, intorno al 1050 sul Tino esisteva una chiesa dedicata a Santa Maria e San Venerio, poi ampliata.
+    en: According to the Park, around 1050 there was a church on Tino dedicated to Saint Mary and Saint Venerius, later enlarged.
+  evidence:
+  - source: parco-monastici
+    attribution: inferred
+    locator: PV-012-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: L'isola è zona militare ad accesso limitato; la scheda del Parco documenta una chiesa attorno al 1050.
+- id: ti-venerio-fuochi
+  subject: tino
+  predicate: described_as
+  type: tradition
+  status: draft
+  texts:
+    it: La tradizione religiosa racconta che San Venerio accendesse fuochi per orientare le navi; è un racconto agiografico, non un fatto dimostrato.
+    en: Religious tradition says that Saint Venerius lit fires to guide ships; it is a hagiographic story, not a proven fact.
+  evidence:
+  - source: parco-monastici
+    attribution: inferred
+    locator: PV-012-C2 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Il racconto dei fuochi accesi da San Venerio per orientare le navi appartiene alla tradizione agiografica.
+- id: ti-festa-venerio
+  subject: tino
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: San Venerio si festeggia il 13 settembre.
+    en: Saint Venerius is celebrated on 13 September.
+  evidence:
+  - source: parco-monastici
+    attribution: inferred
+    locator: rapporto §PV-012 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La pagina del Parco indica un'apertura annuale in occasione della festa di San Venerio, il 13 settembre.
+  # Solo la data della festa: l'apertura dell'isola è un dato dinamico e resta fuori dal pack.
+- id: ti-tarantolino
+  subject: tino
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Sul Tino vive il tarantolino (Euleptes europaea), un piccolo geco di interesse per la conservazione, da non confondere con il geco comune.
+    en: Tino is home to the European leaf-toed gecko (Euleptes europaea), a small gecko of conservation interest, not to be confused with the common gecko.
+  evidence:
+  - source: parco-tarantolino
+    attribution: inferred
+    locator: PV-012-C3 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Il tarantolino è identificato dalla scheda del Parco come Euleptes europaea; non confonderlo con Tarentola mauritanica.
+  # CONTROLLO: presenza sul Tino confermata da uno studio del 2008 (Oneto, Ottonello, Salvidio), da aggiungere come fonte A.
+
+# ---------------------------------------------------------------- Tinetto (PV-013)
+- id: tn-eremo
+  subject: tinetto
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Sul Tinetto restano piccoli oratori, una chiesa a più absidi, celle e ambienti di servizio di una piccola comunità di eremiti.
+    en: On Tinetto there are remains of small oratories, a church with several apses, cells and service rooms of a small hermit community.
+  evidence:
+  - source: parco-monastici
+    attribution: inferred
+    locator: PV-013-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Il Parco descrive resti di oratori, strutture ecclesiastiche, celle e ambienti di servizio attribuiti a un piccolo insediamento eremitico.
+- id: tn-vi-secolo
+  subject: tinetto
+  predicate: described_as
+  type: hypothesis
+  status: draft
+  texts:
+    it: Si ritiene che un primo insediamento monastico sul Tinetto risalga al VI secolo; la data va confermata dagli studi archeologici.
+    en: A first monastic settlement on Tinetto is thought to date from the 6th century; the date still needs confirmation from archaeological studies.
+  evidence:
+  - source: parco-monastici
+    attribution: inferred
+    locator: rapporto §PV-013 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: La tradizione storico-divulgativa colloca un primo insediamento monastico nel VI secolo e la successiva espansione sul Tino.
+
+# ---------------------------------------------------------------- Area di tutela marina (PV-014)
+- id: atm-perimetro
+  subject: palmaria   # v2: sulla Palmaria, al posto del nodo area-tutela-marina
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: L'area di tutela marina del Parco comprende la parte sud-occidentale della Palmaria, il Tino, il Tinetto e la prateria di Posidonia oceanica nel canale tra Porto Venere e la Palmaria.
+    en: The Park's marine protection area includes south-western Palmaria, Tino, Tinetto and the Posidonia oceanica meadow in the channel between Porto Venere and Palmaria.
+  evidence:
+  - source: parco-marino
+    attribution: inferred
+    locator: PV-014-C1 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: L'area comprende parte sud-occidentale della Palmaria, Tino, Tinetto e la prateria di Posidonia nel canale fra Porto Venere e Palmaria.
+- id: atm-fondali
+  subject: palmaria   # v2: sulla Palmaria, al posto del nodo area-tutela-marina
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: I fondali hanno pareti rocciose, grotte sommerse e semisommerse, gorgonie e coralligeno; tra i siti d'immersione il Parco indica la Grotta del Tinetto, la Grotta Azzurra, la Grotta del Tino, la Grotta Byron e la Secca di Dante.
+    en: The seabed has rock walls, submerged and partly submerged caves, gorgonians and coralligenous reefs; the Park's dive sites include the Tinetto cave, the Blue Grotto, the Tino cave, Byron's Grotto and the Secca di Dante shoal.
+  evidence:
+  - source: parco-immersioni
+    attribution: inferred
+    locator: rapporto §PV-014 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Le schede descrivono ambienti rocciosi, grotte sommerse e semisommerse, gorgonie e comunità del coralligeno. Tra i siti subacquei sono indicati Grotta del Tinetto, Grotta Azzurra, Grotta del Tino, Grotta Byron e Secca di Dante.
+
+# ---------------------------------------------------------------- Domanda «capre» (PV-Q-001)
+- id: pa-capre-2018
+  subject: palmaria
+  predicate: described_as
+  type: fact
+  certainty: probable
+  status: draft
+  texts:
+    it: Nel 2018 il Parco avviò un progetto per catturare e trasferire le capre inselvatichite della Palmaria, per proteggere gli habitat del sito Natura 2000; le stime di allora parlavano di 80–100 animali.
+    en: In 2018 the Park started a project to capture and relocate Palmaria's feral goats, to protect the habitats of the Natura 2000 site; estimates at the time spoke of 80–100 animals.
+  evidence:
+  - source: parco-capre
+    attribution: inferred
+    locator: PV-Q-001 (pacchetto R1); pagina non aperta dalla redazione
+  - source: ansa-capre-2018
+    attribution: inferred
+    locator: PV-Q-001 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Nel 2018 il Parco annunciò un progetto di recupero e trasferimento delle capre per salvaguardare habitat naturali. Le stime dell'epoca erano variabili.
+  # CONTROLLO: Sky TG24 (foto ANSA) conferma 8 capre trasferite il 27/4/2018 e una stima ENPA di circa 80.
+  # Un articolo successivo de La Nazione («troppe capre, cresce il gregge») indica che le capre c'erano ancora
+  # dopo il 2018: la presenza attuale NON va affermata né negata.
+
+# ---------------------------------------------------------------- Tutele distinte (PV-001, nota di cautela)
+- id: pa-tutele-distinte
+  subject: palmaria
+  predicate: described_as
+  type: interpretation
+  certainty: probable
+  status: draft
+  texts:
+    it: Sito UNESCO, Parco naturale regionale, aree Natura 2000 e area di tutela marina sono tutele diverse, con confini e regole propri.
+    en: The UNESCO site, the regional nature park, the Natura 2000 areas and the marine protection area are different designations, each with its own boundaries and rules.
+  evidence:
+  - source: parco-territorio
+    attribution: inferred
+    locator: rapporto §2 (pacchetto R1); sintesi della ricerca, non frase di una sola pagina
+  - source: comune-area-unesco
+    attribution: inferred
+    locator: rapporto §2 (pacchetto R1); pagina non aperta dalla redazione
+  authoredBy: ricerca-pv-gaia-2026-10-24-r1
+  originalClaim: Il perimetro UNESCO non coincide automaticamente con quello del Parco regionale, delle aree Natura 2000 o dell'Area di Tutela Marina.

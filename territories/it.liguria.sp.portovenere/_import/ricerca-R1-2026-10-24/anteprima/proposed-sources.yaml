@@ -1,0 +1,144 @@
+# ANTEPRIMA — fonti NUOVE proposte dal pacchetto PV-GAIA-RESEARCH-2026-10-24-R1.
+# Non importare: da inserire a mano nello Studio (scheda «Fonti») dopo il controllo umano.
+# accessedAt = data dichiarata dal pacchetto di ricerca. Nessuna di queste pagine è stata aperta dalla
+# redazione né da Claude: il dominio non è raggiungibile dall'ambiente di lavoro (vedi rapporto).
+# Fonti del pacchetto GIÀ PRESENTI nel pack, quindi non ripetute qui:
+#   S_PARCO_BORGHI -> parco-borghi · S_PARCO_ARCHIPELAGO -> parco-archipelago · S_PARCO_SENTIERI -> parco-sentieri
+#   S_PARCO_PERIPLO -> parco-palmaria · S_UNESCO_826 -> it.liguria:unesco-826 · UNESCO mappe -> it.liguria:unesco-maps
+- id: parco-chiese
+  sourceKind: institution
+  title: Le chiese
+  institution: Parco Naturale Regionale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/le-chiese/
+  originalId: S_PARCO_CHIESE
+  accessedAt: '2026-10-24'
+- id: parco-castello
+  sourceKind: institution
+  title: Castello Doria di Porto Venere
+  institution: Parco Naturale Regionale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/castello-doria-di-porto-venere/
+  originalId: S_PARCO_CASTELLO
+  accessedAt: '2026-10-24'
+- id: varignano-sito
+  sourceKind: institution
+  title: Villa romana del Varignano (sito ufficiale)
+  institution: Ministero della Cultura
+  language: it
+  reliability: B
+  url: https://villaromanavarignano.cultura.gov.it/
+  originalId: S_VARIGNANO
+  accessedAt: '2026-10-24'
+- id: mic-varignano
+  sourceKind: institution
+  title: Villa romana del Varignano
+  institution: Ministero della Cultura
+  language: it
+  reliability: B
+  url: https://cultura.gov.it/luogo/villa-romana-del-varignano
+  originalId: S_MIC_VARIGNANO
+  accessedAt: '2026-10-24'
+- id: parco-territorio
+  sourceKind: institution
+  title: Il territorio del Parco
+  institution: Parco Naturale Regionale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/il-territorio-del-parco/
+  originalId: S_PARCO_TERRITORIO
+  accessedAt: '2026-10-24'
+- id: parco-colombi
+  sourceKind: institution
+  title: Grotta dei Colombi
+  institution: Parco Naturale Regionale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/grotta-dei-colombi/
+  originalId: S_PARCO_COLOMBI
+  accessedAt: '2026-10-24'
+- id: parco-portoro
+  sourceKind: institution
+  title: Marmo Portoro
+  institution: Parco Naturale Regionale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/marmo-portoro/
+  originalId: S_PARCO_PORTORO
+  accessedAt: '2026-10-24'
+- id: parco-forti
+  sourceKind: institution
+  title: Fortificazioni militari
+  institution: Parco Naturale Regionale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/fortificazioni-militari/
+  originalId: S_PARCO_FORTI
+  accessedAt: '2026-10-24'
+- id: parco-monastici
+  sourceKind: institution
+  title: Resti monastici
+  institution: Parco Naturale Regionale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/resti-monastici/
+  originalId: S_PARCO_MONASTICI
+  accessedAt: '2026-10-24'
+- id: parco-tarantolino
+  sourceKind: institution
+  title: Tarantolino
+  institution: Parco Naturale Regionale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/tarantolino/
+  originalId: S_PARCO_TARANTOLINO
+  accessedAt: '2026-10-24'
+- id: parco-marino
+  sourceKind: institution
+  title: Ambiente marino
+  institution: Parco Naturale Regionale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/ambiente-marino/
+  originalId: S_PARCO_MARINO
+  accessedAt: '2026-10-24'
+- id: parco-immersioni
+  sourceKind: institution
+  title: I siti di immersione
+  institution: Parco Naturale Regionale di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/i-siti-di-immersione/
+  # Citata solo nel rapporto Markdown, non nel JSON.
+  accessedAt: '2026-10-24'
+- id: parco-capre
+  sourceKind: institution
+  title: Avvio progetto capre
+  institution: Parco Naturale Regionale di Porto Venere
+  year: 2018
+  language: it
+  reliability: B
+  url: https://www.parconaturaleportovenere.it/avvio-progetto-capre/
+  originalId: S_PARCO_CAPRE
+  accessedAt: '2026-10-24'
+- id: ansa-capre-2018
+  sourceKind: website
+  title: Prime caprette della Palmaria trasferite (27 aprile 2018)
+  institution: ANSA
+  year: 2018
+  language: it
+  reliability: C
+  url: https://www.ansa.it/canale_ambiente/notizie/animali/2018/04/27/caprette-palmaria-prime-8-trasferite_0aafbe87-b937-430e-aab0-c3808d1f8854.html
+  originalId: S_ANSA_CAPRE
+  accessedAt: '2026-10-24'
+- id: comune-area-unesco
+  sourceKind: institution
+  title: Area UNESCO
+  institution: Comune di Porto Venere
+  language: it
+  reliability: B
+  url: https://www.comune.portovenere.sp.it/amministrazione/aree_amministrative/area_11.html
+  originalId: S_COMUNE_UNESCO
+  accessedAt: '2026-10-24'

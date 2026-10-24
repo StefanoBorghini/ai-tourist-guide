@@ -1,0 +1,618 @@
+# ANTEPRIMA — BOZZE dei racconti (unità narrative) per le 32 affermazioni del pacchetto PV-GAIA-RESEARCH-2026-10-24-R1.
+# Non importare: si creano nello Studio («Nuovo racconto», studio_create_unit) DOPO che le affermazioni citate sono
+# almeno «in revisione». Un racconto che cita un'affermazione in bozza è un errore del validatore
+# (UNIT_ASSERTION_NOT_NARRATABLE).
+# Ogni testo dice solo ciò che dicono le affermazioni citate, con la stessa prudenza («Secondo il Parco», «si ritiene»,
+# «è un'ipotesi»). Un'affermazione riscritta o respinta in revisione va tolta anche dal racconto, che va riscritto.
+# Vendita (config.access di oggi): i racconti d'apertura dei luoghi principali sono gratuiti; tutti gli altri stanno
+# nella parte a pagamento del loro luogo principale (Palmaria, Le Grazie, Porto Venere, Fezzano).
+# Durate: 1,5–3,2 parole al secondo, come chiede il validatore.
+# Le note «# REVISIONE» indicano cosa controllare nel testo se l'affermazione cambia.
+
+# ================================================================ Porto Venere (luogo principale, introduttivo)
+# Oggi «portovenere» non ha un racconto d'apertura (avviso ACCESS_INTRO_NO_OPENING): questo lo colma ed è GRATUITO.
+- id: portovenere-opening-it
+  anchor: portovenere
+  unitType: opening
+  locale: it
+  audience: general
+  durationS: 14
+  text: Benvenuto a Porto Venere. Il borgo storico è un unico sistema di mura e porta, Castello Doria, le chiese di San Lorenzo e San Pietro e la Palazzata, la fila di case-torri sul mare.
+  assertions:
+    - bpv-sistema-difensivo
+  introduces: []
+  requires: []
+  hooks: []
+- id: portovenere-opening-en
+  anchor: portovenere
+  unitType: opening
+  locale: en
+  audience: general
+  durationS: 14
+  text: Welcome to Porto Venere. The historic village forms a single system of walls and gate, Doria Castle, the churches of San Lorenzo and San Pietro, and the Palazzata, the row of tower houses along the sea.
+  assertions:
+    - bpv-sistema-difensivo
+  introduces: []
+  requires: []
+  hooks: []
+- id: portovenere-context-storia-it
+  anchor: portovenere
+  unitType: context
+  locale: it
+  audience: general
+  durationS: 18
+  text: "Il nome è antico: secondo il Parco, «Portus Veneris» compare già nel II secolo dopo Cristo in un itinerario nautico romano, anche se la datazione è discussa. Dal 1113, ceduto dai Signori di Vezzano, il borgo passò a Genova e ne divenne un avamposto."
+  assertions:
+    - bpv-portus-veneris
+    - bpv-genova-1113
+  introduces: []
+  requires: []
+  hooks: []
+  # REVISIONE: «anche se la datazione è discussa» riflette la certezza «uncertain» di bpv-portus-veneris; se la fonte
+  # specialistica la conferma, togliere l'inciso.
+- id: portovenere-context-storia-en
+  anchor: portovenere
+  unitType: context
+  locale: en
+  audience: general
+  durationS: 18
+  text: "The name is old: according to the Park, 'Portus Veneris' already appears in a Roman sailing itinerary in the 2nd century AD, although the dating is debated. From 1113, ceded by the Lords of Vezzano, the village came under Genoa and became one of its outposts."
+  assertions:
+    - bpv-portus-veneris
+    - bpv-genova-1113
+  introduces: []
+  requires: []
+  hooks: []
+
+# ================================================================ San Pietro (sottoluogo di Porto Venere)
+- id: san-pietro-detail-due-corpi-it
+  anchor: san-pietro
+  unitType: detail
+  locale: it
+  audience: general
+  durationS: 9
+  text: Guarda la struttura della chiesa. Unisce un corpo più antico, romanico, e una parte gotica più recente, collegati da aperture ad arco.
+  assertions:
+    - sp-due-corpi
+  introduces: []
+  requires: []
+  hooks: []
+- id: san-pietro-detail-due-corpi-en
+  anchor: san-pietro
+  unitType: detail
+  locale: en
+  audience: general
+  durationS: 9
+  text: Look at how the church is built. It joins an older Romanesque section and a later Gothic one, connected by arched openings.
+  assertions:
+    - sp-due-corpi
+  introduces: []
+  requires: []
+  hooks: []
+
+# ================================================================ Castello Doria (sottoluogo di Porto Venere)
+- id: castello-doria-detail-pianta-it
+  anchor: castello-doria
+  unitType: detail
+  locale: it
+  audience: general
+  durationS: 12
+  text: La fortezza ha una pianta a cinque lati, con un bastione rivolto a sud. All'interno si trovano la Sala Ipostila, coperta da volte a crociera, e la Casa del Capitano.
+  assertions:
+    - cd-pianta
+  introduces: []
+  requires: []
+  hooks: []
+  # REVISIONE: «Casa del Capitano» o «Casa del Castellano»: usare il nome che risulta sulla pagina del Parco.
+- id: castello-doria-detail-pianta-en
+  anchor: castello-doria
+  unitType: detail
+  locale: en
+  audience: general
+  durationS: 9
+  text: The fortress has a five-sided plan with a south-facing bastion. Inside are the Hypostyle Hall, covered by cross vaults, and the Captain's House.
+  assertions:
+    - cd-pianta
+  introduces: []
+  requires: []
+  hooks: []
+
+# ================================================================ Santuario delle Grazie (sottoluogo di Le Grazie)
+- id: santuario-le-grazie-context-opere-it
+  anchor: santuario-le-grazie
+  unitType: context
+  locale: it
+  audience: general
+  durationS: 18
+  text: Secondo il Parco, la chiesa è di origine quattrocentesca e fu modificata in seguito. Il Parco attribuisce il coro ligneo a Fra Paolo da Recco, l'immagine della Madonna ad Andrea de Aste e gli affreschi del refettorio, della fine del Quattrocento, a Nicolò Corso.
+  assertions:
+    - sg-quattrocento
+    - sg-attribuzioni
+  introduces: []
+  requires: []
+  hooks: []
+  # REVISIONE: se il catalogo MiC conferma il XIV secolo, sg-quattrocento diventa una controversia e la prima frase va
+  # riscritta. Se sg-attribuzioni viene verificata, ritirare sg-opere e aggiornare il racconto d'apertura esistente.
+- id: santuario-le-grazie-context-opere-en
+  anchor: santuario-le-grazie
+  unitType: context
+  locale: en
+  audience: general
+  durationS: 18
+  text: According to the Park, the church dates back to the 15th century and was later altered. The Park attributes the wooden choir to Fra Paolo da Recco, the image of the Virgin to Andrea de Aste and the late 15th-century refectory frescoes to Nicolò Corso.
+  assertions:
+    - sg-quattrocento
+    - sg-attribuzioni
+  introduces: []
+  requires: []
+  hooks: []
+- id: santuario-le-grazie-detail-privato-it
+  anchor: santuario-le-grazie
+  unitType: detail
+  locale: it
+  audience: general
+  durationS: 7
+  text: Il complesso fu legato ai monaci Olivetani; secondo il Parco, parte degli edifici oggi è di proprietà privata.
+  assertions:
+    - sg-olivetani-privato
+  introduces: []
+  requires: []
+  hooks: []
+- id: santuario-le-grazie-detail-privato-en
+  anchor: santuario-le-grazie
+  unitType: detail
+  locale: en
+  audience: general
+  durationS: 8
+  text: The complex was linked to the Olivetan monks; according to the Park, part of the buildings is now privately owned.
+  assertions:
+    - sg-olivetani-privato
+  introduces: []
+  requires: []
+  hooks: []
+
+# ================================================================ Le Grazie: Villa romana del Varignano (luogo principale)
+# A pagamento (parte di Le Grazie). Se un giorno nasce il luogo «villa-varignano» con coordinate ufficiali, questi
+# racconti vanno spostati lì.
+- id: le-grazie-context-varignano-it
+  anchor: le-grazie
+  unitType: context
+  locale: it
+  audience: general
+  durationS: 25
+  text: Poco lontano, al Varignano Vecchio, c'è una villa romana con parte residenziale, terme, cisterna e area produttiva; il Ministero della Cultura vi indica il frantoio oleario più antico della Liguria. Le sue fasi partono dalla fine del II secolo avanti Cristo, l'impianto che si vede oggi risale al 90–80 avanti Cristo e il luogo fu frequentato fino al VI secolo dopo Cristo.
+  assertions:
+    - vv-complesso
+    - vv-cronologia
+  introduces: []
+  requires: []
+  hooks: []
+- id: le-grazie-context-varignano-en
+  anchor: le-grazie
+  unitType: context
+  locale: en
+  audience: general
+  durationS: 25
+  text: Not far away, at Varignano Vecchio, there is a Roman villa with living quarters, baths, a cistern and a production area; the Ministry of Culture describes its olive press as the oldest in Liguria. Its phases go back to the late 2nd century BC, the layout you see today dates to 90–80 BC, and the site was used until the 6th century AD.
+  assertions:
+    - vv-complesso
+    - vv-cronologia
+  introduces: []
+  requires: []
+  hooks: []
+- id: le-grazie-detail-varignano-luna-it
+  anchor: le-grazie
+  unitType: detail
+  locale: it
+  audience: general
+  durationS: 9
+  text: La villa faceva parte di un sistema di proprietà agricole e approdi romani del Golfo della Spezia, legato al porto di Luna.
+  assertions:
+    - vv-luna
+  introduces: []
+  requires: []
+  hooks: []
+- id: le-grazie-detail-varignano-luna-en
+  anchor: le-grazie
+  unitType: detail
+  locale: en
+  audience: general
+  durationS: 10
+  text: The villa belonged to a network of Roman farms and landing places in the Gulf of La Spezia, linked to the port of Luna.
+  assertions:
+    - vv-luna
+  introduces: []
+  requires: []
+  hooks: []
+
+# ================================================================ Fezzano (luogo principale, introduttivo)
+- id: fezzano-detail-patrono-it
+  anchor: fezzano
+  unitType: detail
+  locale: it
+  audience: general
+  durationS: 6
+  text: Il patrono di Fezzano è San Giovanni Battista, che si festeggia il 24 giugno.
+  assertions:
+    - fz-patrono
+  introduces: []
+  requires: []
+  hooks: []
+- id: fezzano-detail-patrono-en
+  anchor: fezzano
+  unitType: detail
+  locale: en
+  audience: general
+  durationS: 5
+  text: Fezzano's patron saint is John the Baptist, celebrated on 24 June.
+  assertions:
+    - fz-patrono
+  introduces: []
+  requires: []
+  hooks: []
+# Segue il racconto esistente fezzano-curiosity-simonetta, che parla della «Nascita di Venere».
+- id: fezzano-curiosity-venere-golfo-it
+  anchor: fezzano
+  unitType: curiosity
+  locale: it
+  audience: general
+  durationS: 10
+  text: E lo sfondo del quadro? Secondo un'interpretazione locale, il paesaggio dietro la «Nascita di Venere» sarebbe il Golfo dei Poeti. È un'ipotesi, non un fatto documentato.
+  assertions:
+    - fz-venere-golfo
+  introduces: []
+  requires: []
+  hooks: []
+  # REVISIONE: se la pagina del Parco non lo dice, serve un'altra fonte; senza fonte, l'affermazione e il racconto
+  # vanno respinti.
+- id: fezzano-curiosity-venere-golfo-en
+  anchor: fezzano
+  unitType: curiosity
+  locale: en
+  audience: general
+  durationS: 13
+  text: And the background of the painting? According to a local interpretation, the landscape behind the 'Birth of Venus' would show the Gulf of Poets. It is a hypothesis, not a documented fact.
+  assertions:
+    - fz-venere-golfo
+  introduces: []
+  requires: []
+  hooks: []
+
+# ================================================================ Palmaria (luogo principale, a pagamento)
+- id: palmaria-context-paesaggio-it
+  anchor: palmaria
+  unitType: context
+  locale: it
+  audience: general
+  durationS: 16
+  text: L'isola ha due volti. Il versante orientale scende dolcemente ed è coperto di vegetazione; quello occidentale è fatto di falesie ripide, alte fino a circa 188 metri. Nelle sue rocce calcaree l'acqua ha scavato cavità, pozzi e forme in superficie.
+  assertions:
+    - pa-versanti
+    - pa-carsismo
+  introduces: []
+  requires: []
+  hooks: []
+  # REVISIONE: i 188 m sono solo nel rapporto Markdown del pacchetto; se la pagina non li riporta, togliere la cifra.
+- id: palmaria-context-paesaggio-en
+  anchor: palmaria
+  unitType: context
+  locale: en
+  audience: general
+  durationS: 16
+  text: The island has two faces. The eastern side slopes gently and is covered in vegetation; the western side is made of steep cliffs up to about 188 metres high. In its limestone rocks, water has carved cavities, shafts and surface forms.
+  assertions:
+    - pa-versanti
+    - pa-carsismo
+  introduces: []
+  requires: []
+  hooks: []
+- id: palmaria-curiosity-nome-it
+  anchor: palmaria
+  unitType: curiosity
+  locale: it
+  audience: general
+  durationS: 8
+  text: Le palme c'entrano poco. Il Parco propone che il nome Palmaria derivi da «balma», antica parola per grotta; è un'ipotesi etimologica.
+  assertions:
+    - pa-nome-balma
+  introduces: []
+  requires: []
+  hooks: []
+- id: palmaria-curiosity-nome-en
+  anchor: palmaria
+  unitType: curiosity
+  locale: en
+  audience: general
+  durationS: 12
+  text: "The palms may have little to do with it. The Park suggests that the name Palmaria comes from 'balma', an old word for cave; it is an etymological hypothesis."
+  assertions:
+    - pa-nome-balma
+  introduces: []
+  requires: []
+  hooks: []
+- id: palmaria-context-portoro-it
+  anchor: palmaria
+  unitType: context
+  locale: it
+  audience: general
+  durationS: 24
+  text: Da queste rocce viene il portoro, chiamato tradizionalmente marmo ma in realtà un calcare nero con venature giallo-dorate. Secondo il Parco il nero viene dalla sostanza organica e le venature dalla dolomitizzazione e dall'ossidazione. Si estraeva già in epoca romana, fu rilanciato nel Cinquecento e, sempre secondo il Parco, nel 1862 si contavano 30 cave, cinque delle quali sulla Palmaria.
+  assertions:
+    - po-descrizione
+    - po-estrazione
+  introduces: []
+  requires: []
+  hooks: []
+  # REVISIONE: «Da queste rocce viene il portoro» si regge su «cinque delle quali sulla Palmaria» (po-estrazione) e
+  # sulle cave già citate in pa-contenuti. Se il dato del 1862 cade, riscrivere l'attacco con pa-contenuti.
+- id: palmaria-context-portoro-en
+  anchor: palmaria
+  unitType: context
+  locale: en
+  audience: general
+  durationS: 24
+  text: These rocks give portoro, traditionally called marble but actually a black limestone with golden-yellow veins. According to the Park, the black comes from organic matter and the veins from dolomitisation and oxidation. It was already quarried in Roman times and revived in the 16th century; again according to the Park, there were 30 quarries in 1862, five of them on Palmaria.
+  assertions:
+    - po-descrizione
+    - po-estrazione
+  introduces: []
+  requires: []
+  hooks: []
+- id: palmaria-detail-forti-it
+  anchor: palmaria
+  unitType: detail
+  locale: it
+  audience: general
+  durationS: 22
+  text: L'isola era anche un caposaldo militare. Il Forte Cavour, o Forte Palmaria, nasce da un'idea napoleonica del 1808, ripresa da un progetto piemontese tra il 1857 e il 1859. Secondo il Parco, la Batteria Umberto I, detta Fortezza del Mare, fu costruita dalla Regia Marina tra il 1887 e il 1889 per difendere il Golfo.
+  assertions:
+    - pa-forte-cavour
+    - pa-batteria-umberto
+  introduces: []
+  requires: []
+  hooks: []
+  # REVISIONE: 1889 o 1890 per la Batteria Umberto I. Se le fonti restano divergenti, aprire la controversia e dire
+  # «tra il 1887 e la fine del decennio» oppure citare entrambe le date.
+- id: palmaria-detail-forti-en
+  anchor: palmaria
+  unitType: detail
+  locale: en
+  audience: general
+  durationS: 23
+  text: The island was also a military stronghold. Fort Cavour, or Fort Palmaria, grew from a Napoleonic idea of 1808, taken up again in a Piedmontese project between 1857 and 1859. According to the Park, the Umberto I Battery, called the Fortress of the Sea, was built by the Royal Navy between 1887 and 1889 to defend the Gulf.
+  assertions:
+    - pa-forte-cavour
+    - pa-batteria-umberto
+  introduces: []
+  requires: []
+  hooks: []
+- id: palmaria-detail-grotta-colombi-it
+  anchor: palmaria
+  unitType: detail
+  locale: it
+  audience: general
+  durationS: 16
+  text: In alto su una falesia della punta meridionale si apre la Grotta dei Colombi. Fu studiata da Giovanni Capellini nel 1869 e vi furono trovati strumenti in pietra, resti umani e resti di animali, anche di specie legate a climi freddi.
+  assertions:
+    - pa-grotta-colombi
+  introduces: []
+  requires: []
+  hooks: []
+  # REVISIONE: Capellini e il 1869 non hanno conferme indirette. Il racconto non invita a raggiungere la grotta e non
+  # deve farlo (nota di sicurezza del pacchetto, PV-009-C2).
+- id: palmaria-detail-grotta-colombi-en
+  anchor: palmaria
+  unitType: detail
+  locale: en
+  audience: general
+  durationS: 14
+  text: High on a cliff at the southern tip lies the Grotta dei Colombi. It was studied by Giovanni Capellini in 1869, and stone tools, human remains and animal remains, including cold-climate species, were found there.
+  assertions:
+    - pa-grotta-colombi
+  introduces: []
+  requires: []
+  hooks: []
+- id: palmaria-context-mare-it
+  anchor: palmaria
+  unitType: context
+  locale: it
+  audience: general
+  durationS: 19
+  text: Anche il mare è protetto. L'area di tutela marina del Parco comprende la parte sud-occidentale della Palmaria, il Tino, il Tinetto e la prateria di Posidonia nel canale verso Porto Venere. Attenzione, però, sito UNESCO, Parco, aree Natura 2000 e area marina hanno confini e regole propri.
+  assertions:
+    - atm-perimetro
+    - pa-tutele-distinte
+  introduces: []
+  requires: []
+  hooks: []
+- id: palmaria-context-mare-en
+  anchor: palmaria
+  unitType: context
+  locale: en
+  audience: general
+  durationS: 19
+  text: The sea is protected too. The Park's marine protection area includes south-western Palmaria, Tino, Tinetto and the Posidonia meadow in the channel towards Porto Venere. Note, though, that the UNESCO site, the Park, the Natura 2000 areas and the marine area each have their own boundaries and rules.
+  assertions:
+    - atm-perimetro
+    - pa-tutele-distinte
+  introduces: []
+  requires: []
+  hooks: []
+- id: palmaria-detail-fondali-it
+  anchor: palmaria
+  unitType: detail
+  locale: it
+  audience: general
+  durationS: 16
+  text: Sotto la superficie ci sono pareti rocciose, grotte sommerse e semisommerse, gorgonie e coralligeno. Tra i siti d'immersione il Parco indica la Grotta del Tinetto, la Grotta Azzurra, la Grotta del Tino, la Grotta Byron e la Secca di Dante.
+  assertions:
+    - atm-fondali
+  introduces: []
+  requires: []
+  hooks: []
+  # REVISIONE: nessuna indicazione operativa sulle immersioni (correnti, permessi): restano fuori dal pack.
+- id: palmaria-detail-fondali-en
+  anchor: palmaria
+  unitType: detail
+  locale: en
+  audience: general
+  durationS: 16
+  text: Below the surface there are rock walls, submerged and partly submerged caves, gorgonians and coralligenous reefs. Among its dive sites the Park lists the Tinetto cave, the Blue Grotto, the Tino cave, Byron's Grotto and the Secca di Dante shoal.
+  assertions:
+    - atm-fondali
+  introduces: []
+  requires: []
+  hooks: []
+- id: palmaria-curiosity-capre-it
+  anchor: palmaria
+  unitType: curiosity
+  locale: it
+  audience: general
+  durationS: 15
+  text: Una storia curiosa riguarda le capre. Nel 2018 il Parco avviò un progetto per catturare e trasferire le capre inselvatichite dell'isola, per proteggere gli habitat del sito Natura 2000; le stime di allora parlavano di 80–100 animali.
+  assertions:
+    - pa-capre-2018
+  introduces: []
+  requires: []
+  hooks: []
+  # REVISIONE: il racconto non dice se le capre ci sono ancora, e non deve dirlo: la presenza attuale non è risolta.
+- id: palmaria-curiosity-capre-en
+  anchor: palmaria
+  unitType: curiosity
+  locale: en
+  audience: general
+  durationS: 15
+  text: A curious story concerns the goats. In 2018 the Park started a project to capture and relocate the island's feral goats, to protect the habitats of the Natura 2000 site; estimates at the time spoke of 80–100 animals.
+  assertions:
+    - pa-capre-2018
+  introduces: []
+  requires: []
+  hooks: []
+
+# ================================================================ Tino (sottoluogo della Palmaria)
+- id: tino-detail-militare-it
+  anchor: tino
+  unitType: detail
+  locale: it
+  audience: general
+  durationS: 5
+  text: Il Tino è zona militare e non è liberamente accessibile.
+  assertions:
+    - ti-militare
+  introduces: []
+  requires: []
+  hooks: []
+- id: tino-detail-militare-en
+  anchor: tino
+  unitType: detail
+  locale: en
+  audience: general
+  durationS: 5
+  text: Tino is a military zone and is not freely accessible.
+  assertions:
+    - ti-militare
+  introduces: []
+  requires: []
+  hooks: []
+- id: tino-context-venerio-it
+  anchor: tino
+  unitType: context
+  locale: it
+  audience: general
+  durationS: 10
+  text: Secondo il Parco, intorno al 1050 sull'isola esisteva una chiesa dedicata a Santa Maria e San Venerio, poi ampliata. San Venerio si festeggia il 13 settembre.
+  assertions:
+    - ti-chiesa-1050
+    - ti-festa-venerio
+  introduces: []
+  requires: []
+  hooks: []
+- id: tino-context-venerio-en
+  anchor: tino
+  unitType: context
+  locale: en
+  audience: general
+  durationS: 12
+  text: According to the Park, around 1050 there was a church on the island dedicated to Saint Mary and Saint Venerius, later enlarged. Saint Venerius is celebrated on 13 September.
+  assertions:
+    - ti-chiesa-1050
+    - ti-festa-venerio
+  introduces: []
+  requires: []
+  hooks: []
+- id: tino-legend-fuochi-it
+  anchor: tino
+  unitType: legend
+  locale: it
+  audience: general
+  durationS: 8
+  text: La tradizione religiosa racconta che San Venerio accendesse fuochi per guidare le navi. È un racconto agiografico, non un fatto dimostrato.
+  assertions:
+    - ti-venerio-fuochi
+  introduces: []
+  requires: []
+  hooks: []
+- id: tino-legend-fuochi-en
+  anchor: tino
+  unitType: legend
+  locale: en
+  audience: general
+  durationS: 8
+  text: Religious tradition says that Saint Venerius lit fires to guide ships. It is a hagiographic story, not a proven fact.
+  assertions:
+    - ti-venerio-fuochi
+  introduces: []
+  requires: []
+  hooks: []
+- id: tino-curiosity-tarantolino-it
+  anchor: tino
+  unitType: curiosity
+  locale: it
+  audience: general
+  durationS: 10
+  text: Sull'isola vive un abitante minuscolo, il tarantolino, Euleptes europaea, un piccolo geco di interesse per la conservazione, da non confondere con il geco comune.
+  assertions:
+    - ti-tarantolino
+  introduces: []
+  requires: []
+  hooks: []
+- id: tino-curiosity-tarantolino-en
+  anchor: tino
+  unitType: curiosity
+  locale: en
+  audience: general
+  durationS: 10
+  text: The island has a tiny resident, the European leaf-toed gecko, Euleptes europaea, a small gecko of conservation interest, not to be confused with the common gecko.
+  assertions:
+    - ti-tarantolino
+  introduces: []
+  requires: []
+  hooks: []
+
+# ================================================================ Tinetto (sottoluogo della Palmaria)
+- id: tinetto-context-eremo-it
+  anchor: tinetto
+  unitType: context
+  locale: it
+  audience: general
+  durationS: 16
+  text: Sul Tinetto restano piccoli oratori, una chiesa a più absidi, celle e ambienti di servizio di una piccola comunità di eremiti. Si ritiene che un primo insediamento risalga al VI secolo, ma la data va ancora confermata dagli studi archeologici.
+  assertions:
+    - tn-eremo
+    - tn-vi-secolo
+  introduces: []
+  requires: []
+  hooks: []
+- id: tinetto-context-eremo-en
+  anchor: tinetto
+  unitType: context
+  locale: en
+  audience: general
+  durationS: 17
+  text: On Tinetto there are remains of small oratories, a church with several apses, cells and service rooms of a small hermit community. A first settlement is thought to date from the 6th century, but the date still needs confirmation from archaeological studies.
+  assertions:
+    - tn-eremo
+    - tn-vi-secolo
+  introduces: []
+  requires: []
+  hooks: []

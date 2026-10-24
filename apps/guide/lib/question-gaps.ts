@@ -54,24 +54,31 @@ export function normalizeQuestion(text: string): string {
   return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().slice(0, GAP_QUESTION_CHARS).trim();
 }
 
-/** La riga da registrare per questa domanda, oppure null. */
-export function gapRecord(req: AskRequest, input: { answer: AskAnswer; rejected?: string; kbHash: string; prompt: string }): GapRecord | null {
+/**
+ * La riga da registrare per questa domanda, oppure null. `isPlace` dice se un riferimento è un luogo della base
+ * caricata: i luoghi arrivano dal dispositivo, e un testo qualsiasi al posto del riferimento non deve finire nel registro.
+ */
+export function gapRecord(
+  req: AskRequest,
+  input: { answer: AskAnswer; rejected?: string; kbHash: string; prompt: string; isPlace: (ref: string) => boolean },
+): GapRecord | null {
   const kind = gapKind(req, input.answer, input.rejected);
   if (!kind) return null;
   const question = redactForLog(req.question).replace(/\s+/g, " ").trim().slice(0, GAP_QUESTION_CHARS).trim();
   const key = normalizeQuestion(question);
   if (question.length < 2 || !key) return null;
   const reason = input.rejected ?? (input.answer.status === "rejected" ? input.answer.checkReason : undefined);
+  const place = (ref: string | null | undefined) => (ref && input.isPlace(ref) ? ref : null);
   return {
     pack: req.destination,
     locale: req.locale,
     question,
     key,
     kind,
-    place: req.currentPlace ?? null,
-    selected: req.selectedPlace ?? null,
-    // Il motivo dello scarto può riprendere numeri della risposta: mascherato anche lui.
-    reason: reason ? redactForLog(reason).slice(0, GAP_REASON_CHARS) : null,
+    place: place(req.currentPlace),
+    selected: place(req.selectedPlace),
+    // Solo il tipo di controllo non superato: i dettagli dopo «:» riprendono testo della risposta del modello.
+    reason: reason ? redactForLog(reason.split(":")[0]!).trim().slice(0, GAP_REASON_CHARS) || null : null,
     webSources: (input.answer.webSources ?? []).slice(0, GAP_WEB_SOURCES).map((s) => ({ url: s.url, title: s.title })),
     kbHash: input.kbHash,
     prompt: input.prompt,

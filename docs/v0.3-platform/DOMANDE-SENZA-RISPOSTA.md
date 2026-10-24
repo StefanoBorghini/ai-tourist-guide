@@ -42,8 +42,10 @@ La registrazione parte dopo la risposta al visitatore: non la rallenta, non la c
 - un contatore;
 - la prima e l'ultima data (solo il giorno, nessun orario);
 - il testo della domanda mascherato, al massimo 300 caratteri;
-- il luogo come riferimento del pack;
-- il tipo di lacuna;
+- il luogo come riferimento del pack, solo se è un luogo della base caricata: i riferimenti arrivano dal dispositivo, e un testo
+  qualsiasi al loro posto non si registra;
+- il tipo di lacuna e, per le risposte scartate, solo il tipo di controllo non superato (non i dettagli, che riprendono
+  testo della risposta del modello);
 - per le risposte con ricerca: indirizzo e titolo di al massimo 5 fonti;
 - la versione della base e delle istruzioni;
 - lo stato della revisione.
@@ -112,16 +114,57 @@ La registrazione parte dopo la risposta al visitatore: non la rallenta, non la c
 
 **Senza `QUESTION_GAPS_ENABLED=1` non si registra nulla**, anche con la migrazione applicata.
 
-## Informativa privacy: cosa aggiungere prima dell'attivazione pubblica
+## Informativa privacy: testo da aggiungere prima dell'attivazione pubblica
 
-Da far rivedere a chi cura gli aspetti legali. Il testo deve dire che:
-- il testo delle domande a cui la guida non sa rispondere viene conservato per migliorare i contenuti;
-- prima viene mascherato in automatico, ma può contenere ciò che il visitatore scrive: va quindi detto di non inserire dati personali nelle domande;
-- con le domande si conservano solo luogo, lingua e data (giorno);
-- non si conservano risposte, posizione, indirizzo IP né account;
-- la conservazione dura al massimo 90 giorni dall'ultima volta che la domanda è stata fatta;
-- accede solo la redazione del territorio;
-- i dati sono conservati su Supabase (fornitore, regione del progetto);
-- i diritti degli interessati (accesso e cancellazione) si esercitano scrivendo al titolare; dallo Studio si può cancellare una domanda.
+**Dov'è l'informativa.** Non è nel repository. L'app la collega con la variabile `NEXT_PUBLIC_PRIVACY_URL` (pagina di
+registrazione degli account), impostata su Vercel. Nell'app non esiste una pagina `/privacy`: se la variabile vale
+`/privacy`, il collegamento oggi non funziona. Il testo qui sotto va aggiunto alla pagina indicata da quella variabile.
 
-Base giuridica, eventuale valutazione d'impatto e coerenza con il resto dell'informativa restano da valutare con un consulente.
+**Testo proposto.** Da far rivedere a chi cura gli aspetti legali. Le parti tra parentesi quadre restano da completare:
+qui non si inventano dati che il codice e la documentazione non stabiliscono.
+
+> **Domande a cui la guida non sa rispondere**
+>
+> Quando fai una domanda alla guida e la guida non trova la risposta, o la trova solo in parte, ne conserviamo il
+> testo per capire quali informazioni mancano e migliorare i contenuti. Non conserviamo le domande a cui la guida
+> risponde, le richieste di aiuto in emergenza e le domande non pertinenti alla visita.
+>
+> **Cosa conserviamo.** Il testo della domanda, al massimo 300 caratteri, dopo aver mascherato in automatico
+> indirizzi email, numeri di telefono e altri numeri lunghi, IBAN, codici fiscali e indirizzi web; la lingua; il luogo
+> della guida aperto o in cui ti trovi, se c'è (il nome del luogo, non le coordinate); il tipo di esito (per esempio
+> «informazione mancante» o «risposta parziale»); il giorno in cui la domanda è stata fatta la prima e l'ultima volta e
+> quante volte è stata fatta; se la risposta è stata completata con una ricerca online, l'indirizzo e il titolo delle
+> pagine trovate.
+>
+> **Cosa non conserviamo.** Le risposte della guida, la conversazione, la tua posizione GPS, il tuo indirizzo IP, il
+> tuo account, il dispositivo e l'orario.
+>
+> **Non scrivere dati personali nelle domande.** Il mascheramento automatico riconosce solo alcune forme fisse: nomi,
+> indirizzi e altri dati scritti a parole possono restare nel testo.
+>
+> **Chi può leggerle.** Solo le persone della redazione autorizzate a modificare i contenuti di quel territorio, dallo
+> strumento di redazione. Le domande non sono pubbliche e non diventano contenuti della guida da sole.
+>
+> **Per quanto tempo.** Una domanda si cancella 90 giorni dopo l'ultima volta che qualcuno l'ha fatta: se la stessa
+> domanda viene ripetuta, il periodo riparte. La redazione può cancellarla prima.
+>
+> **Dove.** In un database gestito da Supabase [regione del progetto: da verificare].
+>
+> **Per quale motivo e su quale base.** Migliorare i contenuti della guida. [Base giuridica: da definire con il
+> consulente.]
+>
+> **I tuoi diritti.** [Titolare e contatti: da completare.] Le domande non sono collegate alla tua identità: per
+> chiedere la cancellazione di una domanda indicane il testo.
+
+**Da verificare prima di pubblicare** (il codice non lo stabilisce):
+- titolare del trattamento e contatti;
+- base giuridica ed eventuale valutazione d'impatto;
+- regione del progetto Supabase e accordi con i fornitori (Supabase, Vercel, Anthropic);
+- **log del server su Vercel.** Per le domande senza risposta il server scrive anche un log con il testo mascherato (evento
+  `knowledge_gap`, già prima di questo registro), conservato secondo il piano di Vercel: circa un'ora sul piano Hobby,
+  verificato il 22/10. Va indicato se l'informativa ne parla;
+- **invio delle domande al modello.** Ogni domanda, con o senza risposta, è inviata ad Anthropic per generare la
+  risposta, ed eventualmente alla sua ricerca online. Va verificato che l'informativa esistente lo dica: non riguarda
+  solo questo registro;
+- coerenza con il resto dell'informativa, con la versione `NEXT_PUBLIC_LEGAL_VERSION` (che va aumentata se cambia il
+  testo accettato alla registrazione) e con la lingua inglese.

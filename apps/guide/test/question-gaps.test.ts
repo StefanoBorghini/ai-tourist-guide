@@ -6,7 +6,7 @@ import { GAP_QUESTION_CHARS, gapKind, gapRecord, normalizeQuestion } from "../li
 const req = (over: Partial<AskRequest> = {}): AskRequest =>
   ({ ...askRequestSchema.parse({ destination: "zz.prova", locale: "it", question: "Chi costruì il castello?" }), ...over }) as AskRequest;
 const answer = (status: AskAnswer["status"], over: Partial<AskAnswer> = {}): AskAnswer => ({ status, answer: "x", citations: [], ...over });
-const input = (a: AskAnswer, rejected?: string) => ({ answer: a, rejected, kbHash: "kb-1", prompt: "p-1" });
+const input = (a: AskAnswer, rejected?: string) => ({ answer: a, rejected, kbHash: "kb-1", prompt: "p-1", isPlace: (r: string) => r === "zz.prova:castello" });
 
 describe("quali domande si registrano", () => {
   it("dall'esito deciso dal sistema, non dalle parole della domanda", () => {
@@ -68,8 +68,15 @@ describe("forma della riga", () => {
     const w = gapRecord(req(), input(answer("answered", { origin: "web", webSources: sources })))!;
     expect(w.webSources).toHaveLength(5);
     expect(w.webSources[0]).toEqual({ url: "https://s0.example.it/", title: "T0" });
-    const rj = gapRecord(req(), input(answer("rejected"), "numero non presente: 3471234567"))!;
-    expect(rj.reason).toBe("numero non presente: [telefono]");
+    // Del motivo dello scarto resta solo il tipo di controllo: i dettagli riprendono testo della risposta del modello.
+    const rj = gapRecord(req(), input(answer("rejected"), "citazioni inesistenti: pack:mario-rossi, 3471234567"))!;
+    expect(rj.reason).toBe("citazioni inesistenti");
+  });
+  it("solo luoghi della base: un testo qualsiasi al posto del riferimento non entra nel registro", () => {
+    const r = gapRecord(req({ currentPlace: "Mario Rossi, via Roma 3", selectedPlace: "zz.prova:castello" }), input(answer("partial")))!;
+    expect(r.place).toBeNull();
+    expect(r.selected).toBe("zz.prova:castello");
+    expect(JSON.stringify(r)).not.toContain("Mario");
   });
   it("nessuna riga per le domande da non registrare", () => {
     expect(gapRecord(req(), input(answer("answered")))).toBeNull();

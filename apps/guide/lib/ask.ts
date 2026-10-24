@@ -81,6 +81,8 @@ export interface AskAnswer {
   webSearches?: number;
   /** La ricerca web serviva ma non era disponibile: la risposta usa solo la base locale. */
   webUnavailable?: boolean;
+  /** La ricerca web è stata fatta ma non ha trovato fonti attendibili: «Approfondisci» la ripeterebbe uguale, a pagamento. */
+  webNoSources?: boolean;
   /** Numeri della risposta web non ritrovati nelle fonti citate (indizio per la revisione, solo debug). */
   unsupportedNumbers?: string[];
   /** Risposta servita dalla cache del server. */

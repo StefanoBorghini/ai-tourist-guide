@@ -361,6 +361,9 @@ describe("risposta ibrida", () => {
     expect(out.answer.origin).toBe("local");
     expect(out.answer.answer).not.toContain("1200");
     expect(out.answer.answer).toMatch(/non ho trovato fonti attendibili/);
+    // Ricerca già fatta senza fonti: «Approfondisci» non va riproposto (la ripeterebbe uguale, a pagamento).
+    expect(out.answer.webNoSources).toBe(true);
+    expect(out.answer.webUnavailable).toBeUndefined();
   });
 
   it("non cerca se i limiti di uso sono raggiunti, se il modello non la supporta o se è disattivata", async () => {

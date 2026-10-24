@@ -339,7 +339,7 @@ export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest,
 
 /** Risposta locale con la dichiarazione del limite della ricerca online. */
 function withWebNote(local: AskAnswer, locale: "it" | "en", kind: "webUnavailable" | "webNoSources"): AskAnswer {
-  return { ...local, answer: `${local.answer} ${webNote(locale, kind)}`, ...(kind === "webUnavailable" ? { webUnavailable: true } : {}) };
+  return { ...local, answer: `${local.answer} ${webNote(locale, kind)}`, ...(kind === "webUnavailable" ? { webUnavailable: true } : { webNoSources: true }) };
 }
 
 export interface WebGate {

@@ -8,6 +8,8 @@
  *
  * Prima di tutto le emergenze (lib/emergency.ts): rimando al 112 immediato, senza modello, senza
  * limiti e senza configurazione. Poi limiti per indirizzo e tetto di spesa giornaliero (lib/limits.ts).
+ * Dopo la risposta, le lacune rilevate vanno nel registro delle domande senza risposta, se acceso
+ * (lib/question-gaps.ts): nessuna chiamata al modello in più, e un errore del registro non tocca la risposta.
  *
  * Il modello della risposta locale si sceglie con le variabili d'ambiente (lib/model.ts → modelsConfig):
  * per default Anthropic con ANTHROPIC_API_KEY. Serve anche ASK_MAX_USD_PER_QUESTION (budget stimato
@@ -22,6 +24,8 @@ import { DailyCounter, TtlCache, cacheKey, cacheable, redactForLog, webConfig } 
 import { detectEmergency } from "../../../../lib/emergency";
 import { SpendGuard, WindowLimiter, dailyBudgetUsd } from "../../../../lib/limits";
 import { ModelError, modelsConfig, modelsFromEnv, type AskModels } from "../../../../lib/model";
+import { gapRecord, type GapRecord } from "../../../../lib/question-gaps";
+import { questionGapsConfig, scheduleQuestionGap } from "../../../../lib/question-gaps-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +44,19 @@ const webLimiter = new WindowLimiter(config.perIp, WINDOW_MS);
 const webDaily = new DailyCounter(config.dailyLimit);
 const spend = new SpendGuard(dailyBudgetUsd());
 const answers = new TtlCache<AskAnswer>(config.cacheTtlHours * 3_600_000);
+// Registro delle domande senza risposta (spento senza QUESTION_GAPS_ENABLED=1): al massimo 5 righe ogni 10 minuti per
+// indirizzo, oltre al tetto giornaliero globale del database. L'indirizzo resta in memoria, mai nel registro.
+const gapsConfig = questionGapsConfig(process.env);
+const gapLimiter = new WindowLimiter(5, WINDOW_MS);
+const noteGap = (make: () => GapRecord | null, ip: string) => {
+  if (!gapsConfig) return;
+  try {
+    const gap = make();
+    if (gap && !gapLimiter.hit(ip)) scheduleQuestionGap(gapsConfig, gap);
+  } catch {
+    console.warn(JSON.stringify({ event: "question_gap_failed", code: "prepare" }));
+  }
+};
 
 let models: AskModels | null | undefined;
 const getModels = () => (models === undefined ? (models = modelsFromEnv()) : models);
@@ -105,6 +122,8 @@ export async function POST(request: Request): Promise<Response> {
     console.info(JSON.stringify({ event: "ask", status: hit.status, origin: hit.origin ?? "local", cached: true, kbHash: loaded.kbHash, prompt: PROMPT_VERSION, ms: Date.now() - started }));
     // Dalla cache: nessuna chiamata al modello, costo zero.
     const meter = { models: [], calls: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0, webSearches: 0, costUsd: 0, costQuality: "measured" as const };
+    // Una risposta parziale servita dalla cache è ancora una lacuna: si conta, senza chiamare il modello.
+    noteGap(() => gapRecord(req, { answer: hit, kbHash: loaded.kbHash, prompt: PROMPT_VERSION }), ip);
     return Response.json({ ...hit, cached: true, meter });
   }
 
@@ -171,6 +190,7 @@ export async function POST(request: Request): Promise<Response> {
       ms: Date.now() - started,
     }));
     if (key && cacheable(outcome.answer)) answers.set(key, { ...outcome.answer, meter: undefined });
+    noteGap(() => gapRecord(req, { answer: outcome.answer, rejected: outcome.rejected, kbHash: loaded.kbHash, prompt: PROMPT_VERSION }), ip);
     return Response.json(outcome.answer);
   } catch (error) {
     // Anche quando la risposta non arriva, ciò che è stato speso (o stimato) finisce nei log e nel tetto.

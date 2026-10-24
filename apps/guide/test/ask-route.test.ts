@@ -15,6 +15,15 @@ const h = vi.hoisted(() => ({
   retrieve: vi.fn(async () => ({ capabilities: { server_tools: { web_search: { supported: true } } } })),
   clientOptions: [] as unknown[],
   loaded: null as unknown,
+  rpc: vi.fn(),
+  createClient: vi.fn(),
+}));
+// Supabase finto per il registro delle domande senza risposta: nessuna rete.
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: (...args: unknown[]) => {
+    h.createClient(...args);
+    return { rpc: (...a: unknown[]) => ({ abortSignal: () => h.rpc(...a) }) };
+  },
 }));
 
 vi.mock("@anthropic-ai/sdk", async (importOriginal) => {
@@ -48,9 +57,13 @@ beforeAll(() => {
 
 beforeEach(() => {
   h.create.mockReset();
+  h.rpc.mockReset();
+  h.rpc.mockResolvedValue({ data: "created", error: null });
+  h.createClient.mockReset();
   h.clientOptions.length = 0;
   vi.spyOn(console, "info").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -124,5 +137,93 @@ describe("route delle domande", () => {
     const logged = JSON.parse(errors.find((l) => l.includes('"event":"ask_error"'))!);
     expect(logged.budget.quality).toBe("estimated");
     expect(logged.budget.spentUsd).toBeGreaterThan(0);
+  });
+});
+
+describe("registro delle domande senza risposta", () => {
+  const SERVICE_KEY = "chiave-di-servizio-segreta-0123456789";
+  const gapsEnv = {
+    ANTHROPIC_API_KEY: "x",
+    ASK_MAX_USD_PER_QUESTION: "0.5",
+    ASK_WEB_ENABLED: "0",
+    QUESTION_GAPS_ENABLED: "1",
+    NEXT_PUBLIC_SUPABASE_URL: "https://progetto.supabase.co",
+    SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY,
+  };
+  const reply = (status: string, citations: string[] = []) => ({
+    ...localReply(),
+    content: [{ type: "text", text: JSON.stringify({ status, answer: status === "answered" ? "Dalla base." : "Non ho questa informazione.", citations }) }],
+  });
+  const allLogs = () =>
+    [console.info, console.warn, console.error].flatMap((f) => (f as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0]))).join("\n");
+  const settle = () => new Promise((r) => setTimeout(r, 20));
+
+  it("registra la lacuna dopo la risposta, senza chiamate in più al modello e senza cambiare la risposta", async () => {
+    h.create.mockResolvedValueOnce(reply("not_in_knowledge"));
+    const r = await route(gapsEnv);
+    const res = await r.POST(post({ destination, locale: "it", question: "A che ora apre? Scrivetemi a mario.rossi@example.it" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("not_in_knowledge");
+    await vi.waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
+    const [fn, args] = h.rpc.mock.calls[0]!;
+    expect(fn).toBe("gap_record");
+    expect(args).toMatchObject({ p_pack: destination, p_locale: "it", p_kind: "not_in_knowledge", p_question: "A che ora apre? Scrivetemi a [email]" });
+    expect(JSON.stringify(args)).not.toContain("203.0.113.7");
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(allLogs()).not.toContain(SERVICE_KEY);
+  });
+
+  it("le risposte complete, le emergenze e il registro spento non scrivono nulla", async () => {
+    h.create.mockResolvedValueOnce(reply("answered", [ref]));
+    let r = await route(gapsEnv);
+    await r.POST(post({ destination, locale: "it", question: "Chi costruì il porto?" }));
+    await r.POST(post({ destination, locale: "it", question: "Aiuto, mi sento male, chiamate un'ambulanza" }));
+    await settle();
+    expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.create).toHaveBeenCalledTimes(1);
+
+    h.create.mockResolvedValueOnce(reply("not_in_knowledge"));
+    r = await route({ ...gapsEnv, QUESTION_GAPS_ENABLED: undefined });
+    await r.POST(post({ destination, locale: "it", question: "A che ora apre?" }));
+    await settle();
+    expect(h.createClient).not.toHaveBeenCalled();
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("un errore del database non interrompe né cambia la risposta, e i log restano senza chiave né testo", async () => {
+    h.create.mockResolvedValueOnce(reply("not_in_knowledge"));
+    h.rpc.mockReset();
+    h.rpc.mockRejectedValue(new Error(`connessione rifiutata ${SERVICE_KEY}`));
+    const r = await route(gapsEnv);
+    const res = await r.POST(post({ destination, locale: "it", question: "A che ora apre il museo?" }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).status).toBe("not_in_knowledge");
+    await vi.waitFor(() => expect(allLogs()).toContain("question_gap_failed"));
+    expect(allLogs()).not.toContain(SERVICE_KEY);
+    // Il log dell'errore del registro non ripete la domanda (quello di knowledge_gap la riporta già mascherata).
+    expect(allLogs().split("\n").filter((l) => l.includes("question_gap")).join("\n")).not.toContain("museo");
+  });
+
+  it("una risposta parziale dalla cache si conta di nuovo senza richiamare il modello", async () => {
+    h.create.mockResolvedValueOnce(reply("partial", [ref]));
+    const r = await route(gapsEnv);
+    const body = { destination, locale: "it", question: "Chi costruì il porto e quando?" };
+    const first = await (await r.POST(post(body))).json();
+    expect(first.status).toBe("partial");
+    const second = await (await r.POST(post(body))).json();
+    expect(second).toMatchObject({ status: "partial", cached: true });
+    await vi.waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(2));
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(h.rpc.mock.calls.map((c) => (c[1] as { p_kind: string }).p_kind)).toEqual(["partial", "partial"]);
+  });
+
+  it("al massimo 5 righe ogni 10 minuti per indirizzo", async () => {
+    for (let i = 0; i < 7; i++) h.create.mockResolvedValueOnce(reply("not_in_knowledge"));
+    const r = await route(gapsEnv);
+    for (let i = 0; i < 7; i++) await r.POST(post({ destination, locale: "it", question: `Domanda senza risposta numero ${i}?` }));
+    await settle();
+    expect(h.create).toHaveBeenCalledTimes(7);
+    expect(h.rpc).toHaveBeenCalledTimes(5);
   });
 });

@@ -62,7 +62,9 @@ begin
         ('20261031000000_local_events', 'public_local_events(text,date,date,text)'),
         ('20261031000000_local_events', 'studio_save_local_event(text,uuid,jsonb,boolean)'),
         ('20261101000000_sub_places', 'place_parent(uuid)'),
-        ('20261101000000_sub_places', 'studio_set_place_parent(text,text,text)')
+        ('20261101000000_sub_places', 'studio_set_place_parent(text,text,text)'),
+        ('20261103000000_question_gaps', 'gap_record(text,text,text,text,text,text,text,text,jsonb,text,text)'),
+        ('20261103000000_question_gaps', 'studio_question_gaps(text)')
       ) as t(migration, sig) loop
       if to_regprocedure(f.sig) is null then
         raise exception 'FALLITO: migrazione % non applicata (manca %)', f.migration, f.sig;
@@ -93,6 +95,16 @@ begin
     -- 20261101000000: «Metti in vendita» restituisce quanti prodotti ha creato e quanti ha ritirato.
     if (select prorettype from pg_proc where oid = 'studio_places_on_sale(text,integer)'::regprocedure) <> 'jsonb'::regtype then
       raise exception 'FALLITO: migrazione 20261101000000_sub_places incompleta (studio_places_on_sale non restituisce jsonb)';
+    end if;
+    -- 20261103000000: le domande senza risposta le scrive solo il ruolo di servizio, con gap_record; nessun privilegio
+    -- diretto sulle tabelle, e il browser (anon) non esegue nessuna delle funzioni.
+    if has_function_privilege('anon', 'gap_record(text,text,text,text,text,text,text,text,jsonb,text,text)', 'execute')
+       or has_function_privilege('authenticated', 'gap_record(text,text,text,text,text,text,text,text,jsonb,text,text)', 'execute')
+       or has_function_privilege('anon', 'studio_question_gaps(text)', 'execute')
+       or has_table_privilege('anon', 'question_gaps', 'select') or has_table_privilege('anon', 'question_gaps', 'insert')
+       or has_table_privilege('authenticated', 'question_gaps', 'insert') or has_table_privilege('authenticated', 'question_gaps', 'update')
+       or has_table_privilege('service_role', 'question_gaps', 'insert') or has_table_privilege('service_role', 'question_gaps', 'select') then
+      raise exception 'FALLITO: migrazione 20261103000000_question_gaps con permessi troppo larghi sulle domande senza risposta';
     end if;
     if exists (select 1 from pg_policy where polrelid = 'storage.objects'::regclass and polname = 'bundles_public_read') then
       raise exception 'FALLITO: migrazione 20261023000000_bundles_storage incompleta (resta la policy bundles_public_read)';

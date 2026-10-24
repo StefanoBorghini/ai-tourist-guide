@@ -418,7 +418,7 @@ export async function askGuide(ai: AskModels, loaded: Loaded, rawReq: AskRequest
     keepUsd = reserve.ok ? reserve.worstUsd : 0;
   } else {
     const l = await getLocal();
-    if (!gate || !gate.config.enabled || !needsWeb(l.answer, req)) return done(l.answer);
+    if (!gate || !gate.config.enabled || !needsWeb(l.answer, req, gate.config.auto)) return done(l.answer);
     if (gate.supported === false || !permit()) {
       return done(withWebNote(l.answer, req.locale, "webUnavailable"), { attempted: false, error: gate.supported === false ? "modello senza ricerca web" : "limite di uso raggiunto", searches: 0, rounds: 0, sources: [] });
     }

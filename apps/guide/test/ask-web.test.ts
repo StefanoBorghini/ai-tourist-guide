@@ -75,7 +75,8 @@ function fakeClient(...replies: (object | Error)[]) {
   const client: AskModels = { local: new AnthropicAdapter(anthropic), web: anthropic };
   return { client, create };
 }
-const gate = (o: Partial<WebGate> = {}): WebGate => ({ config: webConfig({}), supported: true, permitted: () => true, ...o });
+// Il percorso automatico (ricerca quando la base non basta) resta provato con ASK_WEB_AUTO=1.
+const gate = (o: Partial<WebGate> = {}): WebGate => ({ config: webConfig({ ASK_WEB_AUTO: "1" }), supported: true, permitted: () => true, ...o });
 /** Budget largo: questi test riguardano il percorso, i limiti di spesa sono in ask-cost.test.ts. */
 const budget = () => new QuestionBudget(10);
 
@@ -105,11 +106,17 @@ describe("configurazione della ricerca", () => {
 
 describe("quando cercare", () => {
   const a = (status: AskAnswer["status"]): AskAnswer => ({ status, answer: "x", citations: [] });
-  it("non cerca se la base risponde, cerca se non basta", () => {
-    expect(needsWeb(a("answered"), req)).toBe(false);
-    expect(needsWeb(a("partial"), req)).toBe(true);
-    expect(needsWeb(a("not_in_knowledge"), req)).toBe(true);
-    expect(needsWeb(a("rejected"), req)).toBe(true);
+  it("per default cerca solo su richiesta: mai da sola, nemmeno se la base non basta", () => {
+    for (const s of ["answered", "partial", "not_in_knowledge", "rejected"] as const) expect(needsWeb(a(s), req), s).toBe(false);
+    expect(needsWeb(a("not_in_knowledge"), { ...req, depth: "deep" })).toBe(true);
+    expect(webConfig({}).auto).toBe(false);
+    expect(webConfig({ ASK_WEB_AUTO: "1" }).auto).toBe(true);
+  });
+  it("con la ricerca automatica (ASK_WEB_AUTO=1) non cerca se la base risponde, cerca se non basta", () => {
+    expect(needsWeb(a("answered"), req, true)).toBe(false);
+    expect(needsWeb(a("partial"), req, true)).toBe(true);
+    expect(needsWeb(a("not_in_knowledge"), req, true)).toBe(true);
+    expect(needsWeb(a("rejected"), req, true)).toBe(true);
   });
   it("cerca su richiesta di approfondimento, mai fuori tema", () => {
     const deep = { ...req, depth: "deep" as const };
@@ -117,18 +124,18 @@ describe("quando cercare", () => {
     expect(needsWeb(a("off_topic"), deep)).toBe(false);
     expect(needsWeb(a("unavailable"), deep)).toBe(false);
   });
-  it("non cerca da sola se la domanda rimanda a un luogo non indicato", () => {
+  it("con la ricerca automatica non cerca da sola se la domanda rimanda a un luogo non indicato", () => {
     const vague = { ...req, question: "Perché è stato costruito proprio qui?" };
     expect(ambiguousWithoutPlace(vague)).toBe(true);
-    expect(needsWeb(a("not_in_knowledge"), vague)).toBe(false);
-    expect(needsWeb(a("partial"), { ...vague, locale: "en" as const, question: "Why was it built right here?" })).toBe(false);
-    expect(needsWeb(a("not_in_knowledge"), { ...vague, question: "C'è una leggenda legata a questo luogo?" })).toBe(false);
+    expect(needsWeb(a("not_in_knowledge"), vague, true)).toBe(false);
+    expect(needsWeb(a("partial"), { ...vague, locale: "en" as const, question: "Why was it built right here?" }, true)).toBe(false);
+    expect(needsWeb(a("not_in_knowledge"), { ...vague, question: "C'è una leggenda legata a questo luogo?" }, true)).toBe(false);
     // Con il luogo aperto o corrente si sa di cosa si parla; con «Approfondisci» la ricerca è chiesta.
-    expect(needsWeb(a("not_in_knowledge"), { ...vague, currentPlace: content.places[0]!.ref })).toBe(true);
-    expect(needsWeb(a("not_in_knowledge"), { ...vague, selectedPlace: content.places[0]!.ref })).toBe(true);
-    expect(needsWeb(a("not_in_knowledge"), { ...vague, depth: "deep" as const })).toBe(true);
+    expect(needsWeb(a("not_in_knowledge"), { ...vague, currentPlace: content.places[0]!.ref }, true)).toBe(true);
+    expect(needsWeb(a("not_in_knowledge"), { ...vague, selectedPlace: content.places[0]!.ref }, true)).toBe(true);
+    expect(needsWeb(a("not_in_knowledge"), { ...vague, depth: "deep" as const }, true)).toBe(true);
     // Senza rimandi a un luogo si cerca come prima; «questione» o «quindi» non sono rimandi.
-    expect(needsWeb(a("not_in_knowledge"), { ...vague, question: "Chi era Byron?" })).toBe(true);
+    expect(needsWeb(a("not_in_knowledge"), { ...vague, question: "Chi era Byron?" }, true)).toBe(true);
     expect(ambiguousWithoutPlace({ ...vague, question: "Qual è la questione, quindi?" })).toBe(false);
   });
   it("in un'emergenza non cerca mai", () => {
@@ -222,7 +229,9 @@ describe("cache e limiti", () => {
     expect(cacheable({ status: "answered", answer: "x", citations: [] })).toBe(true);
     expect(cacheable({ status: "answered", answer: "x", citations: [], usedPosition: true })).toBe(false);
     expect(cacheable({ status: "answered", answer: "x", citations: [], webUnavailable: true })).toBe(false);
-    expect(cacheable({ status: "not_in_knowledge", answer: "x", citations: [] })).toBe(false);
+    // Anche i «non lo so»: una domanda ripetuta non si paga di nuovo.
+    expect(cacheable({ status: "not_in_knowledge", answer: "x", citations: [] })).toBe(true);
+    expect(cacheable({ status: "not_in_knowledge", answer: "x", citations: [], webUnavailable: true })).toBe(false);
     expect(cacheable({ status: "rejected", answer: "x", citations: [] })).toBe(false);
   });
   it("la cache scade e ha una dimensione massima", () => {
@@ -362,7 +371,7 @@ describe("risposta ibrida", () => {
       expect(out.answer.webUnavailable).toBe(true);
     }
     const { client, create } = fakeClient(localReply("not_in_knowledge", "Non lo so."));
-    const out = await askGuide(client, loaded, req, gate({ config: webConfig({ ASK_WEB_ENABLED: "off" }) }), budget());
+    const out = await askGuide(client, loaded, req, gate({ config: webConfig({ ASK_WEB_ENABLED: "off", ASK_WEB_AUTO: "1" }) }), budget());
     expect(create).toHaveBeenCalledTimes(1);
     expect(out.answer).toMatchObject({ status: "not_in_knowledge", answer: "Non lo so." });
   });
@@ -379,7 +388,7 @@ describe("risposta ibrida", () => {
       localReply("not_in_knowledge", "Non lo so."),
       { ...webReply([{ type: "text", text: "Fu ricostruito.", citations: [cite("https://www.unige.it/x", "Studio")] }]), model: "claude-sonnet-5-5" },
     );
-    const out = await askGuide(client, loaded, req, gate({ config: webConfig({ ASK_WEB_MODEL: "claude-sonnet-5-5" }) }), budget());
+    const out = await askGuide(client, loaded, req, gate({ config: webConfig({ ASK_WEB_MODEL: "claude-sonnet-5-5", ASK_WEB_AUTO: "1" }) }), budget());
     const models = create.mock.calls.map((c) => (c[0] as { model: string }).model);
     expect(models).toEqual(["claude-opus-5-5", "claude-sonnet-5-5"]);
     expect(out.answer.meter?.models).toEqual(["claude-opus-5-5", "claude-sonnet-5-5"]);

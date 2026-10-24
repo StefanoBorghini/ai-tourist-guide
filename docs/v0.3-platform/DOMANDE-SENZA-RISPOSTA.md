@@ -23,8 +23,8 @@ Decide l'esito della risposta, non le parole della domanda.
 | `not_in_knowledge` | il modello dichiara che la base non contiene l'informazione |
 | `partial` | la base la contiene solo in parte; anche quando la risposta arriva dalla cache, senza chiamare il modello |
 | `rejected` | la risposta del modello non ha superato i controlli di citazioni e numeri |
-| `web_answer` | la risposta è stata completata con la ricerca online; le fonti trovate restano da verificare |
-| `web_unavailable` | serviva la ricerca online ma non era possibile (spenta, limiti, errore) |
+| `web_answer` | la risposta è stata completata con la ricerca online; le fonti trovate restano da verificare (solo con la ricerca automatica, `ASK_WEB_AUTO=1`) |
+| `web_unavailable` | serviva la ricerca online ma non era possibile: spenta, limiti, errore (solo con `ASK_WEB_AUTO=1`) |
 | `ambiguous` | la domanda rimandava a un luogo («qui», «questo») ma non c'era un luogo aperto o corrente |
 
 Non si registrano mai:

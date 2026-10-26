@@ -51,7 +51,8 @@ export const PROMPT_VERSION = createHash("sha256").update(`${SYSTEM_PROMPT}\n${W
 export const PERSONA_VERSION = `${PERSONA.id}@${PERSONA.version}`;
 
 /**
- * Tempi: la route ha 60 s (maxDuration). La risposta locale ha un solo tentativo da 25 s; la ricerca
+ * Tempi: la route ha 60 s (maxDuration). La risposta locale ha un solo tentativo da 25 s (configurabile
+ * con ASK_TIMEOUT_MS, da 5 a 50 s: lib/model.ts → askTimeoutMs); la ricerca
  * web usa il tempo che resta fino a ASK_DEADLINE_MS dall'inizio della domanda (lasciando 25 s alla
  * risposta locale di ripiego quando l'approfondimento va diretto alla ricerca) e non parte se ne
  * restano meno di WEB_MIN_MS. Così la funzione non viene interrotta dalla piattaforma senza risposta.
@@ -224,7 +225,7 @@ function planLocal(model: ModelAdapter, loaded: Loaded, req: AskRequest, budget:
  * Livello A: risposta dalla sola base verificata, con controllo rigoroso di citazioni e numeri.
  * Se il budget non basta nemmeno per la risposta minima, nessuna chiamata: risposta "non disponibile".
  */
-export async function askLocal(model: ModelAdapter, loaded: Loaded, req: AskRequest, budget: QuestionBudget): Promise<LocalResult> {
+export async function askLocal(model: ModelAdapter, loaded: Loaded, req: AskRequest, budget: QuestionBudget, timeoutMs = LOCAL_TIMEOUT_MS): Promise<LocalResult> {
   const plan = planLocal(model, loaded, req, budget);
   if (!plan.ok) {
     budget.stopped(`risposta locale non avviata: ${plan.reason}`);
@@ -238,14 +239,17 @@ export async function askLocal(model: ModelAdapter, loaded: Loaded, req: AskRequ
       user: buildQuestionMessage(loaded.content, req),
       jsonSchema: ANSWER_JSON_SCHEMA,
       maxTokens: plan.maxTokens,
-      timeoutMs: LOCAL_TIMEOUT_MS,
+      timeoutMs,
     });
   } catch (error) {
     budget.recordFailure("local", plan, failureInfo(error));
     throw error;
   }
   // Il modello che ha risposto davvero (con il ripiego automatico può non essere quello richiesto).
-  const usage = budget.recordSuccess("local", plan, response.usage, response.model).usage!;
+  // Senza consumi riportati dal fornitore si conta il caso peggiore stimato (mai zero) e i consumi restano ignoti.
+  let usage: Usage | null = null;
+  if (response.usage) usage = budget.recordSuccess("local", plan, response.usage, response.model).usage!;
+  else budget.recordUnmetered("local", plan, response.model);
 
   if (response.stop !== "end") {
     const reason = response.stop === "refusal" ? "il modello ha rifiutato la richiesta" : "risposta troncata (limite di lunghezza)";
@@ -372,7 +376,9 @@ export async function askGuide(ai: AskModels, loaded: Loaded, rawReq: AskRequest
   const client = ai.web;
   const gate = client ? webGate : null;
   let local: LocalResult | null = null;
-  const getLocal = async () => (local ??= await askLocal(ai.local, loaded, req, budget));
+  // Tempo della risposta locale: ASK_TIMEOUT_MS se impostato (modelsFromEnv), altrimenti il default.
+  const localMs = ai.localTimeoutMs ?? LOCAL_TIMEOUT_MS;
+  const getLocal = async () => (local ??= await askLocal(ai.local, loaded, req, budget, localMs));
   const webOn = gate !== null && gate.config.enabled && gate.supported !== false;
   let permitted: boolean | undefined;
   const permit = () => (permitted ??= gate!.permitted());
@@ -425,7 +431,7 @@ export async function askGuide(ai: AskModels, loaded: Loaded, rawReq: AskRequest
   }
 
   // Tempo per la ricerca: quello che resta, meno la risposta locale di ripiego se non c'è ancora.
-  const webMs = Math.min(gate!.config.timeoutMs, started + ASK_DEADLINE_MS - Date.now() - (local ? 0 : LOCAL_TIMEOUT_MS));
+  const webMs = Math.min(gate!.config.timeoutMs, started + ASK_DEADLINE_MS - Date.now() - (local ? 0 : localMs));
   if (webMs < WEB_MIN_MS) return fallback("webUnavailable", { attempted: false, error: "tempo insufficiente per la ricerca", searches: 0, rounds: 0, sources: [] });
 
   let web: WebResult;

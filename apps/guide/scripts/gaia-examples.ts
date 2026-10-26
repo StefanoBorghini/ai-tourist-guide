@@ -1,18 +1,21 @@
 /**
  * Esempi di riferimento di Gaia (docs/v0.4-gaia/ESEMPI.md): controllo ed esportazione per l'allenamento.
  *
- *   npm run gaia:examples -- --file <GAIA-EXAMPLES.json> [--out allenamento.jsonl] [--include-drafts]
+ *   npm run gaia:examples -- --file <GAIA-EXAMPLES.json> [--out allenamento.jsonl] [--include-drafts] [--pack <cartella> [--full]]
  *
  * Senza --out controlla ogni esempio con le regole della produzione e con le attese della domanda di
  * prova, e termina con errore se uno non passa. Con --out scrive gli esempi in JSONL (un esempio per
  * riga, formato a messaggi system/user/assistant) per il fine-tuning di un modello aperto: solo quelli
  * approvati dalla redazione, salvo --include-drafts (solo per prove, mai per un allenamento vero).
+ * --pack <cartella> [--full]: controlla gli esempi su una base compilata in locale (come ask:eval, lib/eval-knowledge.ts)
+ * invece che sul bundle pubblicato; --full include i contenuti a pagamento, solo per la valutazione locale.
  * Nessuna chiamata a modelli, nessun costo.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { loadKnowledge } from "../lib/ask-server";
+import { loadPackKnowledge } from "../lib/eval-knowledge";
 import { checkExample, examplesFileSchema, toTrainingRecord, type EvalCase } from "../lib/gaia-examples";
 
 const { values } = parseArgs({
@@ -20,6 +23,8 @@ const { values } = parseArgs({
     file: { type: "string" },
     out: { type: "string" },
     "include-drafts": { type: "boolean", default: false },
+    pack: { type: "string" },
+    full: { type: "boolean", default: false },
   },
 });
 const fail = (msg: string): never => {
@@ -34,7 +39,10 @@ const questionsFile = JSON.parse(readFileSync(resolve(dirname(file), spec.questi
 if (questionsFile.destination !== spec.destination || questionsFile.locale !== spec.locale) fail("domande ed esempi di destinazioni o lingue diverse");
 const cases = new Map(questionsFile.questions.map((q) => [q.id, q]));
 
-const kb = await loadKnowledge(spec.destination, spec.locale);
+if (values.full && !values.pack) fail("--full vale solo con --pack <cartella>: la base completa si compila solo in locale.");
+const fromPack = values.pack ? loadPackKnowledge(resolve(values.pack), spec.destination, spec.locale, { full: values.full }) : null;
+const kb = fromPack ?? (await loadKnowledge(spec.destination, spec.locale));
+console.log(`base: ${fromPack?.label ?? "bundle pubblicato"}${kb ? ` · ${kb.content.assertions.length} affermazioni` : ""}`);
 if (!kb) fail(`bundle non trovato: ${spec.destination}/${spec.locale} (serve npm run bundles -w @guide/app)`);
 const { content } = kb!;
 

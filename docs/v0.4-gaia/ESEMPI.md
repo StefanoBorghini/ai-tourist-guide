@@ -50,6 +50,8 @@ come oggi. Un modello allenato impara la voce e il comportamento, non la storia 
 npm run gaia:examples -w @guide/app -- --file ../../territories/<id>/GAIA-EXAMPLES.it.json
 ```
 
+Senza opzioni il controllo usa il bundle pubblicato. Per una destinazione con l'esplorazione a pagamento, il bundle pubblico ha solo le panoramiche: gli esempi che citano altri fatti non passano. Per controllarli sulla base completa, compilata sul proprio computer da una fotografia del database o dai file, si usa `--pack <cartella> --full` (solo valutazione locale, vedi `PROVIDER-ALTERNATIVI.md` §6.1). Il 26/10, sulla fotografia del 25/10, sono passati 162 esempi su 163 con la base completa e 69 su 163 con quella pubblica.
+
 Nessuna chiamata a modelli, nessun costo. Ogni esempio passa dagli stessi controlli della produzione
 (`checkModelAnswer`: citazioni esistenti, numeri e secoli presi dalle fonti, 112 nelle emergenze) e dal punteggio
 automatico (`lib/eval-score.ts`: esito e citazioni attesi, parole vietate, niente markdown, lunghezza). Le righe con

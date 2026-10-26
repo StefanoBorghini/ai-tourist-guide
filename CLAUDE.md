@@ -40,7 +40,10 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   sistema dalla posizione, l'AI le riferisce soltanto), `lib/ask-web.ts` (approfondimento con ricerca web: quando
   cercare, solo su richiesta salvo `ASK_WEB_AUTO=1` e mai in automatico se la domanda rimanda a un luogo non indicato, cache anche dei «non lo so», lettura di fonti e citazioni, cache, limiti; puro e testato), `lib/ask-server.ts` (chiamate al
   modello), `lib/model.ts` (il modello dietro un'interfaccia: Anthropic o API compatibili OpenAI, scelti con
-  `ASK_PROVIDER`; la ricerca web resta di Anthropic), `lib/emergency.ts` (emergenze riconosciute senza modello: 112
+  `ASK_PROVIDER`; anche un server locale come Ollama, senza chiave solo su localhost; `ASK_JSON_MODE`, `ASK_TIMEOUT_MS`;
+  la ricerca web resta di Anthropic; guida in `docs/v0.4-gaia/PROVIDER-ALTERNATIVI.md`), `lib/eval-knowledge.ts` (base
+  compilata in locale per `ask:eval --pack` e `gaia:examples --pack`, con `--full` anche i contenuti a pagamento: solo
+  valutazione, mai importato dall'app servita ai visitatori), `lib/emergency.ts` (emergenze riconosciute senza modello: 112
   subito, anche offline), `lib/limits.ts` (limiti per indirizzo e tetto di spesa giornaliero, per istanza),
   `lib/question-gaps.ts` e `lib/question-gaps-server.ts` (registro delle domande senza risposta: dall'esito della risposta, testo
   mascherato ma non anonimo, niente IP né conversazioni, scadenza 90 giorni, spento senza `QUESTION_GAPS_ENABLED=1`; tabella

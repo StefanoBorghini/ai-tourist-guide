@@ -199,13 +199,16 @@ export async function POST(request: Request): Promise<Response> {
     spend.record(budget.spentUsd);
     const cost = { budget: budget.summary(), modelCalls: budget.calls.map(callLog) };
     if (error instanceof Anthropic.APIError || error instanceof ModelError) {
-      console.error(JSON.stringify({ event: "ask_error", provider: ai.local.provider, status: error.status, message: error.message, ...cost }));
+      const kind = error instanceof ModelError ? error.kind : undefined;
+      console.error(JSON.stringify({ event: "ask_error", provider: ai.local.provider, ...(kind ? { kind } : {}), status: error.status, message: error.message, ...cost }));
     } else {
       console.error(JSON.stringify({ event: "ask_error", provider: ai.local.provider, message: (error as Error).message, ...cost }));
     }
     if (error instanceof Anthropic.RateLimitError || (error instanceof ModelError && error.kind === "rate_limit")) {
       return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 429 });
     }
+    // Tempo scaduto (ASK_TIMEOUT_MS): stessa risposta per il visitatore, codice distinto per i log e i controlli.
+    if (error instanceof ModelError && error.kind === "timeout") return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 504 });
     return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 502 });
   }
 }

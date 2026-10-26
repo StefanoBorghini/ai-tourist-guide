@@ -306,6 +306,28 @@ export class QuestionBudget {
   }
 
   /**
+   * Chiamata riuscita ma senza consumi riportati dal fornitore (alcuni servizi compatibili OpenAI o server
+   * locali): non si sa quanto è costata, quindi si scala il caso peggiore stimato, marcato come stima.
+   * Mai zero: un fornitore che non riporta i consumi non deve diventare gratuito per il budget.
+   */
+  recordUnmetered(kind: CallRecord["kind"], plan: CallPlan, servedModel: string, round?: number): CallRecord {
+    const record: CallRecord = {
+      kind,
+      ...(round ? { round } : {}),
+      models: [servedModel || plan.model],
+      maxTokens: plan.maxTokens,
+      searchesAllowed: plan.searches,
+      outcome: "ok",
+      usage: null,
+      usd: plan.worstUsd,
+      // Il caso peggiore di un modello senza listino è già contato con le tariffe prudenti: resta "unknown".
+      quality: ratesFor(plan.model) ? "estimated" : "unknown",
+    };
+    this.calls.push(record);
+    return record;
+  }
+
+  /**
    * Chiamata fallita. Un rifiuto HTTP 4xx dell'API (richiesta non eseguita) non consuma; per tutto
    * il resto (tempo scaduto, rete, 5xx) i consumi non si conoscono e si scala il caso peggiore
    * stimato, marcato come stima: mai costo zero.

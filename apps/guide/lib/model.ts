@@ -3,7 +3,9 @@
  *
  * - AnthropicAdapter: il comportamento di sempre (structured output, cache del prompt, ripiego lato server).
  * - OpenAICompatibleAdapter: qualunque servizio con l'API "chat completions" (Mistral, vLLM, servizi
- *   gestiti di modelli aperti…), con output JSON vincolato dallo schema. Nessuna dipendenza in più: usa fetch.
+ *   gestiti di modelli aperti…, anche un server locale come Ollama), con output JSON vincolato dallo schema
+ *   (o solo JSON, ASK_JSON_MODE=json_object, per i servizi che non applicano lo schema). Nessuna dipendenza
+ *   in più: usa fetch. Guida: docs/v0.4-gaia/PROVIDER-ALTERNATIVI.md.
  *
  * La ricerca web (ask-web.ts) resta uno strumento lato server di Anthropic: con un altro fornitore la
  * guida risponde con la sola base locale, a meno che sia configurata anche la chiave di Anthropic.
@@ -25,8 +27,11 @@ export interface ModelRequest {
 export interface ModelResponse {
   text: string;
   stop: "end" | "refusal" | "length";
-  /** Consumi nella forma dell'API di Anthropic (ask-cost.ts li prezza, per modello). */
-  usage: ApiUsageLike;
+  /**
+   * Consumi nella forma dell'API di Anthropic (ask-cost.ts li prezza, per modello). null: il fornitore non li
+   * ha riportati; il budget conta allora il caso peggiore stimato, mai zero.
+   */
+  usage: ApiUsageLike | null;
   /** Modello che ha risposto davvero (con un ripiego può non essere quello richiesto). */
   model: string;
 }
@@ -37,10 +42,13 @@ export interface ModelAdapter {
   generate(req: ModelRequest): Promise<ModelResponse>;
 }
 
-/** Errore del fornitore, nella forma che serve alla route (nessun segreto nel messaggio). */
+/**
+ * Errore del fornitore, nella forma che serve alla route (nessun segreto nel messaggio).
+ * "timeout": nessuna risposta entro il tempo concesso (la chiamata può essere già stata pagata).
+ */
 export class ModelError extends Error {
   constructor(
-    readonly kind: "rate_limit" | "unavailable",
+    readonly kind: "rate_limit" | "unavailable" | "timeout",
     message: string,
     readonly status?: number,
   ) {
@@ -81,6 +89,7 @@ export class AnthropicAdapter implements ModelAdapter {
       );
     } catch (error) {
       if (error instanceof Anthropic.RateLimitError) throw new ModelError("rate_limit", "limite di richieste del fornitore", 429);
+      if (error instanceof Anthropic.APIConnectionTimeoutError) throw new ModelError("timeout", `nessuna risposta entro ${req.timeoutMs} ms`);
       if (error instanceof Anthropic.APIError) throw new ModelError("unavailable", `API ${error.status ?? "?"}: ${error.message}`.slice(0, 300), error.status);
       throw error;
     }
@@ -98,61 +107,104 @@ export class AnthropicAdapter implements ModelAdapter {
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
+/**
+ * Formato JSON chiesto al servizio:
+ * - "json_schema" (predefinito): output vincolato dallo schema (`strict`), come con Anthropic;
+ * - "json_object": solo JSON valido, per i servizi che non applicano lo schema; lo schema arriva al modello
+ *   come istruzione di formato in fondo al messaggio di sistema.
+ * In entrambi i casi la risposta passa dagli stessi controlli (ask.ts → checkModelAnswer): un JSON che non
+ * rispetta lo schema viene scartato, non accettato.
+ */
+export const JSON_MODES = ["json_schema", "json_object"] as const;
+export type JsonMode = (typeof JSON_MODES)[number];
+
 interface ChatCompletion {
   model?: string;
   choices?: { finish_reason?: string | null; message?: { content?: string | null; refusal?: string | null } }[];
-  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } | null };
+  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } | null } | null;
 }
+
+/** Errore di tempo scaduto di AbortSignal.timeout (o di un'interruzione). */
+const isTimeout = (error: unknown) => {
+  const name = (error as { name?: unknown } | null)?.name;
+  return name === "TimeoutError" || name === "AbortError";
+};
 
 export class OpenAICompatibleAdapter implements ModelAdapter {
   readonly provider = "openai-compatible";
+  /**
+   * @param apiKey null o vuota: nessuna intestazione di autenticazione (server locale senza chiave; la
+   *   configurazione lo consente solo per indirizzi locali, vedi modelsConfig).
+   */
   constructor(
     private readonly baseUrl: string,
-    private readonly apiKey: string,
+    private readonly apiKey: string | null,
     readonly model: string,
     private readonly fetchImpl: FetchLike = fetch,
+    private readonly jsonMode: JsonMode = "json_schema",
   ) {}
 
   async generate(req: ModelRequest): Promise<ModelResponse> {
     const url = `${this.baseUrl.replace(/\/+$/, "")}/chat/completions`;
+    // Un solo messaggio di sistema: il prefisso resta identico tra le richieste (cache dove il servizio la offre).
+    let system = req.system.map((b) => b.text).join("\n\n");
+    if (this.jsonMode === "json_object") {
+      system += `\n\nFORMATO DELLA RISPOSTA: un solo oggetto JSON, senza altro testo, conforme a questo JSON Schema:\n${JSON.stringify(req.jsonSchema)}`;
+    }
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (this.apiKey) headers.authorization = `Bearer ${this.apiKey}`;
     let res: Response;
+    let body: ChatCompletion | null;
     try {
       res = await this.fetchImpl(url, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
+        headers,
         body: JSON.stringify({
           model: this.model,
           max_tokens: req.maxTokens,
           temperature: 0.3,
-          // Un solo messaggio di sistema: il prefisso resta identico tra le richieste (cache dove il servizio la offre).
           messages: [
-            { role: "system", content: req.system.map((b) => b.text).join("\n\n") },
+            { role: "system", content: system },
             { role: "user", content: req.user },
           ],
-          response_format: { type: "json_schema", json_schema: { name: "answer", schema: req.jsonSchema, strict: true } },
+          response_format:
+            this.jsonMode === "json_object"
+              ? { type: "json_object" }
+              : { type: "json_schema", json_schema: { name: "answer", schema: req.jsonSchema, strict: true } },
         }),
         signal: AbortSignal.timeout(req.timeoutMs),
       });
+      if (res.status === 429) throw new ModelError("rate_limit", "limite di richieste del fornitore", 429);
+      if (!res.ok) throw new ModelError("unavailable", `HTTP ${res.status}`, res.status);
+      // Anche la lettura del corpo rientra nel tempo concesso: un timeout qui è un timeout, non un JSON vuoto.
+      body = (await res.json().catch((error: unknown) => {
+        if (isTimeout(error)) throw error;
+        return null;
+      })) as ChatCompletion | null;
     } catch (error) {
+      if (error instanceof ModelError) throw error;
+      if (isTimeout(error)) throw new ModelError("timeout", `nessuna risposta entro ${req.timeoutMs} ms`);
       throw new ModelError("unavailable", `rete: ${(error as Error).message}`.slice(0, 300));
     }
-    if (res.status === 429) throw new ModelError("rate_limit", "limite di richieste del fornitore", 429);
-    if (!res.ok) throw new ModelError("unavailable", `HTTP ${res.status}`, res.status);
-    const body = (await res.json().catch(() => null)) as ChatCompletion | null;
     const choice = body?.choices?.[0];
     if (!choice) throw new ModelError("unavailable", "risposta del fornitore senza contenuto");
-    const cached = body?.usage?.prompt_tokens_details?.cached_tokens ?? 0;
     const finish = choice.finish_reason ?? "stop";
+    const u = body?.usage;
+    // Consumi mancanti (alcuni servizi o server locali non li riportano): null, e il budget conta il caso peggiore.
+    const reported = u && (typeof u.prompt_tokens === "number" || typeof u.completion_tokens === "number");
+    const cached = u?.prompt_tokens_details?.cached_tokens ?? 0;
     return {
       text: choice.message?.content ?? "",
       stop: choice.message?.refusal || finish === "content_filter" ? "refusal" : finish === "length" ? "length" : "end",
       // Nella stessa forma dei consumi di Anthropic: i token letti dalla cache sono separati da quelli nuovi.
-      usage: {
-        input_tokens: Math.max(0, (body?.usage?.prompt_tokens ?? 0) - cached),
-        output_tokens: body?.usage?.completion_tokens ?? 0,
-        cache_read_input_tokens: cached,
-        cache_creation_input_tokens: 0,
-      },
+      usage: reported
+        ? {
+            input_tokens: Math.max(0, (u.prompt_tokens ?? 0) - cached),
+            output_tokens: u.completion_tokens ?? 0,
+            cache_read_input_tokens: cached,
+            cache_creation_input_tokens: 0,
+          }
+        : null,
       model: body?.model || this.model,
     };
   }
@@ -165,6 +217,8 @@ export interface AskModels {
   local: ModelAdapter;
   /** Client Anthropic per la ricerca web (null: ricerca non disponibile). */
   web: Anthropic | null;
+  /** Tempo massimo della risposta locale in ms (ASK_TIMEOUT_MS); assente: LOCAL_TIMEOUT_MS di ask-server.ts. */
+  localTimeoutMs?: number;
 }
 
 export type ModelsConfig = { ok: true; provider: string; model: string; webKey: boolean } | { ok: false; reason: string };
@@ -172,22 +226,81 @@ export type ModelsConfig = { ok: true; provider: string; model: string; webKey: 
 const clean = (v: string | undefined) => v?.trim() || undefined;
 
 /**
+ * Limiti di ASK_TIMEOUT_MS. Il massimo resta sotto il tempo della route (maxDuration 60 s, ASK_DEADLINE_MS 55 s):
+ * oltre, la piattaforma interromperebbe la funzione senza risposta. Con valori sopra i 25 s di default una
+ * richiesta «Approfondisci» può non avere più il tempo per la ricerca web (la guida lo dichiara).
+ */
+export const ASK_TIMEOUT_LIMITS = { minMs: 5_000, maxMs: 50_000 } as const;
+
+/** ASK_TIMEOUT_MS validato: undefined se non impostato, errore leggibile se non valido. */
+export function askTimeoutMs(env: Record<string, string | undefined> = process.env): { ok: true; ms: number | undefined } | { ok: false; reason: string } {
+  const raw = clean(env.ASK_TIMEOUT_MS);
+  if (raw === undefined) return { ok: true, ms: undefined };
+  const ms = Number(raw);
+  if (!/^\d+$/.test(raw) || ms < ASK_TIMEOUT_LIMITS.minMs || ms > ASK_TIMEOUT_LIMITS.maxMs) {
+    return { ok: false, reason: `ASK_TIMEOUT_MS non valida: millisecondi interi da ${ASK_TIMEOUT_LIMITS.minMs} a ${ASK_TIMEOUT_LIMITS.maxMs}` };
+  }
+  return { ok: true, ms };
+}
+
+/** Indirizzi della macchina stessa: l'unico caso in cui un server senza chiave e senza https è accettato. */
+export function isLoopbackHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  return h === "localhost" || h.endsWith(".localhost") || h === "::1" || /^127(\.\d{1,3}){3}$/.test(h);
+}
+
+/**
+ * Indirizzo del servizio compatibile OpenAI: https, oppure http solo verso la macchina stessa (un server
+ * locale come Ollama). Niente credenziali nell'indirizzo, niente parametri.
+ */
+function checkBaseUrl(raw: string): { ok: true; local: boolean } | { ok: false; reason: string } {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return { ok: false, reason: "ASK_BASE_URL non è un indirizzo valido (es. https://servizio.example/v1)" };
+  }
+  const local = isLoopbackHost(url.hostname);
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) {
+    return { ok: false, reason: "ASK_BASE_URL deve usare https (http è ammesso solo per un server locale: localhost, 127.0.0.1, ::1)" };
+  }
+  if (url.username || url.password) return { ok: false, reason: "ASK_BASE_URL non deve contenere credenziali: usa ASK_API_KEY" };
+  if (url.search || url.hash) return { ok: false, reason: "ASK_BASE_URL non deve contenere parametri o frammenti" };
+  return { ok: true, local };
+}
+
+/**
  * Quale modello usare, dalle variabili d'ambiente:
  * - ASK_PROVIDER: "anthropic" (default) oppure "openai-compatible";
  * - ASK_MODEL: modello della risposta locale (default claude-opus-5-5 con Anthropic; obbligatorio altrimenti);
- * - ASK_BASE_URL e ASK_API_KEY: indirizzo e chiave del servizio compatibile OpenAI;
+ * - ASK_BASE_URL e ASK_API_KEY: indirizzo e chiave del servizio compatibile OpenAI; la chiave è facoltativa
+ *   solo per un server locale (localhost), obbligatoria per ogni altro indirizzo;
+ * - ASK_JSON_MODE: "json_schema" (default) o "json_object" (solo con il servizio compatibile OpenAI);
+ * - ASK_TIMEOUT_MS: tempo massimo della risposta locale (default 25 s, vedi ASK_TIMEOUT_LIMITS);
  * - ANTHROPIC_API_KEY: chiave di Anthropic (obbligatoria con Anthropic; con l'altro fornitore abilita la ricerca web).
+ * Una variabile non valida spegne le domande con un motivo leggibile (mai un ripiego silenzioso). Il motivo
+ * non contiene mai i valori delle chiavi.
  */
 export function modelsConfig(env: Record<string, string | undefined> = process.env): ModelsConfig {
   const provider = (clean(env.ASK_PROVIDER) ?? "anthropic").toLowerCase();
   const webKey = Boolean(clean(env.ANTHROPIC_API_KEY));
+  const timeout = askTimeoutMs(env);
+  if (!timeout.ok) return { ok: false, reason: timeout.reason };
   if (provider === "anthropic") {
     if (!webKey) return { ok: false, reason: "ANTHROPIC_API_KEY mancante" };
+    if (clean(env.ASK_JSON_MODE) !== undefined) return { ok: false, reason: "ASK_JSON_MODE vale solo con ASK_PROVIDER=openai-compatible" };
     return { ok: true, provider, model: clean(env.ASK_MODEL) ?? DEFAULT_ANTHROPIC_MODEL, webKey };
   }
   if (provider === "openai-compatible") {
-    const missing = ["ASK_BASE_URL", "ASK_API_KEY", "ASK_MODEL"].filter((k) => !clean(env[k]));
+    const missing = ["ASK_BASE_URL", "ASK_MODEL"].filter((k) => !clean(env[k]));
     if (missing.length > 0) return { ok: false, reason: `variabili mancanti: ${missing.join(", ")}` };
+    const base = checkBaseUrl(clean(env.ASK_BASE_URL)!);
+    if (!base.ok) return { ok: false, reason: base.reason };
+    if (!base.local && !clean(env.ASK_API_KEY)) return { ok: false, reason: "variabili mancanti: ASK_API_KEY (obbligatoria per un servizio non locale)" };
+    const mode = clean(env.ASK_JSON_MODE);
+    if (mode !== undefined && !(JSON_MODES as readonly string[]).includes(mode)) {
+      return { ok: false, reason: `ASK_JSON_MODE non valida: ${JSON_MODES.join(" o ")}` };
+    }
     return { ok: true, provider, model: clean(env.ASK_MODEL)!, webKey };
   }
   return { ok: false, reason: `ASK_PROVIDER sconosciuto: ${provider}` };
@@ -197,11 +310,12 @@ export function modelsConfig(env: Record<string, string | undefined> = process.e
 export function modelsFromEnv(env: Record<string, string | undefined> = process.env, fetchImpl?: FetchLike): AskModels | null {
   const config = modelsConfig(env);
   if (!config.ok) return null;
+  const timeout = askTimeoutMs(env);
   // Nessun nuovo tentativo automatico dell'SDK (default 2): una chiamata scaduta può essere già pagata.
   const web = config.webKey ? new Anthropic({ apiKey: clean(env.ANTHROPIC_API_KEY), maxRetries: 0 }) : null;
   const local =
     config.provider === "anthropic"
       ? new AnthropicAdapter(web!, config.model)
-      : new OpenAICompatibleAdapter(clean(env.ASK_BASE_URL)!, clean(env.ASK_API_KEY)!, config.model, fetchImpl);
-  return { local, web };
+      : new OpenAICompatibleAdapter(clean(env.ASK_BASE_URL)!, clean(env.ASK_API_KEY) ?? null, config.model, fetchImpl, (clean(env.ASK_JSON_MODE) as JsonMode | undefined) ?? "json_schema");
+  return { local, web, ...(timeout.ok && timeout.ms !== undefined ? { localTimeoutMs: timeout.ms } : {}) };
 }

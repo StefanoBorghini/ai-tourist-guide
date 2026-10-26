@@ -171,3 +171,172 @@ describe("risposta con un fornitore diverso da Anthropic", () => {
     expect(out.rejected).toContain("1312");
   });
 });
+
+// ------------------------------------------------------------------ fornitori alternativi (fase B)
+
+describe("adattatore compatibile OpenAI: server locali e servizi parziali", () => {
+  it("senza chiave non manda l'intestazione di autenticazione (server locale)", async () => {
+    const fetch = fakeFetch(200, completion());
+    await new OpenAICompatibleAdapter("http://localhost:11434/v1", null, "modello-locale", fetch).generate(request);
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe("http://localhost:11434/v1/chat/completions");
+    expect(init.headers as Record<string, string>).not.toHaveProperty("authorization");
+  });
+
+  it("json_schema resta il formato predefinito; json_object chiede solo JSON e mette lo schema come istruzione di formato", async () => {
+    const strict = fakeFetch(200, completion());
+    await new OpenAICompatibleAdapter("https://x.eu", "k", "m", strict).generate(request);
+    expect(JSON.parse(String(strict.mock.calls[0]![1].body)).response_format.type).toBe("json_schema");
+    const loose = fakeFetch(200, completion());
+    await new OpenAICompatibleAdapter("https://x.eu", "k", "m", loose, "json_object").generate(request);
+    const body = JSON.parse(String(loose.mock.calls[0]![1].body));
+    expect(body.response_format).toEqual({ type: "json_object" });
+    // Le istruzioni di Gaia restano identiche e in testa; il formato si aggiunge in fondo.
+    expect(body.messages[0].content.startsWith("regole\n\npersona\n\nbase\n\nFORMATO DELLA RISPOSTA")).toBe(true);
+    expect(body.messages[0].content).toContain(JSON.stringify(ANSWER_JSON_SCHEMA));
+  });
+
+  it("un tempo scaduto è un errore «timeout», distinto dagli altri, anche durante la lettura della risposta", async () => {
+    // Fetch che resta in attesa finché il segnale non scade, come un server lento.
+    const slow = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => init.signal!.addEventListener("abort", () => reject(init.signal!.reason))),
+    );
+    const error = await new OpenAICompatibleAdapter("http://127.0.0.1:11434/v1", null, "m", slow).generate({ ...request, timeoutMs: 30 }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ name: "ModelError", kind: "timeout" });
+    const bodyTimeout = vi.fn(async () => ({ ok: true, status: 200, json: async () => Promise.reject(new DOMException("scaduto", "TimeoutError")) }) as unknown as Response);
+    await expect(new OpenAICompatibleAdapter("https://x.eu", "k", "m", bodyTimeout).generate(request)).rejects.toMatchObject({ kind: "timeout" });
+    const refused = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    await expect(new OpenAICompatibleAdapter("https://x.eu", "k", "m", refused).generate(request)).rejects.toMatchObject({ kind: "unavailable" });
+  });
+
+  it("corpo non JSON o senza scelte: errore del fornitore, mai una risposta vuota accettata", async () => {
+    const html = vi.fn(async () => new Response("<html>errore</html>", { status: 200 }));
+    await expect(new OpenAICompatibleAdapter("https://x.eu", "k", "m", html).generate(request)).rejects.toMatchObject({ kind: "unavailable" });
+    await expect(new OpenAICompatibleAdapter("https://x.eu", "k", "m", fakeFetch(200, { choices: [] })).generate(request)).rejects.toMatchObject({ kind: "unavailable" });
+  });
+
+  it("consumi non riportati dal servizio: usage null (non zero)", async () => {
+    const { usage: _u, ...noUsage } = completion();
+    const out = await new OpenAICompatibleAdapter("https://x.eu", "k", "m", fakeFetch(200, noUsage)).generate(request);
+    expect(out.usage).toBeNull();
+    const empty = await new OpenAICompatibleAdapter("https://x.eu", "k", "m", fakeFetch(200, { ...noUsage, usage: {} })).generate(request);
+    expect(empty.usage).toBeNull();
+  });
+
+  it("Anthropic: il tempo scaduto dell'SDK diventa «timeout»", async () => {
+    const timeout = new Anthropic.APIConnectionTimeoutError();
+    await expect(new AnthropicAdapter(fakeAnthropic(timeout).client).generate(request)).rejects.toMatchObject({ kind: "timeout" });
+  });
+});
+
+describe("configurazione dei fornitori alternativi", () => {
+  const compat = { ASK_PROVIDER: "openai-compatible", ASK_MODEL: "m" };
+
+  it("senza variabili nuove il comportamento resta quello di prima", () => {
+    expect(modelsConfig({ ANTHROPIC_API_KEY: "k" })).toEqual({ ok: true, provider: "anthropic", model: "claude-opus-5-5", webKey: true });
+    const ai = modelsFromEnv({ ANTHROPIC_API_KEY: "k" })!;
+    expect(ai.local.provider).toBe("anthropic");
+    expect(ai.localTimeoutMs).toBeUndefined();
+  });
+
+  it("server locale senza chiave: ammesso solo per localhost, 127.0.0.1 e ::1", () => {
+    for (const url of ["http://localhost:11434/v1", "http://127.0.0.1:11434/v1", "http://[::1]:11434/v1"]) {
+      expect(modelsConfig({ ...compat, ASK_BASE_URL: url }), url).toEqual({ ok: true, provider: "openai-compatible", model: "m", webKey: false });
+    }
+    const ai = modelsFromEnv({ ...compat, ASK_BASE_URL: "http://localhost:11434/v1" })!;
+    expect(ai.local.provider).toBe("openai-compatible");
+    expect(ai.web).toBeNull();
+  });
+
+  it("servizio remoto: https e chiave obbligatori, niente credenziali o parametri nell'indirizzo", () => {
+    expect(modelsConfig({ ...compat, ASK_BASE_URL: "https://x.eu/v1" })).toMatchObject({ ok: false, reason: expect.stringContaining("ASK_API_KEY") });
+    expect(modelsConfig({ ...compat, ASK_BASE_URL: "http://x.eu/v1", ASK_API_KEY: "k" })).toMatchObject({ ok: false, reason: expect.stringContaining("https") });
+    expect(modelsConfig({ ...compat, ASK_BASE_URL: "http://192.168.1.10:11434/v1" })).toMatchObject({ ok: false });
+    expect(modelsConfig({ ...compat, ASK_BASE_URL: "non un indirizzo", ASK_API_KEY: "k" })).toMatchObject({ ok: false, reason: expect.stringContaining("ASK_BASE_URL") });
+    expect(modelsConfig({ ...compat, ASK_BASE_URL: "https://utente:segreta@x.eu/v1", ASK_API_KEY: "k" })).toMatchObject({ ok: false, reason: expect.stringContaining("credenziali") });
+    expect(modelsConfig({ ...compat, ASK_BASE_URL: "https://x.eu/v1?key=segreta", ASK_API_KEY: "k" })).toMatchObject({ ok: false });
+    expect(modelsConfig({ ...compat, ASK_BASE_URL: "ftp://x.eu/v1", ASK_API_KEY: "k" })).toMatchObject({ ok: false });
+  });
+
+  it("ASK_JSON_MODE: due valori ammessi, solo con il fornitore compatibile OpenAI", () => {
+    const env = { ...compat, ASK_BASE_URL: "http://localhost:11434/v1" };
+    expect(modelsConfig({ ...env, ASK_JSON_MODE: "json_object" })).toMatchObject({ ok: true });
+    expect(modelsConfig({ ...env, ASK_JSON_MODE: "json_schema" })).toMatchObject({ ok: true });
+    expect(modelsConfig({ ...env, ASK_JSON_MODE: "testo" })).toMatchObject({ ok: false, reason: expect.stringContaining("ASK_JSON_MODE") });
+    expect(modelsConfig({ ANTHROPIC_API_KEY: "k", ASK_JSON_MODE: "json_object" })).toMatchObject({ ok: false, reason: expect.stringContaining("ASK_JSON_MODE") });
+  });
+
+  it("ASK_TIMEOUT_MS: intero da 5000 a 50000; un valore non valido spegne le domande con un motivo leggibile", () => {
+    expect(modelsFromEnv({ ANTHROPIC_API_KEY: "k", ASK_TIMEOUT_MS: "40000" })!.localTimeoutMs).toBe(40_000);
+    for (const bad of ["4999", "50001", "30s", "-1", "2.5"]) {
+      expect(modelsConfig({ ANTHROPIC_API_KEY: "k", ASK_TIMEOUT_MS: bad }), bad).toMatchObject({ ok: false, reason: expect.stringContaining("ASK_TIMEOUT_MS") });
+      expect(modelsFromEnv({ ANTHROPIC_API_KEY: "k", ASK_TIMEOUT_MS: bad })).toBeNull();
+    }
+  });
+
+  it("i motivi degli errori non contengono mai le chiavi", () => {
+    const secret = "sk-segretissima-123";
+    const cases = [
+      { ...compat, ASK_BASE_URL: "http://x.eu/v1", ASK_API_KEY: secret },
+      { ...compat, ASK_BASE_URL: "https://x.eu/v1", ASK_API_KEY: secret, ASK_JSON_MODE: "boh" },
+      { ANTHROPIC_API_KEY: secret, ASK_TIMEOUT_MS: "1" },
+    ];
+    for (const env of cases) {
+      const r = modelsConfig(env);
+      expect(r.ok).toBe(false);
+      expect(JSON.stringify(r)).not.toContain(secret);
+    }
+  });
+});
+
+describe("guida con un fornitore che non riporta i consumi o con un tempo diverso", () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  let loaded: Loaded;
+  let req: AskRequest;
+  beforeAll(() => {
+    const { packs } = loadPacks(resolve(here, "../../../territories/_synthetic"));
+    const dest = [...packs.values()].find((p) => p.manifest.kind === "destination")!;
+    const content = buildBundle(packs, { destination: dest.manifest.id, locale: "it", allowFictional: true }).content;
+    loaded = { content, knowledge: buildKnowledge(content), kbHash: "kb-test" };
+    req = askRequestSchema.parse({ destination: content.destination, locale: "it", question: "Perché fu costruito qui?" });
+  });
+
+  it("consumi mancanti: il budget conta il caso peggiore stimato, mai zero", async () => {
+    const ref = loaded.content.assertions[0]!.ref;
+    const { usage: _u, ...noUsage } = completion({ content: JSON.stringify({ status: "partial", answer: "So solo questo.", citations: [ref] }) });
+    const ai = { local: new OpenAICompatibleAdapter("http://localhost:11434/v1", null, "modello-locale", fakeFetch(200, noUsage)), web: null };
+    const budget = new QuestionBudget(1);
+    const out = await askGuide(ai, loaded, req, null, budget);
+    expect(out.answer).toMatchObject({ status: "partial", origin: "local" });
+    expect(out.costUsd).toBeGreaterThan(0);
+    expect(out.costUsd).toBe(budget.calls[0]!.usd);
+    expect(out.costQuality).toBe("unknown");
+    expect(budget.calls[0]).toMatchObject({ outcome: "ok", usage: null });
+  });
+
+  it("il budget resta un limite anche per un modello senza listino: con un budget troppo basso nessuna chiamata", async () => {
+    const fetch = fakeFetch(200, completion());
+    const ai = { local: new OpenAICompatibleAdapter("http://localhost:11434/v1", null, "modello-locale", fetch), web: null };
+    const out = await askGuide(ai, loaded, req, null, new QuestionBudget(0.001));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(out.answer.status).toBe("unavailable");
+  });
+
+  it("ASK_TIMEOUT_MS arriva all'adattatore; senza, resta il default di 25 s", async () => {
+    const seen: number[] = [];
+    const local = {
+      provider: "finto",
+      model: "claude-haiku-5-5",
+      generate: async (r: ModelRequest) => {
+        seen.push(r.timeoutMs);
+        return { text: JSON.stringify({ status: "off_topic", answer: "Parliamo della visita.", citations: [] }), stop: "end" as const, usage: { input_tokens: 10, output_tokens: 10 }, model: "claude-haiku-5-5" };
+      },
+    };
+    await askGuide({ local, web: null, localTimeoutMs: 40_000 }, loaded, req, null, new QuestionBudget(1));
+    await askGuide({ local, web: null }, loaded, req, null, new QuestionBudget(1));
+    expect(seen).toEqual([40_000, 25_000]);
+  });
+});

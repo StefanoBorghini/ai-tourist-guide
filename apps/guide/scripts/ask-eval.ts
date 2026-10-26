@@ -22,6 +22,12 @@
  * --web-max-uses: ricerche per domanda (come ASK_WEB_MAX_USES), per confrontare 1 e 3.
  * --json: risultati per domanda, da confrontare con `npm run ask:compare -- a.json b.json`.
  * --dry: solo cosa la base locale sa su ogni domanda, nessuna chiamata.
+ * --pack <cartella>: base compilata in locale da una cartella di Territory Pack (es. la fotografia del database
+ *   esportata con `guide-pack db-export`) invece del bundle pubblicato; con --full anche i contenuti che in
+ *   produzione sono a pagamento (solo valutazione locale: lib/eval-knowledge.ts). Il rapporto dice quale base.
+ * --timeout-ms <ms>: tempo massimo della risposta locale in questa esecuzione (da 5000 a 600000), per i modelli
+ *   lenti eseguiti sul proprio computer. Non cambia la route (ASK_TIMEOUT_MS, al massimo 50 s).
+ * Fornitori diversi da Anthropic: docs/v0.4-gaia/PROVIDER-ALTERNATIVI.md.
  *
  * Il rapporto riporta per ogni domanda le informazioni locali, se è stata fatta la ricerca, le fonti
  * (con dominio e livello), i numeri da verificare, i token, il costo e un punteggio automatico
@@ -30,13 +36,15 @@
  * (docs/v0.4-gaia/RUBRICHE.md).
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { askRequestSchema, type AskAnswer } from "../lib/ask";
 import { QuestionBudget, questionBudgetConfig, type BudgetSummary, type CallRecord, type CostQuality } from "../lib/ask-cost";
 import { formatStats, stats } from "../lib/ask-eval-stats";
-import { PERSONA_VERSION, PROMPT_VERSION, askGuide, loadKnowledge, webSearchSupported } from "../lib/ask-server";
+import { LOCAL_TIMEOUT_MS, PERSONA_VERSION, PROMPT_VERSION, askGuide, loadKnowledge, webSearchSupported } from "../lib/ask-server";
 import { webConfig } from "../lib/ask-web";
 import { scoreAnswer, scoreNote, type EvalScore } from "../lib/eval-score";
+import { loadPackKnowledge } from "../lib/eval-knowledge";
 import { modelsConfig, modelsFromEnv } from "../lib/model";
 
 interface EvalQuestion {
@@ -95,6 +103,9 @@ const { values } = parseArgs({
     "web-max-uses": { type: "string" },
     json: { type: "string" },
     out: { type: "string" },
+    pack: { type: "string" },
+    full: { type: "boolean", default: false },
+    "timeout-ms": { type: "string" },
   },
 });
 const fail = (message: string): never => {
@@ -109,8 +120,11 @@ const allQuestions = specs.flatMap((s) => s.questions);
 const dup = allQuestions.find((q, i) => allQuestions.findIndex((x) => x.id === q.id) !== i);
 if (dup) fail(`Domanda ripetuta nei file di prova: ${dup.id}`);
 
-const loaded = await loadKnowledge(spec.destination, spec.locale);
+if (values.full && !values.pack) fail("--full vale solo con --pack <cartella>: la base completa si compila solo in locale.");
+const fromPack = values.pack ? loadPackKnowledge(resolve(values.pack), spec.destination, spec.locale, { full: values.full }) : null;
+const loaded = fromPack ?? (await loadKnowledge(spec.destination, spec.locale));
 if (!loaded) fail(`Bundle non trovato: ${spec.destination}/${spec.locale}. Esegui prima \`npm run bundles\`.`);
+const baseLabel = fromPack?.label ?? "bundle pubblicato";
 const setup = modelsConfig();
 if (!values.dry && !setup.ok) fail(`Modello non configurato (${setup.ok ? "" : setup.reason}): usa --dry per vedere solo il contesto locale.`);
 const kb = loaded!;
@@ -141,6 +155,11 @@ const selected = allQuestions.filter((x) => (!only || only.has(x.id)) && (!areas
 // Stessi client della route: nessun nuovo tentativo automatico.
 const ai = values.dry ? null : modelsFromEnv();
 if (ai && !ai.web) config.enabled = false;
+if (values["timeout-ms"] !== undefined) {
+  const ms = Number(values["timeout-ms"]);
+  if (!/^\d+$/.test(values["timeout-ms"]) || ms < 5_000 || ms > 600_000) fail("--timeout-ms deve essere un intero da 5000 a 600000");
+  if (ai) ai.localTimeoutMs = ms;
+}
 console.error(
   `${selected.length} domande · modello ${localModel}${setup.ok ? ` (${setup.provider})` : ""} · budget stimato ${perQuestionUsd || "—"} $ a domanda · tetto ${maxUsd} $ · ricerca ${config.enabled ? `attiva (${config.model}, max ${config.maxUses} ricerche, effort ${config.effort})` : "spenta"}`,
 );
@@ -149,7 +168,7 @@ const version = specs.map((s) => s.version).filter(Boolean).join(", ") || "—";
 const out: string[] = [
   `# Prove delle risposte ibride — ${spec.destination}/${spec.locale}`,
   "",
-  `Base: \`${kb.kbHash.slice(0, 12)}\` · ${kb.content.assertions.length} affermazioni · suite ${version} · istruzioni \`${PROMPT_VERSION}\` · persona ${PERSONA_VERSION} · modello locale ${localModel}${setup.ok ? ` (${setup.provider})` : ""} · modello con ricerca ${config.enabled ? config.model : "—"} · max ${config.maxUses} ricerche · effort ${config.effort} · budget stimato per domanda ${perQuestionUsd || "—"} $ · ricerca supportata (Models API): ${supported ?? "non verificato"}`,
+  `Base: \`${kb.kbHash.slice(0, 12)}\` (${baseLabel}) · ${kb.content.assertions.length} affermazioni · tempo massimo della risposta locale ${ai?.localTimeoutMs ?? LOCAL_TIMEOUT_MS} ms · suite ${version} · istruzioni \`${PROMPT_VERSION}\` · persona ${PERSONA_VERSION} · modello locale ${localModel}${setup.ok ? ` (${setup.provider})` : ""} · modello con ricerca ${config.enabled ? config.model : "—"} · max ${config.maxUses} ricerche · effort ${config.effort} · budget stimato per domanda ${perQuestionUsd || "—"} $ · ricerca supportata (Models API): ${supported ?? "non verificato"}`,
   "",
 ];
 let totalUsd = 0;
@@ -318,6 +337,8 @@ if (values.json) {
       {
         destination: spec.destination,
         kbHash: kb.kbHash,
+        base: baseLabel,
+        localTimeoutMs: ai?.localTimeoutMs ?? LOCAL_TIMEOUT_MS,
         suite: version,
         prompt: PROMPT_VERSION,
         persona: PERSONA_VERSION,

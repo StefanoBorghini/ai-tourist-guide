@@ -288,3 +288,56 @@ describe("registro delle domande senza risposta", () => {
     expect(h.rpc).toHaveBeenCalledTimes(5);
   });
 });
+
+describe("route delle domande: tempo massimo e fornitori alternativi (fase B)", () => {
+  const body = { destination: "", locale: "it", question: "Perché fu costruito qui?" };
+
+  it("per default la risposta locale ha 25 s; con ASK_TIMEOUT_MS il tempo configurato", async () => {
+    h.create.mockResolvedValueOnce(localReply());
+    let r = await route({ ANTHROPIC_API_KEY: "x", ASK_MAX_USD_PER_QUESTION: "0.5" });
+    await r.POST(post({ ...body, destination }));
+    expect((h.create.mock.calls[0]![1] as { timeout: number }).timeout).toBe(25_000);
+    h.create.mockResolvedValueOnce(localReply());
+    r = await route({ ANTHROPIC_API_KEY: "x", ASK_MAX_USD_PER_QUESTION: "0.5", ASK_TIMEOUT_MS: "40000" });
+    await r.POST(post({ ...body, destination, question: "Chi lo costruì?" }));
+    expect((h.create.mock.calls[1]![1] as { timeout: number }).timeout).toBe(40_000);
+  });
+
+  it("un ASK_TIMEOUT_MS non valido spegne le domande: nessuna chiamata, 503", async () => {
+    const r = await route({ ANTHROPIC_API_KEY: "x", ASK_MAX_USD_PER_QUESTION: "0.5", ASK_TIMEOUT_MS: "999999" });
+    const res = await r.POST(post({ ...body, destination }));
+    expect(res.status).toBe(503);
+    expect((await r.GET().then((g) => g.json())).available).toBe(false);
+    expect(h.create).not.toHaveBeenCalled();
+  });
+
+  it("tempo scaduto: 504, stessa risposta per il visitatore, tipo «timeout» nei log, costo contato", async () => {
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    h.create.mockRejectedValueOnce(new Anthropic.APIConnectionTimeoutError());
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await route({ ANTHROPIC_API_KEY: "x", ASK_MAX_USD_PER_QUESTION: "0.5" });
+    const res = await r.POST(post({ ...body, destination }));
+    expect(res.status).toBe(504);
+    expect((await res.json()).status).toBe("unavailable");
+    const logged = errors.mock.calls.map((c) => JSON.parse(String(c[0]))).find((e) => e.event === "ask_error");
+    expect(logged).toMatchObject({ kind: "timeout", provider: "anthropic" });
+    // Una chiamata scaduta può essere già stata pagata: il suo caso peggiore entra nel conto.
+    expect(logged.budget.spentUsd).toBeGreaterThan(0);
+  });
+
+  it("fornitore compatibile OpenAI locale: la route lo usa senza chiamare Anthropic e senza ricerca web", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      expect(String(input)).toBe("http://localhost:11434/v1/chat/completions");
+      return new Response(JSON.stringify({ model: "modello-locale", choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ status: "answered", answer: "Dalla base.", citations: [ref] }) } }] }), { status: 200 });
+    });
+    const r = await route({ ASK_PROVIDER: "openai-compatible", ASK_BASE_URL: "http://localhost:11434/v1", ASK_MODEL: "modello-locale", ASK_MAX_USD_PER_QUESTION: "0.5", ANTHROPIC_API_KEY: "" });
+    const info = await (await r.GET()).json();
+    expect(info).toMatchObject({ available: true, provider: "openai-compatible", model: "modello-locale", web: { enabled: false } });
+    const res = await (await r.POST(post({ ...body, destination }))).json();
+    expect(res).toMatchObject({ status: "answered", origin: "local", meter: { calls: 1, costQuality: "unknown" } });
+    // Il servizio non ha riportato i consumi: il costo è il caso peggiore stimato, non zero.
+    expect(res.meter.costUsd).toBeGreaterThan(0);
+    expect(h.create).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

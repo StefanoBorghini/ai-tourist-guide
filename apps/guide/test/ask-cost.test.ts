@@ -355,3 +355,24 @@ describe("statistiche delle prove", () => {
     expect(agg.a).toMatchObject({ valutate: 2, corrette: 0, fuorvianti: 2 });
   });
 });
+
+describe("chiamate senza consumi riportati (fornitori compatibili OpenAI, server locali)", () => {
+  it("si scala il caso peggiore stimato, mai zero; un modello senza listino resta «unknown»", () => {
+    const known = new QuestionBudget(1);
+    const p1 = known.plan({ model: "claude-haiku-5-5", inputTokens: 5000, maxTokens: 1000, minTokens: 100 });
+    if (!p1.ok) throw new Error(p1.reason);
+    const r1 = known.recordUnmetered("local", p1, "claude-haiku-5-5");
+    expect(r1).toMatchObject({ outcome: "ok", usage: null, usd: p1.worstUsd, quality: "estimated" });
+    expect(r1.usd).toBeGreaterThan(0);
+
+    const unknown = new QuestionBudget(1);
+    const p2 = unknown.plan({ model: "modello-locale", inputTokens: 5000, maxTokens: 1000, minTokens: 100 });
+    if (!p2.ok) throw new Error(p2.reason);
+    const r2 = unknown.recordUnmetered("local", p2, "modello-locale");
+    expect(r2).toMatchObject({ usd: p2.worstUsd, quality: "unknown" });
+    // Le tariffe prudenti valgono anche qui: un modello sconosciuto non costa meno del più caro del listino.
+    expect(p2.worstUsd).toBeGreaterThanOrEqual(p1.worstUsd);
+    expect(unknown.spentUsd).toBe(r2.usd);
+    expect(unknown.remainingUsd).toBeLessThan(1);
+  });
+});

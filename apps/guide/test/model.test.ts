@@ -212,6 +212,20 @@ describe("adattatore compatibile OpenAI: server locali e servizi parziali", () =
     await expect(new OpenAICompatibleAdapter("https://x.eu", "k", "m", refused).generate(request)).rejects.toMatchObject({ kind: "unavailable" });
   });
 
+  it("errore HTTP: il motivo scritto dal servizio entra nel messaggio, accorciato e senza la chiave", async () => {
+    const ollamaError = fakeFetch(500, { error: "failed to parse JSON grammar" });
+    await expect(new OpenAICompatibleAdapter("http://localhost:11434/v1", null, "m", ollamaError).generate(request)).rejects.toMatchObject({ kind: "unavailable", status: 500, message: "HTTP 500: failed to parse JSON grammar" });
+    const openaiStyle = fakeFetch(400, { error: { message: "chiave k-segreta non valida", type: "invalid_request_error" } });
+    const e = (await new OpenAICompatibleAdapter("https://x.eu", "k-segreta", "m", openaiStyle).generate(request).catch((x: unknown) => x)) as Error;
+    expect(e.message).toBe("HTTP 400: chiave [chiave] non valida");
+    const long = vi.fn(async () => new Response(`errore\n${"x".repeat(1000)}`, { status: 503 }));
+    const m = ((await new OpenAICompatibleAdapter("https://x.eu", "k", "m", long).generate(request).catch((x: unknown) => x)) as Error).message;
+    expect(m.startsWith("HTTP 503: errore x")).toBe(true);
+    expect(m.length).toBeLessThanOrEqual("HTTP 503: ".length + 200);
+    const empty = vi.fn(async () => new Response("", { status: 502 }));
+    await expect(new OpenAICompatibleAdapter("https://x.eu", "k", "m", empty).generate(request)).rejects.toMatchObject({ message: "HTTP 502" });
+  });
+
   it("corpo non JSON o senza scelte: errore del fornitore, mai una risposta vuota accettata", async () => {
     const html = vi.fn(async () => new Response("<html>errore</html>", { status: 200 }));
     await expect(new OpenAICompatibleAdapter("https://x.eu", "k", "m", html).generate(request)).rejects.toMatchObject({ kind: "unavailable" });

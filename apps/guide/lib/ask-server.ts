@@ -184,6 +184,11 @@ export interface AskOutcome {
   answer: AskAnswer;
   /** Motivo per cui la risposta del modello è stata scartata (per i log delle lacune). */
   rejected?: string;
+  /**
+   * Testo originale della risposta scartata, accorciato a REJECTED_TEXT_CHARS. Solo per la valutazione locale
+   * (`ask:eval`): la route non lo registra né lo invia, e il visitatore riceve il messaggio di ripiego.
+   */
+  rejectedText?: string;
   /** Consumi della risposta locale e di quella con ricerca, se ci sono state. */
   usage: { local?: Usage; web?: Usage };
   /** Dollari scalati dal budget (listino sui consumi reali; stime dove i consumi mancano). */
@@ -198,7 +203,11 @@ export interface AskOutcome {
   web?: { attempted: boolean; error?: string; searches: number; rounds: number; sources: string[]; unknownRefs?: string[]; searchErrors?: string[] };
 }
 
-type LocalResult = { answer: AskAnswer; rejected?: string; usage: Usage | null; model: string };
+type LocalResult = { answer: AskAnswer; rejected?: string; rejectedText?: string; usage: Usage | null; model: string };
+
+/** Lunghezza massima del testo scartato conservato per la valutazione. */
+export const REJECTED_TEXT_CHARS = 4000;
+const rejectedText = (text: string) => text.slice(0, REJECTED_TEXT_CHARS);
 
 /**
  * Un rifiuto HTTP 4xx (richiesta non eseguita) non consuma; tutto il resto può aver consumato.
@@ -262,13 +271,13 @@ export async function askLocal(
 
   if (response.stop !== "end") {
     const reason = response.stop === "refusal" ? "il modello ha rifiutato la richiesta" : "risposta troncata (limite di lunghezza)";
-    return { answer: fallbackAnswer(req.locale, "rejected", reason), rejected: reason, usage, model: response.model };
+    return { answer: fallbackAnswer(req.locale, "rejected", reason), rejected: reason, rejectedText: rejectedText(response.text), usage, model: response.model };
   }
   const checked = checkModelAnswer(response.text, loaded.content, req, clock);
   if (!checked.ok) {
     // Un'emergenza scartata dal controllo non diventa mai un «riprova»: si rimanda comunque al 112.
     const answer = fallbackAnswer(req.locale, checked.safety ? "safety" : "rejected", checked.reason);
-    return { answer, rejected: checked.reason, usage, model: response.model };
+    return { answer, rejected: checked.reason, rejectedText: rejectedText(response.text), usage, model: response.model };
   }
   return { answer: { ...checked.answer, origin: "local" }, usage, model: response.model };
 }
@@ -406,7 +415,7 @@ export async function askGuide(ai: AskModels, loaded: Loaded, rawReq: AskRequest
     const l = local as LocalResult | null;
     return {
       answer: { ...answer, meter },
-      ...(l?.rejected && answer.origin !== "web" ? { rejected: l.rejected } : {}),
+      ...(l?.rejected && answer.origin !== "web" ? { rejected: l.rejected, ...(l.rejectedText !== undefined ? { rejectedText: l.rejectedText } : {}) } : {}),
       usage: { ...(l?.usage ? { local: l.usage } : {}), ...(webUsage ? { web: webUsage } : {}) },
       costUsd: summary.spentUsd,
       costQuality: summary.quality,

@@ -130,6 +130,34 @@ const isTimeout = (error: unknown) => {
   return name === "TimeoutError" || name === "AbortError";
 };
 
+/** Lunghezza massima del motivo che il servizio scrive nel corpo di una risposta di errore (per i log). */
+export const ERROR_DETAIL_CHARS = 200;
+
+/**
+ * Motivo di un errore HTTP come lo scrive il servizio (es. Ollama: `{"error":"…"}`), accorciato e su una riga:
+ * senza, nei log resta solo «HTTP 500». È il testo del fornitore, non i dati del visitatore; la chiave, se il
+ * servizio la ripetesse, viene mascherata. Vuoto se il corpo non si legge.
+ */
+async function errorDetail(res: Response, apiKey: string | null): Promise<string> {
+  let text = "";
+  try {
+    text = await res.text();
+  } catch {
+    return "";
+  }
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown };
+    const e = parsed?.error;
+    if (typeof e === "string") text = e;
+    else if (e && typeof e === "object" && typeof (e as { message?: unknown }).message === "string") text = (e as { message: string }).message;
+  } catch {
+    // Non JSON: si usa il testo così com'è.
+  }
+  if (apiKey) text = text.split(apiKey).join("[chiave]");
+  const line = text.replace(/\s+/g, " ").trim().slice(0, ERROR_DETAIL_CHARS);
+  return line ? `: ${line}` : "";
+}
+
 /**
  * Limiti interni del `fetch` di Node (5 minuti per l'inizio della risposta o tra un pezzo e l'altro): arrivano come
  * «fetch failed» con il codice nella causa. Sono tempi scaduti, non errori di rete (vedi lib/eval-fetch.ts).
@@ -184,7 +212,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
         signal: AbortSignal.timeout(req.timeoutMs),
       });
       if (res.status === 429) throw new ModelError("rate_limit", "limite di richieste del fornitore", 429);
-      if (!res.ok) throw new ModelError("unavailable", `HTTP ${res.status}`, res.status);
+      if (!res.ok) throw new ModelError("unavailable", `HTTP ${res.status}${await errorDetail(res, this.apiKey)}`, res.status);
       // Anche la lettura del corpo rientra nel tempo concesso: un timeout qui è un timeout, non un JSON vuoto.
       body = (await res.json().catch((error: unknown) => {
         if (isTimeout(error)) throw error;

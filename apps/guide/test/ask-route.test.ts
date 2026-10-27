@@ -340,4 +340,31 @@ describe("route delle domande: tempo massimo e fornitori alternativi (fase B)", 
     expect(h.create).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("risposta scartata: il visitatore riceve il ripiego, e il testo del modello non va né nella risposta né nei log", async () => {
+    const secret = "TESTO-SCARTATO-DAL-CONTROLLO";
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify({ model: "modello-locale", choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ status: "answered", answer: `${secret} nel 1312.`, citations: ["x:inventata"] }) } }] }), { status: 200 }),
+    );
+    const r = await route({ ASK_PROVIDER: "openai-compatible", ASK_BASE_URL: "http://localhost:11434/v1", ASK_MODEL: "modello-locale", ASK_MAX_USD_PER_QUESTION: "0.5", ANTHROPIC_API_KEY: "" });
+    const raw = await (await r.POST(post({ ...body, destination }))).text();
+    expect(JSON.parse(raw)).toMatchObject({ status: "rejected" });
+    expect(raw).not.toContain(secret);
+    const logs = [console.info, console.error, console.warn].flatMap((f) => vi.mocked(f).mock.calls.flat()).map(String).join("\n");
+    expect(logs).toContain("citazioni inesistenti");
+    expect(logs).not.toContain(secret);
+  });
+
+  it("errore HTTP del fornitore: nei log il motivo scritto dal servizio, accorciato e senza la chiave", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify({ error: `modello sovraccarico, chiave-del-servizio ${"x".repeat(400)}` }), { status: 500 }),
+    );
+    const r = await route({ ASK_PROVIDER: "openai-compatible", ASK_BASE_URL: "https://servizio.example/v1", ASK_API_KEY: "chiave-del-servizio", ASK_MODEL: "m", ASK_MAX_USD_PER_QUESTION: "0.5", ANTHROPIC_API_KEY: "" });
+    const res = await r.POST(post({ ...body, destination }));
+    expect(res.status).toBe(502);
+    const logs = vi.mocked(console.error).mock.calls.flat().map(String).join("\n");
+    expect(logs).toContain("HTTP 500: modello sovraccarico");
+    expect(logs).not.toContain("chiave-del-servizio");
+    expect(logs).toContain("[chiave]");
+  });
 });

@@ -106,6 +106,8 @@ npm run gaia:examples -w @guide/app -- --file ../../territories/it.liguria.sp.po
 Opzioni:
 - `--timeout-ms` (da 5000 a 600000) vale **solo per quell'esecuzione**: per i modelli lenti sul proprio computer. Non cambia la route. Lo script chiama il fornitore compatibile OpenAI senza il limite di 5 minuti del `fetch` di Node (`lib/eval-fetch.ts`, solo script), che con un server senza streaming come Ollama farebbe fallire con «fetch failed» ogni risposta oltre i 300 s.
 - `--no-web`: senza la chiave Anthropic la ricerca è comunque spenta.
+- Per ogni risposta scartata dai controlli il rapporto (e il file `--json`, campo `rejectedText`) riporta anche il **testo originale del modello**, per capire perché è stata scartata. Solo valutazione: la route non lo registra né lo invia, e il visitatore riceve il messaggio di ripiego.
+- Gli errori HTTP del servizio riportano il motivo scritto dal servizio (per esempio `HTTP 500: …`), accorciato a 200 caratteri e con la chiave mascherata, anche nei log della route.
 
 **Confronto tra due esecuzioni:** stesse domande, stessa base.
 ```

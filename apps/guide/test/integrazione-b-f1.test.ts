@@ -93,6 +93,17 @@ describe("server locale senza chiave (fase B) con il contesto della F1", () => {
     expect(out.answer.status).toBe("rejected");
   });
 
+  it("risposta scartata: il testo originale resta solo per la valutazione, il visitatore riceve il ripiego", async () => {
+    const { ai } = ollama({ status: "answered", answer: "C'è il sole, il sentiero è aperto.", citations: ["it.test:luogo-inventato"] });
+    const out = await askGuide(ai, loaded, req, null, new QuestionBudget(1), clock);
+    expect(out.answer.status).toBe("rejected");
+    expect(out.answer.answer).not.toContain("il sentiero è aperto");
+    expect(JSON.parse(out.rejectedText!)).toMatchObject({ answer: "C'è il sole, il sentiero è aperto.", citations: ["it.test:luogo-inventato"] });
+    // Una risposta accettata non porta testo scartato.
+    const ok = await askGuide(ollama({ status: "not_in_knowledge", answer: "Non lo so.", citations: [] }).ai, loaded, req, null, new QuestionBudget(1), clock);
+    expect(ok.rejectedText).toBeUndefined();
+  });
+
   it("dichiarare l'incertezza è ammesso", async () => {
     const { ai } = ollama({ status: "not_in_knowledge", answer: "Non posso verificare se oggi il sentiero sia aperto: controlla sul sito del Parco.", citations: [] });
     const out = await askGuide(ai, loaded, req, null, new QuestionBudget(1), clock);

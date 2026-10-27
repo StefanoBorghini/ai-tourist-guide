@@ -246,6 +246,7 @@ for (const q of selected) {
     searches,
     rounds,
     ...(outcome.web?.error ? { error: outcome.web.error } : {}),
+    ...(outcome.rejectedText !== undefined ? { rejectedText: outcome.rejectedText } : {}),
   });
   totalUsd += outcome.costUsd;
   totalSearches += searches;
@@ -266,6 +267,10 @@ for (const q of selected) {
     `**Affermazioni della base citate:** ${a.citations.map((c) => `\`${c.split(":").pop()}\``).join(", ") || "nessuna"}${a.usedPosition ? " · distanze del sistema" : ""}${a.usedPersona ? " · persona" : ""}`,
     "",
   );
+  if (outcome.rejectedText !== undefined) {
+    // Solo valutazione: il visitatore riceve il messaggio di ripiego, mai questo testo.
+    out.push("**Testo scartato dal controllo** (solo valutazione, mai mostrato al visitatore):", "", "~~~", outcome.rejectedText.replaceAll("~~~", "~ ~ ~"), "~~~", "");
+  }
   if (a.webSources?.length) {
     out.push("**Fonti web citate:**", "");
     for (const s of a.webSources) out.push(`- [${s.title}](${s.url}) — ${s.site} · livello ${s.tier}${s.pageAge ? ` · ${s.pageAge}` : ""}${s.citedText ? `\n  «${s.citedText}»` : ""}`);

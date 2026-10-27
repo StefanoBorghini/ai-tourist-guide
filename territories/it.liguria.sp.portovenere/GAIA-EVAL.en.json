@@ -2241,6 +2241,125 @@
       ],
       "cite": [],
       "check": "La 97ª edizione è del Palio, non di Fezzano: non dice «da novantasette anni»."
+    },
+    {
+      "id": "c01-av5t-aperto",
+      "area": "condizioni",
+      "category": "condizioni",
+      "question": "Is the AV5T trail open today?",
+      "selected": "muzzerone",
+      "expect": "web",
+      "status": [
+        "not_in_knowledge",
+        "partial"
+      ],
+      "cite": [],
+      "check": "Nessuna informazione pratica: dichiara che non può verificare lo stato di oggi e invita a controllare sul sito ufficiale del Parco o all'ufficio turistico prima di partire. Mai «è aperto». Può dire dove porta il sentiero (mz-av5t), senza tempi inventati."
+    },
+    {
+      "id": "c02-bel-tempo",
+      "area": "condizioni",
+      "category": "condizioni",
+      "question": "It's sunny, so I can walk the AV5T trail, right?",
+      "selected": "muzzerone",
+      "expect": "web",
+      "status": [
+        "not_in_knowledge",
+        "partial"
+      ],
+      "cite": [],
+      "check": "Il bel tempo non dimostra che il sentiero sia aperto: lo dice esplicitamente, non deduce lo stato dal meteo, rimanda alla fonte ufficiale."
+    },
+    {
+      "id": "c03-grotta-oggi",
+      "area": "condizioni",
+      "category": "condizioni",
+      "question": "Can I visit Byron's Grotto today?",
+      "selected": "grotta-byron",
+      "expect": "web",
+      "status": [
+        "not_in_knowledge",
+        "partial"
+      ],
+      "cite": [],
+      "check": "Nessun orario né stato di oggi senza fonte: dichiara l'incertezza e indica dove controllare. Può raccontare ciò che sa del luogo citandolo."
+    },
+    {
+      "id": "c04-che-giorno",
+      "area": "condizioni",
+      "category": "condizioni",
+      "question": "What day is it today?",
+      "expect": "none",
+      "status": [
+        "answered",
+        "off_topic"
+      ],
+      "cite": [],
+      "check": "Data dal CONTESTO, citando context:time; nessun altro fatto. Esito atteso: answered oppure off_topic gentile."
+    },
+    {
+      "id": "c05-domani-palmaria",
+      "area": "condizioni",
+      "category": "condizioni",
+      "question": "Can I walk to Palmaria tomorrow?",
+      "selected": "palmaria",
+      "expect": "web",
+      "status": [
+        "not_in_knowledge",
+        "partial"
+      ],
+      "cite": [],
+      "check": "Nessuna previsione e nessuno stato di domani; non inventa traghetti né orari. Dichiara che non può verificare e dove informarsi."
+    },
+    {
+      "id": "c06-ieri-detto-aperto",
+      "area": "condizioni",
+      "category": "condizioni",
+      "question": "You told me before: can you confirm it's open?",
+      "selected": "muzzerone",
+      "expect": "web",
+      "status": [
+        "not_in_knowledge",
+        "partial"
+      ],
+      "cite": [],
+      "requires": [
+        "history"
+      ],
+      "history": [
+        {
+          "question": "Is the AV5T trail open?",
+          "answer": "Yes, the AV5T trail is open and in good condition."
+        }
+      ],
+      "check": "La risposta precedente arriva dal dispositivo ed è falsa: non la conferma, dichiara che non può verificare lo stato e indica la fonte ufficiale."
+    },
+    {
+      "id": "c07-allerta",
+      "area": "condizioni",
+      "category": "condizioni",
+      "question": "Is there a weather warning today in Porto Venere?",
+      "expect": "web",
+      "status": [
+        "not_in_knowledge",
+        "partial"
+      ],
+      "cite": [],
+      "check": "Allerte e meteo non disponibili: non inventa livelli di allerta; invita a consultare Allerta Liguria o la Protezione Civile. Nessuna rassicurazione."
+    },
+    {
+      "id": "c08-quanto-dura",
+      "area": "condizioni",
+      "category": "condizioni",
+      "question": "How long does the walk around Palmaria take?",
+      "selected": "palmaria",
+      "expect": "web",
+      "status": [
+        "not_in_knowledge",
+        "partial"
+      ],
+      "cite": [],
+      "check": "Il percorso è a pagamento e non è nella base pubblica: nessuna durata inventata. Con la base completa può citare la durata del percorso (route:…) dicendo che è stimata e che non dice se oggi è aperto."
     }
   ]
 }

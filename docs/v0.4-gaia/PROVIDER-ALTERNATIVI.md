@@ -11,6 +11,7 @@ Come far rispondere Gaia con un modello diverso da quello di produzione e come v
 | Base di conoscenza, prompt (`SYSTEM_PROMPT`), persona di Gaia | **Identici**: lo stesso testo va a qualunque modello |
 | Controlli della risposta (`checkModelAnswer`: citazioni, numeri, secoli, 112) | **Identici**: una risposta che non li supera viene scartata, con qualunque modello |
 | Emergenze riconosciute senza modello (`lib/emergency.ts`) | Identiche |
+| Data e ora sul posto, dati pratici e controllo sullo stato di oggi (F1, `CONDIZIONI.md`) | Identici: lo stato di oggi senza un'informazione pratica valida è scartato con qualunque modello |
 | Budget per domanda e tetto giornaliero | Identici. Un modello fuori listino è contato **con le tariffe più alte del listino**, mai gratis (§5) |
 | «Approfondisci» (ricerca web) | **Solo Anthropic**. Senza `ANTHROPIC_API_KEY` la guida risponde con la sola base e lo dice |
 | Ripiego lato server su un altro modello (`fallbacks`) | Solo Anthropic |

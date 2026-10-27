@@ -5,6 +5,7 @@ import type { BundleContent } from "@guide/bundle/client";
 import { distanceM } from "@guide/context-engine";
 import { rememberAssertions } from "@guide/narrative-planner";
 import { ASK_LIMITS, fallbackAnswer, type AskAnswer, type WebSource } from "../lib/ask";
+import { operationalItems } from "../lib/ask-operational";
 import { detectEmergency } from "../lib/emergency";
 import type { PositionSource } from "../lib/field-points";
 import type { GuideRuntime } from "../lib/runtime";
@@ -336,14 +337,18 @@ export function AskBox(props: {
 const safeUrl = (url: string | undefined) => (url && /^https?:\/\//i.test(url) ? url : undefined);
 
 /**
- * «Fonti e approfondimenti»: le fonti della guida dietro le affermazioni citate e le pagine web
- * citate nella risposta, tenute distinte. Sezione chiusa per non disturbare la lettura.
+ * «Fonti e approfondimenti»: le fonti della guida dietro le affermazioni e i dati pratici citati (percorsi,
+ * informazioni pratiche: lì c'è il sito ufficiale dove controllare lo stato di oggi) e le pagine web citate nella
+ * risposta, tenute distinte. Sezione chiusa per non disturbare la lettura.
  */
 function AnswerSources(props: { content: BundleContent; answer: AskAnswer; t: UiText }) {
   const { content, answer, t } = props;
   const byRef = new Map(content.sources.map((s) => [s.ref, s]));
+  const ops = answer.citations.some((ref) => ref.startsWith("info:") || ref.startsWith("route:"))
+    ? new Map(operationalItems(content).map((i) => [i.ref, i.sources]))
+    : null;
   const local = [
-    ...new Set(answer.citations.flatMap((ref) => content.assertions.find((a) => a.ref === ref)?.sources ?? [])),
+    ...new Set(answer.citations.flatMap((ref) => content.assertions.find((a) => a.ref === ref)?.sources ?? ops?.get(ref) ?? [])),
   ].flatMap((ref) => byRef.get(ref) ?? []);
   const web: WebSource[] = answer.webSources ?? [];
   if (local.length === 0 && web.length === 0) return null;

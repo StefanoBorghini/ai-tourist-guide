@@ -18,6 +18,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { askRequestSchema, fallbackAnswer, type AskAnswer } from "../../../../lib/ask";
+import { askClock, cacheSlot } from "../../../../lib/ask-operational";
 import { QuestionBudget, questionBudgetConfig } from "../../../../lib/ask-cost";
 import { PERSONA_VERSION, PROMPT_VERSION, askGuide, bundleVersions, GuideUnavailableError, loadKnowledge, webSearchSupported } from "../../../../lib/ask-server";
 import { DailyCounter, TtlCache, cacheKey, cacheable, redactForLog, webConfig } from "../../../../lib/ask-web";
@@ -117,8 +118,10 @@ export async function POST(request: Request): Promise<Response> {
   if (!loaded && unavailable) return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 503, headers: { "retry-after": "30" } });
   if (!loaded) return Response.json({ error: "destinazione sconosciuta" }, { status: 404 });
 
-  // Cache: stessa domanda, stesso luogo, stessa versione dei contenuti, senza conversazione alle spalle.
-  const key = cacheKey(req, loaded.kbHash);
+  // Data e ora sul posto: le stesse per il messaggio, il controllo e la cache.
+  const clock = askClock();
+  // Cache: stessa domanda, stesso luogo, stessa versione dei contenuti, stessa ora sul posto, senza conversazione alle spalle.
+  const key = cacheKey(req, loaded.kbHash, cacheSlot(clock));
   const hit = key ? answers.get(key) : undefined;
   if (hit) {
     console.info(JSON.stringify({ event: "ask", status: hit.status, origin: hit.origin ?? "local", cached: true, kbHash: loaded.kbHash, prompt: PROMPT_VERSION, ms: Date.now() - started }));
@@ -147,7 +150,7 @@ export async function POST(request: Request): Promise<Response> {
         webLimiter.hit(ip);
         return true;
       },
-    }, budget);
+    }, budget, clock);
     // Il costo della domanda (reale o stimato, mai zero se c'è stata una chiamata) entra nel tetto del giorno.
     spend.record(outcome.costUsd);
     // Lacune della base di conoscenza: domande senza risposta verificata, utili alla redazione.

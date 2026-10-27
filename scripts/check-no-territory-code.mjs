@@ -10,9 +10,10 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const CODE_DIRS = ["apps", "packages"];
 const CODE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|json|css)$/;
 // "bundles": file generati dai Territory Pack al build dell'app (apps/guide/public/bundles), non codice.

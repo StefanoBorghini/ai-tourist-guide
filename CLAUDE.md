@@ -39,8 +39,11 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato; distanze e direzioni in linea d'aria le calcola il
   sistema dalla posizione, l'AI le riferisce soltanto; i riferimenti che il modello scrive nel testo si tolgono e valgono come citazioni, `extractTextRefs`), `lib/ask-operational.ts` (data e ora sul posto, percorsi,
   informazioni pratiche con scadenza e note di sicurezza del bundle pubblico passati a Gaia come dati citabili; lo stato
-  di oggi, «è aperto», solo con un'informazione pratica valida citata: il bel tempo non dimostra che un sentiero sia
-  aperto; vedi `docs/v0.4-gaia/CONDIZIONI.md`), `lib/ask-web.ts` (approfondimento con ricerca web: quando
+  di oggi, «è aperto», solo con un avviso operativo in vigore o un'informazione pratica valida citati: il bel tempo non
+  dimostra che un sentiero sia aperto; vedi `docs/v0.4-gaia/CONDIZIONI.md`), `lib/ask-notices.ts` e
+  `lib/ask-notices-server.ts` (avvisi operativi verificati, fase F2: letti con il client anonimo da
+  `public_operational_notices()` al massimo una volta al minuto, solo nel messaggio della domanda, citati `op:<slug>`,
+  «non disponibili» se il database non risponde in 1,5 s), `lib/ask-web.ts` (approfondimento con ricerca web: quando
   cercare, solo su richiesta salvo `ASK_WEB_AUTO=1` e mai in automatico se la domanda rimanda a un luogo non indicato, cache anche dei «non lo so», lettura di fonti e citazioni, cache, limiti; puro e testato), `lib/ask-server.ts` (chiamate al
   modello), `lib/model.ts` (il modello dietro un'interfaccia: Anthropic o API compatibili OpenAI, scelti con
   `ASK_PROVIDER`; anche un server locale come Ollama, senza chiave solo su localhost; `ASK_JSON_MODE`, `ASK_TIMEOUT_MS`;
@@ -104,6 +107,12 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   nella guida `components/EventsPanel.tsx` con regole pure in `lib/events-view.ts`: pulsante «Oggi a …» nella home (apre un pannello,
   la home resta senza scorrimento) e scheda «Eventi» nella visita; viste Oggi/Domani/7 giorni dal `today` del territorio, filtri,
   annullato/rinviato come testo, «Verificato il …», link solo https; solo online, mai nel pacchetto offline né nelle domande all'AI
+- Avvisi operativi (stato di oggi di luoghi e percorsi, fuori da Territory Pack e bundle, letti da Gaia): tabella
+  `operational_notices` (migrazione `20261105000000_operational_notices.sql`; stato, testi per lingua, un luogo o un percorso,
+  validità al massimo 180 giorni nel fuso della destinazione, fonte https e verifica obbligatorie per pubblicare, ogni modifica di
+  un avviso pubblicato richiede una nuova verifica, lettura pubblica solo con `public_operational_notices()`); scheda «Avvisi»
+  dello Studio in `app/studio/[pack]/avvisi/` con azioni in `app/studio/actions-notices.ts` e modulo in
+  `lib/studio/operational-notices.ts`; vedi `docs/v0.4-gaia/CONDIZIONI.md`
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`
   test delle migrazioni, delle policy e della parità pack ↔ database su un Postgres locale (`npm run db:check`;

@@ -15,6 +15,7 @@
 import { createHash } from "node:crypto";
 import type { BundleContent } from "@guide/bundle/client";
 import { operationalItems } from "./ask-operational";
+import type { NoticeSet } from "./ask-notices";
 import { POSITION_CITATION, positionContext, type AskAnswer, type AskRequest, type SourceTier, type WebSource } from "./ask";
 
 // ------------------------------------------------------------------ configurazione
@@ -223,7 +224,7 @@ export interface ParsedWebAnswer {
  * Il testo finale è quello dopo l'ultimo blocco di strumenti: ciò che il modello scrive prima delle
  * ricerche ("cerco…") non fa parte della risposta.
  */
-export function parseWebAnswer(blocks: ContentBlockLike[], content: BundleContent, req: AskRequest): ParsedWebAnswer {
+export function parseWebAnswer(blocks: ContentBlockLike[], content: BundleContent, req: AskRequest, notices?: NoticeSet): ParsedWebAnswer {
   let lastTool = -1;
   const pageAge = new Map<string, string>();
   let searchBlocks = 0;
@@ -262,7 +263,7 @@ export function parseWebAnswer(blocks: ContentBlockLike[], content: BundleConten
   }
 
   const raw = finalBlocks.map((b) => b.text ?? "").join("");
-  const known = new Set([...content.assertions.map((a) => a.ref), ...operationalItems(content).map((i) => i.ref)]);
+  const known = new Set([...content.assertions.map((a) => a.ref), ...operationalItems(content, notices).map((i) => i.ref)]);
   const pos = positionContext(content, req);
   const packCitations: string[] = [];
   const unknownRefs: string[] = [];
@@ -301,7 +302,7 @@ const numbersIn = (text: string) => new Set([...text.matchAll(NUMBER)].map((m) =
  * citati dalle fonti web. I brani citati sono corti (150 caratteri), quindi è un indizio per la
  * revisione, non una prova di invenzione: per questo non scarta la risposta.
  */
-export function unsupportedNumbers(parsed: ParsedWebAnswer, blocks: ContentBlockLike[], content: BundleContent, req: AskRequest, local: AskAnswer | null): string[] {
+export function unsupportedNumbers(parsed: ParsedWebAnswer, blocks: ContentBlockLike[], content: BundleContent, req: AskRequest, local: AskAnswer | null, notices?: NoticeSet): string[] {
   const allowed = numbersIn(`${req.question} ${local?.answer ?? ""}`);
   const byRef = new Map(content.assertions.map((a) => [a.ref, a]));
   for (const ref of parsed.packCitations) {
@@ -311,7 +312,7 @@ export function unsupportedNumbers(parsed: ParsedWebAnswer, blocks: ContentBlock
     if (a.value) for (const n of numbersIn(Object.values(a.value).join(" "))) allowed.add(n);
   }
   if (parsed.usedPosition) for (const p of positionContext(content, req)?.places ?? []) allowed.add(String(p.meters));
-  const ops = new Map(operationalItems(content).map((i) => [i.ref, i]));
+  const ops = new Map(operationalItems(content, notices).map((i) => [i.ref, i]));
   for (const ref of parsed.packCitations) for (const n of ops.get(ref)?.numbers ?? []) allowed.add(n);
   for (const b of blocks) {
     for (const c of (b.citations ?? []) as { cited_text?: unknown; title?: unknown }[]) {

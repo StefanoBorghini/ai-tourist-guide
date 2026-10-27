@@ -83,7 +83,7 @@ describe("server locale senza chiave (fase B) con il contesto della F1", () => {
   it("un'informazione pratica scaduta non basta", async () => {
     const { ai } = ollama({ status: "answered", answer: "Il sentiero del belvedere è chiuso per lavori.", citations: [expired] });
     const out = await askGuide(ai, loaded, req, null, new QuestionBudget(1), clock);
-    expect(out.rejected).toBe("stato di oggi dichiarato senza un'informazione pratica valida");
+    expect(out.rejected).toBe("stato di oggi dichiarato senza un avviso o un'informazione pratica valida");
   });
 
   it("una conferma falsa nella conversazione precedente non viene ripetuta", async () => {

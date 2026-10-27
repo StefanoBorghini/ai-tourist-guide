@@ -12,6 +12,7 @@
  * Solo dati del bundle pubblico (decisione D10): nessun contenuto a pagamento arriva al modello per questa via.
  */
 import type { BundleContent } from "@guide/bundle/client";
+import { noticeLine, noticeNumbers, type NoticeSet } from "./ask-notices";
 import { addDays, isValidTimeZone, localDate, localTime } from "./local-events";
 
 /**
@@ -23,15 +24,21 @@ export const DEFAULT_TIME_ZONE = "Europe/Rome";
 /** Citazione della data e dell'ora calcolate dal sistema (non è un'affermazione della base). */
 export const TIME_CITATION = "context:time";
 
-/** Istante della domanda e fuso in cui leggerlo. */
+/**
+ * Il momento della domanda: istante, fuso in cui leggerlo e avvisi operativi in vigore (fase F2, `ask-notices.ts`).
+ * Gli avvisi stanno qui perché, come l'ora, valgono per quel momento: stessi per il messaggio, il controllo e la cache.
+ */
 export interface AskClock {
   now: number;
   timeZone: string;
+  /** Assenti: la destinazione non ha avvisi (Supabase non configurato, bundle dai file, prove). */
+  notices?: NoticeSet;
 }
 
-export const askClock = (now: number = Date.now(), timeZone: string = DEFAULT_TIME_ZONE): AskClock => ({
+export const askClock = (now: number = Date.now(), timeZone: string = DEFAULT_TIME_ZONE, notices?: NoticeSet): AskClock => ({
   now,
   timeZone: isValidTimeZone(timeZone) ? timeZone : DEFAULT_TIME_ZONE,
+  ...(notices ? { notices } : {}),
 });
 
 const WEEKDAYS = {
@@ -76,11 +83,11 @@ export const cacheSlot = (clock: AskClock): string => `${localDate(clock.now, cl
 
 // ------------------------------------------------------------------ dati pratici citabili
 
-export type OperationalKind = "info" | "route" | "safety";
+export type OperationalKind = "info" | "route" | "safety" | "notice";
 
 /** Un dato pratico della base, con il riferimento con cui il modello lo cita. */
 export interface OperationalItem {
-  /** `info:<luogo>#<n>`, `route:<percorso>`, `safety:<id>`. */
+  /** `info:<luogo>#<n>`, `route:<percorso>`, `safety:<id>`, `op:<avviso>`. */
   ref: string;
   kind: OperationalKind;
   /** Riga della base di conoscenza (senza il riferimento). */
@@ -89,9 +96,11 @@ export interface OperationalItem {
   numbers: string[];
   /** Fonti del dato (riferimenti del bundle). */
   sources: string[];
-  /** Solo per le informazioni pratiche: data del controllo e ultimo giorno di validità (AAAA-MM-GG). */
+  /** Informazioni pratiche e avvisi: data del controllo e ultimo giorno di validità (AAAA-MM-GG). */
   checkedAt?: string;
   validUntil?: string;
+  /** Solo per gli avvisi: pagina della fonte (https), da mostrare con la risposta. */
+  sourceUrl?: string;
 }
 
 const NUMBER = /\d+(?:[.,]\d+)?/g;
@@ -117,8 +126,10 @@ const hoursOf = (min: number) => (min % 30 === 0 ? [String(min / 60)] : []);
  * Dati pratici del bundle, in ordine stabile (stesso bundle → stesso elenco, quindi la cache del prompt resta valida).
  * La validità delle informazioni pratiche è una data fissa (`checkedAt` + `recheckAfterDays`): se è passata lo dice il
  * messaggio della domanda, calcolato ogni volta (`expiredItems`), non la base.
+ * Con `notices` si aggiungono in fondo gli avvisi operativi in vigore: non stanno nella base (`buildKnowledge` non li
+ * passa) ma nel messaggio della domanda, e si citano e si controllano come gli altri dati.
  */
-export function operationalItems(content: BundleContent): OperationalItem[] {
+export function operationalItems(content: BundleContent, notices?: NoticeSet): OperationalItem[] {
   const sourceTitle = new Map(content.sources.map((s) => [s.ref, s.title]));
   const titles = (refs: readonly string[]) => refs.map((r) => sourceTitle.get(r)).filter((t): t is string => t !== undefined).join("; ");
   const placeName = new Map(content.places.map((p) => [p.ref, p.name]));
@@ -173,6 +184,22 @@ export function operationalItems(content: BundleContent): OperationalItem[] {
 
   for (const n of content.safetyNotes) {
     items.push({ ref: `safety:${n.id}`, kind: "safety", line: n.text, numbers: numbersOf(n.text), sources: [] });
+  }
+
+  if (notices?.state === "ok") {
+    const names = new Map<string, string>([...content.places.map((p): [string, string] => [p.ref, p.name]), ...content.routes.map((r): [string, string] => [r.ref, r.name])]);
+    for (const n of notices.notices) {
+      items.push({
+        ref: n.ref,
+        kind: "notice",
+        line: noticeLine(n, (ref) => names.get(ref) ?? ref),
+        numbers: noticeNumbers(n),
+        sources: [],
+        checkedAt: n.verifiedOn,
+        validUntil: n.validUntil,
+        sourceUrl: n.sourceUrl,
+      });
+    }
   }
   return items;
 }

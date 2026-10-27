@@ -351,12 +351,31 @@ function AnswerSources(props: { content: BundleContent; answer: AskAnswer; t: Ui
     ...new Set(answer.citations.flatMap((ref) => content.assertions.find((a) => a.ref === ref)?.sources ?? ops?.get(ref) ?? [])),
   ].flatMap((ref) => byRef.get(ref) ?? []);
   const web: WebSource[] = answer.webSources ?? [];
-  if (local.length === 0 && web.length === 0) return null;
+  const notices = (answer.notices ?? []).filter((n) => safeUrl(n.url));
+  if (local.length === 0 && web.length === 0 && notices.length === 0) return null;
   return (
     <details className="ask-sources">
       <summary className="muted small">
-        {t.askSources} ({local.length + web.length})
+        {t.askSources} ({local.length + web.length + notices.length})
       </summary>
+      {notices.length > 0 && (
+        <>
+          <p className="muted small">{t.askSourcesNotices}</p>
+          <ul>
+            {notices.map((n) => (
+              <li key={n.ref} className="small">
+                <a href={safeUrl(n.url)} target="_blank" rel="noopener noreferrer nofollow">
+                  {n.title}
+                </a>
+                <span className="muted">
+                  {" "}
+                  — {t.askNoticeVerified} {n.verifiedOn} · {t.askNoticeUntil} {n.validUntil}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       {local.length > 0 && (
         <>
           <p className="muted small">{t.askSourcesLocal}</p>

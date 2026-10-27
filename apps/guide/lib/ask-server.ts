@@ -31,6 +31,7 @@ import {
 } from "./ask";
 import { WEB_SYSTEM_PROMPT, buildWebAddendum, needsWeb, parseWebAnswer, unsupportedNumbers, type ContentBlockLike, type ParsedWebAnswer, type WebConfig } from "./ask-web";
 import { detectEmergency } from "./emergency";
+import { citedNotices } from "./ask-notices";
 import { DEFAULT_ANTHROPIC_MODEL, ModelError, type AskModels, type ModelAdapter } from "./model";
 import { PERSONA, PERSONA_PROMPT } from "./persona";
 import {
@@ -352,7 +353,7 @@ export async function askWeb(client: Anthropic, loaded: Loaded, req: AskRequest,
     }
     if (response.stop_reason === "refusal") return { ok: false, reason: "il modello ha rifiutato la richiesta", usage, model, rounds: round };
     if (response.stop_reason === "max_tokens") return { ok: false, reason: "risposta troncata (limite di lunghezza)", usage, model, rounds: round };
-    const parsed = parseWebAnswer(blocks, loaded.content, req);
+    const parsed = parseWebAnswer(blocks, loaded.content, req, clock.notices);
     if (!parsed.text) return { ok: false, reason: "risposta vuota", usage, model, rounds: round };
     return { ok: true, parsed, blocks, usage, model, rounds: round };
   }
@@ -479,7 +480,8 @@ export async function askGuide(ai: AskModels, loaded: Loaded, rawReq: AskRequest
   }
   const byRef = new Map(loaded.content.assertions.map((a) => [a.ref, a]));
   const inReview = parsed.packCitations.some((ref) => byRef.get(ref)?.inReview === true);
-  const unsupported = unsupportedNumbers(parsed, web.blocks, loaded.content, req, local ? (local as LocalResult).answer : null);
+  const unsupported = unsupportedNumbers(parsed, web.blocks, loaded.content, req, local ? (local as LocalResult).answer : null, clock.notices);
+  const notices = citedNotices(clock.notices, parsed.packCitations).map((n) => ({ ref: n.ref, title: n.title, url: n.sourceUrl, verifiedOn: n.verifiedOn, validUntil: n.validUntil }));
   return done(
     {
       status: parsed.sources.length > 0 ? "answered" : "partial",
@@ -490,6 +492,7 @@ export async function askGuide(ai: AskModels, loaded: Loaded, rawReq: AskRequest
       webSearches: web.usage.webSearches,
       ...(inReview ? { inReview } : {}),
       ...(parsed.usedPosition ? { usedPosition: true } : {}),
+      ...(notices.length > 0 ? { notices } : {}),
       ...(unsupported.length > 0 ? { unsupportedNumbers: unsupported } : {}),
     },
     diag,

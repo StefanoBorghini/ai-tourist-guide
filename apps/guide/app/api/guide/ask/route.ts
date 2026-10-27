@@ -8,6 +8,8 @@
  *
  * Prima di tutto le emergenze (lib/emergency.ts): rimando al 112 immediato, senza modello, senza
  * limiti e senza configurazione. Poi limiti per indirizzo e tetto di spesa giornaliero (lib/limits.ts).
+ * Gli avvisi operativi verificati della destinazione (lib/ask-notices-server.ts) si leggono insieme ai contenuti, con
+ * un tempo massimo breve: se non arrivano, la domanda procede e Gaia sa che non sono disponibili.
  * Dopo la risposta, le lacune rilevate vanno nel registro delle domande senza risposta, se acceso
  * (lib/question-gaps.ts): nessuna chiamata al modello in più, e un errore del registro non tocca la risposta.
  *
@@ -19,6 +21,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { askRequestSchema, fallbackAnswer, type AskAnswer } from "../../../../lib/ask";
 import { askClock, cacheSlot } from "../../../../lib/ask-operational";
+import { noticesKey } from "../../../../lib/ask-notices";
+import { NoticeLoader } from "../../../../lib/ask-notices-server";
 import { QuestionBudget, questionBudgetConfig } from "../../../../lib/ask-cost";
 import { PERSONA_VERSION, PROMPT_VERSION, askGuide, bundleVersions, GuideUnavailableError, loadKnowledge, webSearchSupported } from "../../../../lib/ask-server";
 import { DailyCounter, TtlCache, cacheKey, cacheable, redactForLog, webConfig } from "../../../../lib/ask-web";
@@ -27,6 +31,7 @@ import { SpendGuard, WindowLimiter, dailyBudgetUsd } from "../../../../lib/limit
 import { ModelError, modelsConfig, modelsFromEnv, type AskModels } from "../../../../lib/model";
 import { gapRecord, type GapRecord } from "../../../../lib/question-gaps";
 import { questionGapsConfig, scheduleQuestionGap } from "../../../../lib/question-gaps-server";
+import { publicSupabase } from "../../../../lib/public-supabase";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,6 +65,10 @@ const noteGap = (make: () => GapRecord | null, ip: string) => {
     console.warn(JSON.stringify({ event: "question_gap_failed", code: "prepare" }));
   }
 };
+
+// Avvisi operativi: client anonimo senza cookie, null se Supabase non è configurato (nessun avviso).
+const supabase = publicSupabase();
+const notices = new NoticeLoader(supabase ? (args, signal) => supabase.rpc("public_operational_notices", args).abortSignal(signal) : null);
 
 let models: AskModels | null | undefined;
 const getModels = () => (models === undefined ? (models = modelsFromEnv()) : models);
@@ -110,18 +119,22 @@ export async function POST(request: Request): Promise<Response> {
   if (askLimiter.hit(ip)) return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 429 });
 
   let unavailable = false;
-  const loaded = await loadKnowledge(req.destination, req.locale).catch((e) => {
-    unavailable = e instanceof GuideUnavailableError;
-    return null;
-  });
+  const [loaded, live] = await Promise.all([
+    loadKnowledge(req.destination, req.locale).catch((e) => {
+      unavailable = e instanceof GuideUnavailableError;
+      return null;
+    }),
+    notices.load(req.destination, req.locale),
+  ]);
   // Contenuti dello Studio non raggiungibili: si dice, senza ripiegare su altri contenuti.
   if (!loaded && unavailable) return Response.json(fallbackAnswer(req.locale, "unavailable"), { status: 503, headers: { "retry-after": "30" } });
   if (!loaded) return Response.json({ error: "destinazione sconosciuta" }, { status: 404 });
 
-  // Data e ora sul posto: le stesse per il messaggio, il controllo e la cache.
-  const clock = askClock();
-  // Cache: stessa domanda, stesso luogo, stessa versione dei contenuti, stessa ora sul posto, senza conversazione alle spalle.
-  const key = cacheKey(req, loaded.kbHash, cacheSlot(clock));
+  // Data e ora sul posto e avvisi in vigore: gli stessi per il messaggio, il controllo e la cache.
+  const clock = askClock(Date.now(), undefined, live);
+  // Cache: stessa domanda, stesso luogo, stessa versione dei contenuti, stessa ora sul posto, stessi avvisi, senza
+  // conversazione alle spalle.
+  const key = cacheKey(req, loaded.kbHash, cacheSlot(clock) + noticesKey(live));
   const hit = key ? answers.get(key) : undefined;
   if (hit) {
     console.info(JSON.stringify({ event: "ask", status: hit.status, origin: hit.origin ?? "local", cached: true, kbHash: loaded.kbHash, prompt: PROMPT_VERSION, ms: Date.now() - started }));
@@ -191,6 +204,8 @@ export async function POST(request: Request): Promise<Response> {
       spentTodayUsd: spend.spentToday(),
       modelCalls: outcome.calls.map(callLog),
       otherPlaceCitations: outcome.answer.otherPlaceCitations ?? [],
+      // Avvisi operativi della domanda: quanti in vigore, "unavailable" se non letti, null se la destinazione non li ha.
+      notices: live ? (live.state === "ok" ? live.notices.length : live.state) : null,
       web: outcome.web ? { attempted: outcome.web.attempted, searches: outcome.web.searches, rounds: outcome.web.rounds, sources: outcome.web.sources.length, error: outcome.web.error, searchErrors: outcome.web.searchErrors } : null,
       ms: Date.now() - started,
     }));

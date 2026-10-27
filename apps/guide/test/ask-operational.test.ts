@@ -157,7 +157,7 @@ describe("stato di oggi: il bel tempo non dimostra che un sentiero sia aperto", 
       expect(r.ok).toBe(false);
     }
     const r = checkModelAnswer(json({ status: "answered", answer: "Il sentiero è aperto.", citations: [assertion] }), content, req, clock);
-    expect(r).toMatchObject({ ok: false, reason: "stato di oggi dichiarato senza un'informazione pratica valida" });
+    expect(r).toMatchObject({ ok: false, reason: "stato di oggi dichiarato senza un avviso o un'informazione pratica valida" });
   });
 
   it("un'informazione pratica scaduta non basta", () => {

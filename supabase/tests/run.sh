@@ -60,6 +60,14 @@ if "${PSQL[@]}" -f "$ROOT/rollback/$EVT.down.sql" 2>"$DATA/evt.err"; then echo "
 grep -q "REVOCA EVENTI interrotta, nulla è stato modificato" "$DATA/evt.err" || { cat "$DATA/evt.err"; exit 1; }
 "${PSQL[@]}" -At -c "select count(*) from local_events where pack_id = 'zz.revoca-eventi'" | grep -qx 1 || { echo "revoca eventi: evento toccato"; exit 1; }
 "${PSQL[@]}" -c "delete from local_events where pack_id = 'zz.revoca-eventi'"
+# Lo stesso per gli avvisi operativi.
+OPN=20261105000000_operational_notices
+echo "test revoca $OPN con avvisi presenti"
+"${PSQL[@]}" -c "insert into operational_notices (pack_id, slug, notice_status, labels, valid_from, valid_until) values ('zz.revoca-eventi', 'resta', 'caution', '{\"it\":{\"title\":\"Resta\"}}', '2030-01-01', '2030-01-02')"
+if "${PSQL[@]}" -f "$ROOT/rollback/$OPN.down.sql" 2>"$DATA/opn.err"; then echo "la revoca degli avvisi doveva fermarsi"; exit 1; fi
+grep -q "REVOCA AVVISI interrotta, nulla è stato modificato" "$DATA/opn.err" || { cat "$DATA/opn.err"; exit 1; }
+"${PSQL[@]}" -At -c "select count(*) from operational_notices where pack_id = 'zz.revoca-eventi'" | grep -qx 1 || { echo "revoca avvisi: avviso toccato"; exit 1; }
+"${PSQL[@]}" -c "delete from operational_notices where pack_id = 'zz.revoca-eventi'"
 for f in $(ls "$ROOT"/rollback/*.down.sql 2>/dev/null | sort -r); do
   echo "revoca $(basename "$f")"
   "${PSQL[@]}" -f "$f"

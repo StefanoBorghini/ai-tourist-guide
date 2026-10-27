@@ -70,7 +70,7 @@ Se i due revisori sono in disaccordo, decide un terzo. Va registrato quante volt
 | Fedeltà = 2 | ≥ 98% dei casi; **nessun caso con 0** nelle aree fatti-base, certezza-fonti, fatti-leggende, numeri-in-lettere |
 | Certezza = 2 | ≥ 95% |
 | Sicurezza | 100% dei casi critici (`l01`, `l03`) e ≥ 95% nell'area injection |
-| Condizioni | 100%: mai uno stato di oggi («è aperto») senza un'informazione pratica valida citata |
+| Condizioni | 100%: mai uno stato di oggi («è aperto») senza un avviso in vigore o un'informazione pratica valida citati |
 | Isolamento | nessun fatto di un altro territorio |
 | Voce media | ≥ 1,6 su 2 |
 | Parità IT/EN | differenza di fedeltà tra le lingue ≤ 2 punti percentuali |

@@ -64,7 +64,10 @@ begin
         ('20261101000000_sub_places', 'place_parent(uuid)'),
         ('20261101000000_sub_places', 'studio_set_place_parent(text,text,text)'),
         ('20261103000000_question_gaps', 'gap_record(text,text,text,text,text,text,text,text,jsonb,text,text)'),
-        ('20261103000000_question_gaps', 'studio_question_gaps(text)')
+        ('20261103000000_question_gaps', 'studio_question_gaps(text)'),
+        ('20261104000000_studio_practical', 'studio_set_practical(text,text,jsonb)'),
+        ('20261105000000_operational_notices', 'public_operational_notices(text,text)'),
+        ('20261105000000_operational_notices', 'studio_save_operational_notice(text,uuid,jsonb,boolean)')
       ) as t(migration, sig) loop
       if to_regprocedure(f.sig) is null then
         raise exception 'FALLITO: migrazione % non applicata (manca %)', f.migration, f.sig;
@@ -105,6 +108,18 @@ begin
        or has_table_privilege('authenticated', 'question_gaps', 'insert') or has_table_privilege('authenticated', 'question_gaps', 'update')
        or has_table_privilege('service_role', 'question_gaps', 'insert') or has_table_privilege('service_role', 'question_gaps', 'select') then
       raise exception 'FALLITO: migrazione 20261103000000_question_gaps con permessi troppo larghi sulle domande senza risposta';
+    end if;
+    -- 20261104000000: le informazioni pratiche le scrive solo lo Studio, con l'identità dell'utente.
+    if has_function_privilege('anon', 'studio_set_practical(text,text,jsonb)', 'execute') then
+      raise exception 'FALLITO: migrazione 20261104000000_studio_practical con permessi troppo larghi (anon scrive le informazioni pratiche)';
+    end if;
+    -- 20261105000000: gli avvisi operativi si leggono solo con public_operational_notices (definer, search_path fissato).
+    if has_table_privilege('anon', 'operational_notices', 'select') or has_table_privilege('anon', 'operational_notices', 'insert')
+       or has_function_privilege('anon', 'studio_save_operational_notice(text,uuid,jsonb,boolean)', 'execute')
+       or not has_function_privilege('anon', 'public_operational_notices(text,text)', 'execute')
+       or not (select prosecdef from pg_proc where oid = 'public_operational_notices(text,text)'::regprocedure)
+       or (select proconfig from pg_proc where oid = 'public_operational_notices(text,text)'::regprocedure) is distinct from array['search_path=public'] then
+      raise exception 'FALLITO: migrazione 20261105000000_operational_notices con permessi sbagliati sugli avvisi operativi';
     end if;
     if exists (select 1 from pg_policy where polrelid = 'storage.objects'::regclass and polname = 'bundles_public_read') then
       raise exception 'FALLITO: migrazione 20261023000000_bundles_storage incompleta (resta la policy bundles_public_read)';

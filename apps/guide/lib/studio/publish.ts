@@ -144,7 +144,8 @@ export function compilePublication(
 
   // Per il validatore i file stanno nella cartella virtuale del pack: esistono se sono tra quelli scaricati.
   const fileExists = (path: string) => {
-    const m = /^\/studio-db\/([^/]+)\/media\/files\/(.+)$/.exec(path);
+    const normalized = path.replace(/\\/g, "/");
+    const m = /^\/studio-db\/([^/]+)\/media\/files\/(.+)$/.exec(normalized);
     return !!m && files.has(`${m[1]}/${m[2]}`);
   };
 

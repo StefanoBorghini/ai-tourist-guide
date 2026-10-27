@@ -28,8 +28,9 @@ Solo il **bundle pubblico** (decisione D10): i percorsi a pagamento e i loro dat
 - La data e l'ora si possono dire solo citando `context:time`.
 - **Stato di oggi:** una frase che lo dichiara («il sentiero è aperto», «oggi è chiusa», «is open») scarta la risposta
   se non cita un'informazione pratica ancora valida. Non contano le frasi ipotetiche («non so se oggi è aperto») né le
-  descrizioni del paesaggio («è aperto sul golfo», «chiusa tra due promontori»). Contano anche «è visitabile» e, solo con
-  oggi, ora, domani…, «è raggiungibile» e «si può visitare» (da solo «raggiungibile in barca» è una descrizione). Il
+  descrizioni del paesaggio («è aperto sul golfo», «chiusa tra due promontori»). Contano anche «è visitabile», «è accessibile»
+  (non «accessibile ai disabili», «in barca», «solo dal mare») e, solo con oggi, ora, domani…, «è raggiungibile» e «si può
+  visitare» (da solo «raggiungibile in barca» è una descrizione). Il
   controllo è volutamente stretto: il resto lo misura la suite di prova (area `condizioni`).
 - La cache delle risposte distingue giorno e ora sul posto (`cacheSlot`).
 - «Approfondisci» (ricerca web): stessa regola nel prompt; uno stato trovato sul web si riferisce con la fonte e la data

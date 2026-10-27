@@ -205,7 +205,8 @@ export function operationalKnowledge(items: readonly OperationalItem[]): string[
  * - le frasi ipotetiche, con «se», «if» o «whether» fino a quattro parole prima («non so se oggi il sentiero è aperto»);
  * - le descrizioni del paesaggio, con «aperto»/«chiuso» seguiti da «su», «verso», «tra», «da»… («è aperto sul golfo»,
  *   «è chiusa tra due promontori»).
- * «Visitabile» conta sempre; «raggiungibile» e «si può visitare» solo con oggi, ora, domani… (IT_STATUS_WHEN).
+ * «Visitabile» conta sempre; «raggiungibile» e «si può visitare» solo con oggi, ora, domani… (IT_STATUS_WHEN);
+ * «accessibile» salvo le descrizioni di come o per chi (IT_ACCESSIBLE).
  * È volutamente stretto: riconosce le affermazioni dirette, il resto lo valuta la suite di prova.
  */
 // Confini di parola anche per le lettere accentate («è»): \b in JavaScript conosce solo l'ASCII.
@@ -246,6 +247,17 @@ const EN_STATUS_WHEN = new RegExp(
   "iu",
 );
 
+/**
+ * «È accessibile»: uno stato («la grotta è accessibile»), tranne quando descrive come o per chi («accessibile ai
+ * disabili», «accessibile in barca», «accessibile solo dal mare»). «Accessibile al pubblico» resta uno stato.
+ */
+const IT_ACCESSIBLE = new RegExp(
+  String.raw`(?<!${W0}(?:se|qualora)\s(?:\S+\s){0,4})` +
+    String.raw`${W0}(?:è|sono|sia|siano|risulta|risultano|resta|restano|rimane|rimangono)\s+(?:(?:oggi|ora|adesso|ancora|già)\s+)?accessibil[ei]${W1}` +
+    String.raw`(?!\s+(?:a|ai|alle|agli|in|con|per|tramite|via|da|dal|dalla|dai|dalle|solo|soltanto|anche|esclusivamente|unicamente|sia)${W1}|\s+al\s+(?!pubblico${W1}))`,
+  "iu",
+);
+
 export function claimsOperationalStatus(answer: string): boolean {
-  return IT_STATUS.test(answer) || EN_STATUS.test(answer) || IT_STATUS_WHEN.test(answer) || EN_STATUS_WHEN.test(answer);
+  return IT_STATUS.test(answer) || EN_STATUS.test(answer) || IT_STATUS_WHEN.test(answer) || EN_STATUS_WHEN.test(answer) || IT_ACCESSIBLE.test(answer);
 }

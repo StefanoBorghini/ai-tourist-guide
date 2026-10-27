@@ -132,6 +132,15 @@ describe("stato di oggi: il bel tempo non dimostra che un sentiero sia aperto", 
     }
   });
 
+  it("«è accessibile» è uno stato, tranne quando descrive come o per chi", () => {
+    for (const t of ["Secondo le informazioni disponibili, la Grotta di Byron è accessibile.", "Oggi la grotta è accessibile.", "Il castello è accessibile al pubblico.", "La grotta è accessibile oggi."]) {
+      expect(claimsOperationalStatus(t), t).toBe(true);
+    }
+    for (const t of ["La chiesa è accessibile ai disabili.", "La grotta è accessibile in barca.", "È accessibile solo dal mare.", "Non so se la grotta è accessibile.", "Il sentiero è accessibile con una breve salita."]) {
+      expect(claimsOperationalStatus(t), t).toBe(false);
+    }
+  });
+
   it("«visitabile» conta sempre; «raggiungibile» e «si può visitare» solo con oggi, ora, domani", () => {
     for (const t of ["La chiesa è visitabile.", "La grotta oggi è raggiungibile.", "La grotta è raggiungibile oggi.", "Oggi si può visitare la grotta.", "Domani si può fare il giro.", "Oggi non si può visitare.", "The cave is reachable today.", "It can be visited today."]) {
       expect(claimsOperationalStatus(t), t).toBe(true);

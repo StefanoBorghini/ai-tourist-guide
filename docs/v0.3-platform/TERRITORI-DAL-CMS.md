@@ -120,3 +120,19 @@ Prove: `supabase/tests/40_delete.sql` in `npm run db:check`; prova nel browser s
 - **Schede nell'ordine di lavoro:** Panoramica, Luoghi, Fonti, Fatti (le affermazioni), Racconti, Percorsi, Foto, Vendita.
 - **Vendita** unisce Accesso e Catalogo in due passi: 1. cosa è a pagamento, 2. prodotti e prezzi. I vecchi indirizzi
   `/accesso` e `/catalogo` rimandano a `/vendita`. Regole e funzioni del database invariate.
+
+## Informazioni pratiche dei luoghi (2026-10-27)
+
+Nella scheda di ogni luogo, sezione «Informazioni pratiche»: orari, accesso, biglietti, trasporti, permessi e sicurezza,
+ciascuna con il testo (italiano obbligatorio, inglese facoltativo), la data del controllo, i giorni dopo cui va
+ricontrollata (90 se non indicato) e la fonte (una fonte del territorio, consigliata: è il collegamento che il
+visitatore vede). La scheda mostra «valida fino al …» o «scaduta: da ricontrollare».
+
+- Database: `studio_set_practical(pack, luogo, elenco)` (migrazione `20261104000000_studio_practical.sql`) sostituisce
+  l'elenco in `places.practical` con le regole dello schema del Territory Pack (tipo, identificativo unico, testo nella
+  lingua principale, data non nel futuro, 1–730 giorni, fonte del territorio, al massimo 30); solo chi modifica il
+  territorio. Il formato è quello del pack: `pack_snapshot()` lo esporta così com'è. Test in `supabase/tests/99b_practical.sql`.
+- App: `lib/studio/practical.ts` (lettura del modulo, scadenza, nuovo elenco) e l'azione `savePractical`.
+- Gaia (fase F1, `docs/v0.4-gaia/CONDIZIONI.md`) le usa dalla «Ripubblica» successiva: lo stato di oggi solo con
+  un'informazione ancora valida.
+

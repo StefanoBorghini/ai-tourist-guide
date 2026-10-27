@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { requireStaff, rpc, signedMediaUrls } from "../../../../../lib/studio/server";
+import { STUDIO_TIME_ZONE } from "../../../../../lib/format";
+import { territoryToday } from "../../../../../lib/local-events";
+import { isExpired, PRACTICAL_KIND_LABELS, PRACTICAL_LIMITS, validUntil, type PracticalItem } from "../../../../../lib/studio/practical";
 import { COORDINATE_LABELS, deleteHref, friendlyError } from "../../../../../lib/studio/shared";
-import { setPlaceParent, updatePlace } from "../../../actions";
+import { savePractical, setPlaceParent, updatePlace } from "../../../actions";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../../ui";
 
 interface PlaceDetail {
@@ -20,6 +23,8 @@ interface PlaceDetail {
   /** Luogo principale di cui fa parte (null se è principale) e sottoluoghi (migrazione 20261101000000). */
   parent?: string | null;
   children?: string[];
+  /** Informazioni pratiche (migrazione 20261104000000). */
+  practical?: PracticalItem[];
   canEdit: boolean;
 }
 
@@ -33,9 +38,10 @@ export default async function PlacePage({ params, searchParams }: { params: Prom
   const { pack, slug } = await params;
   const q = await searchParams;
   const session = await requireStaff();
-  const [{ data: place, error }, { data: all }] = await Promise.all([
+  const [{ data: place, error }, { data: all }, { data: sources }] = await Promise.all([
     rpc<PlaceDetail>(session.supabase, "studio_place", { p_pack: pack, p_slug: slug }),
     rpc<PlaceRow[]>(session.supabase, "studio_places", { p_pack: pack }),
+    rpc<{ slug: string; title: string }[]>(session.supabase, "studio_sources", { p_pack: pack }),
   ]);
   const base = `/studio/${encodeURIComponent(pack)}`;
   if (!place) {
@@ -53,6 +59,7 @@ export default async function PlacePage({ params, searchParams }: { params: Prom
   const principals = (all ?? []).filter((p) => p.slug !== slug && !p.parent);
   const nameOf = new Map((all ?? []).map((p) => [p.slug, p.name]));
   const children = place.children ?? [];
+  const today = territoryToday(STUDIO_TIME_ZONE);
   return (
     <main className="st-page">
       <StudioHeader session={session} crumbs={[{ href: `${base}/luoghi`, label: pack }, { label: place.labels.it?.name ?? slug }]} />
@@ -184,6 +191,23 @@ export default async function PlacePage({ params, searchParams }: { params: Prom
       </form>
 
       <section>
+        <h2>Informazioni pratiche</h2>
+        <p className="st-hint">
+          Orari, accesso, biglietti, trasporti, permessi e note di sicurezza, con la data in cui le hai controllate. Gaia le usa per
+          rispondere sullo stato di oggi («è aperto?») solo finché sono valide; dopo la scadenza dice che vanno ricontrollate e
+          rimanda alla fonte. Indica sempre la fonte ufficiale (sito dell&apos;ente): è il collegamento che il visitatore vede.
+          Valgono nell&apos;app dalla prossima «Ripubblica».
+        </p>
+        {(place.practical ?? []).length === 0 && <p className="st-hint">Nessuna informazione pratica.</p>}
+        {(place.practical ?? []).map((item) => (
+          <PracticalForm key={item.id} pack={pack} slug={slug} item={item} sources={sources ?? []} disabled={ro} today={today} />
+        ))}
+        {!ro && (place.practical ?? []).length < PRACTICAL_LIMITS.maxItems && (
+          <PracticalForm pack={pack} slug={slug} sources={sources ?? []} disabled={false} today={today} />
+        )}
+      </section>
+
+      <section>
         <h2>Foto del luogo</h2>
         {place.media.length === 0 && <p className="st-hint">Nessuna foto. Aggiungila dalla sezione <Link href={`${base}/media`}>Foto</Link>.</p>}
         <ul className="st-thumbs">
@@ -207,5 +231,81 @@ export default async function PlacePage({ params, searchParams }: { params: Prom
         </ul>
       </section>
     </main>
+  );
+}
+
+/** Una voce delle informazioni pratiche (modifica e rimozione), o il modulo per aggiungerne una (senza item). */
+function PracticalForm(props: { pack: string; slug: string; item?: PracticalItem; sources: { slug: string; title: string }[]; disabled: boolean; today: string }) {
+  const { pack, slug, item, sources, disabled, today } = props;
+  const expired = item ? isExpired(item, today) : false;
+  return (
+    <div className="st-form">
+      <form action={savePractical}>
+        <input type="hidden" name="pack" value={pack} />
+        <input type="hidden" name="slug" value={slug} />
+        <input type="hidden" name="op" value={item ? "update" : "add"} />
+        {item && <input type="hidden" name="id" value={item.id} />}
+        <fieldset disabled={disabled}>
+          <legend>
+            {item ? `${PRACTICAL_KIND_LABELS[item.kind]} · ` : "Aggiungi un'informazione pratica"}
+            {item && (
+              <span className={expired ? "st-status st-coord-preliminary" : "st-status"}>
+                {expired ? `scaduta il ${validUntil(item)}: da ricontrollare` : `valida fino al ${validUntil(item)}`}
+              </span>
+            )}
+          </legend>
+          <div className="st-row">
+            <label>
+              Tipo
+              <select name="kind" defaultValue={item?.kind ?? "opening_hours"} disabled={Boolean(item)}>
+                {Object.entries(PRACTICAL_KIND_LABELS).map(([k, label]) => (
+                  <option key={k} value={k}>{label}</option>
+                ))}
+              </select>
+              {item && <input type="hidden" name="kind" value={item.kind} />}
+            </label>
+            <label>
+              Fonte (consigliata)
+              <select name="source" defaultValue={item?.source ?? ""}>
+                <option value="">—</option>
+                {sources.map((s) => (
+                  <option key={s.slug} value={s.slug}>{s.title}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {(["it", "en"] as const).map((l) => (
+            <label key={l}>
+              Testo ({l}){l === "it" ? "" : " — facoltativo"}
+              <textarea name={`text_${l}`} rows={2} maxLength={PRACTICAL_LIMITS.textChars} defaultValue={item?.text[l] ?? ""} required={l === "it"} />
+            </label>
+          ))}
+          <div className="st-row">
+            <label>
+              Controllata il
+              <input name="checkedAt" type="date" max={today} defaultValue={item?.checkedAt ?? today} required />
+            </label>
+            <label>
+              Da ricontrollare dopo (giorni)
+              <input name="recheckAfterDays" type="number" min={PRACTICAL_LIMITS.minDays} max={PRACTICAL_LIMITS.maxDays} defaultValue={item?.recheckAfterDays ?? PRACTICAL_LIMITS.defaultDays} required />
+            </label>
+          </div>
+        </fieldset>
+        {!disabled && (
+          <div className="st-actions">
+            <button className="st-btn st-primary" type="submit">{item ? "Salva" : "Aggiungi"}</button>
+          </div>
+        )}
+      </form>
+      {item && !disabled && (
+        <form action={savePractical} className="st-actions">
+          <input type="hidden" name="pack" value={pack} />
+          <input type="hidden" name="slug" value={slug} />
+          <input type="hidden" name="op" value="delete" />
+          <input type="hidden" name="id" value={item.id} />
+          <button className="st-btn" type="submit">Togli</button>
+        </form>
+      )}
+    </div>
   );
 }

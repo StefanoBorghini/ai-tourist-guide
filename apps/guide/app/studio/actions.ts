@@ -11,6 +11,9 @@ import { copyRepoMedia } from "../../lib/studio/repo-media";
 import { formatEuro, parseEuro, PLACE_DEFAULT_CENTS, priceProblem } from "../../lib/studio/catalog";
 import { premiumBlockedByStatic } from "../../lib/static-bundles";
 import { staticDestinations } from "../../lib/static-index";
+import { STUDIO_TIME_ZONE } from "../../lib/format";
+import { territoryToday } from "../../lib/local-events";
+import { applyPracticalChange, newPracticalId, parsePracticalForm, PRACTICAL_KIND_LABELS, type PracticalItem, type PracticalKindKey } from "../../lib/studio/practical";
 import { afterDeleteHref, checkMediaRights, checkStops, DELETE_KINDS, filesInPack, friendlyError, isDeleteKind, MEDIA_BUCKET, MEDIA_LICENSES, MEDIA_SOURCES } from "../../lib/studio/shared";
 
 const back = (path: string, result: Record<string, string | undefined>): never => {
@@ -55,6 +58,38 @@ export async function signOut() {
 }
 
 // ---------------------------------------------------------------- luoghi
+
+/**
+ * Informazioni pratiche del luogo (migrazione 20261104000000): aggiunge, modifica o toglie una voce e salva l'elenco
+ * intero con studio_set_practical, che applica le regole del Territory Pack. Gaia le usa dalla prossima «Ripubblica».
+ */
+export async function savePractical(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const slug = text(form, "slug");
+  const op = text(form, "op");
+  const path = `${packPath(pack)}/luoghi/${encodeURIComponent(slug)}`;
+  const { data: place, error: readError } = await rpc<{ practical?: PracticalItem[] }>(supabase, "studio_place", { p_pack: pack, p_slug: slug });
+  if (readError || !place) back(path, { errore: readError ? friendlyError(readError) : "Luogo non trovato." });
+  const current = place!.practical ?? [];
+  let change: Parameters<typeof applyPracticalChange>[1];
+  if (op === "delete") {
+    change = { op: "delete", id: text(form, "id") };
+  } else {
+    const kind = text(form, "kind");
+    const id = op === "update" ? text(form, "id") : newPracticalId((kind in PRACTICAL_KIND_LABELS ? kind : "access") as PracticalKindKey, current);
+    const parsed = parsePracticalForm((name) => text(form, name), id, territoryToday(STUDIO_TIME_ZONE));
+    if (!parsed.ok) back(path, { errore: parsed.error });
+    change = op === "update" ? { op: "update", item: (parsed as { item: PracticalItem }).item } : { op: "add", item: (parsed as { item: PracticalItem }).item };
+  }
+  const next = applyPracticalChange(current, change);
+  if (!next.ok) back(path, { errore: next.error });
+  const { error } = await rpc(supabase, "studio_set_practical", { p_pack: pack, p_slug: slug, p_items: (next as { items: PracticalItem[] }).items });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath(path);
+  const done = op === "delete" ? "Informazione pratica tolta." : op === "update" ? "Informazione pratica aggiornata." : "Informazione pratica aggiunta.";
+  back(path, { ok: `${done} Vale nell'app dalla prossima «Ripubblica».` });
+}
 
 /**
  * Spunta «È un sottoluogo di …» (migrazione 20261101000000): il luogo diventa sottoluogo del luogo principale scelto, o

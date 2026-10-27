@@ -45,8 +45,9 @@ c'è il collegamento al sito ufficiale.
 
 Oggi Porto Venere non ha informazioni pratiche né note di sicurezza, e tutti i suoi percorsi sono a pagamento: la F1
 porta subito la data di oggi e la regola di prudenza, ma i dati pratici compaiono solo quando la redazione li inserisce.
-**Lo Studio non ha ancora un modulo per le informazioni pratiche**: per i territori gestiti dal database va aggiunto (fase
-successiva, da autorizzare), oppure si inseriscono con `import_pack()` da una copia del pack.
+**Lo Studio ha la sezione «Informazioni pratiche» nella scheda di ogni luogo** (migrazione `20261104000000_studio_practical.sql`,
+`studio_set_practical`): tipo, testo, data del controllo, giorni di validità e fonte, con le regole del Territory Pack.
+Valgono nell'app dalla «Ripubblica» successiva.
 
 ## Costi
 

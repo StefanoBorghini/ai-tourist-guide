@@ -130,6 +130,15 @@ const isTimeout = (error: unknown) => {
   return name === "TimeoutError" || name === "AbortError";
 };
 
+/**
+ * Limiti interni del `fetch` di Node (5 minuti per l'inizio della risposta o tra un pezzo e l'altro): arrivano come
+ * «fetch failed» con il codice nella causa. Sono tempi scaduti, non errori di rete (vedi lib/eval-fetch.ts).
+ */
+const isFetchTimeout = (error: unknown) => {
+  const code = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+  return code === "UND_ERR_HEADERS_TIMEOUT" || code === "UND_ERR_BODY_TIMEOUT";
+};
+
 export class OpenAICompatibleAdapter implements ModelAdapter {
   readonly provider = "openai-compatible";
   /**
@@ -184,6 +193,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     } catch (error) {
       if (error instanceof ModelError) throw error;
       if (isTimeout(error)) throw new ModelError("timeout", `nessuna risposta entro ${req.timeoutMs} ms`);
+      if (isFetchTimeout(error)) throw new ModelError("timeout", "nessuna risposta entro il limite di 5 minuti del fetch di Node (per le valutazioni locali: lib/eval-fetch.ts)");
       throw new ModelError("unavailable", `rete: ${(error as Error).message}`.slice(0, 300));
     }
     const choice = body?.choices?.[0];

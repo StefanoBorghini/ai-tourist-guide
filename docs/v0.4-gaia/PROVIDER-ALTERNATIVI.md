@@ -55,6 +55,8 @@ Il codice: `apps/guide/lib/model.ts`, con l'interfaccia `ModelAdapter` e due ada
   - L'installazione è un passo a parte, da autorizzare.
   - Che applichi `json_schema` dipende dalla versione: se le risposte arrivano spesso «nel formato sbagliato», provare `ASK_JSON_MODE=json_object`.
 - **Hardware:** con 16 GB di RAM conviene un modello piccolo (indicativamente 7–8 miliardi di parametri, compresso). Su sola CPU una risposta può richiedere decine di secondi.
+- **Contesto di Ollama (misurato il 27/10):** il prompt di Gaia con la base completa di Porto Venere vale circa **8.100 token**. Ollama carica i modelli con un contesto più piccolo (4.096 nella prova) e taglia il prompt **senza avvisare**: il modello non vede parte delle regole o della base, e la valutazione non vale. L'API compatibile OpenAI non permette di chiedere più contesto: serve un modello derivato con `PARAMETER num_ctx 16384` (`ollama create <nome> -f <Modelfile>`, con `FROM <modello>`). Verifiche: `ollama ps` (colonna `CONTEXT`) e, nel log del server, `truncated = 0` con `n_tokens` sopra gli 8.000.
+- **Modelli che «ragionano» (es. qwen3):** prima della risposta producono centinaia o migliaia di token di ragionamento. Su un portatile possono servire più minuti per una sola domanda (27/10: 1,8–10 token al secondo su i7-11370H con GPU parziale e RAM quasi piena). Chiudere le applicazioni pesanti prima delle prove.
 - La **base** su cui valutare: vedi §6.1.
 
 ## 5. Costi con un modello non in listino
@@ -102,7 +104,7 @@ npm run gaia:examples -w @guide/app -- --file ../../territories/it.liguria.sp.po
 ```
 
 Opzioni:
-- `--timeout-ms` (da 5000 a 600000) vale **solo per quell'esecuzione**: per i modelli lenti sul proprio computer. Non cambia la route.
+- `--timeout-ms` (da 5000 a 600000) vale **solo per quell'esecuzione**: per i modelli lenti sul proprio computer. Non cambia la route. Lo script chiama il fornitore compatibile OpenAI senza il limite di 5 minuti del `fetch` di Node (`lib/eval-fetch.ts`, solo script), che con un server senza streaming come Ollama farebbe fallire con «fetch failed» ogni risposta oltre i 300 s.
 - `--no-web`: senza la chiave Anthropic la ricerca è comunque spenta.
 
 **Confronto tra due esecuzioni:** stesse domande, stessa base.

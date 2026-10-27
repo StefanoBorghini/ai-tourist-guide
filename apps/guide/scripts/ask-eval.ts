@@ -26,7 +26,9 @@
  *   esportata con `guide-pack db-export`) invece del bundle pubblicato; con --full anche i contenuti che in
  *   produzione sono a pagamento (solo valutazione locale: lib/eval-knowledge.ts). Il rapporto dice quale base.
  * --timeout-ms <ms>: tempo massimo della risposta locale in questa esecuzione (da 5000 a 600000), per i modelli
- *   lenti eseguiti sul proprio computer. Non cambia la route (ASK_TIMEOUT_MS, al massimo 50 s).
+ *   lenti eseguiti sul proprio computer. Non cambia la route (ASK_TIMEOUT_MS, al massimo 50 s). Con un fornitore
+ *   compatibile OpenAI lo script chiama il servizio senza il limite di 5 minuti del fetch di Node (lib/eval-fetch.ts),
+ *   così anche i tempi oltre 300000 ms valgono davvero.
  * Fornitori diversi da Anthropic: docs/v0.4-gaia/PROVIDER-ALTERNATIVI.md.
  *
  * Il rapporto riporta per ogni domanda le informazioni locali, se è stata fatta la ricerca, le fonti
@@ -44,6 +46,7 @@ import { formatStats, stats } from "../lib/ask-eval-stats";
 import { LOCAL_TIMEOUT_MS, PERSONA_VERSION, PROMPT_VERSION, askGuide, loadKnowledge, webSearchSupported } from "../lib/ask-server";
 import { webConfig } from "../lib/ask-web";
 import { scoreAnswer, scoreNote, type EvalScore } from "../lib/eval-score";
+import { fetchWithoutHeaderLimit } from "../lib/eval-fetch";
 import { loadPackKnowledge } from "../lib/eval-knowledge";
 import { modelsConfig, modelsFromEnv } from "../lib/model";
 
@@ -152,8 +155,9 @@ if (!values.dry && perQuestionUsd > maxUsd) fail("Il budget per domanda supera i
 const only = values.only ? new Set(values.only.split(",")) : null;
 const areas = values.area ? new Set(values.area.split(",")) : null;
 const selected = allQuestions.filter((x) => (!only || only.has(x.id)) && (!areas || areas.has(x.area ?? x.category)));
-// Stessi client della route: nessun nuovo tentativo automatico.
-const ai = values.dry ? null : modelsFromEnv();
+// Stessi client della route: nessun nuovo tentativo automatico. Unica differenza, per i server lenti sul proprio
+// computer: il fornitore compatibile OpenAI non ha il limite di 5 minuti del fetch di Node (lib/eval-fetch.ts).
+const ai = values.dry ? null : modelsFromEnv(process.env, fetchWithoutHeaderLimit);
 if (ai && !ai.web) config.enabled = false;
 if (values["timeout-ms"] !== undefined) {
   const ms = Number(values["timeout-ms"]);

@@ -46,7 +46,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   `ASK_PROVIDER`; anche un server locale come Ollama, senza chiave solo su localhost; `ASK_JSON_MODE`, `ASK_TIMEOUT_MS`;
   la ricerca web resta di Anthropic; guida in `docs/v0.4-gaia/PROVIDER-ALTERNATIVI.md`), `lib/eval-knowledge.ts` (base
   compilata in locale per `ask:eval --pack` e `gaia:examples --pack`, con `--full` anche i contenuti a pagamento: solo
-  valutazione, mai importato dall'app servita ai visitatori), `lib/emergency.ts` (emergenze riconosciute senza modello: 112
+  valutazione, mai importato dall'app servita ai visitatori; `lib/eval-fetch.ts`, solo per `ask:eval`, chiama i server locali senza il limite di 5 minuti del fetch di Node), `lib/emergency.ts` (emergenze riconosciute senza modello: 112
   subito, anche offline), `lib/limits.ts` (limiti per indirizzo e tetto di spesa giornaliero, per istanza),
   `lib/question-gaps.ts` e `lib/question-gaps-server.ts` (registro delle domande senza risposta: dall'esito della risposta, testo
   mascherato ma non anonimo, niente IP né conversazioni, scadenza 90 giorni, spento senza `QUESTION_GAPS_ENABLED=1`; tabella

@@ -132,6 +132,15 @@ describe("stato di oggi: il bel tempo non dimostra che un sentiero sia aperto", 
     }
   });
 
+  it("«visitabile» conta sempre; «raggiungibile» e «si può visitare» solo con oggi, ora, domani", () => {
+    for (const t of ["La chiesa è visitabile.", "La grotta oggi è raggiungibile.", "La grotta è raggiungibile oggi.", "Oggi si può visitare la grotta.", "Domani si può fare il giro.", "Oggi non si può visitare.", "The cave is reachable today.", "It can be visited today."]) {
+      expect(claimsOperationalStatus(t), t).toBe(true);
+    }
+    for (const t of ["La grotta è raggiungibile in barca.", "È raggiungibile a piedi dal borgo.", "Non so se oggi si può visitare.", "Non posso dirti se si può visitare oggi.", "I can't tell whether it can be visited today."]) {
+      expect(claimsOperationalStatus(t), t).toBe(false);
+    }
+  });
+
   it("«è aperto» senza un'informazione pratica citata viene scartato, anche con una fonte storica", () => {
     const assertion = content.assertions[0]!.ref;
     for (const citations of [[], [assertion], [TIME_CITATION]]) {

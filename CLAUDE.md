@@ -37,7 +37,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   (font di sistema, nessun download: funziona offline); `app/manifest.webmanifest/route.ts` manifest della PWA (link con `crossorigin="use-credentials"` nel layout); al build `scripts/build-bundles.ts` compila i bundle in `public/bundles/` (generati, non versionati);
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato; distanze e direzioni in linea d'aria le calcola il
-  sistema dalla posizione, l'AI le riferisce soltanto), `lib/ask-operational.ts` (data e ora sul posto, percorsi,
+  sistema dalla posizione, l'AI le riferisce soltanto; i riferimenti che il modello scrive nel testo si tolgono e valgono come citazioni, `extractTextRefs`), `lib/ask-operational.ts` (data e ora sul posto, percorsi,
   informazioni pratiche con scadenza e note di sicurezza del bundle pubblico passati a Gaia come dati citabili; lo stato
   di oggi, «è aperto», solo con un'informazione pratica valida citata: il bel tempo non dimostra che un sentiero sia
   aperto; vedi `docs/v0.4-gaia/CONDIZIONI.md`), `lib/ask-web.ts` (approfondimento con ricerca web: quando

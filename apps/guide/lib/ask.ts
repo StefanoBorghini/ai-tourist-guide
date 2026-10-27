@@ -173,7 +173,7 @@ Prima di tutto, la sicurezza: se la domanda segnala un'emergenza o un pericolo p
 
 Regole, in ordine di importanza:
 1. Usa solo le affermazioni e i dati della BASE DI CONOSCENZA. Non aggiungere fatti, date, numeri, nomi o dettagli che non vi compaiono, nemmeno se li conosci: la base è verificata da una redazione, il resto no.
-2. Cita in "citations" i riferimenti (es. "pack:slug", "route:…", "info:…", "safety:…") di tutte le affermazioni e di tutti i dati che usi. Nessuna affermazione usata, nessuna citazione: allora la risposta non contiene fatti.
+2. Cita in "citations" i riferimenti di tutte le affermazioni e di tutti i dati che usi, copiandoli identici dalla BASE DI CONOSCENZA: sono il primo campo delle righe di AFFERMAZIONI, PERCORSI, INFORMAZIONI PRATICHE e NOTE DI SICUREZZA. Non inventare, non completare e non modificare riferimenti; quelli di LUOGHI e di PERSONE, EVENTI, TEMI non si citano. I riferimenti vanno solo in "citations", mai nel testo della risposta. Nessuna affermazione usata, nessuna citazione: allora la risposta non contiene fatti.
 3. Rispetta la natura di ogni affermazione:
    - fact + established: puoi dirla come fatto;
    - fact + probable: "probabilmente", "secondo le fonti";
@@ -439,6 +439,31 @@ const centuryOf = (year: number) => Math.floor((year - 1) / 100) + 1;
 
 export type CheckResult = { ok: true; answer: AskAnswer } | { ok: false; reason: string; safety?: boolean };
 
+// Riferimenti scritti nel testo invece che (o oltre che) in "citations": «(context:time)», «[fonte: route:…]», «pack:slug».
+const TEXT_REF = String.raw`(?:(?:context|persona|route|info|safety):[^\s\[\](){},;]*[^\s\[\](){},;.:]|[a-z0-9]+(?:-[a-z0-9]+)*(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)+:[a-z0-9]+(?:-[a-z0-9]+)*(?:#\d+)?)`;
+const TEXT_REF_RE = new RegExp(TEXT_REF, "g");
+
+/**
+ * Toglie dal testo i riferimenti che il modello vi ha scritto (verrebbero letti ad alta voce) e li restituisce: il
+ * sistema li tratta come citazioni, quindi passano dagli stessi controlli (un riferimento inventato scarta la
+ * risposta) e i loro numeri («borgo-60», «#1») non contano come numeri della risposta. Toglie anche le parentesi
+ * rimaste vuote («[fonte: ]», «()»). È solo formattazione: il testo non cambia altrimenti.
+ */
+export function extractTextRefs(text: string): { text: string; refs: string[] } {
+  const refs = [...new Set([...text.matchAll(TEXT_REF_RE)].map((m) => m[0]))];
+  if (refs.length === 0) return { text, refs };
+  const cleaned = text
+    .replace(TEXT_REF_RE, "")
+    .replace(/\[\s*(?:fonte|fonti|source|sources)?\s*:?\s*(?:[,;]\s*)*\]/giu, "")
+    .replace(/\(\s*(?:fonte|fonti|source|sources)?\s*:?\s*(?:[,;]\s*)*\)/giu, "")
+    .replace(/[ \t]+([.,;:!?])/g, "$1")
+    .replace(/([.,;:!?])(?:[ \t]*[.,;:])+/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ *\n */g, "\n")
+    .trim();
+  return { text: cleaned, refs };
+}
+
 export function checkModelAnswer(raw: string, content: BundleContent, req: AskRequest, clock: AskClock = askClock()): CheckResult {
   let parsed: z.infer<typeof modelAnswerSchema>;
   try {
@@ -446,7 +471,9 @@ export function checkModelAnswer(raw: string, content: BundleContent, req: AskRe
   } catch {
     return { ok: false, reason: "risposta non nel formato previsto" };
   }
-  const answer = parsed.answer.trim();
+  // Riferimenti scritti nel testo: tolti dal testo, trattati come citazioni (stessi controlli).
+  const fromText = extractTextRefs(parsed.answer.trim());
+  const answer = fromText.text;
   if (!answer) return { ok: false, reason: "risposta vuota" };
 
   // Emergenza: deve rimandare al 112; non racconta nulla della base, quindi non ha citazioni.
@@ -458,7 +485,7 @@ export function checkModelAnswer(raw: string, content: BundleContent, req: AskRe
   const byRef = new Map(content.assertions.map((a) => [a.ref, a]));
   const opByRef = new Map(operationalItems(content).map((i) => [i.ref, i]));
   const pos = positionContext(content, req);
-  const all = safety ? [] : [...new Set(parsed.citations)];
+  const all = safety ? [] : [...new Set([...parsed.citations, ...fromText.refs])];
   // Le distanze si possono citare solo se il sistema le ha fornite.
   const usedPosition = pos !== null && all.includes(POSITION_CITATION);
   const usedPersona = all.includes(PERSONA_CITATION);

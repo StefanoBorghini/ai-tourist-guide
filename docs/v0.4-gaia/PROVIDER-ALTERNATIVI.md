@@ -143,3 +143,15 @@ npm run ask:compare -w @guide/app -- a.json b.json --blind --key chiave.json --s
 - **Tempi:** la route ha 60 s in tutto. Un modello che impiega più di 50 s non è utilizzabile in produzione, nemmeno con `ASK_TIMEOUT_MS`.
 - **I limiti di spesa sono per istanza e in memoria** (`lib/limits.ts`). Con un server proprio non c'è una console del fornitore con un tetto rigido.
 - **I costi di un modello locale** nei contatori sono stime prudenti, non spese (§5).
+
+## 8. Prove con modelli locali (27/10, portatile i7-11370H, 16 GB, RTX 3050 Laptop 4 GB)
+
+Area `condizioni` di `GAIA-EVAL`, base dei file del repository (`--pack ../../territories --full`).
+
+| Modello | Esito | Note |
+|---|---|---|
+| qwen3:4b (contesto predefinito 4.096) | inutilizzabile | Prompt tagliato a circa 2.000 token senza avviso |
+| qwen3:4b con `num_ctx 16384` | inutilizzabile | Ragiona sempre (oltre 2.000 token per una frase), anche con un template che chiude il ragionamento; 1,5–2 token/s con il prompt intero: oltre 10 minuti |
+| gemma3:4b con `num_ctx 12288` | veloce, non affidabile | 5–30 s a risposta (la cache del prompt di Ollama aiuta). Con `json_schema` a volte va in ciclo («token repeat limit reached»): meglio `ASK_JSON_MODE=json_object`. 2 risposte valide su 8: riferimenti inventati o copiati dagli esempi, dati di un percorso attribuiti a un altro, nomi di enti inventati, una conferma falsa ripetuta. I controlli le hanno scartate tutte |
+
+Conclusioni: un modello da 4 miliardi di parametri non basta per Gaia, nemmeno con i controlli (il visitatore riceverebbe quasi sempre il ripiego). Servono un modello più grande, quindi un altro hardware, o un allenamento sugli esempi approvati (`ESEMPI.md`). I controlli non verificano i nomi propri (enti, luoghi esterni): con modelli piccoli è un rischio da valutare prima di qualsiasi uso.

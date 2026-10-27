@@ -4,7 +4,7 @@ import { buildBundle, type BundleContent } from "@guide/bundle";
 import { loadPacks } from "@guide/territory-pack";
 import { beforeAll, describe, expect, it } from "vitest";
 import { destination } from "@guide/context-engine";
-import { HISTORY_ANSWER_CHARS, POSITION_CITATION, SYSTEM_PROMPT, askRequestSchema, buildKnowledge, buildQuestionMessage, centuriesIn, checkModelAnswer, fallbackAnswer, positionContext, sanitizeRequest, type AskRequest } from "../lib/ask.ts";
+import { HISTORY_ANSWER_CHARS, POSITION_CITATION, SYSTEM_PROMPT, TIME_CITATION, askRequestSchema, buildKnowledge, buildQuestionMessage, centuriesIn, checkModelAnswer, extractTextRefs, fallbackAnswer, positionContext, sanitizeRequest, type AskRequest } from "../lib/ask.ts";
 import { PERSONA_CITATION, PERSONA_PROMPT } from "../lib/persona.ts";
 
 /** Prove sul bundle del territorio di test, senza nomi di territorio scritti qui. */
@@ -302,5 +302,37 @@ describe("pulizia dei campi inviati dal client", () => {
     expect(clean.told).toEqual([assertion]);
     expect(clean.history[0]!.answer).toHaveLength(HISTORY_ANSWER_CHARS);
     expect(buildQuestionMessage(content, clean).length).toBeLessThan(buildQuestionMessage(content, dirty).length / 4);
+  });
+});
+
+describe("riferimenti scritti nel testo della risposta", () => {
+  it("si tolgono dal testo, che altrimenti verrebbe letto ad alta voce, e restano solo le parole", () => {
+    expect(extractTextRefs("Oggi è martedì 27 ottobre 2026, ore 18:09 (context:time).")).toEqual({ text: "Oggi è martedì 27 ottobre 2026, ore 18:09.", refs: [TIME_CITATION] });
+    expect(extractTextRefs("Porta a Campiglia. [fonte: route:it.test.x:giro-60] Tuttavia non so. [context:time]")).toEqual({
+      text: "Porta a Campiglia. Tuttavia non so.",
+      refs: ["route:it.test.x:giro-60", TIME_CITATION],
+    });
+    expect(extractTextRefs("Nessun riferimento, alle 18:27 e su www.parco.it.")).toEqual({ text: "Nessun riferimento, alle 18:27 e su www.parco.it.", refs: [] });
+  });
+
+  it("valgono come citazioni: un riferimento valido nel testo è accettato, i suoi numeri non contano come fatti", () => {
+    const a = content.assertions[0]!;
+    const r = checkModelAnswer(JSON.stringify({ status: "answered", answer: `Secondo la guida, ${a.text} (${a.ref})`, citations: [] }), content, req);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.answer.answer).not.toContain(a.ref);
+      expect(r.answer.citations).toContain(a.ref);
+    }
+  });
+
+  it("un riferimento inventato nel testo scarta la risposta, come in «citations»", () => {
+    const r = checkModelAnswer(JSON.stringify({ status: "partial", answer: "Si accede in barca [it.test.inventato:grotta-finta].", citations: [] }), content, req);
+    expect(r).toMatchObject({ ok: false, reason: "citazioni inesistenti: it.test.inventato:grotta-finta" });
+  });
+
+  it("le istruzioni chiedono riferimenti copiati identici, mai nel testo, e non quelli dei luoghi", () => {
+    expect(SYSTEM_PROMPT).toContain("copiandoli identici dalla BASE DI CONOSCENZA");
+    expect(SYSTEM_PROMPT).toContain("mai nel testo della risposta");
+    expect(SYSTEM_PROMPT).not.toContain("route:…");
   });
 });

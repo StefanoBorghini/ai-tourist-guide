@@ -205,6 +205,7 @@ export function operationalKnowledge(items: readonly OperationalItem[]): string[
  * - le frasi ipotetiche, con «se», «if» o «whether» fino a quattro parole prima («non so se oggi il sentiero è aperto»);
  * - le descrizioni del paesaggio, con «aperto»/«chiuso» seguiti da «su», «verso», «tra», «da»… («è aperto sul golfo»,
  *   «è chiusa tra due promontori»).
+ * «Visitabile» conta sempre; «raggiungibile» e «si può visitare» solo con oggi, ora, domani… (IT_STATUS_WHEN).
  * È volutamente stretto: riconosce le affermazioni dirette, il resto lo valuta la suite di prova.
  */
 // Confini di parola anche per le lettere accentate («è»): \b in JavaScript conosce solo l'ASCII.
@@ -213,7 +214,7 @@ const W1 = String.raw`(?![\p{L}\p{N}])`;
 const IT_STATUS = new RegExp(
   String.raw`(?<!${W0}(?:se|qualora)\s(?:\S+\s){0,4})` +
     String.raw`${W0}(?:è|sono|sia|siano|risulta|risultano|resta|restano|rimane|rimangono)\s+(?:(?:oggi|ora|adesso|ancora|già)\s+)?` +
-    String.raw`(?:apert[oaie]|chius[oaie]|percorribil[ei]|praticabil[ei]|agibil[ei]|transitabil[ei]|interdett[oaie])${W1}` +
+    String.raw`(?:apert[oaie]|chius[oaie]|percorribil[ei]|praticabil[ei]|agibil[ei]|transitabil[ei]|interdett[oaie]|visitabil[ei])${W1}` +
     String.raw`(?!\s+(?:su|sul|sullo|sulla|sui|sugli|sulle|verso|tra|fra|da|dal|dallo|dalla|dai|dagli|dalle|in\s+(?:basso|alto)|a\s+(?:nord|sud|est|ovest))${W1}|\s+(?:sull|dall)['’])`,
   "iu",
 );
@@ -224,6 +225,27 @@ const EN_STATUS = new RegExp(
   "iu",
 );
 
+/**
+ * Frasi che diventano uno stato solo con un riferimento a oggi o a un momento preciso: «raggiungibile» da solo è
+ * spesso una descrizione («raggiungibile in barca»), «oggi è raggiungibile» no; lo stesso per «si può visitare».
+ */
+const WHEN = String.raw`(?:oggi|ora|adesso|domani|stamattina|stasera|stanotte)`;
+const IT_STATUS_WHEN = new RegExp(
+  String.raw`(?<!${W0}(?:se|qualora)\s(?:\S+\s){0,4})${W0}(?:` +
+    String.raw`(?:è|sono|risulta|risultano|sarà|saranno)\s+(?:${WHEN}\s+)?raggiungibil[ei]\s+${WHEN}` +
+    String.raw`|(?:è|sono|risulta|risultano|sarà|saranno)\s+${WHEN}\s+raggiungibil[ei]` +
+    String.raw`|${WHEN}\s+(?:è|sono|sarà|saranno)\s+raggiungibil[ei]` +
+    String.raw`|(?:non\s+)?si\s+(?:può|possono|potrà|potranno)\s+(?:visitare|percorrere|fare|raggiungere)(?:l[aoie]|l[aoie]?\s)?[^.!?\n]{0,40}?${W0}${WHEN}` +
+    String.raw`|${WHEN}\s+(?:non\s+)?si\s+(?:può|possono|potrà|potranno)\s+(?:visitare|percorrere|fare|raggiungere)` +
+    String.raw`)${W1}`,
+  "iu",
+);
+const EN_STATUS_WHEN = new RegExp(
+  String.raw`(?<!${W0}(?:if|whether)\s(?:\S+\s){0,4})${W0}(?:is|are|will\s+be)\s+(?:(?:open|accessible|reachable|visitable)\s+(?:today|now|tomorrow|tonight)|(?:today|now|tomorrow)\s+(?:open|accessible|reachable|visitable))${W1}` +
+    String.raw`|(?<!${W0}(?:if|whether)\s(?:\S+\s){0,4})${W0}can(?:not|'t)?\s+be\s+visited\s+(?:today|now|tomorrow)${W1}`,
+  "iu",
+);
+
 export function claimsOperationalStatus(answer: string): boolean {
-  return IT_STATUS.test(answer) || EN_STATUS.test(answer);
+  return IT_STATUS.test(answer) || EN_STATUS.test(answer) || IT_STATUS_WHEN.test(answer) || EN_STATUS_WHEN.test(answer);
 }

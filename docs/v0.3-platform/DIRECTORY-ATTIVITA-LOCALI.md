@@ -133,6 +133,8 @@ Nell'esplorazione libera di una destinazione, sopra la mappa, c'è un selettore 
 | Dettagli | Scheda del luogo, racconti, domande a GAIA, percorsi, eventi | Scheda dell'attività (orari se verificati di recente, Chiama, Indicazioni, Sito, Email) |
 | Vuoto | — | «Nessuna attività a …, per ora», con l'avviso che la consultazione è sempre gratuita |
 
+**La scelta si ricorda.** La modalità scelta resta sul dispositivo (`localStorage` `guide-explore-theme`) e vale anche per le visite nuove. Senza memoria disponibile si parte da «Storia e cultura».
+
 **Una sola mappa.** È la stessa `MapView`, con `layer="venues"`. Le due modalità hanno la stessa struttura di pagina, quindi cambiando modalità la mappa non si ricrea: inquadratura, zoom, GPS, controlli e schermo intero restano come sono.
 
 **Esplorazione libera.** La modalità attività non ha tappe né ordine, e non tocca il motore di contesto. I percorsi guidati non cambiano: nella loro scheda resta il riquadro «Bar, ristoranti e servizi».

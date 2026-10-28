@@ -106,7 +106,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   riquadro «Bar, ristoranti e servizi» (`components/BusinessesPanel.tsx`, regole in `lib/businesses-view.ts`: per distanza se c'è la
   posizione, orari nascosti oltre 180 giorni dalla verifica); solo online; vedi `docs/v0.3-platform/DIRECTORY-ATTIVITA-LOCALI.md`.
   Esplorazione tematica: sopra la mappa dell'esplorazione libera il selettore «Storia e cultura» / «Locali e attività» (stato
-  `theme` in `GuideApp.tsx`); la seconda usa la stessa `MapView` con `layer="venues"` (segni delle attività, niente luoghi; stessa
+  `theme` in `GuideApp.tsx`, ricordato sul dispositivo anche per le visite nuove); la seconda usa la stessa `MapView` con `layer="venues"` (segni delle attività, niente luoghi; stessa
   posizione nella pagina, quindi zoom e inquadratura restano), filtri per categoria su mappa ed elenco, dettagli dell'attività e
   stato vuoto; esplorazione libera, senza tappe; i percorsi guidati non cambiano (nella loro scheda resta il riquadro delle attività)
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test

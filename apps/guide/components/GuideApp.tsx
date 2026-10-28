@@ -22,7 +22,7 @@ import { DebugPanel } from "./DebugPanel";
 import { EventsHomeButton, EventsPanel, useLocalEvents } from "./EventsPanel";
 import { BusinessCard, BusinessesPanel, useLocalBusinesses, VenueFilters, VenueList, VenuesEmpty } from "./BusinessesPanel";
 import {
-  businessCategoriesIn, EXPLORE_THEMES, listBusinesses, venueMarkers, type BusinessCategoryId, type ExploreTheme,
+  businessCategoriesIn, EXPLORE_THEMES, listBusinesses, parseExploreTheme, venueMarkers, type BusinessCategoryId, type ExploreTheme,
 } from "../lib/businesses-view";
 import { countInRange } from "../lib/events-view";
 import { MapView } from "./MapView";
@@ -221,6 +221,22 @@ export function GuideApp() {
    * (la directory gratuita, esplorazione libera senza tappe). Stessa mappa e stesso GPS; i percorsi guidati non cambiano.
    */
   const [theme, setTheme] = useState<ExploreTheme>("culture");
+  // La modalità scelta vale anche per le visite nuove, sul dispositivo (letta dopo il montaggio, come la modalità della guida).
+  useEffect(() => {
+    try {
+      setTheme(parseExploreTheme(localStorage.getItem("guide-explore-theme")));
+    } catch {
+      // memoria non disponibile: si parte da «Storia e cultura»
+    }
+  }, []);
+  const chooseTheme = (th: ExploreTheme) => {
+    setTheme(th);
+    try {
+      localStorage.setItem("guide-explore-theme", th);
+    } catch {
+      // memoria non disponibile: vale solo finché l'app resta aperta
+    }
+  };
   const [venueCategory, setVenueCategory] = useState<BusinessCategoryId | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<string | null>(null);
   /** Luoghi principali con i sottoluoghi aperti nell'elenco. */
@@ -1660,7 +1676,7 @@ export function GuideApp() {
           aria-selected={theme === th}
           className={`theme-${th}`}
           onClick={() => {
-            setTheme(th);
+            chooseTheme(th);
             if (th === "culture") setSelectedVenue(null);
           }}
         >

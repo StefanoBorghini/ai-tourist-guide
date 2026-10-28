@@ -98,6 +98,13 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   nella guida `components/EventsPanel.tsx` con regole pure in `lib/events-view.ts`: pulsante «Oggi a …» nella home (apre un pannello,
   la home resta senza scorrimento) e scheda «Eventi» nella visita; viste Oggi/Domani/7 giorni dal `today` del territorio, filtri,
   annullato/rinviato come testo, «Verificato il …», link solo https; solo online, mai nel pacchetto offline né nelle domande all'AI
+- Directory gratuita delle attività locali (bar, ristoranti, negozi, dove dormire, servizi; dati operativi come gli eventi, fuori da
+  Territory Pack, bundle e AI): tabella `local_businesses` (migrazione `20261105000000_local_businesses.sql`; nessun campo di
+  affiliazione o priorità, pubblicare richiede la verifica dei dati e cambiarli la azzera, lettura pubblica solo con
+  `public_local_businesses()` in ordine alfabetico); API `GET /api/v1/businesses` (`lib/businesses-api.ts`); scheda «Attività» dello
+  Studio in `app/studio/[pack]/attivita/` (`app/studio/actions-businesses.ts`, `lib/studio/local-businesses.ts`); nella visita il
+  riquadro «Bar, ristoranti e servizi» (`components/BusinessesPanel.tsx`, regole in `lib/businesses-view.ts`: per distanza se c'è la
+  posizione, orari nascosti oltre 180 giorni dalla verifica); solo online; vedi `docs/v0.3-platform/DIRECTORY-ATTIVITA-LOCALI.md`
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`
   test delle migrazioni, delle policy e della parità pack ↔ database su un Postgres locale (`npm run db:check`;

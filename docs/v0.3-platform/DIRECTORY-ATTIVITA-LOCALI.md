@@ -1,6 +1,6 @@
 # AI Tourist Guide — Directory gratuita delle attività locali
 
-Data: 2026-10-11 · Stato: **decisioni approvate per la specifica. Non implementato.**
+Data: 2026-10-11 · Stato: **implementata il 2026-10-28** (migrazione `20261105000000_local_businesses.sql`), con le proposte del §2 per le decisioni D13–D17. Immagini delle attività: secondo passo.
 Documento collegato: `PIANO-COMMERCIALE.md`.
 Prerequisito, prima di pianificare l'implementazione: l'hardening del CMS (`CMS-SECURITY-HARDENING.md`) completato e verificato in Preview.
 
@@ -83,3 +83,39 @@ Queste note non cambiano il software. Indicano dove la directory si innesta nell
 6. Un redattore autorizzato crea, modifica, pubblica e ritira schede dallo Studio.
 7. Le schede ritirate non sono più accessibili dalla directory pubblica.
 8. Permessi e regole valgono anche per le richieste dirette al database e alle API: test a due organizzazioni, come in `60_hardening.sql`.
+
+## 4. Implementazione (2026-10-28)
+
+**Dove si inseriscono.** Studio → territorio (una destinazione) → scheda **«Attività»** → «Nuova attività»:
+- nome, categoria (ristoranti; bar e caffè; negozi; strutture ricettive; servizi turistici; altro) e tipo libero;
+- descrizione e orari per lingua;
+- indirizzo e coordinate;
+- telefono, email e sito (solo https).
+
+L'attività nasce in **bozza**. Si spunta «Ho verificato ora questi dati», oppure si usa il pulsante «Ho verificato i dati ora», e poi si preme **«Pubblica»**. Compare nella guida entro qualche minuto (cache della CDN di 60 secondi), **senza ripubblicare il territorio** e senza deploy. «Ritira» la toglie.
+
+**Dove si vedono.** Nella visita, sia in esplorazione sia nei percorsi, c'è il riquadro **«Bar, ristoranti e servizi»**:
+- filtri per categoria;
+- schede con indirizzo, orari, descrizione e i pulsanti Chiama, Indicazioni, Sito ed Email;
+- «Dati verificati il …».
+
+Il riquadro non compare se la destinazione non ha attività pubblicate. Funziona solo online.
+
+| Decisione | Come è stata applicata |
+|---|---|
+| D13 | Tabella dedicata `local_businesses`, fuori da Territory Pack, bundle, `kbHash` e base dell'AI. Nessuna tabella di affiliazione: non serve alla directory pubblica |
+| D14 | Scrivono la redazione e gli editor del territorio (`can_edit_pack`). Pubblica e ritira chi pubblica il territorio (`can_publish_pack`). Un'attività pubblicata o ritirata la elimina solo l'amministratore |
+| D15 | Pubblicare richiede la verifica. Cambiare i dati la azzera. Dopo 180 giorni la guida nasconde gli orari («orari da verificare») e lo Studio la elenca in «Da riverificare» |
+| D16 | Per ora un elenco nella visita, ordinato dalla più vicina quando si conosce la posizione. Il livello sulla mappa è un passo successivo |
+| D17 | Avviso di neutralità sotto l'elenco. La procedura di segnalazione resta da definire |
+
+**Garanzie** (provate in `supabase/tests/99e_local_businesses.sql`):
+- il pubblico legge solo `public_local_businesses()`: attività pubblicate di destinazioni pubblicate, campi pubblici elencati uno per uno, in ordine alfabetico, mai note interne né autori;
+- nessuna colonna di affiliazione o priorità;
+- anon non accede alla tabella;
+- lettura e scrittura sono isolate tra organizzazioni.
+
+**Componenti:**
+- API `GET /api/v1/businesses?territory=…&lang=…`: `app/api/v1/businesses`, regole in `lib/businesses-api.ts`;
+- guida: `components/BusinessesPanel.tsx` con regole pure in `lib/businesses-view.ts`;
+- Studio: `app/studio/[pack]/attivita/`, `app/studio/actions-businesses.ts` e `lib/studio/local-businesses.ts`.

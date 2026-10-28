@@ -20,6 +20,7 @@ import { AskBox } from "./AskBox";
 import { bundleBase as bundleBaseOf, loadIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndexEntry } from "../lib/bundle-index";
 import { DebugPanel } from "./DebugPanel";
 import { EventsHomeButton, EventsPanel, useLocalEvents } from "./EventsPanel";
+import { BusinessesPanel, useLocalBusinesses } from "./BusinessesPanel";
 import { countInRange } from "../lib/events-view";
 import { MapView } from "./MapView";
 import { Carousel } from "./Carousel";
@@ -873,6 +874,12 @@ export function GuideApp() {
   const [eventsState, retryEvents] = useLocalEvents(
     eventsTarget?.destination ?? null,
     eventsTarget?.locale ?? null,
+    online,
+  );
+  // Directory gratuita delle attività (solo online, mai nell'AI): della visita in corso. Senza directory non si mostra.
+  const [businessesState, retryBusinesses] = useLocalBusinesses(
+    runtime?.content.destination ?? null,
+    runtime?.content.locale ?? null,
     online,
   );
 
@@ -1828,6 +1835,17 @@ export function GuideApp() {
     </details>
   );
 
+  // Bar, ristoranti e servizi nella visita (esplorazione e percorsi): chiusi di base, ordinati dalla posizione se c'è.
+  const businessesInSession = businessesState.kind !== "unavailable" && (
+    <details className="card" id="businesses-in-session">
+      <summary>
+        <Icon name="shop" /> {t.businesses.title}
+        {businessesState.kind === "ok" && <span className="muted small"> · {businessesState.data.businesses.length}</span>}
+      </summary>
+      <BusinessesPanel state={businessesState} onRetry={retryBusinesses} here={runtime.lastFix?.location ?? null} locale={content.locale} t={t} />
+    </details>
+  );
+
   return shell(
     <main className={`walk ${exploring ? "explore" : "tour"}`}>
       <header className="topbar">
@@ -1877,6 +1895,7 @@ export function GuideApp() {
               {ask}
               {itinerariesInSession}
               {eventsInSession}
+              {businessesInSession}
               {content.locked?.explore && (ACCOUNTS && (offers.explore || !online) ? (
                 <section className="mode-explore paid-explore">
                   <p className="eyebrow"><Icon name="lock" size={15} /> {t.paidRoutes}</p>
@@ -1906,6 +1925,7 @@ export function GuideApp() {
               {selected && placeCard}
               {ask}
               {planCard}
+              {businessesInSession}
               <button className="button quiet" onClick={switchToExplore}><Icon name="compass" /> {t.switchToExplore}</button>
             </>
           )}

@@ -33,6 +33,9 @@ const PATHS = {
   home: "M4 11l8-7 8 7v8.5a1 1 0 01-1 1h-4.5v-6h-5v6H5a1 1 0 01-1-1z",
   user: "M12 12a4 4 0 100-8 4 4 0 000 8zM4.5 20.5a7.5 7.5 0 0115 0",
   calendar: "M5 6.5h14v13H5zM5 10.5h14M9 4v4M15 4v4",
+  phone: "M6.5 3.5h3l1.5 4-2 1.5a11 11 0 006 6l1.5-2 4 1.5v3a2 2 0 01-2 2A16.5 16.5 0 014.5 5.5a2 2 0 012-2z",
+  mail: "M4 6.5h16v11H4zM4 7l8 6 8-6",
+  shop: "M4 9.5l1.5-5h13l1.5 5M4 9.5h16M4 9.5a2.7 2.7 0 005.3 0 2.7 2.7 0 005.4 0 2.7 2.7 0 005.3 0M5.5 12v8h13v-8",
 } as const;
 
 export type IconName = keyof typeof PATHS;

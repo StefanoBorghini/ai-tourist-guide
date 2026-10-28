@@ -999,6 +999,16 @@ begin
       raise exception 'FALLITO: manca la migrazione 20261104000000_admin_self_verify.sql (verifica dell''autore)';
     end if;
 
+    -- Directory delle attività locali (20261105000000_local_businesses.sql).
+    if to_regclass('public.local_businesses') is null
+       or not has_function_privilege('anon', 'public_local_businesses(text, text)', 'execute')
+       or has_table_privilege('anon', 'local_businesses', 'select')
+       or has_function_privilege('anon', 'studio_save_local_business(text, uuid, jsonb, boolean)', 'execute')
+       or not exists (select 1 from pg_constraint where conrelid = 'local_businesses'::regclass and contype = 'c'
+                      and pg_get_constraintdef(oid) like '%published%verified_at%') then
+      raise exception 'FALLITO: manca la migrazione 20261105000000_local_businesses.sql (attività locali) o i suoi permessi';
+    end if;
+
     -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
     -- l'elenco dei controlli non verificati.
     raise exception 'VERIFICA_SUPERATA|%', array_to_string(nv, '; ');

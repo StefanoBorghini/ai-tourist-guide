@@ -13,6 +13,8 @@ import {
   pinchStep,
   placeLabels,
   scaleBar,
+  tileSourceFrom,
+  tileUrl,
   toScreen,
   visibleTiles,
   type LabelCandidate,
@@ -48,7 +50,8 @@ const PIN_HEAD_Y = -13;
 const DRAG_THRESHOLD = 6;
 /** Oltre questa distanza dalle tappe la posizione non entra nell'inquadratura del percorso (es. prove da casa). */
 const NEAR_ROUTE_M = 2000;
-const TILE_URL = (z: number, x: number, y: number) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+/** Sfondo scelto al build (lib/map-view.ts): OpenStreetMap per le prove, uno stile con licenza in produzione. */
+const TILES = tileSourceFrom(process.env.NEXT_PUBLIC_MAP_TILES_URL, process.env.NEXT_PUBLIC_MAP_TILES_ATTRIBUTION);
 
 type Mode = "route" | "me" | "all";
 
@@ -97,6 +100,10 @@ export function MapView(props: {
   const [basemap, setBasemap] = useState(true);
   const [failedTiles, setFailedTiles] = useState<Set<string>>(new Set());
   const [loadedTiles, setLoadedTiles] = useState(0);
+  // Densità dello schermo letta dopo il montaggio (sul server non c'è): serve ai modelli con {r}. Finché non si
+  // conosce, niente sfondo: altrimenti i primi tile si scaricherebbero due volte (normali, poi @2x).
+  const [pixelRatio, setPixelRatio] = useState<number | null>(null);
+  useEffect(() => setPixelRatio(window.devicePixelRatio || 1), []);
   const drag = useRef<{ x: number; y: number; moved: number } | null>(null);
   /** Dita appoggiate sulla mappa, per distinguere trascinamento (una) e pizzico (due). */
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -159,7 +166,7 @@ export function MapView(props: {
   const view = manual ?? auto();
   const screen = toScreen(view, width, mapHeight);
   const mpp = metersPerPixel(view.center[1], view.zoom);
-  const showTiles = online && basemap;
+  const showTiles = online && basemap && pixelRatio !== null;
   const tiles = showTiles ? visibleTiles(view, width, mapHeight) : [];
   const scale = scaleBar(view.center[1], view.zoom);
   const fences = runtime.debugSnapshot().places;
@@ -283,7 +290,7 @@ export function MapView(props: {
             // eslint-disable-next-line @next/next/no-img-element -- tile cartografici esterni, non ottimizzabili da Next
             <img
               key={tile.key}
-              src={TILE_URL(tile.z, tile.x, tile.y)}
+              src={tileUrl(TILES, tile.z, tile.x, tile.y, pixelRatio ?? 1)}
               alt=""
               className="map-tile"
               style={{ left: tile.left, top: tile.top }}
@@ -427,8 +434,8 @@ export function MapView(props: {
           {scale.label}
         </div>
         {showTiles && loadedTiles > 0 && (
-          // Attribuzione richiesta dalla licenza dei dati (ODbL): solo testo, senza link (decisione del 2026-10-18).
-          <span className="map-attrib">© OpenStreetMap</span>
+          // Attribuzione richiesta dalla licenza dei dati (ODbL) e del fornitore: solo testo, senza link (decisione del 2026-10-18).
+          <span className="map-attrib">{TILES.attribution}</span>
         )}
       </div>
       {sel && !controlled && (
@@ -447,7 +454,7 @@ export function MapView(props: {
         </p>
       )}
       <div className="row wrap map-foot">
-        <span className="muted small">{simulated ? t.map.legendSimulated : t.map.legendYou}</span>
+        <span className="muted small">{simulated ? t.map.legendSimulated : venuesLayer ? t.map.legendYouVenues : t.map.legendYou}</span>
         {venuesLayer && <span className="muted small"><span className="legend-venue" aria-hidden="true" /> {t.map.legendVenues}</span>}
         {!venuesLayer && preliminary && <span className="muted small">{t.map.legendProvisional}</span>}
         {!venuesLayer && notFieldVerified && <span className="muted small">{t.map.legendMapVerified}</span>}

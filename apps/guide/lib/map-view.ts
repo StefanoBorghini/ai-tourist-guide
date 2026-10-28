@@ -177,3 +177,37 @@ export function pinchStep(baseDistance: number, distance: number): -1 | 0 | 1 {
   if (ratio <= 1 / PINCH_STEP_RATIO) return -1;
   return 0;
 }
+
+/**
+ * Sfondo della mappa. Per le prove si usano i tile di OpenStreetMap; in produzione serve un fornitore con licenza
+ * adeguata e uno stile personalizzato senza attività commerciali (bar, ristoranti, negozi: la guida mostra le sue,
+ * dallo Studio) ma con chiese, monumenti e servizi. Si sceglie al build con NEXT_PUBLIC_MAP_TILES_URL (modello con
+ * {z}, {x}, {y} e, facoltativo, {r} per «@2x» sugli schermi ad alta densità) e NEXT_PUBLIC_MAP_TILES_ATTRIBUTION
+ * (testo, senza link). La chiave nel modello è pubblica per natura: va limitata ai domini dell'app dal fornitore.
+ * Tile da 256 px, come quelli di OpenStreetMap.
+ */
+export interface TileSource {
+  template: string;
+  attribution: string;
+}
+
+export const OSM_TILES: TileSource = { template: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: "© OpenStreetMap" };
+
+/** Modello valido: https, con {z}, {x} e {y}, senza spazi né caratteri di controllo, al massimo 500 caratteri. */
+export function tileSourceFrom(template: string | undefined, attribution: string | undefined): TileSource {
+  const t = (template ?? "").trim();
+  const ok = t.length > 0 && t.length <= 500 && /^https:\/\/[^\s/]+\//.test(t) && !/[\s\u0000-\u001f]/.test(t)
+    && t.includes("{z}") && t.includes("{x}") && t.includes("{y}");
+  if (!ok) return OSM_TILES;
+  const a = (attribution ?? "").replace(/[\u0000-\u001f]/g, "").trim().slice(0, 200);
+  return { template: t, attribution: a || "© OpenStreetMap" };
+}
+
+/** Indirizzo di un tile; `{r}` diventa «@2x» se lo schermo ha più di un pixel per punto. */
+export function tileUrl(source: TileSource, z: number, x: number, y: number, pixelRatio = 1): string {
+  return source.template
+    .replaceAll("{z}", String(z))
+    .replaceAll("{x}", String(x))
+    .replaceAll("{y}", String(y))
+    .replaceAll("{r}", pixelRatio > 1 ? "@2x" : "");
+}

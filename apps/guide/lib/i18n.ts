@@ -123,6 +123,7 @@ export const UI = {
       noBasemap: "Sfondo non raggiungibile: mappa schematica.",
       you: "Tu",
       legendYou: "Punto blu: tu. Spilli: i luoghi.",
+      legendYouVenues: "Punto blu: tu.",
       legendSimulated: "Punto arancione: posizione simulata.",
     },
     gpsBlocked: {
@@ -470,6 +471,7 @@ export const UI = {
       noBasemap: "Background unavailable: schematic map.",
       you: "You",
       legendYou: "Blue dot: you. Pins: places.",
+      legendYouVenues: "Blue dot: you.",
       legendSimulated: "Orange dot: simulated position.",
     },
     gpsBlocked: {

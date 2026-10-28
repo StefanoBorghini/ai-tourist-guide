@@ -1010,8 +1010,10 @@ details.card[open] > summary::after { content: "–"; }
   top: 10px;
   border: 0;
   border-radius: 999px;
-  padding: 10px 16px;
-  min-height: 44px;
+  /* Compatto: copre meno mappa (c'è anche ⌖ tra i controlli). */
+  padding: 6px 12px;
+  min-height: 36px;
+  font-size: 14px;
   font-weight: 700;
   background: var(--me);
   color: #fff;

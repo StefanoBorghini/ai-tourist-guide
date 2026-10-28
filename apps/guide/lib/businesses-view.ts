@@ -163,3 +163,16 @@ export function businessVerifiedDate(iso: string | null, locale: string): string
   if (!Number.isFinite(t)) return null;
   return new Date(t).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
 }
+
+/**
+ * Segni per la mappa del livello «Locali e attività»: le attività dell'elenco (già filtrate) che hanno coordinate.
+ * Le altre restano solo nell'elenco: non si inventa una posizione.
+ */
+export function venueMarkers(rows: readonly ListedBusiness[]): { id: string; name: string; location: LngLat; category: BusinessCategoryId }[] {
+  return rows.flatMap(({ business: b }) => (b.location ? [{ id: b.id, name: b.name, location: b.location, category: b.category }] : []));
+}
+
+/** Modalità di esplorazione della visita: i luoghi del territorio o la directory delle attività. */
+export type ExploreTheme = "culture" | "venues";
+export const EXPLORE_THEMES: readonly ExploreTheme[] = ["culture", "venues"];
+export const parseExploreTheme = (v: unknown): ExploreTheme => (v === "venues" ? "venues" : "culture");

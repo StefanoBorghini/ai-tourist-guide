@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { businessesReply, businessesRpcArgs, parseBusinessesQuery, type BusinessesRpc } from "../lib/businesses-api.ts";
 import { NO_STORE, PUBLIC_CACHE } from "../lib/events-api.ts";
 import {
+  parseExploreTheme, venueMarkers,
   businessCategoriesIn, businessesStateFromResponse, directionsHref, distanceLabel, hoursFresh, listBusinesses, parseBusinessesData, telHref,
   type BusinessesData,
 } from "../lib/businesses-view.ts";
@@ -100,5 +101,19 @@ describe("directory nella guida", () => {
     expect(distanceLabel(84, "it")).toBe("80 m");
     expect(distanceLabel(3, "it")).toBe("10 m");
     expect(distanceLabel(1430, "it")).toBe("1,4 km");
+  });
+
+  it("mappa delle attività: solo quelle con coordinate, nello stesso ordine dell'elenco", () => {
+    const rows = listBusinesses(data, null, [9.8400, 44.0600]);
+    expect(venueMarkers(rows).map((m) => m.id)).toEqual(["c", "a"]);
+    expect(venueMarkers(rows)[0]).toEqual({ id: "c", name: "Trattoria Lontana", location: [9.84, 44.06], category: "restaurant" });
+    expect(venueMarkers(listBusinesses(data, "shop", null))).toEqual([]);
+  });
+
+  it("modalità di esplorazione: solo i due valori previsti, «Storia e cultura» di base", () => {
+    expect(parseExploreTheme("venues")).toBe("venues");
+    expect(parseExploreTheme("culture")).toBe("culture");
+    expect(parseExploreTheme("admin")).toBe("culture");
+    expect(parseExploreTheme(null)).toBe("culture");
   });
 });

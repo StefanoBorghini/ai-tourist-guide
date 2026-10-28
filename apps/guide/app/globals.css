@@ -1254,5 +1254,53 @@ html { -webkit-tap-highlight-color: transparent; }
 .place-row .short.partof { color: var(--sand); }
 .place-card .place-partof { margin: -4px 0 6px; }
 
-/* Collegamento rapido alla directory delle attività, in cima all'esplorazione. */
-.businesses-shortcut { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; margin: 2px 0 10px; }
+/* ---------------------------------------------------------------- esplorazione tematica (2026-10-28)
+   Selettore «Storia e cultura» / «Locali e attività» sopra la mappa: due grandi schede, la scelta si riconosce subito
+   (colore pieno e bordo). Il livello attività ha segni quadrati color sabbia, diversi dagli spilli arancio dei luoghi. */
+.theme-switch {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; margin: 0 0 12px;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-md);
+}
+.theme-switch button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 8px 10px;
+  border: 1px solid transparent; border-radius: var(--r-sm); background: transparent; color: var(--ink-soft);
+  font: 600 15px/1.2 var(--font-ui); cursor: pointer; transition: background 0.2s var(--ease), color 0.2s var(--ease);
+}
+.theme-switch button:hover { background: var(--line); color: var(--ink); }
+.theme-switch button:focus-visible { outline: 2px solid var(--sand); outline-offset: 2px; }
+.theme-switch button[aria-selected="true"].theme-culture { background: var(--ivory); color: var(--on-ivory); box-shadow: var(--shadow-sm); }
+.theme-switch button[aria-selected="true"].theme-venues { background: var(--sand); color: var(--accent-ink); box-shadow: var(--shadow-sm); }
+.walk.theme-venues .mapview { border-color: color-mix(in srgb, var(--sand) 45%, transparent); }
+
+.map-venue { cursor: pointer; }
+.map-venue-body { fill: var(--sand); stroke: #0c0c0c; stroke-width: 1.5; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45)); }
+.map-venue-dot { fill: #0c0c0c; }
+.map-venue.cat-restaurant .map-venue-body { fill: #e3a86b; }
+.map-venue.cat-bar .map-venue-body { fill: #d6c6a5; }
+.map-venue.cat-shop .map-venue-body { fill: #b8c99a; }
+.map-venue.cat-accommodation .map-venue-body { fill: #a9bfd6; }
+.map-venue.cat-tourist_service .map-venue-body { fill: #c9a9d6; }
+.map-venue.selected .map-venue-body { fill: #0c0c0c; stroke: var(--sand); stroke-width: 2; }
+.map-venue.selected .map-venue-dot { fill: var(--sand); }
+.legend-venue { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--sand); vertical-align: -1px; }
+
+.venue-filters { margin: 0 0 10px; }
+.venue-badge {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: var(--r-sm);
+  background: var(--sea-soft); color: var(--sand); flex: none;
+}
+.venue-badge.cat-restaurant { color: #e3a86b; }
+.venue-badge.cat-shop { color: #b8c99a; }
+.venue-badge.cat-accommodation { color: #a9bfd6; }
+.venue-badge.cat-tourist_service { color: #c9a9d6; }
+.venue-badge.big { width: 56px; height: 56px; border-radius: var(--r-md); }
+.places.venues { margin-top: 10px; }
+.venue-row.on { border-color: var(--sand); }
+.venues-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 28px 20px; margin-top: 10px; }
+.venues-empty h3 { margin: 4px 0 0; font-family: var(--font-display); font-size: 20px; }
+.venues-empty p { margin: 0; max-width: 34ch; }
+.venue-detail .event-list { margin-bottom: 10px; }
+.venue-detail .event-main { position: relative; }
+.venue-close { position: absolute; top: -4px; right: -6px; }
+.venue-detail .event-title { padding-right: 40px; }
+.venue-detail.empty p { margin: 0 0 6px; display: flex; gap: 8px; align-items: flex-start; }

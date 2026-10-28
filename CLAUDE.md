@@ -104,7 +104,11 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   `public_local_businesses()` in ordine alfabetico); API `GET /api/v1/businesses` (`lib/businesses-api.ts`); scheda «Attività» dello
   Studio in `app/studio/[pack]/attivita/` (`app/studio/actions-businesses.ts`, `lib/studio/local-businesses.ts`); nella visita il
   riquadro «Bar, ristoranti e servizi» (`components/BusinessesPanel.tsx`, regole in `lib/businesses-view.ts`: per distanza se c'è la
-  posizione, orari nascosti oltre 180 giorni dalla verifica); solo online; vedi `docs/v0.3-platform/DIRECTORY-ATTIVITA-LOCALI.md`
+  posizione, orari nascosti oltre 180 giorni dalla verifica); solo online; vedi `docs/v0.3-platform/DIRECTORY-ATTIVITA-LOCALI.md`.
+  Esplorazione tematica: sopra la mappa dell'esplorazione libera il selettore «Storia e cultura» / «Locali e attività» (stato
+  `theme` in `GuideApp.tsx`); la seconda usa la stessa `MapView` con `layer="venues"` (segni delle attività, niente luoghi; stessa
+  posizione nella pagina, quindi zoom e inquadratura restano), filtri per categoria su mappa ed elenco, dettagli dell'attività e
+  stato vuoto; esplorazione libera, senza tappe; i percorsi guidati non cambiano (nella loro scheda resta il riquadro delle attività)
 - `territories/` — Territory Pack; `_synthetic/` contiene territori inventati per i test
 - `supabase/migrations/` — schema del database (sistema di redazione, non letto dall'app a runtime); `supabase/tests/`
   test delle migrazioni, delle policy e della parità pack ↔ database su un Postgres locale (`npm run db:check`;

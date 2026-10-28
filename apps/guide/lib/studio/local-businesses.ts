@@ -12,10 +12,10 @@ export type BusinessCategory = (typeof BUSINESS_CATEGORIES)[number];
 
 export const BUSINESS_CATEGORY_LABELS: Record<BusinessCategory, string> = {
   restaurant: "Ristoranti, trattorie e pizzerie",
-  bar: "Bar, caffè, gelaterie e locali",
-  shop: "Negozi",
+  bar: "Bar, caffè, enoteche, gelaterie e locali",
+  shop: "Negozi e botteghe artigiane",
   accommodation: "Strutture ricettive",
-  tourist_service: "Servizi turistici",
+  tourist_service: "Servizi turistici e attività ricreative",
   other: "Altro",
 };
 

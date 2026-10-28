@@ -119,3 +119,39 @@ Il riquadro non compare se la destinazione non ha attività pubblicate. Funziona
 - API `GET /api/v1/businesses?territory=…&lang=…`: `app/api/v1/businesses`, regole in `lib/businesses-api.ts`;
 - guida: `components/BusinessesPanel.tsx` con regole pure in `lib/businesses-view.ts`;
 - Studio: `app/studio/[pack]/attivita/`, `app/studio/actions-businesses.ts` e `lib/studio/local-businesses.ts`.
+
+## 5. Esplorazione tematica (2026-10-28)
+
+Nell'esplorazione libera di una destinazione, sopra la mappa, c'è un selettore a due schede: **«Storia e cultura»** e
+**«Locali e attività»**. La scheda scelta è piena: avorio per la cultura, sabbia per le attività.
+
+| | Storia e cultura | Locali e attività |
+|---|---|---|
+| Mappa | Spilli dei luoghi (come prima) | Segni quadrati delle attività con coordinate, colorati per categoria. Niente spilli dei luoghi |
+| Elenco | Luoghi principali e sottoluoghi | Attività pubblicate, dalla più vicina se c'è la posizione |
+| Filtri | — | Per categoria, validi per mappa ed elenco insieme |
+| Dettagli | Scheda del luogo, racconti, domande a GAIA, percorsi, eventi | Scheda dell'attività (orari se verificati di recente, Chiama, Indicazioni, Sito, Email) |
+| Vuoto | — | «Nessuna attività a …, per ora», con l'avviso che la consultazione è sempre gratuita |
+
+**Una sola mappa.** È la stessa `MapView`, con `layer="venues"`. Le due modalità hanno la stessa struttura di pagina, quindi cambiando modalità la mappa non si ricrea: inquadratura, zoom, GPS, controlli e schermo intero restano come sono.
+
+**Esplorazione libera.** La modalità attività non ha tappe né ordine, e non tocca il motore di contesto. I percorsi guidati non cambiano: nella loro scheda resta il riquadro «Bar, ristoranti e servizi».
+
+**Categorie.** Il database non cambia. Le etichette accolgono anche:
+- le enoteche, in «Bar, caffè ed enoteche»;
+- le botteghe, in «Negozi e botteghe»;
+- le attività ricreative, in «Servizi e tempo libero».
+
+Il «tipo» libero (per esempio «enoteca» o «bottega di ceramiche») compare sulla scheda.
+
+**Codice:**
+- `components/GuideApp.tsx`: stato `theme`, `venueCategory`, `selectedVenue`;
+- `components/MapView.tsx`: livello `venues`;
+- `components/BusinessesPanel.tsx`: `VenueFilters`, `VenueList`, `BusinessCard` e `VenuesEmpty`;
+- `lib/businesses-view.ts`: `venueMarkers` ed `ExploreTheme`.
+
+**Domani: soste facoltative nei percorsi.** Le attività hanno un identificativo stabile (`local_businesses.id`) e coordinate, e la mappa sa già mostrarle come livello. Per proporle lungo un itinerario basterà:
+1. una tabella di collegamento percorso ↔ attività (sosta facoltativa, posizione nell'ordine), scelta dalla redazione nello Studio;
+2. il livello `venues` acceso anche sulla mappa del percorso, con le sole attività collegate.
+
+Le soste resterebbero facoltative: il pianificatore non le conta tra le tappe. Oggi niente di questo è necessario e niente è stato aggiunto.

@@ -53,7 +53,7 @@ export function useLocalBusinesses(territory: string | null, lang: string | null
   return [state, retry];
 }
 
-function BusinessCard({ row, locale, t }: { row: ListedBusiness; locale: string; t: UiText }) {
+export function BusinessCard({ row, locale, t, onClose }: { row: ListedBusiness; locale: string; t: UiText; onClose?: () => void }) {
   const w = t.businesses;
   const b = row.business;
   const now = Date.now();
@@ -63,6 +63,9 @@ function BusinessCard({ row, locale, t }: { row: ListedBusiness; locale: string;
   return (
     <li className="event business">
       <div className="event-main">
+        {onClose && (
+          <button className="round-btn venue-close" onClick={onClose} aria-label={w.closeDetail}><Icon name="close" size={18} /></button>
+        )}
         <div className="event-badges">
           <span className="badge cat">{b.subcategory ?? w.categories[b.category]}</span>
           {row.distanceM !== null && <span className="badge">{w.away(distanceLabel(row.distanceM, locale))}</span>}
@@ -89,6 +92,70 @@ function BusinessCard({ row, locale, t }: { row: ListedBusiness; locale: string;
         {verified && <span className="muted small">{w.verified(verified)}</span>}
       </div>
     </li>
+  );
+}
+
+/** Filtri per categoria della modalità «Locali e attività» (controllati dal genitore: valgono per mappa ed elenco). */
+export function VenueFilters({ categories, category, onChange, t }: {
+  categories: readonly BusinessCategoryId[];
+  category: BusinessCategoryId | null;
+  onChange: (c: BusinessCategoryId | null) => void;
+  t: UiText;
+}) {
+  const w = t.businesses;
+  if (categories.length < 2) return null;
+  return (
+    <div className="event-filters venue-filters" role="group" aria-label={w.title}>
+      <button className={`chip small ${category === null ? "on" : ""}`} aria-pressed={category === null} onClick={() => onChange(null)}>{w.all}</button>
+      {categories.map((c) => (
+        <button key={c} className={`chip small ${category === c ? "on" : ""}`} aria-pressed={category === c} onClick={() => onChange(category === c ? null : c)}>
+          {w.categories[c]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Elenco compatto e selezionabile (una riga per attività, come l'elenco dei luoghi). */
+export function VenueList({ rows, selected, onSelect, locale, t }: {
+  rows: readonly ListedBusiness[];
+  selected: string | null;
+  onSelect: (id: string) => void;
+  locale: string;
+  t: UiText;
+}) {
+  const w = t.businesses;
+  return (
+    <ul className="places venues">
+      {rows.map(({ business: b, distanceM: d }) => (
+        <li key={b.id}>
+          <button className={`place-row venue-row ${b.id === selected ? "on" : ""}`} onClick={() => onSelect(b.id)} aria-pressed={b.id === selected}>
+            <span className={`venue-badge cat-${b.category}`} aria-hidden="true"><Icon name="shop" size={18} /></span>
+            <span>
+              <span className="name">{b.name}</span>
+              <span className="short">{b.subcategory ?? w.categories[b.category]}{b.address ? ` · ${b.address}` : ""}</span>
+            </span>
+            <span className="dist">{d !== null ? distanceLabel(d, locale) : null}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Stato vuoto curato: nessuna attività pubblicata per la destinazione (o nessuna nella categoria scelta). */
+export function VenuesEmpty({ name, filtered, t }: { name: string; filtered: boolean; t: UiText }) {
+  const w = t.businesses;
+  return (
+    <section className="card venues-empty" role="status">
+      <span className="venue-badge big" aria-hidden="true"><Icon name="shop" size={26} /></span>
+      {filtered ? <p>{w.emptyFiltered}</p> : (
+        <>
+          <h3>{w.emptyTitle(name)}</h3>
+          <p className="muted">{w.emptyText}</p>
+        </>
+      )}
+    </section>
   );
 }
 

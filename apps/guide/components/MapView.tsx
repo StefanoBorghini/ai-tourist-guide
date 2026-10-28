@@ -28,6 +28,10 @@ import type { GuideRuntime } from "../lib/runtime";
  *
  * In esplorazione non ci sono tappe: tutti i luoghi sono spilli, la mappa segue il visitatore
  * (punto blu, inconfondibile con gli spilli) finché non la sposta, e «Centra su di me» la riaggancia.
+ *
+ * Livello «Locali e attività» (`layer="venues"`): la stessa mappa mostra solo le attività della directory (segni
+ * quadrati, diversi dagli spilli dei luoghi) e nasconde luoghi e ancore. Cambiando livello il componente non si
+ * ricrea: inquadratura, zoom, GPS e controlli restano come sono.
  */
 const HEIGHT = 260;
 /**
@@ -48,6 +52,14 @@ const TILE_URL = (z: number, x: number, y: number) => `https://tile.openstreetma
 
 type Mode = "route" | "me" | "all";
 
+/** Attività sulla mappa (directory gratuita): solo quelle con coordinate. */
+export interface MapVenue {
+  id: string;
+  name: string;
+  location: LngLat;
+  category: string;
+}
+
 export function MapView(props: {
   content: BundleContent;
   runtime: GuideRuntime;
@@ -61,9 +73,17 @@ export function MapView(props: {
   tall?: boolean;
   /** Luoghi a pagamento non ancora acquistati: non compaiono sulla mappa (restano nell'elenco, con «Sblocca»). */
   locked?: ReadonlySet<string>;
+  /** Cosa mostra la mappa: i luoghi del territorio (predefinito) o le attività della directory. */
+  layer?: "places" | "venues";
+  venues?: readonly MapVenue[];
+  selectedVenue?: string | null;
+  onSelectVenue?: (id: string | null) => void;
 }) {
   const { content, runtime, debug, online, simulated, t } = props;
   const explore = runtime.kind === "explore";
+  const venuesLayer = props.layer === "venues";
+  const venues = venuesLayer ? (props.venues ?? []) : [];
+  const selectedVenue = venuesLayer ? (props.selectedVenue ?? null) : null;
   const boxRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(320);
   const [measuredHeight, setMeasuredHeight] = useState(HEIGHT);
@@ -127,7 +147,11 @@ export function MapView(props: {
   // Inquadratura automatica, finché l'utente non sposta o ingrandisce la mappa.
   const auto = (): MapViewState => {
     if (mode === "me" && fix) return { center: fix.location, zoom: explore ? FOLLOW_ZOOM : 18 };
-    if (mode === "all") return fitView([...content.places.map((p) => p.location), ...content.anchors.map((a) => a.location)], width, mapHeight);
+    if (mode === "all") {
+      // «Tutti»: le attività del livello, se ce ne sono; altrimenti i luoghi (la mappa non resta vuota).
+      if (venuesLayer && venues.length > 0) return fitView(venues.map((v) => v.location), width, mapHeight);
+      return fitView([...content.places.map((p) => p.location), ...content.anchors.map((a) => a.location)], width, mapHeight);
+    }
     const pts: LngLat[] = stops.length > 0 ? stops.map((p) => p.location) : content.places.map((p) => p.location);
     if (fix && pts.some((p) => distanceM(p, fix.location) < NEAR_ROUTE_M)) pts.push(fix.location);
     return fitView(pts, width, mapHeight);
@@ -144,7 +168,10 @@ export function MapView(props: {
   const preliminary = content.places.some((p) => unverified(p.coordinateStatus));
   const notFieldVerified = content.places.some((p) => p.coordinateStatus === "map_verified");
 
-  const labelCandidates: LabelCandidate[] = [
+  const labelCandidates: LabelCandidate[] = venuesLayer ? venues.map((v) => {
+    const s = screen(v.location);
+    return { id: v.id, x: s.x, y: s.y, text: v.name, priority: v.id === selectedVenue ? 110 : 50, offset: 10 };
+  }) : [
     ...content.places.map((p) => {
       const s = screen(p.location);
       const i = stopIndex.get(p.ref);
@@ -222,6 +249,11 @@ export function MapView(props: {
     if (drag.current && drag.current.moved > DRAG_THRESHOLD) return;
     setSelected(selected === ref ? null : ref);
   };
+  const venueIds = new Set(venues.map((v) => v.id));
+  const selectVenue = (id: string) => {
+    if (drag.current && drag.current.moved > DRAG_THRESHOLD) return;
+    props.onSelectVenue?.(selectedVenue === id ? null : id);
+  };
   const modes: Mode[] = explore ? ["me", "all"] : ["route", "me", "all"];
   const following = mode === "me" && !manual && !!fix;
 
@@ -229,11 +261,11 @@ export function MapView(props: {
   const me = fix ? screen(fix.location) : null;
 
   return (
-    <section className={fullscreen ? "mapview fullscreen" : "card mapview"}>
+    <section className={`${fullscreen ? "mapview fullscreen" : "card mapview"}${venuesLayer ? " layer-venues" : ""}`}>
       <div className="row wrap map-modes">
         {modes.map((m) => (
           <button key={m} className={`chip small ${mode === m && !manual ? "on" : ""}`} onClick={() => choose(m)} disabled={m === "me" && !fix}>
-            {t.map[m]}
+            {m === "all" && venuesLayer ? t.map.allVenues : t.map[m]}
           </button>
         ))}
       </div>
@@ -277,11 +309,11 @@ export function MapView(props: {
           {stops.length > 1 && (
             <polyline points={stops.map((p) => screen(p.location)).map((s) => `${s.x},${s.y}`).join(" ")} className="map-route" />
           )}
-          {content.anchors.map((a) => {
+          {!venuesLayer && content.anchors.map((a) => {
             const s = screen(a.location);
             return <rect key={a.ref} x={s.x - 6} y={s.y - 6} width={12} height={12} className="map-anchor" />;
           })}
-          {content.places
+          {!venuesLayer && content.places
             .filter((p) => !stopIndex.has(p.ref) && !props.locked?.has(p.ref))
             .map((p) => {
               const s = screen(p.location);
@@ -307,7 +339,26 @@ export function MapView(props: {
                 </g>
               );
             })}
-          {stops.map((p, i) => {
+          {venuesLayer && venues.map((v) => {
+            const s = screen(v.location);
+            const on = v.id === selectedVenue;
+            return (
+              <g
+                key={v.id}
+                className={`map-venue cat-${v.category} ${on ? "selected" : ""}`}
+                transform={`translate(${s.x},${s.y})${on ? " scale(1.3)" : ""}`}
+                onClick={() => selectVenue(v.id)}
+                role="button"
+                aria-label={v.name}
+                aria-pressed={on}
+              >
+                <circle cx={0} cy={0} r={16} className="map-hit" />
+                <rect x={-8} y={-8} width={16} height={16} rx={4} className="map-venue-body" />
+                <circle cx={0} cy={0} r={2.6} className="map-venue-dot" />
+              </g>
+            );
+          })}
+          {!venuesLayer && stops.map((p, i) => {
             const s = screen(p.location);
             const visited = runtime.visited.includes(p.ref);
             const skipped = runtime.skipped.includes(p.ref);
@@ -334,8 +385,8 @@ export function MapView(props: {
               x={l.x}
               y={l.y}
               textAnchor={l.anchor}
-              className={`map-label ${showTiles ? "halo" : ""} ${placeByRef.has(l.id) ? "tappable" : ""}`}
-              onClick={placeByRef.has(l.id) ? () => select(l.id) : undefined}
+              className={`map-label ${showTiles ? "halo" : ""} ${placeByRef.has(l.id) || venueIds.has(l.id) ? "tappable" : ""}`}
+              onClick={venueIds.has(l.id) ? () => selectVenue(l.id) : placeByRef.has(l.id) ? () => select(l.id) : undefined}
             >
               {l.text}
             </text>
@@ -397,8 +448,9 @@ export function MapView(props: {
       )}
       <div className="row wrap map-foot">
         <span className="muted small">{simulated ? t.map.legendSimulated : t.map.legendYou}</span>
-        {preliminary && <span className="muted small">{t.map.legendProvisional}</span>}
-        {notFieldVerified && <span className="muted small">{t.map.legendMapVerified}</span>}
+        {venuesLayer && <span className="muted small"><span className="legend-venue" aria-hidden="true" /> {t.map.legendVenues}</span>}
+        {!venuesLayer && preliminary && <span className="muted small">{t.map.legendProvisional}</span>}
+        {!venuesLayer && notFieldVerified && <span className="muted small">{t.map.legendMapVerified}</span>}
         {showTiles && loadedTiles === 0 && failedTiles.size > 0 && <span className="muted small">{t.map.noBasemap}</span>}
         {online ? (
           <label className="check small">

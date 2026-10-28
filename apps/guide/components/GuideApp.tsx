@@ -20,7 +20,10 @@ import { AskBox } from "./AskBox";
 import { bundleBase as bundleBaseOf, loadIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndexEntry } from "../lib/bundle-index";
 import { DebugPanel } from "./DebugPanel";
 import { EventsHomeButton, EventsPanel, useLocalEvents } from "./EventsPanel";
-import { BusinessesPanel, useLocalBusinesses } from "./BusinessesPanel";
+import { BusinessCard, BusinessesPanel, useLocalBusinesses, VenueFilters, VenueList, VenuesEmpty } from "./BusinessesPanel";
+import {
+  businessCategoriesIn, EXPLORE_THEMES, listBusinesses, venueMarkers, type BusinessCategoryId, type ExploreTheme,
+} from "../lib/businesses-view";
 import { countInRange } from "../lib/events-view";
 import { MapView } from "./MapView";
 import { Carousel } from "./Carousel";
@@ -213,6 +216,13 @@ export function GuideApp() {
   // Nella pagina iniziale e nel profilo vale la lingua scelta; dentro un territorio, quella del suo bundle.
   const locale = tab === "home" || tab === "profilo" ? uiLocale : (content?.locale ?? uiLocale);
   const [view, setView] = useState<"map" | "list">("map");
+  /**
+   * Esplorazione tematica (decisione del 2026-10-28): «Storia e cultura» (i luoghi, come prima) o «Locali e attività»
+   * (la directory gratuita, esplorazione libera senza tappe). Stessa mappa e stesso GPS; i percorsi guidati non cambiano.
+   */
+  const [theme, setTheme] = useState<ExploreTheme>("culture");
+  const [venueCategory, setVenueCategory] = useState<BusinessCategoryId | null>(null);
+  const [selectedVenue, setSelectedVenue] = useState<string | null>(null);
   /** Luoghi principali con i sottoluoghi aperti nell'elenco. */
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [openRoute, setOpenRoute] = useState<string | null>(null);
@@ -1578,6 +1588,16 @@ export function GuideApp() {
     </section>
   );
 
+  // Modalità «Locali e attività»: elenco filtrato (dalla più vicina se c'è la posizione) e segni per la mappa.
+  const venues = theme === "venues";
+  const venueRows = businessesState.kind === "ok" ? listBusinesses(businessesState.data, venueCategory, runtime.lastFix?.location ?? null) : [];
+  const venueCategories = businessesState.kind === "ok" ? businessCategoriesIn(businessesState.data.businesses) : [];
+  const venueSelected = venueRows.find((r) => r.business.id === selectedVenue) ?? null;
+  const chooseVenue = (id: string | null) => {
+    setSelectedVenue(id);
+    // Su telefono i dettagli sono sotto la mappa: li si porta in vista.
+    if (id) requestAnimationFrame(() => document.querySelector(".venue-detail")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+  };
   const map = (
     <MapView
       content={content}
@@ -1590,6 +1610,10 @@ export function GuideApp() {
       onSelect={(ref) => (ref ? choosePlace(ref) : setSelected(null))}
       tall={exploring}
       locked={lockedPlaces}
+      layer={exploring && theme === "venues" ? "venues" : "places"}
+      venues={venueMarkers(venueRows)}
+      selectedVenue={selectedVenue}
+      onSelectVenue={chooseVenue}
     />
   );
 
@@ -1627,33 +1651,67 @@ export function GuideApp() {
     .map((p) => ({ p, d: fixHere ? distanceM(fixHere, p.location) : null }))
     .sort((a, b) => (a.d !== null && b.d !== null ? a.d - b.d : 0));
 
-  // Collegamento in cima all'esplorazione: apre il riquadro delle attività (che sta sotto l'elenco dei luoghi) e lo mostra.
-  const businessesShortcut = businessesState.kind === "ok" && (
-    <button
-      className="chip small businesses-shortcut"
-      onClick={() => {
-        const box = document.getElementById("businesses-in-session") as HTMLDetailsElement | null;
-        if (!box) return;
-        box.open = true;
-        box.scrollIntoView({ behavior: "smooth", block: "start" });
-      }}
-    >
-      <Icon name="shop" size={16} /> {t.businesses.title} · {businessesState.data.businesses.length}
-    </button>
+  const themeSwitch = (
+    <div className="theme-switch" role="tablist" aria-label={t.businesses.themesLabel}>
+      {EXPLORE_THEMES.map((th) => (
+        <button
+          key={th}
+          role="tab"
+          aria-selected={theme === th}
+          className={`theme-${th}`}
+          onClick={() => {
+            setTheme(th);
+            if (th === "culture") setSelectedVenue(null);
+          }}
+        >
+          <Icon name={th === "culture" ? "landmark" : "shop"} size={18} /> {t.businesses.themes[th]}
+        </button>
+      ))}
+    </div>
   );
+  const venuesBody = (() => {
+    if (businessesState.kind === "loading") return <p className="muted small" role="status">{t.businesses.loading}</p>;
+    if (businessesState.kind === "offline") return <p className="notice"><Icon name="wifiOff" /> {t.businesses.offline}</p>;
+    if (businessesState.kind === "error") {
+      return (
+        <div className="notice">
+          <Icon name="info" /> <span>{t.businesses.error}</span>
+          <button className="link" onClick={retryBusinesses}>{t.businesses.retry}</button>
+        </div>
+      );
+    }
+    if (businessesState.kind === "unavailable") return <VenuesEmpty name={content.name} filtered={false} t={t} />;
+    if (venueRows.length === 0) return <VenuesEmpty name={content.name} filtered t={t} />;
+    return <VenueList rows={venueRows} selected={selectedVenue} onSelect={(id) => chooseVenue(id === selectedVenue ? null : id)} locale={content.locale} t={t} />;
+  })();
+  // Dopo la mappa, in modalità «Locali e attività»: avvisi ed elenco (o stato vuoto).
+  const venuesAfterMap = (
+    <>
+      {view === "map" && venueRows.length > 0 && venueMarkers(venueRows).length === 0 && <p className="muted small">{t.businesses.noMap}</p>}
+      {businessesState.kind === "ok" && venueRows.length > 0 && runtime.lastFix && <p className="muted small">{t.businesses.nearest}</p>}
+      {venuesBody}
+    </>
+  );
+
+  // Le due modalità condividono la stessa struttura: la mappa sta sempre nello stesso punto, così cambiando modalità
+  // React non la ricrea e inquadratura, zoom, GPS e controlli restano come sono.
   const exploreMain = (
     <>
+      {themeSwitch}
       <div className="view-switch">
-        <div className="segmented" role="group" aria-label={t.allPlaces}>
+        <div className="segmented" role="group" aria-label={venues ? t.businesses.themes.venues : t.allPlaces}>
           <button aria-pressed={view === "map"} onClick={() => setView("map")}><Icon name="map" size={18} /> {t.viewMap}</button>
           <button aria-pressed={view === "list"} onClick={() => setView("list")}><Icon name="list" size={18} /> {t.viewList}</button>
         </div>
-        <span className="muted small">{t.placesCount(content.places.length)}</span>
+        {venues ? (
+          businessesState.kind === "ok" && <span className="muted small">{t.businesses.count(venueRows.length)}</span>
+        ) : (
+          <span className="muted small">{t.placesCount(content.places.length)}</span>
+        )}
       </div>
-      {businessesShortcut}
-      {view === "map" ? (
-        <>
-          {map}
+      {venues ? <VenueFilters categories={venueCategories} category={venueCategory} onChange={(c) => { setVenueCategory(c); setSelectedVenue(null); }} t={t} /> : null}
+      {view === "map" ? map : null}
+      {venues ? venuesAfterMap : view === "map" ? (
           <section className="section" aria-label={t.nearbyTitle}>
             <h3>{t.nearbyTitle}</h3>
             {nearby.length === 0 ? (
@@ -1678,7 +1736,6 @@ export function GuideApp() {
               </Carousel>
             )}
           </section>
-        </>
       ) : (
         <ul className="places">
           {/* Solo i luoghi principali; i sottoluoghi si aprono sotto il loro principale (decisione del 2026-10-22). */}
@@ -1850,8 +1907,8 @@ export function GuideApp() {
     </details>
   );
 
-  // Bar, ristoranti e servizi nella visita (esplorazione e percorsi): chiusi di base, ordinati dalla posizione se c'è.
-  // In esplorazione il riquadro sta sotto l'elenco dei luoghi: in cima c'è un collegamento che lo apre e ci porta.
+  // Bar, ristoranti e servizi nei percorsi guidati (invariato): chiusi di base, ordinati dalla posizione se c'è.
+  // In esplorazione le attività hanno la loro modalità («Locali e attività»), con mappa ed elenco.
   const businessesInSession = businessesState.kind !== "unavailable" && (
     <details className="card" id="businesses-in-session">
       <summary>
@@ -1862,8 +1919,25 @@ export function GuideApp() {
     </details>
   );
 
+  // Dettagli dell'attività scelta (modalità «Locali e attività»), con la stessa scheda del riquadro dei percorsi.
+  const venueDetail = businessesState.kind === "ok" && venueRows.length > 0 && (
+    venueSelected ? (
+      <section className="card venue-detail" aria-label={venueSelected.business.name}>
+        <ul className="event-list">
+          <BusinessCard row={venueSelected} locale={content.locale} t={t} onClose={() => setSelectedVenue(null)} />
+        </ul>
+        <p className="muted small">{t.businesses.disclaimer}</p>
+      </section>
+    ) : (
+      <section className="card venue-detail empty">
+        <p className="muted"><Icon name="info" size={18} /> {t.businesses.pick}</p>
+        <p className="muted small">{t.businesses.disclaimer}</p>
+      </section>
+    )
+  );
+
   return shell(
-    <main className={`walk ${exploring ? "explore" : "tour"}`}>
+    <main className={`walk ${exploring ? "explore" : "tour"}${exploring && venues ? " theme-venues" : ""}`}>
       <header className="topbar">
         <button className="back-btn compact" onClick={toDestinations}><Icon name="back" size={18} /> {t.destinations}</button>
         <div style={{ minWidth: 0 }}>
@@ -1904,14 +1978,23 @@ export function GuideApp() {
       <div className="walk-grid">
         <div className="walk-main">{exploring ? exploreMain : map}</div>
         <div className="walk-side">
-          {exploring ? (
+          {exploring && venues ? (
+            <>
+              {(speaking || transcript.length > 0) && nowPlaying}
+              {venueDetail}
+              {content.fictional && (
+                <p className="notice">
+                  <Icon name="info" /> {t.fictionalNote}
+                </p>
+              )}
+            </>
+          ) : exploring ? (
             <>
               {placeCard}
               {(speaking || transcript.length > 0) && nowPlaying}
               {ask}
               {itinerariesInSession}
               {eventsInSession}
-              {businessesInSession}
               {content.locked?.explore && (ACCOUNTS && (offers.explore || !online) ? (
                 <section className="mode-explore paid-explore">
                   <p className="eyebrow"><Icon name="lock" size={15} /> {t.paidRoutes}</p>

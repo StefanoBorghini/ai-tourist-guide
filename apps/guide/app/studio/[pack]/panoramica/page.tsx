@@ -44,9 +44,12 @@ export default async function OverviewPage({ params, searchParams }: { params: P
   const { pack } = await params;
   const q = await searchParams;
   const session = await requireStaff();
-  const [{ data: k, error }, all] = await Promise.all([
+  const [{ data: k, error }, all, events, businesses] = await Promise.all([
     rpc<PackDetail>(session.supabase, "studio_pack", { p_pack: pack }),
     rpc<{ id: string; kind: string; title: Record<string, string> }[]>(session.supabase, "studio_packs"),
+    // Dati operativi (fuori dal pack): solo chi può modificare il territorio li vede; altrimenti la riga non compare.
+    rpc<{ publication: string; endsAt: string }[]>(session.supabase, "studio_local_events", { p_pack: pack }),
+    rpc<{ publication: string }[]>(session.supabase, "studio_local_businesses", { p_pack: pack }),
   ]);
   if (!k) {
     return (
@@ -99,10 +102,23 @@ export default async function OverviewPage({ params, searchParams }: { params: P
             <li><Link href={`${base}/racconti`}>{k.counts.units} racconti</Link></li>
             <li><Link href={`${base}/percorsi`}>{k.counts.routes} percorsi</Link></li>
             <li><Link href={`${base}/media`}>{k.counts.media} foto</Link></li>
+            {k.kind === "destination" && k.canEdit && events.data && (
+              <li>
+                <Link href={`${base}/eventi`}>{events.data.length} eventi</Link>
+                {` · ${events.data.filter((e) => e.publication === "published" && Date.parse(e.endsAt) > Date.now()).length} pubblicati in arrivo`}
+              </li>
+            )}
+            {k.kind === "destination" && k.canEdit && businesses.data && (
+              <li>
+                <Link href={`${base}/attivita`}>{businesses.data.length} attività</Link>
+                {` · ${businesses.data.filter((b) => b.publication === "published").length} pubblicate`}
+                {" · "}<Link href={`${base}/attivita/nuova`}>aggiungi</Link>
+              </li>
+            )}
           </ul>
           <p className="st-hint">
             Ordine consigliato: luoghi → fonti → fatti (ognuno con la sua fonte) → racconti (costruiti sui fatti) →
-            percorsi → foto e copertina.
+            percorsi → foto e copertina. Eventi e attività sono a parte: si pubblicano da soli, senza ripubblicare il territorio.
           </p>
         </section>
 

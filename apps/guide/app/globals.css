@@ -1253,3 +1253,6 @@ html { -webkit-tap-highlight-color: transparent; }
 .places li.sub::before { content: ""; position: absolute; left: 10px; top: -8px; bottom: 50%; width: 12px; border-left: 2px solid var(--line); border-bottom: 2px solid var(--line); border-bottom-left-radius: 8px; }
 .place-row .short.partof { color: var(--sand); }
 .place-card .place-partof { margin: -4px 0 6px; }
+
+/* Collegamento rapido alla directory delle attività, in cima all'esplorazione. */
+.businesses-shortcut { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; margin: 2px 0 10px; }

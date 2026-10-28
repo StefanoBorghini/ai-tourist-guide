@@ -1627,6 +1627,20 @@ export function GuideApp() {
     .map((p) => ({ p, d: fixHere ? distanceM(fixHere, p.location) : null }))
     .sort((a, b) => (a.d !== null && b.d !== null ? a.d - b.d : 0));
 
+  // Collegamento in cima all'esplorazione: apre il riquadro delle attività (che sta sotto l'elenco dei luoghi) e lo mostra.
+  const businessesShortcut = businessesState.kind === "ok" && (
+    <button
+      className="chip small businesses-shortcut"
+      onClick={() => {
+        const box = document.getElementById("businesses-in-session") as HTMLDetailsElement | null;
+        if (!box) return;
+        box.open = true;
+        box.scrollIntoView({ behavior: "smooth", block: "start" });
+      }}
+    >
+      <Icon name="shop" size={16} /> {t.businesses.title} · {businessesState.data.businesses.length}
+    </button>
+  );
   const exploreMain = (
     <>
       <div className="view-switch">
@@ -1636,6 +1650,7 @@ export function GuideApp() {
         </div>
         <span className="muted small">{t.placesCount(content.places.length)}</span>
       </div>
+      {businessesShortcut}
       {view === "map" ? (
         <>
           {map}
@@ -1836,6 +1851,7 @@ export function GuideApp() {
   );
 
   // Bar, ristoranti e servizi nella visita (esplorazione e percorsi): chiusi di base, ordinati dalla posizione se c'è.
+  // In esplorazione il riquadro sta sotto l'elenco dei luoghi: in cima c'è un collegamento che lo apre e ci porta.
   const businessesInSession = businessesState.kind !== "unavailable" && (
     <details className="card" id="businesses-in-session">
       <summary>

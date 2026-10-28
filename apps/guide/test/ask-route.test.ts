@@ -15,6 +15,15 @@ const h = vi.hoisted(() => ({
   retrieve: vi.fn(async () => ({ capabilities: { server_tools: { web_search: { supported: true } } } })),
   clientOptions: [] as unknown[],
   loaded: null as unknown,
+  rpc: vi.fn(),
+  createClient: vi.fn(),
+}));
+// Supabase finto per il registro delle domande senza risposta: nessuna rete.
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: (...args: unknown[]) => {
+    h.createClient(...args);
+    return { rpc: (...a: unknown[]) => ({ abortSignal: () => h.rpc(...a) }) };
+  },
 }));
 
 vi.mock("@anthropic-ai/sdk", async (importOriginal) => {
@@ -37,6 +46,7 @@ vi.mock("../lib/ask-server.ts", async (importOriginal) => ({
 const here = dirname(fileURLToPath(import.meta.url));
 let destination = "";
 let ref = "";
+let placeRef = "";
 beforeAll(() => {
   const { packs } = loadPacks(resolve(here, "../../../territories/_synthetic"));
   const dest = [...packs.values()].find((p) => p.manifest.kind === "destination")!;
@@ -44,13 +54,18 @@ beforeAll(() => {
   h.loaded = { content, knowledge: buildKnowledge(content), kbHash: "kb-test" } satisfies Loaded;
   destination = content.destination;
   ref = content.assertions[0]!.ref;
+  placeRef = content.places[0]!.ref;
 });
 
 beforeEach(() => {
   h.create.mockReset();
+  h.rpc.mockReset();
+  h.rpc.mockResolvedValue({ data: "created", error: null });
+  h.createClient.mockReset();
   h.clientOptions.length = 0;
   vi.spyOn(console, "info").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -89,7 +104,8 @@ describe("route delle domande", () => {
     h.create.mockResolvedValueOnce(localReply());
     const r = await route({ ANTHROPIC_API_KEY: "x", ASK_MAX_USD_PER_QUESTION: "0.5" });
     await r.POST(post({ destination, locale: "it", question: "Perché fu costruito qui?" }));
-    expect(h.clientOptions).toEqual([{ maxRetries: 0 }]);
+    // La chiave arriva da modelsFromEnv (lib/model.ts); qui conta che non ci siano nuovi tentativi.
+    expect(h.clientOptions).toEqual([expect.objectContaining({ maxRetries: 0 })]);
     expect((h.create.mock.calls[0]![1] as { maxRetries: number }).maxRetries).toBe(0);
   });
 
@@ -123,5 +139,152 @@ describe("route delle domande", () => {
     const logged = JSON.parse(errors.find((l) => l.includes('"event":"ask_error"'))!);
     expect(logged.budget.quality).toBe("estimated");
     expect(logged.budget.spentUsd).toBeGreaterThan(0);
+  });
+});
+
+describe("ricerca online solo su richiesta", () => {
+  const env = { ANTHROPIC_API_KEY: "x", ASK_MAX_USD_PER_QUESTION: "0.5" };
+  const notFound = () => ({
+    ...localReply(),
+    content: [{ type: "text", text: JSON.stringify({ status: "not_in_knowledge", answer: "Non ho questa informazione.", citations: [] }) }],
+  });
+  const tools = (i: number) => (h.create.mock.calls[i]![0] as { tools?: unknown[] }).tools;
+
+  it("una domanda senza risposta fa una sola chiamata, senza ricerca, e ripetuta arriva dalla cache a costo zero", async () => {
+    h.create.mockResolvedValueOnce(notFound());
+    const r = await route(env);
+    const body = { destination, locale: "it", question: "Ci sono spiagge?" };
+    const first = await (await r.POST(post(body))).json();
+    expect(first).toMatchObject({ status: "not_in_knowledge", meter: { calls: 1, webSearches: 0 } });
+    expect(first.origin ?? "local").toBe("local");
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(tools(0)).toBeUndefined();
+    const second = await (await r.POST(post(body))).json();
+    expect(second).toMatchObject({ status: "not_in_knowledge", cached: true, meter: { calls: 0, costUsd: 0 } });
+    expect(h.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("con «Approfondisci» la ricerca parte", async () => {
+    h.create.mockRejectedValue(new Error("fine della prova"));
+    const r = await route(env);
+    await r.POST(post({ destination, locale: "it", question: "Ci sono spiagge?", depth: "deep" }));
+    expect(h.create).toHaveBeenCalled();
+    expect(JSON.stringify(tools(0))).toContain("web_search");
+  });
+
+  it("con ASK_WEB_AUTO=1 la ricerca riparte da sola quando la base non basta", async () => {
+    h.create.mockResolvedValueOnce(notFound()).mockRejectedValue(new Error("fine della prova"));
+    const r = await route({ ...env, ASK_WEB_AUTO: "1" });
+    await r.POST(post({ destination, locale: "it", question: "Ci sono spiagge?" }));
+    expect(h.create).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(tools(1))).toContain("web_search");
+  });
+});
+
+describe("registro delle domande senza risposta", () => {
+  const SERVICE_KEY = "chiave-di-servizio-segreta-0123456789";
+  const gapsEnv = {
+    ANTHROPIC_API_KEY: "x",
+    ASK_MAX_USD_PER_QUESTION: "0.5",
+    ASK_WEB_ENABLED: "0",
+    QUESTION_GAPS_ENABLED: "1",
+    NEXT_PUBLIC_SUPABASE_URL: "https://progetto.supabase.co",
+    SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY,
+  };
+  const reply = (status: string, citations: string[] = []) => ({
+    ...localReply(),
+    content: [{ type: "text", text: JSON.stringify({ status, answer: status === "answered" ? "Dalla base." : "Non ho questa informazione.", citations }) }],
+  });
+  const allLogs = () =>
+    [console.info, console.warn, console.error].flatMap((f) => (f as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) => String(c[0]))).join("\n");
+  const settle = () => new Promise((r) => setTimeout(r, 20));
+
+  it("registra la lacuna dopo la risposta, senza chiamate in più al modello e senza cambiare la risposta", async () => {
+    h.create.mockResolvedValueOnce(reply("not_in_knowledge"));
+    const r = await route(gapsEnv);
+    const res = await r.POST(post({ destination, locale: "it", question: "A che ora apre? Scrivetemi a mario.rossi@example.it" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("not_in_knowledge");
+    await vi.waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
+    const [fn, args] = h.rpc.mock.calls[0]!;
+    expect(fn).toBe("gap_record");
+    expect(args).toMatchObject({ p_pack: destination, p_locale: "it", p_kind: "not_in_knowledge", p_question: "A che ora apre? Scrivetemi a [email]" });
+    expect(JSON.stringify(args)).not.toContain("203.0.113.7");
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(allLogs()).not.toContain(SERVICE_KEY);
+  });
+
+  it("nella riga solo i campi previsti: niente cronologia, già raccontato, vicini, posizione o luoghi inventati", async () => {
+    h.create.mockResolvedValueOnce(reply("not_in_knowledge"));
+    const r = await route(gapsEnv);
+    await r.POST(post({
+      destination, locale: "it", question: "A che ora apre?",
+      currentPlace: "Mario Rossi via Roma 3", selectedPlace: placeRef,
+      position: { lon: 9.81234, lat: 44.05678, accuracyM: 8 },
+      nearby: [placeRef], told: [ref],
+      history: [{ question: "Mi chiamo Mario", answer: "Risposta precedente riservata" }],
+    }));
+    await vi.waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
+    const args = h.rpc.mock.calls[0]![1] as Record<string, unknown>;
+    expect(Object.keys(args).sort()).toEqual(
+      ["p_kb_hash", "p_key", "p_kind", "p_locale", "p_pack", "p_place", "p_prompt", "p_question", "p_reason", "p_selected", "p_web_sources"].sort(),
+    );
+    expect(args).toMatchObject({ p_place: null, p_selected: placeRef, p_question: "A che ora apre?" });
+    const text = JSON.stringify(args);
+    for (const leak of ["Mario", "Roma", "riservata", "9.81", "44.05", "203.0.113.7", ref]) expect(text, leak).not.toContain(leak);
+  });
+
+  it("le risposte complete, le emergenze e il registro spento non scrivono nulla", async () => {
+    h.create.mockResolvedValueOnce(reply("answered", [ref]));
+    let r = await route(gapsEnv);
+    await r.POST(post({ destination, locale: "it", question: "Chi costruì il porto?" }));
+    await r.POST(post({ destination, locale: "it", question: "Aiuto, mi sento male, chiamate un'ambulanza" }));
+    await settle();
+    expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.create).toHaveBeenCalledTimes(1);
+
+    h.create.mockResolvedValueOnce(reply("not_in_knowledge"));
+    r = await route({ ...gapsEnv, QUESTION_GAPS_ENABLED: undefined });
+    await r.POST(post({ destination, locale: "it", question: "A che ora apre?" }));
+    await settle();
+    expect(h.createClient).not.toHaveBeenCalled();
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("un errore del database non interrompe né cambia la risposta, e i log restano senza chiave né testo", async () => {
+    h.create.mockResolvedValueOnce(reply("not_in_knowledge"));
+    h.rpc.mockReset();
+    h.rpc.mockRejectedValue(new Error(`connessione rifiutata ${SERVICE_KEY}`));
+    const r = await route(gapsEnv);
+    const res = await r.POST(post({ destination, locale: "it", question: "A che ora apre il museo?" }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).status).toBe("not_in_knowledge");
+    await vi.waitFor(() => expect(allLogs()).toContain("question_gap_failed"));
+    expect(allLogs()).not.toContain(SERVICE_KEY);
+    // Il log dell'errore del registro non ripete la domanda (quello di knowledge_gap la riporta già mascherata).
+    expect(allLogs().split("\n").filter((l) => l.includes("question_gap")).join("\n")).not.toContain("museo");
+  });
+
+  it("una risposta parziale dalla cache si conta di nuovo senza richiamare il modello", async () => {
+    h.create.mockResolvedValueOnce(reply("partial", [ref]));
+    const r = await route(gapsEnv);
+    const body = { destination, locale: "it", question: "Chi costruì il porto e quando?" };
+    const first = await (await r.POST(post(body))).json();
+    expect(first.status).toBe("partial");
+    const second = await (await r.POST(post(body))).json();
+    expect(second).toMatchObject({ status: "partial", cached: true });
+    await vi.waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(2));
+    expect(h.create).toHaveBeenCalledTimes(1);
+    expect(h.rpc.mock.calls.map((c) => (c[1] as { p_kind: string }).p_kind)).toEqual(["partial", "partial"]);
+  });
+
+  it("al massimo 5 righe ogni 10 minuti per indirizzo", async () => {
+    for (let i = 0; i < 7; i++) h.create.mockResolvedValueOnce(reply("not_in_knowledge"));
+    const r = await route(gapsEnv);
+    for (let i = 0; i < 7; i++) await r.POST(post({ destination, locale: "it", question: `Domanda senza risposta numero ${i}?` }));
+    await settle();
+    expect(h.create).toHaveBeenCalledTimes(7);
+    expect(h.rpc).toHaveBeenCalledTimes(5);
   });
 });

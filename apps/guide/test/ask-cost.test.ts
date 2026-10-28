@@ -19,6 +19,8 @@ import {
 import { aggregateScores, blindKey, emptyScore, percentile, stats } from "../lib/ask-eval-stats.ts";
 import { LOCAL_MAX_TOKENS, LOCAL_MIN_TOKENS, WEB_MAX_TOKENS, WEB_MIN_TOKENS, askGuide, type Loaded, type WebGate } from "../lib/ask-server.ts";
 import { WEB_SYSTEM_PROMPT, buildWebAddendum, webConfig, type ContentBlockLike } from "../lib/ask-web.ts";
+import { AnthropicAdapter, type AskModels } from "../lib/model.ts";
+import { PERSONA_PROMPT } from "../lib/persona.ts";
 
 /** Prove sul bundle del territorio di test, senza nomi di territorio scritti qui. Nessuna chiamata reale. */
 const here = dirname(fileURLToPath(import.meta.url));
@@ -31,7 +33,7 @@ beforeAll(() => {
   const dest = [...packs.values()].find((p) => p.manifest.kind === "destination")!;
   const content = buildBundle(packs, { destination: dest.manifest.id, locale: "it", allowFictional: true }).content;
   loaded = { content, knowledge: buildKnowledge(content), kbHash: "kb-test" };
-  req = askRequestSchema.parse({ destination: content.destination, locale: "it", question: "Perché fu costruito qui?" });
+  req = askRequestSchema.parse({ destination: content.destination, locale: "it", question: "Perché fu costruito il porto?" });
   ref = content.assertions[0]!.ref;
 });
 
@@ -70,16 +72,19 @@ function fakeClient(...replies: (object | Error)[]) {
     if (next instanceof Error) throw next;
     return next;
   });
-  return { client: { beta: { messages: { create } } } as unknown as Anthropic, create };
+  const anthropic = { beta: { messages: { create } } } as unknown as Anthropic;
+  const client: AskModels = { local: new AnthropicAdapter(anthropic), web: anthropic };
+  return { client, create };
 }
 const params = (create: ReturnType<typeof fakeClient>["create"], i: number) =>
   create.mock.calls[i]![0] as { model: string; max_tokens: number; tools?: { max_uses: number }[] };
 const options = (create: ReturnType<typeof fakeClient>["create"], i: number) => create.mock.calls[i]![1] as { maxRetries?: number; timeout?: number };
-const gate = (env: Record<string, string> = {}): WebGate => ({ config: webConfig(env), supported: true, permitted: () => true });
+// Il percorso automatico (ricerca quando la base non basta) resta provato con ASK_WEB_AUTO=1.
+const gate = (env: Record<string, string> = {}): WebGate => ({ config: webConfig({ ASK_WEB_AUTO: "1", ...env }), supported: true, permitted: () => true });
 
 /** Caso peggiore della risposta locale piena (come lo calcola il budget). */
 const localInputTokens = (r: AskRequest = req) =>
-  estimateInputTokens(SYSTEM_PROMPT, loaded.knowledge, buildQuestionMessage(loaded.content, r), JSON.stringify(ANSWER_JSON_SCHEMA));
+  estimateInputTokens(SYSTEM_PROMPT, PERSONA_PROMPT, loaded.knowledge, buildQuestionMessage(loaded.content, r), JSON.stringify(ANSWER_JSON_SCHEMA));
 
 // ------------------------------------------------------------------ configurazione (caso 11)
 
@@ -316,7 +321,7 @@ describe("budget per domanda", () => {
     expect(create).toHaveBeenCalledTimes(1);
     expect(out.answer.origin).toBe("web");
     const reserve = new QuestionBudget(LIMIT).plan({ model: "claude-opus-5-5", inputTokens: localInputTokens(deep), maxTokens: LOCAL_MIN_TOKENS, minTokens: LOCAL_MIN_TOKENS });
-    const webInput = estimateInputTokens(WEB_SYSTEM_PROMPT, loaded.knowledge, buildQuestionMessage(loaded.content, deep) + "\n" + buildWebAddendum(null, deep));
+    const webInput = estimateInputTokens(WEB_SYSTEM_PROMPT, PERSONA_PROMPT, loaded.knowledge, buildQuestionMessage(loaded.content, deep) + "\n" + buildWebAddendum(null, deep));
     const plan = (keepUsd: number) =>
       new QuestionBudget(LIMIT).plan({ model: "claude-opus-5-5", inputTokens: webInput, maxTokens: WEB_MAX_TOKENS, minTokens: WEB_MIN_TOKENS, searches: 3, minSearches: 1, keepUsd });
     const kept = plan(reserve.worstUsd);

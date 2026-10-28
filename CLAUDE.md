@@ -14,8 +14,9 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
    (mai `draft`), marcate e dichiarate all'utente; in `production` il validatore impone affermazioni verificate,
    coordinate `field_verified` e percorsi `field_calibrated`.
    **Ricerca web (decisione del proprietario, 2026-10):** il racconto dei luoghi non usa mai il web; le *risposte alle
-   domande* possono approfondire con lo strumento ufficiale di ricerca web dell'API Anthropic, solo dopo la base locale
-   e solo se questa non basta o se il visitatore chiede di approfondire (`lib/ask-web.ts`). Ciò che viene dal web si
+   domande* possono approfondire con lo strumento ufficiale di ricerca web dell'API Anthropic, dopo la base locale e
+   solo quando il visitatore chiede di approfondire («Approfondisci»; decisione del 24/10: da sola costava molto e spesso
+   non trovava fonti; `ASK_WEB_AUTO=1` riaccende la ricerca automatica quando la base non basta) (`lib/ask-web.ts`). Ciò che viene dal web si
    mostra con le sue fonti, marcato come non verificato dalla redazione, e **non entra mai da solo nel Territory Pack**:
    ci arriva solo con il processo normale di revisione. Si spegne con `ASK_WEB_ENABLED=0`.
 4. **Il Territory Pack è l'unica porta d'ingresso dei contenuti.** Il formato è definito in
@@ -37,11 +38,21 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   `public/sw.js` e `lib/offline.ts` gestiscono l'uso senza rete (nomi dei cache allineati tra i due);
   `lib/ask.ts` (prompt e controllo delle risposte, puro e testato; distanze e direzioni in linea d'aria le calcola il
   sistema dalla posizione, l'AI le riferisce soltanto), `lib/ask-web.ts` (approfondimento con ricerca web: quando
-  cercare, lettura di fonti e citazioni, cache, limiti; puro e testato), `lib/ask-server.ts` (chiamate al
-  modello) e `app/api/guide/ask` per le domande all'AI; `lib/ask-cost.ts` listino, consumi e budget per domanda
+  cercare, solo su richiesta salvo `ASK_WEB_AUTO=1` e mai in automatico se la domanda rimanda a un luogo non indicato, cache anche dei «non lo so», lettura di fonti e citazioni, cache, limiti; puro e testato), `lib/ask-server.ts` (chiamate al
+  modello), `lib/model.ts` (il modello dietro un'interfaccia: Anthropic o API compatibili OpenAI, scelti con
+  `ASK_PROVIDER`; la ricerca web resta di Anthropic), `lib/emergency.ts` (emergenze riconosciute senza modello: 112
+  subito, anche offline), `lib/limits.ts` (limiti per indirizzo e tetto di spesa giornaliero, per istanza),
+  `lib/question-gaps.ts` e `lib/question-gaps-server.ts` (registro delle domande senza risposta: dall'esito della risposta, testo
+  mascherato ma non anonimo, niente IP né conversazioni, scadenza 90 giorni, spento senza `QUESTION_GAPS_ENABLED=1`; tabella
+  `question_gaps` scritta solo da `gap_record()` con la chiave di servizio, tetto globale di righe nuove al giorno; scheda «Domande»
+  dello Studio in `app/studio/[pack]/domande/`; migrazione `20261103000000_question_gaps.sql`, vedi `docs/v0.3-platform/DOMANDE-SENZA-RISPOSTA.md`),
+  `lib/persona.ts` (Gaia: identità e voce, separate dalle regole
+  di verità; `docs/v0.4-gaia/`) e `app/api/guide/ask` per le domande all'AI; `lib/ask-cost.ts` listino, consumi e budget per domanda
   (`ASK_MAX_USD_PER_QUESTION` obbligatoria, stime prima di ogni chiamata, nessun nuovo tentativo automatico; non è un tetto
   assoluto, vedi `docs/v0.3-platform/COSTI-AI.md`); `npm run ask:eval` esegue le domande di prova di un territorio
-  (`ASK-EVAL.json` nel pack) e scrive un rapporto da rileggere;
+  (`ASK-EVAL.json` nel pack) e scrive un rapporto da rileggere; `lib/gaia-examples.ts` e `npm run gaia:examples` gli esempi di
+  riferimento di Gaia (`GAIA-EXAMPLES.<lingua>.json` nel pack: controllo con le regole della produzione, esportazione JSONL
+  per allenare un modello aperto, solo esempi approvati dalla redazione; `docs/v0.4-gaia/ESEMPI.md`);
   `components/DebugPanel.tsx` e `lib/field-points.ts` per il test sul campo (`?debug=1`);
   `components/MapView.tsx` e `lib/map-view.ts` per la mappa (Web Mercator, sfondo OpenStreetMap solo online e
   solo per le prove, attribuzione come solo testo senza link: in produzione serve un fornitore di tile con licenza adeguata);

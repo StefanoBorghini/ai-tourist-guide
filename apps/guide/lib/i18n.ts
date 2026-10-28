@@ -1,4 +1,5 @@
 /** Testi dell'interfaccia. I contenuti dei luoghi arrivano dal bundle, non da qui. */
+import { PERSONA } from "./persona";
 
 export const UI = {
   it: {
@@ -20,7 +21,9 @@ export const UI = {
     progress: (n: number, of: number) => `Tappa ${n} di ${of}`,
     routeStops: "Le tappe",
     preferences: "Preferenze",
-    guideTitle: "La tua guida",
+    guideTitle: `${PERSONA.name}, la tua guida`,
+    // Trasparenza: chi risponde è un'intelligenza artificiale (AI Act, art. 50).
+    guideDisclosure: `${PERSONA.name} è un'intelligenza artificiale e può sbagliare: quando ci sono, sotto la risposta trovi le fonti.`,
     guideSubtitle: (name: string) => `Chiedi qualsiasi cosa su ${name}.`,
     guideSubtitleAny: "Chiedi della storia, delle leggende o di cosa vedere qui intorno.",
     askSuggestFor: (name: string) => [`${name}: perché proprio qui?`, `${name}: c'è una leggenda?`, `${name}: cosa osservare dal vivo?`],
@@ -202,7 +205,7 @@ export const UI = {
     noStory: "Per questo luogo non ho ancora un racconto.",
     nothingExplore: "Cammina liberamente: quando sei vicino a un luogo te lo propongo.",
     askContext: (name: string) => `Domanda su: ${name}`,
-    askSuggest: ["Cosa posso visitare qui vicino?", "C'è una leggenda legata a questo luogo?", "Perché è stato costruito proprio qui?"],
+    askSuggest: ["Cosa posso visitare qui vicino?", "Raccontami una leggenda di questi posti.", "Quali luoghi non dovrei perdere?"],
     askPosition: "Distanze in linea d'aria, calcolate dalla tua posizione: segui la mappa.",
     askDeeper: "Approfondisci",
     askBusy: "Sto preparando la risposta…",
@@ -328,7 +331,8 @@ export const UI = {
     progress: (n: number, of: number) => `Stop ${n} of ${of}`,
     routeStops: "The stops",
     preferences: "Preferences",
-    guideTitle: "Your guide",
+    guideTitle: `${PERSONA.name}, your guide`,
+    guideDisclosure: `${PERSONA.name} is an artificial intelligence and can make mistakes: sources are shown under the answer when available.`,
     guideSubtitle: (name: string) => `Ask anything about ${name}.`,
     guideSubtitleAny: "Ask about the history, the legends or what to see around here.",
     askSuggestFor: (name: string) => [`${name}: why right here?`, `${name}: is there a legend?`, `${name}: what to look for?`],
@@ -510,7 +514,7 @@ export const UI = {
     noStory: "I don't have a story for this place yet.",
     nothingExplore: "Walk freely: when you are near a place I will offer it to you.",
     askContext: (name: string) => `Question about: ${name}`,
-    askSuggest: ["What can I visit nearby?", "Is there a legend about this place?", "Why was it built right here?"],
+    askSuggest: ["What can I visit nearby?", "Tell me a legend from these places.", "Which places shouldn't I miss?"],
     askPosition: "Straight-line distances from your position: follow the map.",
     askDeeper: "Tell me more",
     askBusy: "Preparing the answer…",

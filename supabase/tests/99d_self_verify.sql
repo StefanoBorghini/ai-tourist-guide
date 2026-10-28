@@ -1,4 +1,4 @@
--- Test della verifica dell'autore (20261103000000_admin_self_verify.sql):
+-- Test della verifica dell'autore (20261104000000_admin_self_verify.sql):
 --   V1 l'amministratore salva un fatto già verificato (con fonte) e verifica un suo fatto in revisione;
 --   V2 senza fonte non si verifica nemmeno l'amministratore; «salva come verificato» è solo suo;
 --   V3 per gli altri resta la regola dei quattro occhi (anche per l'esperto);
@@ -7,14 +7,14 @@
 \set ON_ERROR_STOP 1
 
 insert into auth.users (id, email, raw_user_meta_data) values
-  ('9c000000-0000-0000-0000-000000000001', 'admin-v@prova.test', '{}'),
-  ('9c000000-0000-0000-0000-000000000002', 'esperto-v@prova.test', '{}');
+  ('9d000000-0000-0000-0000-000000000001', 'admin-v@prova.test', '{}'),
+  ('9d000000-0000-0000-0000-000000000002', 'esperto-v@prova.test', '{}');
 insert into memberships (user_id, organization_id, role, pack_scope) values
-  ('9c000000-0000-0000-0000-000000000001', (select organization_id from memberships where role = 'platform_admin' limit 1), 'platform_admin', null),
-  ('9c000000-0000-0000-0000-000000000002', (select organization_id from packs where id = 'it.test.borgo-di-prova'), 'expert', 'it.test.borgo-di-prova');
+  ('9d000000-0000-0000-0000-000000000001', (select organization_id from memberships where role = 'platform_admin' limit 1), 'platform_admin', null),
+  ('9d000000-0000-0000-0000-000000000002', (select organization_id from packs where id = 'it.test.borgo-di-prova'), 'expert', 'it.test.borgo-di-prova');
 
 set role authenticated;
-set request.jwt.claim.sub = '9c000000-0000-0000-0000-000000000001';
+set request.jwt.claim.sub = '9d000000-0000-0000-0000-000000000001';
 do $$
 declare
   src text := (select slug from sources where pack_id = 'it.test.borgo-di-prova' order by slug limit 1);
@@ -25,7 +25,7 @@ begin
     'slug', 'v-admin-subito', 'subject', 'belvedere', 'type', 'fact', 'certainty', 'established',
     'texts', '{"it":"Il belvedere guarda a sud."}'::jsonb, 'evidence', jsonb_build_array(jsonb_build_object('source', src, 'locator', 'p. 1')),
     'verify', true));
-  if a ->> 'status' <> 'verified' or not (a ->> 'selfVerified')::boolean or a ->> 'verifiedBy' <> '9c000000-0000-0000-0000-000000000001' then
+  if a ->> 'status' <> 'verified' or not (a ->> 'selfVerified')::boolean or a ->> 'verifiedBy' <> '9d000000-0000-0000-0000-000000000001' then
     raise exception 'FALLITO: l''amministratore salva un fatto già verificato (%)', a;
   end if;
   perform studio_create_assertion('it.test.borgo-di-prova', jsonb_build_object(
@@ -57,7 +57,7 @@ end $$;
 reset role;
 
 set role authenticated;
-set request.jwt.claim.sub = '9c000000-0000-0000-0000-000000000002';
+set request.jwt.claim.sub = '9d000000-0000-0000-0000-000000000002';
 do $$
 declare src text := (select slug from sources where pack_id = 'it.test.borgo-di-prova' order by slug limit 1);
 begin
@@ -102,4 +102,4 @@ begin
   exception when check_violation then null; end;
 end $$;
 
-\echo '99c_self_verify: ok'
+\echo '99d_self_verify: ok'

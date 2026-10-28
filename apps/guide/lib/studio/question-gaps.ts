@@ -1,6 +1,6 @@
 /**
  * Scheda «Domande» dello Studio: le domande dei visitatori a cui la guida non ha saputo rispondere del tutto, raccolte
- * dal registro (migrazione 20261103000000, lib/question-gaps.ts). Tipi, etichette e filtri, senza rete.
+ * dal registro (migrazione 20261104000000, lib/question-gaps.ts). Tipi, etichette e filtri, senza rete.
  * Le domande non diventano mai contenuti da sole: la redazione decide se e come coprirle nel Territory Pack.
  */
 export const GAP_KINDS = ["not_in_knowledge", "partial", "rejected", "web_answer", "web_unavailable", "ambiguous"] as const;

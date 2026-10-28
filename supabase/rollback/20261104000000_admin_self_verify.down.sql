@@ -1,8 +1,8 @@
--- Revoca di 20261103000000_admin_self_verify.sql: torna la regola dei quattro occhi per tutti.
+-- Revoca di 20261104000000_admin_self_verify.sql: torna la regola dei quattro occhi per tutti.
 -- Le affermazioni verificate dall'autore tornano in revisione (non si cancella niente).
 
 update assertions set status = 'in_review', verified_by = null, verified_at = null, self_verified = false,
-  review_note = left('Verifica dell''autore ritirata dalla revoca della migrazione 20261103', 2000)
+  review_note = left('Verifica dell''autore ritirata dalla revoca della migrazione 20261104', 2000)
 where self_verified;
 
 create or replace function editorial_assertion_guard()

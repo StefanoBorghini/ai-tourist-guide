@@ -1,6 +1,6 @@
 /**
  * Registro delle domande senza risposta, lato server: l'unico punto in cui la guida usa la chiave di servizio di
- * Supabase per le domande, e solo per la funzione gap_record() (migrazione 20261103000000), che è tutto ciò che quel
+ * Supabase per le domande, e solo per la funzione gap_record() (migrazione 20261104000000), che è tutto ciò che quel
  * ruolo può fare sulle tabelle delle domande. La chiave non arriva mai al browser e non finisce nei log.
  *
  * Spento per default: si accende con QUESTION_GAPS_ENABLED=1, insieme a NEXT_PUBLIC_SUPABASE_URL e

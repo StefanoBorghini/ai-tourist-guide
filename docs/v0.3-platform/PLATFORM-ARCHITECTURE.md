@@ -97,7 +97,7 @@ Regole imposte da policy RLS e trigger (provate in `supabase/tests/10_platform_s
   dal proprietario il 2026-10-28: l'**amministratore della piattaforma** può verificare i fatti che ha scritto lui, con un
   atto esplicito (pulsante «Verifica» o spunta «ho controllato la fonte: salva come verificato») e gli stessi controlli
   (fonte confermata, testo). Resta segnato (`assertions.self_verified`, `selfVerified` nel pack) e visibile nello Studio
-  («verificata da te (autore, amministratore)»). Migrazione `20261103000000_admin_self_verify.sql`;
+  («verificata da te (autore, amministratore)»). Migrazione `20261104000000_admin_self_verify.sql`;
 - modificare un fatto verificato lo riporta in revisione; un'unità narrativa si pubblica solo se tutte le sue
   affermazioni sono verificate;
 - pubblicare o ritirare richiede il permesso di pubblicazione sul territorio;

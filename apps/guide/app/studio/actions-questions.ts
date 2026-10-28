@@ -2,7 +2,7 @@
 /**
  * Azioni della scheda «Domande» dello Studio: stato della revisione ed eliminazione. Come le altre azioni: utente
  * verificato di nuovo (requireStaff) e scrittura con la sua identità attraverso le funzioni studio_*_question_gap
- * (migrazione 20261103000000), che controllano i permessi sul territorio. Nessuna chiave di servizio.
+ * (migrazione 20261104000000), che controllano i permessi sul territorio. Nessuna chiave di servizio.
  */
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";

@@ -20,7 +20,7 @@ const GAP_WEB_SOURCES = 5;
 
 export type GapKind = "not_in_knowledge" | "partial" | "rejected" | "web_answer" | "web_unavailable" | "ambiguous";
 
-/** Una riga da registrare: i parametri di gap_record() (migrazione 20261103000000). */
+/** Una riga da registrare: i parametri di gap_record() (migrazione 20261104000000). */
 export interface GapRecord {
   pack: string;
   locale: string;

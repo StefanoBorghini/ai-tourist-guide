@@ -132,6 +132,20 @@ describe("verifica dei fatti", () => {
     expect(errorCodes(packs)).toContain("FOUR_EYES");
   });
 
+  it("ammette la verifica dell'autore solo se dichiarata e coerente", () => {
+    const packs = loadSynthetic();
+    const a = village(packs).assertions[0]!;
+    a.verifiedBy = a.authoredBy;
+    a.selfVerified = true;
+    expect(errorCodes(packs)).not.toContain("FOUR_EYES");
+    expect(errorCodes(packs)).not.toContain("SELF_VERIFIED");
+    a.verifiedBy = "qualcun-altro";
+    expect(errorCodes(packs)).toContain("SELF_VERIFIED");
+    a.verifiedBy = a.authoredBy;
+    a.status = "in_review";
+    expect(errorCodes(packs)).toContain("SELF_VERIFIED");
+  });
+
   it("richiede una fonte per le affermazioni non in bozza", () => {
     const packs = loadSynthetic();
     village(packs).assertions[0]!.evidence = [];

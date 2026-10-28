@@ -978,6 +978,15 @@ begin
     exception when insufficient_privilege then null; end;
     reset role;
 
+    -- Verifica dell'autore solo per l'amministratore (20261103000000_admin_self_verify.sql).
+    if not exists (select 1 from information_schema.columns where table_name = 'assertions' and column_name = 'self_verified')
+       or not exists (select 1 from pg_constraint where conrelid = 'assertions'::regclass and conname = 'assertions_four_eyes')
+       or not exists (select 1 from pg_constraint where conrelid = 'assertions'::regclass and conname = 'assertions_self_verified_consistent')
+       or pg_get_functiondef('studio_review_assertion(text, text, text, text)'::regprocedure) not like '%not is_platform_admin()%'
+       or pg_get_functiondef('editorial_assertion_guard()'::regprocedure) not like '%self_verified%' then
+      raise exception 'FALLITO: manca la migrazione 20261103000000_admin_self_verify.sql (verifica dell''autore)';
+    end if;
+
     -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
     -- l'elenco dei controlli non verificati.
     raise exception 'VERIFICA_SUPERATA|%', array_to_string(nv, '; ');

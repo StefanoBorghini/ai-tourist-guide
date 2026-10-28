@@ -14,6 +14,7 @@ interface AssertionRow {
   authoredBy: string;
   verifiedBy: string | null;
   verifiedAt: string | null;
+  selfVerified: boolean;
   reviewNote: string | null;
   evidence: { position: number; title: string; attribution: string; locator: string | null; url: string | null }[];
   mine: boolean;
@@ -49,8 +50,8 @@ export default async function AssertionsPage({ params, searchParams }: { params:
       <h1>Fatti</h1>
       <p className="st-hint">
         Un fatto (nel formato tecnico: «affermazione») è una frase breve e controllabile su un luogo, con la sua fonte. La guida
-        racconta solo fatti verificati. Regola dei quattro occhi: un fatto lo verifica un esperto o la redazione, mai chi l'ha scritta, e solo con almeno una
-        fonte confermata (non dedotta). Il rifiuto e il ritiro di una verifica richiedono un motivo; ogni decisione resta nello storico.
+        racconta solo fatti verificati. Regola dei quattro occhi: un fatto lo verifica un esperto o la redazione, mai chi l'ha scritta (l&apos;amministratore
+        può verificare anche i propri), e solo con almeno una fonte confermata (non dedotta). Il rifiuto e il ritiro di una verifica richiedono un motivo; ogni decisione resta nello storico.
       </p>
       {(perms?.canEdit || perms?.canVerify) && (
         <details className="st-create">
@@ -112,7 +113,13 @@ export default async function AssertionsPage({ params, searchParams }: { params:
               <label className="st-inline">
                 <input type="checkbox" name="submit" value="1" defaultChecked /> manda subito in revisione
               </label>
-              <p className="st-hint">La verifica la fa un esperto o la redazione, mai chi scrive (regola dei quattro occhi).</p>
+              {session.me.admin ? (
+                <label className="st-inline">
+                  <input type="checkbox" name="verify" value="1" /> ho controllato la fonte: salva come verificato
+                </label>
+              ) : (
+                <p className="st-hint">La verifica la fa un esperto o la redazione, mai chi scrive (regola dei quattro occhi).</p>
+              )}
               <div className="st-actions">
                 <button className="st-btn st-primary" type="submit">Crea l&apos;affermazione</button>
               </div>
@@ -177,10 +184,10 @@ export default async function AssertionsPage({ params, searchParams }: { params:
               </details>
               <p className="st-meta">
                 Autore: {a.mine ? "tu" : a.authoredBy}
-                {a.verifiedBy ? ` · verificata da ${a.verifiedBy === session.user.id ? "te" : a.verifiedBy}` : ""}
+                {a.verifiedBy ? ` · verificata da ${a.verifiedBy === session.user.id ? "te" : a.verifiedBy}${a.selfVerified ? " (autore, amministratore)" : ""}` : ""}
                 {a.reviewNote ? ` · nota: ${a.reviewNote}` : ""}
               </p>
-              <ReviewActions pack={pack} slug={a.slug} status={a.status} filter={filter} mine={a.mine} canEdit={!!perms?.canEdit} canVerify={!!perms?.canVerify} inferredOnly={inferredOnly} noEvidence={a.evidence.length === 0} />
+              <ReviewActions pack={pack} slug={a.slug} status={a.status} filter={filter} mine={a.mine && !session.me.admin} canEdit={!!perms?.canEdit} canVerify={!!perms?.canVerify} inferredOnly={inferredOnly} noEvidence={a.evidence.length === 0} />
             </li>
           );
         })}

@@ -488,11 +488,16 @@ export async function createAssertion(form: FormData) {
       texts: texts(form, "text"),
       evidence: source ? [{ source, locator: text(form, "locator") }] : [],
       submit: text(form, "submit") === "1",
+      verify: text(form, "verify") === "1",
     },
   });
   if (error) back(path, { stato: "draft", errore: friendlyError(error) });
   revalidatePath(packPath(pack), "layout");
-  back(path, { stato: text(form, "submit") === "1" ? "in_review" : "draft", ok: "Affermazione creata." });
+  const verified = text(form, "verify") === "1";
+  back(path, {
+    stato: verified ? "verified" : text(form, "submit") === "1" ? "in_review" : "draft",
+    ok: verified ? "Affermazione creata e verificata." : "Affermazione creata.",
+  });
 }
 
 export async function createUnit(form: FormData) {

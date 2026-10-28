@@ -472,13 +472,22 @@ function checkAssertions(pack: TerritoryPack, ctx: Context): void {
       }
     }
 
-    // Regola dei quattro occhi.
+    // Regola dei quattro occhi (eccezione: verifica dell'amministratore autore, dichiarata con selfVerified).
     if (a.status === "verified") {
       if (!a.verifiedBy) {
         ctx.out.error({ code: "VERIFIER_REQUIRED", packId, ...where, message: "un'affermazione verificata richiede verifiedBy" });
-      } else if (a.verifiedBy === a.authoredBy) {
+      } else if (a.verifiedBy === a.authoredBy && !a.selfVerified) {
         ctx.out.error({ code: "FOUR_EYES", packId, ...where, message: "chi verifica non può essere chi ha scritto" });
       }
+    }
+    // Verifica dell'autore (solo amministratore): dichiarata, e solo su un'affermazione verificata da chi l'ha scritta.
+    if (a.selfVerified && (a.status !== "verified" || a.verifiedBy !== a.authoredBy)) {
+      ctx.out.error({
+        code: "SELF_VERIFIED",
+        packId,
+        ...where,
+        message: "selfVerified vale solo per un'affermazione verificata da chi l'ha scritta",
+      });
     }
 
     // Testi.

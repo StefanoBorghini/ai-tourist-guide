@@ -308,6 +308,8 @@ export const assertionSchema = z.strictObject({
   evidence: z.array(evidenceSchema).default([]),
   authoredBy: z.string().trim().min(1),
   verifiedBy: z.string().trim().min(1).optional(),
+  /** Verificata da chi l'ha scritta: ammesso solo per l'amministratore della piattaforma (lo impone il database). */
+  selfVerified: z.literal(true).optional(),
   /** Testo originale della ricerca da cui deriva, conservato per il controllo redazionale. */
   originalClaim: z.string().trim().min(1).optional(),
 });

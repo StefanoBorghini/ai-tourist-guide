@@ -1009,6 +1009,18 @@ begin
       raise exception 'FALLITO: manca la migrazione 20261105000000_local_businesses.sql (attività locali) o i suoi permessi';
     end if;
 
+    -- Foto delle attività (20261106000000_business_photos.sql).
+    if to_regclass('public.local_business_photos') is null
+       or has_table_privilege('anon', 'local_business_photos', 'select')
+       or has_function_privilege('anon', 'studio_add_business_photo(uuid, jsonb)', 'execute')
+       or not coalesce((select public from storage.buckets where id = 'business-photos'), false)
+       or (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects'
+           and policyname like 'business_photos_editor_%') <> 3
+       or not exists (select 1 from pg_policies where policyname = 'business_photos_editor_insert'
+                      and with_check like '%foldername(objects.name)%') then
+      raise exception 'FALLITO: manca la migrazione 20261106000000_business_photos.sql (foto delle attività) o i suoi permessi';
+    end if;
+
     -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
     -- l'elenco dei controlli non verificati.
     raise exception 'VERIFICA_SUPERATA|%', array_to_string(nv, '; ');

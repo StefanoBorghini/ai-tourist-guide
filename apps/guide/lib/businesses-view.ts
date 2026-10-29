@@ -30,7 +30,26 @@ export interface PublicBusiness {
   email: string | null;
   website: string | null;
   verifiedAt: string | null;
+  /** Foto con i crediti, nell'ordine scelto dalla redazione (la prima è la copertina). */
+  photos: BusinessPhoto[];
 }
+
+export interface BusinessPhoto {
+  url: string;
+  alt: string;
+  /** «Mario Rossi · CC BY 4.0»: autore e, per le licenze che lo chiedono, il nome della licenza. */
+  credit: string | null;
+  originalUrl: string | null;
+}
+
+/** Licenze che chiedono di essere citate accanto all'autore. */
+const LICENSE_CREDIT: Record<string, string> = {
+  "cc-by-4.0": "CC BY 4.0",
+  "cc-by-sa-4.0": "CC BY-SA 4.0",
+  "cc-by-nc-4.0": "CC BY-NC 4.0",
+  "cc-by-nc-sa-4.0": "CC BY-NC-SA 4.0",
+};
+const MAX_PHOTOS = 6;
 
 export interface BusinessesData {
   territory: string;
@@ -42,6 +61,24 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const PHONE_RE = /^\+?[0-9][0-9 ./()-]{4,38}$/;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/** Indirizzo dell'immagine: https, oppure http solo in locale (prove). */
+function photoSrc(v: unknown): string | null {
+  const u = str(v);
+  if (!u || u.length > 600) return null;
+  return /^https:\/\/[^\s"'<>]+$/.test(u) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/[^\s"'<>]+$/.test(u) ? u : null;
+}
+
+function parsePhoto(raw: unknown): BusinessPhoto | null {
+  const p = obj(raw);
+  const url = photoSrc(p.url);
+  const alt = str(p.alt);
+  if (!url || !alt) return null;
+  const author = str(p.author);
+  const license = str(p.license);
+  const credit = [author, license ? LICENSE_CREDIT[license] : undefined].filter(Boolean).join(" · ");
+  return { url, alt, credit: credit || null, originalUrl: safeHttpsUrl(p.originalUrl) };
+}
 
 function parseBusiness(raw: unknown): PublicBusiness | null {
   const b = obj(raw);
@@ -66,6 +103,7 @@ function parseBusiness(raw: unknown): PublicBusiness | null {
     email: email && EMAIL_RE.test(email) ? email : null,
     website: safeHttpsUrl(b.website),
     verifiedAt: str(b.verifiedAt),
+    photos: (Array.isArray(b.photos) ? b.photos : []).map(parsePhoto).filter((f): f is BusinessPhoto => f !== null).slice(0, MAX_PHOTOS),
   };
 }
 
@@ -146,15 +184,6 @@ export function distanceLabel(m: number, locale: string): string {
 
 /** Numero da chiamare: solo cifre e il + iniziale. */
 export const telHref = (phone: string) => `tel:${phone.replace(/[^0-9+]/g, "")}`;
-
-/** Indicazioni stradali sull'app di mappe del telefono (coordinate se ci sono, altrimenti nome e indirizzo). */
-export function directionsHref(b: Pick<PublicBusiness, "name" | "address" | "location">): string | null {
-  const q = new URLSearchParams({ api: "1" });
-  if (b.location) q.set("destination", `${b.location[1]},${b.location[0]}`);
-  else if (b.address) q.set("destination", `${b.name}, ${b.address}`);
-  else return null;
-  return `https://www.google.com/maps/dir/?${q.toString()}`;
-}
 
 /** Data di verifica leggibile («28 ottobre 2026»); null se mancante o non valida. */
 export function businessVerifiedDate(iso: string | null, locale: string): string | null {

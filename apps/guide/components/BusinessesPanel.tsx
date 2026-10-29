@@ -3,12 +3,15 @@
  * Directory gratuita delle attività locali nella guida (bar, ristoranti, negozi, dove dormire, servizi). Solo online,
  * mai nel pacchetto offline né nelle risposte dell'AI; nessun account né acquisto. Due pezzi:
  * - useLocalBusinesses: legge `/api/v1/businesses` per la destinazione, con una copia in memoria di cinque minuti;
- * - BusinessesPanel: filtri per categoria e schede (orari solo se verificati di recente, chiamata, sito, indicazioni).
+ * - BusinessesPanel: filtri per categoria e schede (foto con i crediti, orari solo se verificati di recente, chiamata,
+ *   sito, «Mostra sulla mappa» nella mappa della guida: nessun collegamento a mappe esterne).
+ * «Ascolta»: GAIA legge con la sua voce la descrizione scritta e verificata dalla redazione, parola per parola. Nessuna
+ * AI: niente testo generato e niente domande sulle attività.
  * Ordine neutrale: alfabetico, o per distanza se si conosce la posizione. Regole in lib/businesses-view.ts.
  */
 import { useCallback, useEffect, useState } from "react";
 import {
-  businessCategoriesIn, businessesStateFromResponse, businessesUrl, businessVerifiedDate, directionsHref, distanceLabel, hoursFresh,
+  businessCategoriesIn, businessesStateFromResponse, businessesUrl, businessVerifiedDate, distanceLabel, hoursFresh,
   listBusinesses, telHref, type BusinessCategoryId, type BusinessesState, type ListedBusiness,
 } from "../lib/businesses-view";
 import type { UiText } from "../lib/i18n";
@@ -53,15 +56,49 @@ export function useLocalBusinesses(territory: string | null, lang: string | null
   return [state, retry];
 }
 
-export function BusinessCard({ row, locale, t, onClose }: { row: ListedBusiness; locale: string; t: UiText; onClose?: () => void }) {
+/** Foto dell'attività, come la galleria dei luoghi: scorrimento orizzontale, credito su ciascuna. */
+function BusinessGallery({ photos, t }: { photos: ListedBusiness["business"]["photos"]; t: UiText }) {
+  if (photos.length === 0) return null;
+  return (
+    <div className="business-media">
+      <div className="gallery">
+        {photos.map((f) => (
+          <figure key={f.url}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- foto dal bucket pubblico, già ridotte nello Studio */}
+            <img src={f.url} alt={f.alt} loading="lazy" decoding="async" />
+            {f.credit && (
+              <figcaption>
+                {f.originalUrl ? <a href={f.originalUrl} target="_blank" rel="noopener noreferrer nofollow">{`${t.photo}: ${f.credit}`}</a> : `${t.photo}: ${f.credit}`}
+              </figcaption>
+            )}
+          </figure>
+        ))}
+      </div>
+      {photos.length > 1 && <span className="gallery-count">{t.photos(photos.length)}</span>}
+    </div>
+  );
+}
+
+export function BusinessCard({ row, locale, t, onClose, onShowOnMap, onListen, listening }: {
+  row: ListedBusiness;
+  locale: string;
+  t: UiText;
+  onClose?: () => void;
+  /** Centra la mappa della guida sull'attività (solo se ha le coordinate). */
+  onShowOnMap?: (row: ListedBusiness) => void;
+  /** Lettura ad alta voce della descrizione (solo se c'è una descrizione e la voce del dispositivo). */
+  onListen?: (row: ListedBusiness) => void;
+  /** La voce sta leggendo questa attività: il pulsante diventa «Ferma». */
+  listening?: boolean;
+}) {
   const w = t.businesses;
   const b = row.business;
   const now = Date.now();
   const fresh = hoursFresh(b.verifiedAt, now);
   const verified = businessVerifiedDate(b.verifiedAt, locale);
-  const directions = directionsHref(b);
   return (
-    <li className="event business">
+    <li className={`event business${b.photos.length > 0 ? " with-photo" : ""}`}>
+      <BusinessGallery photos={b.photos} t={t} />
       <div className="event-main">
         {onClose && (
           <button className="round-btn venue-close" onClick={onClose} aria-label={w.closeDetail}><Icon name="close" size={18} /></button>
@@ -76,11 +113,16 @@ export function BusinessCard({ row, locale, t, onClose }: { row: ListedBusiness;
         {b.hours && !fresh && <span className="muted small"><Icon name="clock" size={15} /> {w.hoursStale}</span>}
         {b.description && <p className="event-summary">{b.description}</p>}
         <div className="event-links">
+          {b.description && onListen && (
+            <button className="button small" onClick={() => onListen(row)} aria-pressed={listening === true}>
+              <Icon name={listening ? "pause" : "volume"} size={14} /> {listening ? w.stopListening : w.listen}
+            </button>
+          )}
           {b.phone && (
             <a href={telHref(b.phone)} className="button small quiet"><Icon name="phone" size={14} /> {w.call}</a>
           )}
-          {directions && (
-            <a href={directions} target="_blank" rel="noopener noreferrer nofollow" className="button small quiet"><Icon name="pin" size={14} /> {w.directions}</a>
+          {b.location && onShowOnMap && (
+            <button className="button small quiet" onClick={() => onShowOnMap(row)}><Icon name="pin" size={14} /> {w.showOnMap}</button>
           )}
           {b.website && (
             <a href={b.website} target="_blank" rel="noopener noreferrer nofollow" className="button small quiet"><Icon name="globe" size={14} /> {w.website}</a>
@@ -159,13 +201,16 @@ export function VenuesEmpty({ name, filtered, t }: { name: string; filtered: boo
   );
 }
 
-export function BusinessesPanel({ state, onRetry, here, locale, t }: {
+export function BusinessesPanel({ state, onRetry, here, locale, t, onShowOnMap, onListen, listeningId }: {
   state: BusinessesState;
   onRetry: () => void;
   /** Posizione del visitatore, per ordinare dalla più vicina; null = ordine alfabetico. */
   here: LngLat | null;
   locale: string;
   t: UiText;
+  onShowOnMap?: (row: ListedBusiness) => void;
+  onListen?: (row: ListedBusiness) => void;
+  listeningId?: string | null;
 }) {
   const w = t.businesses;
   const [category, setCategory] = useState<BusinessCategoryId | null>(null);
@@ -196,7 +241,7 @@ export function BusinessesPanel({ state, onRetry, here, locale, t }: {
       )}
       {here && rows.some((r) => r.distanceM !== null) && <p className="muted small">{w.nearest}</p>}
       <ul className="event-list">
-        {rows.map((row) => <BusinessCard key={row.business.id} row={row} locale={locale} t={t} />)}
+        {rows.map((row) => <BusinessCard key={row.business.id} row={row} locale={locale} t={t} onShowOnMap={onShowOnMap} onListen={onListen} listening={listeningId === row.business.id} />)}
       </ul>
       <p className="muted small">{w.disclaimer}</p>
     </div>

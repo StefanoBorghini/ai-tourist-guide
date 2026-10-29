@@ -7,8 +7,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireStaff, rpc } from "../../lib/studio/server";
-import { friendlyError } from "../../lib/studio/shared";
-import { businessPayloadFromForm, type FormValues, type StudioBusiness } from "../../lib/studio/local-businesses";
+import { checkMediaRights, friendlyError, MEDIA_SOURCES } from "../../lib/studio/shared";
+import {
+  BUSINESS_PHOTO_LICENSES, BUSINESS_PHOTOS_BUCKET, businessPayloadFromForm, type FormValues, type StudioBusiness,
+} from "../../lib/studio/local-businesses";
 
 const back = (path: string, result: Record<string, string | undefined>): never => {
   const q = new URLSearchParams(Object.entries(result).filter((e): e is [string, string] => e[1] !== undefined)).toString();
@@ -82,8 +84,75 @@ export async function deleteLocalBusiness(form: FormData) {
   const pack = text(form, "pack");
   const id = text(form, "id");
   if (form.get("confirm") !== "on") back(itemPath(pack, id), { errore: "Per eliminare spunta la conferma." });
+  // Le foto registrate se ne vanno con l'attività; i loro file si tolgono dal bucket subito dopo.
+  const list = await rpc<StudioBusiness[]>(supabase, "studio_local_businesses", { p_pack: pack });
+  const paths = (list.data ?? []).find((b) => b.id === id)?.photos?.map((f) => f.path) ?? [];
   const { error } = await rpc(supabase, "studio_delete_local_business", { p_id: id });
   if (error) back(itemPath(pack, id), { errore: friendlyError(error) });
+  const removed = paths.length > 0 ? await supabase.storage.from(BUSINESS_PHOTOS_BUCKET).remove(paths) : { error: null };
   revalidatePath(listPath(pack));
-  back(listPath(pack), { ok: "Attività eliminata." });
+  back(listPath(pack), {
+    ok: removed.error ? `Attività eliminata; ${paths.length} file di foto non sono stati tolti dal bucket: ${removed.error.message}` : "Attività eliminata.",
+  });
+}
+
+// ---------------------------------------------------------------- foto (migrazione 20261106000000)
+
+export interface AddBusinessPhotoInput {
+  pack: string;
+  business: string;
+  path: string;
+  altIt: string;
+  altEn: string;
+  author: string;
+  license: string;
+  source: string;
+  originalUrl: string;
+  licenseNote: string;
+}
+
+/** Registra una foto già caricata dal browser nel bucket; in caso d'errore il browser toglie il file. */
+export async function addBusinessPhoto(input: AddBusinessPhotoInput): Promise<{ error: string | null }> {
+  const { supabase } = await requireStaff();
+  if (!UUID_RE.test(input.business)) return { error: "Attività non riconosciuta." };
+  if (!(BUSINESS_PHOTO_LICENSES as readonly string[]).includes(input.license)) return { error: "Licenza non ammessa per le foto delle attività." };
+  if (!(MEDIA_SOURCES as readonly string[]).includes(input.source)) return { error: "Provenienza non valida." };
+  const rights = checkMediaRights(input);
+  if (rights) return { error: rights };
+  const { error } = await rpc(supabase, "studio_add_business_photo", {
+    p_business: input.business,
+    p: {
+      path: input.path,
+      alt: { it: input.altIt, en: input.altEn },
+      author: input.author,
+      license: input.license,
+      source: input.source,
+      originalUrl: input.originalUrl || null,
+      licenseNote: input.licenseNote,
+    },
+  });
+  if (error) return { error: friendlyError(error) };
+  revalidatePath(itemPath(input.pack, input.business));
+  return { error: null };
+}
+
+export async function deleteBusinessPhoto(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const id = text(form, "id");
+  const { data: path, error } = await rpc<string>(supabase, "studio_delete_business_photo", { p_id: text(form, "photo") });
+  if (error || !path) back(itemPath(pack, id), { errore: friendlyError(error) });
+  const removed = await supabase.storage.from(BUSINESS_PHOTOS_BUCKET).remove([path!]);
+  revalidatePath(itemPath(pack, id));
+  back(itemPath(pack, id), { ok: removed.error ? `Foto tolta dalla guida; il file è rimasto nel bucket: ${removed.error.message}` : "Foto eliminata." });
+}
+
+export async function firstBusinessPhoto(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const id = text(form, "id");
+  const { error } = await rpc(supabase, "studio_first_business_photo", { p_id: text(form, "photo") });
+  if (error) back(itemPath(pack, id), { errore: friendlyError(error) });
+  revalidatePath(itemPath(pack, id));
+  back(itemPath(pack, id), { ok: "Foto messa per prima: è la copertina dell'attività nella guida." });
 }

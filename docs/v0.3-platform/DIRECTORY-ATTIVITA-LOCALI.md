@@ -96,7 +96,7 @@ L'attività nasce in **bozza**. Si spunta «Ho verificato ora questi dati», opp
 
 **Dove si vedono.** Nella visita, sia in esplorazione sia nei percorsi, c'è il riquadro **«Bar, ristoranti e servizi»**:
 - filtri per categoria;
-- schede con indirizzo, orari, descrizione e i pulsanti Chiama, Indicazioni, Sito ed Email;
+- schede con foto, indirizzo, orari, descrizione e i pulsanti Chiama, Mostra sulla mappa, Sito ed Email (vedi §6);
 - «Dati verificati il …».
 
 Il riquadro non compare se la destinazione non ha attività pubblicate. Funziona solo online.
@@ -130,7 +130,7 @@ Nell'esplorazione libera di una destinazione, sopra la mappa, c'è un selettore 
 | Mappa | Spilli dei luoghi (come prima) | Segni quadrati delle attività con coordinate, colorati per categoria. Niente spilli dei luoghi |
 | Elenco | Luoghi principali e sottoluoghi | Attività pubblicate, dalla più vicina se c'è la posizione |
 | Filtri | — | Per categoria, validi per mappa ed elenco insieme |
-| Dettagli | Scheda del luogo, racconti, domande a GAIA, percorsi, eventi | Scheda dell'attività (orari se verificati di recente, Chiama, Indicazioni, Sito, Email) |
+| Dettagli | Scheda del luogo, racconti, domande a GAIA, percorsi, eventi | Scheda dell'attività (foto, orari se verificati di recente, Chiama, Mostra sulla mappa, Sito, Email) |
 | Vuoto | — | «Nessuna attività a …, per ora», con l'avviso che la consultazione è sempre gratuita |
 
 **La scelta si ricorda.** La modalità scelta resta sul dispositivo (`localStorage` `guide-explore-theme`) e vale anche per le visite nuove. Senza memoria disponibile si parte da «Storia e cultura».
@@ -157,3 +157,53 @@ Il «tipo» libero (per esempio «enoteca» o «bottega di ceramiche») compare 
 2. il livello `venues` acceso anche sulla mappa del percorso, con le sole attività collegate.
 
 Le soste resterebbero facoltative: il pianificatore non le conta tra le tappe. Oggi niente di questo è necessario e niente è stato aggiunto.
+
+## 6. Foto e «Mostra sulla mappa» (2026-10-29)
+
+**Niente più Google Maps.** La scheda dell'attività non porta più a mappe esterne. Il pulsante **«Mostra sulla mappa»**
+(solo per le attività con coordinate) centra la mappa della guida sull'attività e la porta in vista:
+- in «Locali e attività» seleziona l'attività sulla mappa;
+- nei percorsi guidati la mostra, evidenziata, tra i luoghi del percorso; toccarla la toglie. Le tappe non cambiano.
+
+**La descrizione letta da GAIA (decisione del 2026-10-29).** Ogni attività ha la sua descrizione, scritta e verificata
+dalla redazione nello Studio (per lingua, fino a 1000 caratteri). Sulla scheda il pulsante **«Ascolta»** la fa leggere
+alla voce di GAIA, parola per parola: nome dell'attività e descrizione, con il testo a schermo e i comandi della guida
+(pausa, avanti, velocità). Toccato di nuovo diventa «Ferma». Non compare se l'attività non ha descrizione o il
+dispositivo non ha la sintesi vocale.
+
+**Niente AI per le attività.** La modalità «Locali e attività» non ha la casella delle domande a GAIA, e la lettura non
+chiama il modello: nessun testo generato, nessuna domanda sulle attività. Resta valida la regola di §4: le attività non
+entrano nei bundle né nella base delle risposte dell'AI.
+
+**Foto come per i luoghi.** Nello Studio, nella pagina dell'attività, la sezione **«Foto»**:
+- fino a 6 foto, JPEG, PNG o WebP; il browser le riduce (lato lungo 2048 px) e toglie i dati EXIF, posizione compresa;
+- testo alternativo obbligatorio nella lingua principale;
+- autore, licenza e provenienza con le stesse regole delle foto dei luoghi: autore salvo pubblico dominio, riferimento
+  all'accordo per le licenze concesse per iscritto, indirizzo originale per le foto dal web;
+- mai «tutti i diritti riservati»; licenze non commerciali solo se il territorio le ammette (`config.media.allowNonCommercial`);
+- la prima è la copertina («Metti per prima» cambia l'ordine); «Elimina» toglie la registrazione e il file;
+- eliminando l'attività si tolgono anche i file delle sue foto.
+
+Le foto compaiono subito, senza ripubblicare il territorio, ma solo per le attività pubblicate. Nella guida si vedono
+come la galleria dei luoghi, con il credito su ciascuna («Foto: Mario Rossi · CC BY 4.0»; la licenza si nomina quando
+la chiede).
+
+| Scelta | Perché |
+|---|---|
+| Tabella `local_business_photos`, non `media_assets` | Le attività sono dati operativi fuori dal Territory Pack: le loro foto non passano da `pack_snapshot()`, dai bundle né dall'offline |
+| Bucket **pubblico** `business-photos` (5 MB per file) | La guida le legge senza sessione e senza chiave di servizio, come i bundle pubblicati. Il percorso è `<territorio>/<id attività>/<nome>-<suffisso casuale>`: il file di una bozza si raggiunge solo conoscendone il nome esatto |
+| Elenco pubblico solo da `public_local_businesses()` | Restituisce le foto delle sole attività pubblicate, con indirizzo e crediti; mai la nota dell'accordo, la provenienza o chi le ha caricate |
+| Scrittura nel bucket solo per chi modifica il territorio | Policy su `storage.objects`: cartella di un'attività esistente del territorio, `can_edit_pack` |
+
+**Garanzie** (provate in `supabase/tests/99f_business_photos.sql`): file nella cartella giusta e già caricato, testi
+alternativi, licenze, tetto di 6, isolamento tra territori, anon senza accesso a tabella e funzioni, foto pubbliche solo
+delle attività pubblicate. La revoca (`supabase/rollback/20261106000000_business_photos.down.sql`) si ferma se resta
+anche una sola foto o un file.
+
+**Codice:**
+- migrazione `supabase/migrations/20261106000000_business_photos.sql`;
+- API: `lib/businesses-api.ts` trasforma il percorso nell'indirizzo pubblico (solo nella cartella del territorio richiesto);
+- guida: `BusinessCard` in `components/BusinessesPanel.tsx`, `photos` in `lib/businesses-view.ts`, `focus` e
+  `pinnedVenue` in `components/MapView.tsx`;
+- Studio: `app/studio/[pack]/attivita/[id]/BusinessPhotos.tsx`, azioni in `app/studio/actions-businesses.ts`,
+  riduzione delle immagini in `lib/studio/image-upload.ts` (la stessa delle foto dei luoghi).

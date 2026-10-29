@@ -81,12 +81,19 @@ export function MapView(props: {
   venues?: readonly MapVenue[];
   selectedVenue?: string | null;
   onSelectVenue?: (id: string | null) => void;
+  /**
+   * «Mostra sulla mappa» di un'attività: sul livello dei luoghi (percorsi guidati) compare solo lei, evidenziata;
+   * toccarla la toglie (onSelectVenue(null)).
+   */
+  pinnedVenue?: MapVenue | null;
+  /** Centra la mappa su un punto; un nuovo `id` ricentra anche sullo stesso punto. */
+  focus?: { id: number; location: LngLat } | null;
 }) {
   const { content, runtime, debug, online, simulated, t } = props;
   const explore = runtime.kind === "explore";
   const venuesLayer = props.layer === "venues";
-  const venues = venuesLayer ? (props.venues ?? []) : [];
-  const selectedVenue = venuesLayer ? (props.selectedVenue ?? null) : null;
+  const venues = venuesLayer ? (props.venues ?? []) : props.pinnedVenue ? [props.pinnedVenue] : [];
+  const selectedVenue = venuesLayer ? (props.selectedVenue ?? null) : (props.pinnedVenue?.id ?? null);
   const boxRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(320);
   const [measuredHeight, setMeasuredHeight] = useState(HEIGHT);
@@ -119,6 +126,14 @@ export function MapView(props: {
     ro.observe(el);
     return () => ro.disconnect();
   }, [fullscreen]);
+
+  // «Mostra sulla mappa»: inquadratura ferma sul punto (come uno spostamento a mano), abbastanza vicina da riconoscerlo.
+  const focusId = props.focus?.id;
+  useEffect(() => {
+    if (!props.focus) return;
+    setManual({ center: props.focus.location, zoom: Math.max(FOLLOW_ZOOM + 1, Math.min(MAX_ZOOM, 18)) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- si ricentra solo a una nuova richiesta
+  }, [focusId]);
 
   // Passando da un itinerario all'esplorazione la mappa torna a seguire il visitatore.
   useEffect(() => {
@@ -175,10 +190,12 @@ export function MapView(props: {
   const preliminary = content.places.some((p) => unverified(p.coordinateStatus));
   const notFieldVerified = content.places.some((p) => p.coordinateStatus === "map_verified");
 
-  const labelCandidates: LabelCandidate[] = venuesLayer ? venues.map((v) => {
+  const venueLabels: LabelCandidate[] = venues.map((v) => {
     const s = screen(v.location);
     return { id: v.id, x: s.x, y: s.y, text: v.name, priority: v.id === selectedVenue ? 110 : 50, offset: 10 };
-  }) : [
+  });
+  const labelCandidates: LabelCandidate[] = venuesLayer ? venueLabels : [
+    ...venueLabels,
     ...content.places.map((p) => {
       const s = screen(p.location);
       const i = stopIndex.get(p.ref);
@@ -346,7 +363,7 @@ export function MapView(props: {
                 </g>
               );
             })}
-          {venuesLayer && venues.map((v) => {
+          {venues.map((v) => {
             const s = screen(v.location);
             const on = v.id === selectedVenue;
             return (

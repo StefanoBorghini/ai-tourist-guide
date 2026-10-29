@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { businessesReply, businessesRpcArgs, parseBusinessesQuery, type BusinessesRpc } from "../lib/businesses-api.ts";
+import { businessesReply, businessesRpcArgs, businessPhotoUrl, parseBusinessesQuery, type BusinessesRpc } from "../lib/businesses-api.ts";
 import { NO_STORE, PUBLIC_CACHE } from "../lib/events-api.ts";
 import {
   parseExploreTheme, venueMarkers,
-  businessCategoriesIn, businessesStateFromResponse, directionsHref, distanceLabel, hoursFresh, listBusinesses, parseBusinessesData, telHref,
+  businessCategoriesIn, businessesStateFromResponse, distanceLabel, hoursFresh, listBusinesses, parseBusinessesData, telHref,
   type BusinessesData,
 } from "../lib/businesses-view.ts";
 
@@ -16,7 +16,14 @@ const raw = {
   territory: { id: "it.liguria.sp.portovenere" },
   lang: "it",
   businesses: [
-    { id: "a", name: "Bar Alba", category: "bar", subcategory: "caffè", lat: 44.0510, lng: 9.8350, phone: "+39 0187 000000", verifiedAt: "2026-10-01T10:00:00Z", hours: "7–20" },
+    { id: "a", name: "Bar Alba", category: "bar", subcategory: "caffè", lat: 44.0510, lng: 9.8350, phone: "+39 0187 000000", verifiedAt: "2026-10-01T10:00:00Z", hours: "7–20",
+      photos: [
+        { url: "https://x.supabase.co/storage/v1/object/public/business-photos/a.jpg", alt: "Il bancone", author: "Mario Rossi", license: "cc-by-4.0", originalUrl: null },
+        { url: "https://x.supabase.co/b.jpg", alt: "Sala", author: null, license: "cc0", originalUrl: "https://commons.example.org/b" },
+        { url: "javascript:alert(1)", alt: "No" },
+        { url: "https://x.supabase.co/c.jpg", alt: "" },
+        { url: "http://localhost:54400/d.jpg", alt: "Locale", author: "Anna", license: "own", originalUrl: "http://non-sicuro.example.org" },
+      ] },
     { id: "b", name: "Negozio Senza Posizione", category: "shop", website: "https://negozio.example.it", email: "info@negozio.example.it" },
     { id: "c", name: "Trattoria Lontana", category: "restaurant", lat: 44.0600, lng: 9.8400, website: "http://non-sicuro.example.it", phone: "chiamami" },
     { id: "d", name: "", category: "bar" },
@@ -49,6 +56,29 @@ describe("API delle attività", () => {
     expect((await businessesReply(q(T), rpc({ businesses: "no" }))).status).toBe(503);
     expect((await businessesReply(q(T), async () => { throw new Error("rete"); })).status).toBe(503);
   });
+
+  it("foto: dal percorso nel bucket all'indirizzo pubblico, solo nella cartella del territorio", async () => {
+    const id = "5e3a6059-2fff-4428-a351-8fa54b2725b2";
+    const origin = "https://x.supabase.co";
+    expect(businessPhotoUrl(`it.liguria.sp.portovenere/${id}/foto-ab12.jpg`, "it.liguria.sp.portovenere", origin))
+      .toBe(`${origin}/storage/v1/object/public/business-photos/it.liguria.sp.portovenere/${id}/foto-ab12.jpg`);
+    expect(businessPhotoUrl(`it.altro/${id}/foto.jpg`, "it.liguria.sp.portovenere", origin)).toBeNull();
+    expect(businessPhotoUrl(`it.liguria.sp.portovenere/${id}/../x.jpg`, "it.liguria.sp.portovenere", origin)).toBeNull();
+    expect(businessPhotoUrl(`it.liguria.sp.portovenere/${id}/foto.gif`, "it.liguria.sp.portovenere", origin)).toBeNull();
+    const withPhotos = {
+      territory: { id: "it.liguria.sp.portovenere" },
+      businesses: [{ id: "a", name: "Bar", category: "bar", photos: [
+        { path: `it.liguria.sp.portovenere/${id}/foto.jpg`, alt: "Bancone", author: "Mario", license: "cc0", originalUrl: null },
+        { path: `it.altro/${id}/foto.jpg`, alt: "Altrove" },
+      ] }],
+    };
+    const rpc: BusinessesRpc = async () => ({ data: withPhotos, error: null });
+    const reply = await businessesReply(q(T), rpc, origin);
+    const photos = (reply.body.businesses as { photos: Record<string, unknown>[] }[])[0]!.photos;
+    expect(photos).toEqual([{ url: `${origin}/storage/v1/object/public/business-photos/it.liguria.sp.portovenere/${id}/foto.jpg`, alt: "Bancone", author: "Mario", license: "cc0", originalUrl: null }]);
+    // Senza Supabase configurato nessuna foto (non c'è da dove leggerle).
+    expect(((await businessesReply(q(T), rpc)).body.businesses as { photos: unknown[] }[])[0]!.photos).toEqual([]);
+  });
 });
 
 describe("directory nella guida", () => {
@@ -64,6 +94,16 @@ describe("directory nella guida", () => {
     expect(e.location).toBeNull();
     expect(data.businesses[0]!.location).toEqual([9.835, 44.051]);
     expect(parseBusinessesData({ businesses: [] })).toBeNull();
+  });
+
+  it("foto: solo indirizzi https (o locali), testo alternativo obbligatorio, credito con la licenza che lo chiede", () => {
+    const a = data.businesses.find((b) => b.id === "a")!;
+    expect(a.photos).toEqual([
+      { url: "https://x.supabase.co/storage/v1/object/public/business-photos/a.jpg", alt: "Il bancone", credit: "Mario Rossi · CC BY 4.0", originalUrl: null },
+      { url: "https://x.supabase.co/b.jpg", alt: "Sala", credit: null, originalUrl: "https://commons.example.org/b" },
+      { url: "http://localhost:54400/d.jpg", alt: "Locale", credit: "Anna", originalUrl: null },
+    ]);
+    expect(data.businesses.find((b) => b.id === "b")!.photos).toEqual([]);
   });
 
   it("stato: directory vuota o assente non si mostra, errori sì", () => {
@@ -95,9 +135,6 @@ describe("directory nella guida", () => {
 
   it("collegamenti e distanze", () => {
     expect(telHref("+39 0187 / 00.00-00")).toBe("tel:+390187000000");
-    expect(directionsHref({ name: "Bar", address: null, location: [9.835, 44.051] })).toBe("https://www.google.com/maps/dir/?api=1&destination=44.051%2C9.835");
-    expect(directionsHref({ name: "Bar", address: "Via Roma 1", location: null })).toContain("destination=Bar%2C+Via+Roma+1");
-    expect(directionsHref({ name: "Bar", address: null, location: null })).toBeNull();
     expect(distanceLabel(84, "it")).toBe("80 m");
     expect(distanceLabel(3, "it")).toBe("10 m");
     expect(distanceLabel(1430, "it")).toBe("1,4 km");

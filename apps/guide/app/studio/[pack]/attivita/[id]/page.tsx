@@ -7,6 +7,7 @@ import {
 import { deleteLocalBusiness, setLocalBusinessPublication, verifyLocalBusiness } from "../../../actions-businesses";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../../ui";
 import { BusinessForm } from "../BusinessForm";
+import { BusinessPhotos } from "./BusinessPhotos";
 
 export default async function BusinessPage({ params, searchParams }: { params: Promise<{ pack: string; id: string }>; searchParams: SearchParams }) {
   const { pack, id } = await params;
@@ -115,6 +116,8 @@ export default async function BusinessPage({ params, searchParams }: { params: P
             published={b.publication === "published"}
             readOnly={!canEdit}
           />
+
+          <BusinessPhotos pack={pack} business={b.id} photos={b.photos ?? []} config={session.config ?? null} canEdit={canEdit} />
 
           {canEdit && (b.publication === "draft" || session.me.admin) && (
             <details className="st-create">

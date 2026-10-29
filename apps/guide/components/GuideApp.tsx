@@ -22,7 +22,7 @@ import { DebugPanel } from "./DebugPanel";
 import { EventsHomeButton, EventsPanel, useLocalEvents } from "./EventsPanel";
 import { BusinessCard, BusinessesPanel, useLocalBusinesses, VenueFilters, VenueList, VenuesEmpty } from "./BusinessesPanel";
 import {
-  businessCategoriesIn, EXPLORE_THEMES, listBusinesses, parseExploreTheme, venueMarkers, type BusinessCategoryId, type ExploreTheme,
+  businessCategoriesIn, EXPLORE_THEMES, listBusinesses, parseExploreTheme, venueMarkers, type BusinessCategoryId, type ExploreTheme, type ListedBusiness,
 } from "../lib/businesses-view";
 import { countInRange } from "../lib/events-view";
 import { MapView } from "./MapView";
@@ -239,6 +239,11 @@ export function GuideApp() {
   };
   const [venueCategory, setVenueCategory] = useState<BusinessCategoryId | null>(null);
   const [selectedVenue, setSelectedVenue] = useState<string | null>(null);
+  /** «Mostra sulla mappa» di un'attività: punto su cui centrare la mappa e, nei percorsi, l'attività evidenziata. */
+  const [mapFocus, setMapFocus] = useState<{ id: number; location: LngLat } | null>(null);
+  const [pinnedVenue, setPinnedVenue] = useState<string | null>(null);
+  /** Descrizione di un'attività letta da GAIA: il testo della redazione, mostrato anche mentre la voce lo legge. */
+  const [venueSpeech, setVenueSpeech] = useState<{ id: string; business: string; text: string } | null>(null);
   /** Luoghi principali con i sottoluoghi aperti nell'elenco. */
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [openRoute, setOpenRoute] = useState<string | null>(null);
@@ -1578,7 +1583,7 @@ export function GuideApp() {
     <section className="card now-playing" aria-live="polite">
       <p className="eyebrow">{speaking ? t.listening : runtime.currentPlaceRef ? `${t.here}: ${runtime.name(runtime.currentPlaceRef)}` : " "}</p>
       {!exploring && runtime.currentPlaceRef && <PlacePhoto content={content} placeRef={runtime.currentPlaceRef} base={bundleBase} label={t.photo} />}
-      <p className="now-text">{currentSegment?.text ?? (transcript.length === 0 ? (exploring ? t.nothingExplore : t.nothing) : transcript.at(-1)!.text)}</p>
+      <p className="now-text">{currentSegment?.text ?? (venueSpeech && speech.currentId === venueSpeech.id ? venueSpeech.text : null) ?? (transcript.length === 0 ? (exploring ? t.nothingExplore : t.nothing) : transcript.at(-1)!.text)}</p>
       {!voiceRef.current && <p className="muted small">{t.noVoice}</p>}
       <div className="controls">
         <button className="button primary big" disabled={!speaking} onClick={() => voiceRef.current?.toggle()}>
@@ -1614,6 +1619,33 @@ export function GuideApp() {
     // Su telefono i dettagli sono sotto la mappa: li si porta in vista.
     if (id) requestAnimationFrame(() => document.querySelector(".venue-detail")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   };
+  const venueLayerOn = exploring && theme === "venues";
+  const pinned = !venueLayerOn && pinnedVenue && businessesState.kind === "ok"
+    ? venueMarkers(listBusinesses(businessesState.data, null, null)).find((m) => m.id === pinnedVenue) ?? null
+    : null;
+  // Centra la mappa della guida sull'attività e la porta in vista; nei percorsi guidati la evidenzia tra i luoghi.
+  const showVenueOnMap = (row: ListedBusiness) => {
+    const location = row.business.location;
+    if (!location) return;
+    if (venueLayerOn) setSelectedVenue(row.business.id);
+    else setPinnedVenue(row.business.id);
+    setMapFocus({ id: Date.now(), location });
+    requestAnimationFrame(() => document.querySelector(".walk .mapview")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  };
+  // «Ascolta» sulla scheda di un'attività: la voce di GAIA legge nome e descrizione della redazione, senza AI.
+  // Interrompe quello che stava dicendo; toccato di nuovo sulla stessa attività, si ferma.
+  const listeningVenue = venueSpeech && speech.state !== "idle" && speech.currentId === venueSpeech.id ? venueSpeech.business : null;
+  const listenToVenue = (row: ListedBusiness) => {
+    const voice = voiceRef.current;
+    const b = row.business;
+    if (!voice || !b.description) return;
+    voice.stop();
+    if (listeningVenue === b.id) return;
+    const id = `business:${b.id}`;
+    setVenueSpeech({ id, business: b.id, text: b.description });
+    voice.enqueue([{ id, text: `${b.name}. ${b.description}`, title: b.name }]);
+  };
+  const onListenVenue = voiceRef.current ? listenToVenue : undefined;
   const map = (
     <MapView
       content={content}
@@ -1626,10 +1658,12 @@ export function GuideApp() {
       onSelect={(ref) => (ref ? choosePlace(ref) : setSelected(null))}
       tall={exploring}
       locked={lockedPlaces}
-      layer={exploring && theme === "venues" ? "venues" : "places"}
+      layer={venueLayerOn ? "venues" : "places"}
       venues={venueMarkers(venueRows)}
       selectedVenue={selectedVenue}
-      onSelectVenue={chooseVenue}
+      onSelectVenue={(id) => (venueLayerOn ? chooseVenue(id) : setPinnedVenue(id))}
+      pinnedVenue={pinned}
+      focus={mapFocus}
     />
   );
 
@@ -1931,7 +1965,7 @@ export function GuideApp() {
         <Icon name="shop" /> {t.businesses.title}
         {businessesState.kind === "ok" && <span className="muted small"> · {businessesState.data.businesses.length}</span>}
       </summary>
-      <BusinessesPanel state={businessesState} onRetry={retryBusinesses} here={runtime.lastFix?.location ?? null} locale={content.locale} t={t} />
+      <BusinessesPanel state={businessesState} onRetry={retryBusinesses} here={runtime.lastFix?.location ?? null} locale={content.locale} t={t} onShowOnMap={showVenueOnMap} onListen={onListenVenue} listeningId={listeningVenue} />
     </details>
   );
 
@@ -1940,7 +1974,7 @@ export function GuideApp() {
     venueSelected ? (
       <section className="card venue-detail" aria-label={venueSelected.business.name}>
         <ul className="event-list">
-          <BusinessCard row={venueSelected} locale={content.locale} t={t} onClose={() => setSelectedVenue(null)} />
+          <BusinessCard row={venueSelected} locale={content.locale} t={t} onClose={() => setSelectedVenue(null)} onShowOnMap={showVenueOnMap} onListen={onListenVenue} listening={listeningVenue === venueSelected.business.id} />
         </ul>
         <p className="muted small">{t.businesses.disclaimer}</p>
       </section>

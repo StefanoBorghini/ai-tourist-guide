@@ -106,6 +106,12 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   Studio in `app/studio/[pack]/attivita/` (`app/studio/actions-businesses.ts`, `lib/studio/local-businesses.ts`); nella visita il
   riquadro «Bar, ristoranti e servizi» (`components/BusinessesPanel.tsx`, regole in `lib/businesses-view.ts`: per distanza se c'è la
   posizione, orari nascosti oltre 180 giorni dalla verifica); solo online; vedi `docs/v0.3-platform/DIRECTORY-ATTIVITA-LOCALI.md`.
+  Foto delle attività (fino a 6, autore e licenza come per i luoghi, mai «tutti i diritti riservati»): tabella `local_business_photos`
+  e bucket pubblico `business-photos` (migrazione `20261106000000_business_photos.sql`; cartella `<territorio>/<id attività>/`, nome
+  con suffisso casuale, pubbliche solo quelle delle attività pubblicate), sezione «Foto» nella pagina dell'attività dello Studio
+  (`BusinessPhotos.tsx`, riduzione in `lib/studio/image-upload.ts`); nessun collegamento a mappe esterne: «Mostra sulla mappa» centra
+  la mappa della guida (`focus` di `MapView`; nei percorsi guidati l'attività compare evidenziata, `pinnedVenue`); «Ascolta» fa leggere alla voce di GAIA
+  la descrizione della redazione, parola per parola, senza AI; niente domande all'AI nella modalità «Locali e attività».
   Esplorazione tematica: sopra la mappa dell'esplorazione libera il selettore «Storia e cultura» / «Locali e attività» (stato
   `theme` in `GuideApp.tsx`, ricordato sul dispositivo anche per le visite nuove); la seconda usa la stessa `MapView` con `layer="venues"` (segni delle attività, niente luoghi; stessa
   posizione nella pagina, quindi zoom e inquadratura restano), filtri per categoria su mappa ed elenco, dettagli dell'attività e

@@ -185,7 +185,7 @@ begin
   end if;
   if exists (select 1 from jsonb_array_elements(r -> 'businesses') x, jsonb_object_keys(x) k
              where k not in ('id', 'slug', 'name', 'category', 'subcategory', 'description', 'hours', 'address', 'lat', 'lng',
-                             'phone', 'email', 'website', 'verifiedAt')) then
+                             'phone', 'email', 'website', 'verifiedAt', 'photos')) then
     raise exception 'FALLITO B4: campi non pubblici nella risposta';
   end if;
   if public_local_businesses('zl.bozza') is not null then raise exception 'FALLITO B4: destinazione non pubblicata'; end if;

@@ -6,12 +6,13 @@
  */
 import { NextResponse } from "next/server";
 import { businessesReply } from "../../../../lib/businesses-api";
+import { publishedOrigin } from "../../../../lib/bundle-index";
 import { publicSupabase } from "../../../../lib/public-supabase";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   const supabase = publicSupabase();
-  const reply = await businessesReply(new URL(request.url).searchParams, supabase ? (args) => supabase.rpc("public_local_businesses", args) : null);
+  const reply = await businessesReply(new URL(request.url).searchParams, supabase ? (args) => supabase.rpc("public_local_businesses", args) : null, publishedOrigin());
   return NextResponse.json(reply.body, { status: reply.status, headers: { "cache-control": reply.cacheControl } });
 }

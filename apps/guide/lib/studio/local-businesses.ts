@@ -47,6 +47,35 @@ export interface StudioBusiness {
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
+  /** Foto nel bucket pubblico «business-photos» (migrazione 20261106000000), nell'ordine della guida. */
+  photos?: StudioBusinessPhoto[];
+}
+
+export interface StudioBusinessPhoto {
+  id: string;
+  path: string;
+  alt: Record<string, string>;
+  author: string | null;
+  license: string;
+  source: string;
+  originalUrl: string | null;
+  licenseNote: string | null;
+}
+
+export const BUSINESS_PHOTOS_BUCKET = "business-photos";
+/** Come il vincolo del database: al massimo 6 foto per attività, file fino a 5 MB (limite del bucket). */
+export const MAX_BUSINESS_PHOTOS = 6;
+export const MAX_BUSINESS_PHOTO_BYTES = 5 * 1024 * 1024;
+/** Licenze ammesse per le foto delle attività: tutte quelle dei luoghi tranne «tutti i diritti riservati». */
+export const BUSINESS_PHOTO_LICENSES = ["own", "public-domain", "cc0", "cc-by-4.0", "cc-by-sa-4.0", "cc-by-nc-4.0", "cc-by-nc-sa-4.0", "licensed"] as const;
+
+/** Indirizzo pubblico di una foto (per l'anteprima nello Studio). */
+export const businessPhotoPublicUrl = (supabaseUrl: string, path: string) =>
+  `${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/public/${BUSINESS_PHOTOS_BUCKET}/${path}`;
+
+/** Percorso del file: cartella del territorio e dell'attività, nome leggibile con un suffisso casuale (non indovinabile). */
+export function businessPhotoPath(pack: string, businessId: string, fileName: string): string {
+  return `${pack}/${businessId}/${fileName}`;
 }
 
 export type FormValues = Record<string, string>;

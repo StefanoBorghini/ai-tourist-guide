@@ -24,8 +24,8 @@ interface PackRow {
   canEdit: boolean;
 }
 
-// La copia dei file dal repository carica più file in una richiesta.
-export const maxDuration = 60;
+// La copia dei file dal repository carica più file in una richiesta (stesso limite della pubblicazione).
+export const maxDuration = 300;
 
 export default async function MediaPage({ params, searchParams }: { params: Promise<{ pack: string }>; searchParams: SearchParams }) {
   const { pack } = await params;

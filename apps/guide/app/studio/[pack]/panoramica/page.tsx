@@ -37,8 +37,9 @@ interface PackDetail {
   canPublish: boolean;
 }
 
-// La pubblicazione compila e carica i bundle in questa richiesta: serve più tempo del solito.
-export const maxDuration = 60;
+// La pubblicazione compila e carica i bundle (e i media) in questa richiesta: con un territorio grande 60 s non bastavano
+// (timeout su Vercel, ottobre 2026). 300 s è il massimo con Fluid compute anche sul piano Hobby.
+export const maxDuration = 300;
 
 export default async function OverviewPage({ params, searchParams }: { params: Promise<{ pack: string }>; searchParams: SearchParams }) {
   const { pack } = await params;

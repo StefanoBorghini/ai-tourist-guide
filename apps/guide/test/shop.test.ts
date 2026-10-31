@@ -42,6 +42,10 @@ describe("vendita nell'app", () => {
     expect(o.all).toEqual({ productId: "a", name: "Prodotto a", amount: 1999, bundle: false });
     // Senza account (nessun preventivo): listino.
     expect(offersFor(locked, items, "it", places).places.get("it.test.borgo:borgo")?.amount).toBe(299);
+    // Luogo con un solo contenuto, nulla posseduto: 0,99 € (tetto del singolo) senza prezzo barrato né «0 su 1».
+    expect(offersFor(locked, items, "it", places, [q("p", "ok", 99, 199, 0, 1)]).places.get("it.test.borgo:borgo")).toEqual({
+      productId: "p", name: "Prodotto p", amount: 99, bundle: false,
+    });
     // Livello completo: nessuna offerta.
     expect(offersFor(locked, items, "it", places, [q("p", "complete", null, 299, 4, 4)]).places.has("it.test.borgo:borgo")).toBe(false);
   });

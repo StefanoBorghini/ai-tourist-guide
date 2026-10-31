@@ -74,7 +74,9 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         const quote = quotes.get(item.id);
         // Il prezzo per questo utente (con lo sconto): lo stesso che il server addebiterà al checkout.
         const amount = quote?.amount ?? item.price.amount;
-        const discounted = quote?.status === "ok" && quote.amount !== null && quote.amount < (quote.list ?? item.price.amount);
+        // Prezzo barrato solo con qualcosa già posseduto (come nella guida, lib/shop.ts).
+        const discounted = quote?.status === "ok" && quote.amount !== null && quote.owned > 0
+          && quote.amount < (quote.list ?? item.price.amount);
         return (
           <section key={item.id} className="card flat acc-product">
             <p className="muted small">{PRODUCT_KIND_LABELS[item.kind] ?? item.kind}</p>

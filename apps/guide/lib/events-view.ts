@@ -6,7 +6,10 @@
  * quello del territorio (`today` dell'API), non quello del telefono. Gli indirizzi si ricontrollano qui con
  * safeHttpsUrl anche se il database li ha già accettati: un link che non passa non si mostra.
  */
-import { addDays, eventsByDay, isIsoDate, isValidTimeZone, localDate, safeHttpsUrl } from "./local-events";
+import {
+  addDays, eventsByDay, isIsoDate, isValidTimeZone, localDate, MONTHLY_MODES, RECURRENCE_FREQS, recurrenceLabel, safeHttpsUrl,
+  type Recurrence,
+} from "./local-events";
 
 export const EVENT_CATEGORY_IDS = [
   "culture", "music", "exhibitions", "food_wine", "fairs_markets", "excursions", "outdoor", "local_initiatives", "other",
@@ -28,6 +31,8 @@ export interface PublicEvent {
   startsAt: string;
   endsAt: string;
   timeKnown: boolean;
+  /** Regola della serie (con la sua prima data) se l'evento si ripete; ogni occorrenza è un elemento a sé. */
+  recurrence: (Recurrence & { start: string }) | null;
   venue: { name: string; address: string | null; placeRef: string | null; lat: number | null; lng: number | null };
   price: { kind: PriceKind; note: string | null };
   organizer: string | null;
@@ -47,6 +52,25 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const STATUSES = new Set(["scheduled", "unconfirmed", "cancelled", "postponed"]);
 const PRICE_KINDS = new Set(["free", "paid", "unknown"]);
+
+/** Regola della serie dalla risposta; null se assente o malformata (l'occorrenza resta, senza la riga «Ogni …»). */
+function parseRecurrence(raw: unknown): (Recurrence & { start: string }) | null {
+  const r = obj(raw);
+  const start = str(r.start);
+  const until = str(r.until);
+  const interval = num(r.interval);
+  if (!(RECURRENCE_FREQS as readonly string[]).includes(r.freq as string) || !start || !isIsoDate(start)) return null;
+  if (!(MONTHLY_MODES as readonly string[]).includes(r.monthly as string) || interval === null || interval < 1 || interval > 99) return null;
+  if (until !== null && !isIsoDate(until)) return null;
+  const weekdays = Array.isArray(r.weekdays) ? r.weekdays.filter((d): d is number => Number.isInteger(d) && d >= 1 && d <= 7) : [];
+  if (r.freq === "weekly" && weekdays.length === 0) return null;
+  return { freq: r.freq as Recurrence["freq"], interval, weekdays, monthly: r.monthly as Recurrence["monthly"], until, start };
+}
+
+/** «Ogni sabato e domenica fino al 30 giugno 2030» / «Every Saturday and Sunday until 30 June 2030». */
+export function repeatLabel(e: PublicEvent, locale: string): string | null {
+  return e.recurrence ? recurrenceLabel(e.recurrence, e.recurrence.start, locale) : null;
+}
 
 function parseEvent(raw: unknown): PublicEvent | null {
   const e = obj(raw);
@@ -78,6 +102,7 @@ function parseEvent(raw: unknown): PublicEvent | null {
     startsAt,
     endsAt,
     timeKnown: e.timeKnown === true,
+    recurrence: parseRecurrence(e.recurrence),
     venue: { name: venueName, address: str(venue.address), placeRef: str(venue.placeRef), lat: num(venue.lat), lng: num(venue.lng) },
     price: { kind: PRICE_KINDS.has(price.kind as string) ? (price.kind as PriceKind) : "unknown", note: str(price.note) },
     organizer: str(e.organizer),

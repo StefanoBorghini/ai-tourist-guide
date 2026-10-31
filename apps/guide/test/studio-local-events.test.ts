@@ -3,7 +3,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  eventPayloadFromForm, eventTitle, eventWhen, formatStamp, formValuesFromEvent, inView, publishBlockers, type FormValues, type StudioEvent,
+  eventPayloadFromForm, eventTitle, eventWhen, formatStamp, formValuesFromEvent, inView, isConcluded, parseDateList, publishBlockers,
+  type FormValues, type StudioEvent,
 } from "../lib/studio/local-events.ts";
 
 const base: FormValues = {
@@ -45,6 +46,7 @@ describe("modulo dell'evento → dati per il database", () => {
         languages: [],
         status: "scheduled",
         statusNote: null,
+        recurrence: { freq: "none" },
       },
     });
   });
@@ -190,5 +192,77 @@ describe("presentazione e regole dello Studio", () => {
       expect(src).toContain(`"${fn}"`);
     }
     expect((src.match(/await requireStaff\(\)/g) ?? []).length).toBe(5);
+  });
+});
+
+describe("ricorrenza nel modulo", () => {
+  // 2026-10-24 è un sabato.
+  const rec = (extra: FormValues) => {
+    const r = parse(extra);
+    return r.ok ? r.payload.recurrence : r.error;
+  };
+
+  it("non si ripete: freq none", () => {
+    expect(rec({})).toEqual({ freq: "none" });
+    expect(rec({ recurrence: "none", weekday_3: "on" })).toEqual({ freq: "none" });
+  });
+
+  it("settimanale: giorni spuntati, oppure il giorno della data di inizio", () => {
+    expect(rec({ recurrence: "weekly", weekday_6: "on", weekday_7: "on", recurrenceUntil: "2026-12-20" })).toEqual({
+      freq: "weekly", interval: 1, weekdays: [6, 7], monthly: "day", until: "2026-12-20", except: [],
+    });
+    expect(rec({ recurrence: "weekly", recurrenceInterval: "2" })).toMatchObject({ weekdays: [6], interval: 2 });
+    expect(rec({ recurrence: "weekly", weekday_1: "on" })).toMatch(/è un sabato: spunta anche quel giorno/);
+  });
+
+  it("mensile: modo; giornaliera e annuale ignorano giorni e modo", () => {
+    expect(rec({ recurrence: "monthly", recurrenceMonthly: "last_weekday", startDate: "2026-10-31" })).toMatchObject({ freq: "monthly", monthly: "last_weekday" });
+    expect(rec({ recurrence: "monthly", recurrenceMonthly: "weekday" })).toMatchObject({ monthly: "weekday" });
+    // Il 24 ottobre 2026 non è l'ultimo sabato (c'è il 31).
+    expect(rec({ recurrence: "monthly", recurrenceMonthly: "last_weekday" })).toMatch(/prima data della serie/);
+    expect(rec({ recurrence: "daily", weekday_2: "on", recurrenceMonthly: "weekday" })).toEqual({
+      freq: "daily", interval: 1, weekdays: [], monthly: "day", until: null, except: [],
+    });
+    expect(rec({ recurrence: "yearly" })).toMatchObject({ freq: "yearly" });
+  });
+
+  it("errori: frequenza, intervallo, fine prima dell'inizio, date escluse", () => {
+    expect(rec({ recurrence: "hourly" })).toMatch(/Ricorrenza non riconosciuta/);
+    expect(rec({ recurrence: "daily", recurrenceInterval: "0" })).toMatch(/da 1 a 99/);
+    expect(rec({ recurrence: "daily", recurrenceInterval: "2.5" })).toMatch(/da 1 a 99/);
+    expect(rec({ recurrence: "daily", recurrenceUntil: "2026-10-01" })).toMatch(/finisce prima/);
+    expect(rec({ recurrence: "daily", recurrenceExcept: "31/02/2027" })).toMatch(/Date escluse/);
+    expect(rec({ recurrence: "daily", recurrenceExcept: "2026-10-24" })).toMatch(/non può essere tra le date escluse/);
+    expect(rec({ recurrence: "daily", recurrenceExcept: "2026-11-01, 25/12/2026\n2026-11-01" })).toMatchObject({ except: ["2026-11-01", "2026-12-25"] });
+  });
+
+  it("date scritte a mano", () => {
+    expect(parseDateList("")).toEqual([]);
+    expect(parseDateList("1/5/2027; 2027-04-25")).toEqual(["2027-04-25", "2027-05-01"]);
+    expect(parseDateList("domani")).toBeNull();
+  });
+
+  it("evento → modulo → evento: la ricorrenza resta uguale", () => {
+    const e = {
+      id: "x", pack: "p", slug: "s", labels: { it: { title: "Mercatino" } }, category: "fairs_markets", startDate: "2026-10-24",
+      startTime: null, endDate: null, endTime: null, startsAt: "2026-10-23T22:00:00Z", endsAt: "2026-10-24T22:00:00Z", lastEndsAt: null,
+      recurrence: { freq: "weekly", interval: 2, weekdays: [6, 7], monthly: "day", until: null, except: ["2026-11-07"] },
+      place: null, venueName: "Piazza", venueAddress: null, lat: null, lng: null, organizer: null, sourceUrl: null, infoUrl: null,
+      bookingUrl: null, price: "free", priceNote: null, languages: [], seriesId: null, status: "scheduled", statusNote: null,
+      publication: "draft", verifiedAt: null, verifiedBy: null, verificationNote: null, createdAt: "", updatedAt: "", publishedAt: null,
+    } as StudioEvent;
+    const r = eventPayloadFromForm(formValuesFromEvent(e, ["it"]), ["it"], "it");
+    expect(r.ok && r.payload.recurrence).toEqual(e.recurrence);
+  });
+
+  it("una serie è conclusa solo dopo l'ultima data; senza fine mai", () => {
+    const now = Date.parse("2026-10-30T10:00:00Z");
+    const past = { endsAt: "2026-10-01T10:00:00Z" };
+    expect(isConcluded({ ...past, recurrence: null }, now)).toBe(true);
+    const r = { freq: "daily", interval: 1, weekdays: [], monthly: "day", until: null, except: [] } as const;
+    expect(isConcluded({ ...past, recurrence: { ...r, weekdays: [], except: [] }, lastEndsAt: null }, now)).toBe(false);
+    expect(isConcluded({ ...past, recurrence: { ...r, weekdays: [], except: [] }, lastEndsAt: "2026-10-29T10:00:00Z" }, now)).toBe(true);
+    expect(inView({ ...past, publication: "published", recurrence: { ...r, weekdays: [], except: [] }, lastEndsAt: null }, "prossimi", now)).toBe(true);
+    expect(publishBlockers({ ...past, sourceUrl: "https://x.it", verifiedAt: "x", recurrence: { ...r, weekdays: [], except: [] }, lastEndsAt: null }, now)).toEqual([]);
   });
 });

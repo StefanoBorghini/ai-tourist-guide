@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  isoWeekday,
+  nextOccurrences,
+  occursOn,
+  recurrenceLabel,
   datesInRange,
   daysBetween,
   eventsByDay,
@@ -263,5 +267,54 @@ describe("indirizzi delle fonti", () => {
       const ok = safeHttpsUrl(u);
       expect(ok && re.test(ok), u).toBe(true);
     }
+  });
+});
+
+describe("ricorrenze (stesse regole di local_event_occurs)", () => {
+  const r = (over: Partial<Parameters<typeof occursOn>[0]> = {}) => ({ freq: "daily" as const, interval: 1, weekdays: [] as number[], monthly: "day" as const, ...over });
+
+  it("giorno della settimana ISO", () => {
+    expect(isoWeekday("2030-06-01")).toBe(6);
+    expect(isoWeekday("2030-06-02")).toBe(7);
+    expect(isoWeekday("2030-06-03")).toBe(1);
+  });
+
+  it("giornaliera, settimanale ogni due settimane, mensile, annuale", () => {
+    expect(occursOn(r({ interval: 3 }), "2030-06-01", "2030-06-07")).toBe(true);
+    expect(occursOn(r({ interval: 3 }), "2030-06-01", "2030-06-08")).toBe(false);
+    expect(occursOn(r(), "2030-06-01", "2030-05-31")).toBe(false);
+    const w = r({ freq: "weekly", interval: 2, weekdays: [6, 7] });
+    expect(["2030-06-01", "2030-06-02", "2030-06-08", "2030-06-09", "2030-06-15", "2030-06-14"].map((d) => occursOn(w, "2030-06-01", d)))
+      .toEqual([true, true, false, false, true, false]);
+    expect(occursOn(r({ freq: "monthly", monthly: "weekday" }), "2030-06-16", "2030-07-21")).toBe(true);
+    expect(occursOn(r({ freq: "monthly", monthly: "weekday" }), "2030-06-16", "2030-07-14")).toBe(false);
+    expect(occursOn(r({ freq: "monthly", monthly: "last_weekday" }), "2030-06-30", "2030-07-28")).toBe(true);
+    expect(occursOn(r({ freq: "monthly", monthly: "last_weekday" }), "2030-06-30", "2030-07-21")).toBe(false);
+    expect(occursOn(r({ freq: "monthly" }), "2030-05-31", "2030-06-30")).toBe(false);
+    expect(occursOn(r({ freq: "monthly" }), "2030-05-31", "2030-07-31")).toBe(true);
+    expect(occursOn(r({ freq: "monthly", interval: 2 }), "2030-05-31", "2030-08-31")).toBe(false);
+    expect(occursOn(r({ freq: "yearly" }), "2028-02-29", "2032-02-29")).toBe(true);
+    expect(occursOn(r({ freq: "yearly" }), "2028-02-29", "2029-02-28")).toBe(false);
+  });
+
+  it("prossime date: fine e date escluse", () => {
+    const rule = { freq: "weekly" as const, interval: 1, weekdays: [6, 7], monthly: "day" as const, until: "2030-06-16", except: ["2030-06-08"] };
+    expect(nextOccurrences(rule, "2030-06-01", "2030-06-02", 10)).toEqual(["2030-06-02", "2030-06-09", "2030-06-15", "2030-06-16"]);
+    expect(nextOccurrences(rule, "2030-06-01", "2020-01-01", 2)).toEqual(["2030-06-01", "2030-06-02"]);
+  });
+
+  it("la regola in parole, italiano e inglese", () => {
+    const base = { interval: 1, weekdays: [] as number[], monthly: "day" as const, until: null };
+    expect(recurrenceLabel({ ...base, freq: "weekly", weekdays: [7, 6] }, "2030-06-01", "it")).toBe("Ogni sabato e domenica");
+    expect(recurrenceLabel({ ...base, freq: "weekly", weekdays: [1, 3, 5], interval: 2 }, "2030-06-03", "it")).toBe("Ogni 2 settimane: lunedì, mercoledì e venerdì");
+    expect(recurrenceLabel({ ...base, freq: "weekly", weekdays: [6] }, "2030-06-01", "en")).toBe("Every Saturday");
+    expect(recurrenceLabel({ ...base, freq: "monthly", monthly: "weekday" }, "2030-06-16", "it")).toBe("Ogni mese, la terza domenica");
+    expect(recurrenceLabel({ ...base, freq: "monthly", monthly: "weekday" }, "2030-06-01", "it")).toBe("Ogni mese, il primo sabato");
+    expect(recurrenceLabel({ ...base, freq: "monthly", monthly: "last_weekday" }, "2030-06-30", "it")).toBe("Ogni mese, l'ultima domenica");
+    expect(recurrenceLabel({ ...base, freq: "monthly", monthly: "last_weekday" }, "2030-06-29", "en")).toBe("Every month, on the last Saturday");
+    expect(recurrenceLabel({ ...base, freq: "monthly", interval: 3 }, "2030-06-17", "it")).toBe("Ogni 3 mesi, il giorno 17");
+    expect(recurrenceLabel({ ...base, freq: "daily", until: "2030-06-30" }, "2030-06-01", "it")).toBe("Ogni giorno fino al 30 giugno 2030");
+    expect(recurrenceLabel({ ...base, freq: "yearly" }, "2027-08-17", "it")).toBe("Ogni anno, il 17 agosto");
+    expect(recurrenceLabel({ ...base, freq: "yearly" }, "2027-08-17", "en")).toBe("Every year on 17 August");
   });
 });

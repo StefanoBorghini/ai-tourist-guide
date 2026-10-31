@@ -5,7 +5,10 @@
  * (migrazione 20261031000000: vincoli, trigger e funzioni studio_*_local_event), che ripete ogni controllo.
  * Gli indirizzi si salvano nella forma normalizzata di safeHttpsUrl, la stessa che il database accetta.
  */
-import { isIsoDate, isLocalTime, isValidTimeZone, localDate, localTime, safeHttpsUrl } from "../local-events";
+import {
+  isIsoDate, isLocalTime, isoWeekday, isValidTimeZone, localDate, localTime, MONTHLY_MODES, occursOn, RECURRENCE_FREQS,
+  safeHttpsUrl, type MonthlyMode, type Recurrence, type RecurrenceFreq,
+} from "../local-events";
 
 export const EVENT_CATEGORIES = [
   "culture", "music", "exhibitions", "food_wine", "fairs_markets", "excursions", "outdoor", "local_initiatives", "other",
@@ -46,6 +49,68 @@ export const PRICE_LABELS: Record<(typeof PRICES)[number], string> = {
   unknown: "Da verificare",
 };
 
+export const RECURRENCE_LABELS: Record<"none" | RecurrenceFreq, string> = {
+  none: "Non si ripete",
+  daily: "Ogni giorno",
+  weekly: "Ogni settimana",
+  monthly: "Ogni mese",
+  yearly: "Ogni anno",
+};
+export const MONTHLY_LABELS: Record<MonthlyMode, string> = {
+  day: "lo stesso giorno del mese (es. il 17)",
+  weekday: "lo stesso giorno della settimana nella stessa posizione (es. il terzo sabato)",
+  last_weekday: "l'ultimo di quel giorno della settimana (es. l'ultimo sabato)",
+};
+export const WEEKDAY_LABELS = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"] as const;
+
+/** Date scritte a mano, separate da virgole, spazi o righe: AAAA-MM-GG oppure GG/MM/AAAA. Null se una non va. */
+export function parseDateList(raw: string): string[] | null {
+  const out: string[] = [];
+  for (const token of raw.split(/[\s,;]+/).filter(Boolean)) {
+    const it = /^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/.exec(token);
+    const iso = it ? `${it[3]}-${it[2]!.padStart(2, "0")}-${it[1]!.padStart(2, "0")}` : token;
+    if (!isIsoDate(iso)) return null;
+    out.push(iso);
+  }
+  return [...new Set(out)].sort();
+}
+
+/** Ricorrenza dal modulo (campi recurrence*, weekday_1…7); `{ freq: "none" }` se l'evento non si ripete. */
+export function recurrenceFromForm(
+  get: (k: string) => string,
+  startDate: string,
+): { ok: true; value: { freq: "none" } | Recurrence } | { ok: false; error: string } {
+  const freq = get("recurrence") || "none";
+  if (freq === "none") return { ok: true, value: { freq: "none" } };
+  if (!(RECURRENCE_FREQS as readonly string[]).includes(freq)) return { ok: false, error: "Ricorrenza non riconosciuta." };
+  const intervalRaw = get("recurrenceInterval") || "1";
+  const interval = Number(intervalRaw);
+  if (!/^\d{1,2}$/.test(intervalRaw) || interval < 1) return { ok: false, error: "«Ogni quanto» è un numero da 1 a 99." };
+  const weekdays = freq === "weekly"
+    ? [1, 2, 3, 4, 5, 6, 7].filter((d) => get(`weekday_${d}`) === "on")
+    : [];
+  if (freq === "weekly" && weekdays.length === 0) weekdays.push(isoWeekday(startDate));
+  const monthly = (get("recurrenceMonthly") || "day") as MonthlyMode;
+  if (!(MONTHLY_MODES as readonly string[]).includes(monthly)) return { ok: false, error: "Ripetizione mensile non riconosciuta." };
+  const until = get("recurrenceUntil") || null;
+  if (until !== null && !isIsoDate(until)) return { ok: false, error: "La data di fine della ripetizione non è valida." };
+  if (until !== null && until < startDate) return { ok: false, error: "La ripetizione finisce prima della data di inizio." };
+  const except = parseDateList(get("recurrenceExcept"));
+  if (except === null) return { ok: false, error: "Date escluse: scrivile come 2027-08-15 o 15/08/2027, separate da virgole o a capo." };
+  if (except.length > 200) return { ok: false, error: "Al massimo 200 date escluse." };
+  const value: Recurrence = { freq: freq as RecurrenceFreq, interval, weekdays, monthly: freq === "monthly" ? monthly : "day", until, except };
+  if (!occursOn(value, startDate, startDate)) {
+    return {
+      ok: false,
+      error: freq === "weekly"
+        ? `La data di inizio è un ${WEEKDAY_LABELS[isoWeekday(startDate) - 1]}: spunta anche quel giorno o scegli come inizio la prima data della serie.`
+        : "La data di inizio deve essere la prima data della serie (per «l'ultimo sabato» scegli un ultimo sabato del mese).",
+    };
+  }
+  if (except.includes(startDate)) return { ok: false, error: "La data di inizio non può essere tra le date escluse: sposta l'inizio alla prima data della serie." };
+  return { ok: true, value };
+}
+
 /** Evento come lo restituiscono le funzioni dello Studio (studio_local_event_json). */
 export interface StudioEvent {
   id: string;
@@ -59,6 +124,10 @@ export interface StudioEvent {
   endTime: string | null;
   startsAt: string;
   endsAt: string;
+  /** Fine dell'ultima occorrenza: per un evento singolo endsAt, per una serie senza fine null. */
+  lastEndsAt?: string | null;
+  /** Null: l'evento non si ripete. */
+  recurrence?: (Recurrence & { except: string[] }) | null;
   place: string | null;
   venueName: string;
   venueAddress: string | null;
@@ -136,6 +205,8 @@ export function eventPayloadFromForm(v: FormValues, locales: readonly string[], 
     return { ok: false, error: "Gli orari si scrivono come 21:00." };
   }
   if (endTime !== null && startTime === null) return { ok: false, error: "Un orario di fine richiede anche l'orario di inizio." };
+  const recurrence = recurrenceFromForm(get, startDate);
+  if (!recurrence.ok) return recurrence;
 
   const venueName = get("venueName");
   const place = get("place") || null;
@@ -205,6 +276,7 @@ export function eventPayloadFromForm(v: FormValues, locales: readonly string[], 
       languages,
       status,
       statusNote: get("statusNote") || null,
+      recurrence: recurrence.value,
     },
   };
 }
@@ -222,11 +294,17 @@ export function eventWhen(e: Pick<StudioEvent, "startDate" | "startTime" | "endD
 }
 
 /** Cosa manca per pubblicare, in parole semplici (vuoto = si può pubblicare). */
-export function publishBlockers(e: Pick<StudioEvent, "sourceUrl" | "verifiedAt" | "endsAt">, now: number = Date.now()): string[] {
+/** Vero se l'evento (o, per una serie, la sua ultima data) è già finito. Una serie senza fine non finisce mai. */
+export function isConcluded(e: Pick<StudioEvent, "endsAt" | "recurrence" | "lastEndsAt">, now: number = Date.now()): boolean {
+  if (!e.recurrence) return Date.parse(e.endsAt) <= now;
+  return typeof e.lastEndsAt === "string" && Date.parse(e.lastEndsAt) <= now;
+}
+
+export function publishBlockers(e: Pick<StudioEvent, "sourceUrl" | "verifiedAt" | "endsAt" | "recurrence" | "lastEndsAt">, now: number = Date.now()): string[] {
   const out: string[] = [];
   if (!e.sourceUrl) out.push("manca l'indirizzo della fonte ufficiale");
   else if (!e.verifiedAt) out.push("la fonte non è ancora stata verificata");
-  if (Date.parse(e.endsAt) <= now) out.push("l'evento è già concluso");
+  if (isConcluded(e, now)) out.push("l'evento è già concluso");
   return out;
 }
 
@@ -242,8 +320,8 @@ export const EVENT_VIEW_LABELS: Record<EventView, string> = {
 };
 export const isEventView = (v: string | undefined): v is EventView => (EVENT_VIEWS as readonly string[]).includes(v ?? "");
 
-export function inView(e: Pick<StudioEvent, "publication" | "endsAt">, view: EventView, now: number = Date.now()): boolean {
-  const over = Date.parse(e.endsAt) <= now;
+export function inView(e: Pick<StudioEvent, "publication" | "endsAt" | "recurrence" | "lastEndsAt">, view: EventView, now: number = Date.now()): boolean {
+  const over = isConcluded(e, now);
   switch (view) {
     case "prossimi": return !over && e.publication !== "withdrawn";
     case "bozze": return e.publication === "draft";
@@ -275,7 +353,13 @@ export function formValuesFromEvent(e: StudioEvent, locales: readonly string[]):
     languages: e.languages.join(", "),
     status: e.status,
     statusNote: e.statusNote ?? "",
+    recurrence: e.recurrence?.freq ?? "none",
+    recurrenceInterval: String(e.recurrence?.interval ?? 1),
+    recurrenceMonthly: e.recurrence?.monthly ?? "day",
+    recurrenceUntil: e.recurrence?.until ?? "",
+    recurrenceExcept: (e.recurrence?.except ?? []).join(", "),
   };
+  for (const d of e.recurrence?.weekdays ?? []) v[`weekday_${d}`] = "on";
   for (const l of locales) {
     v[`title_${l}`] = e.labels[l]?.title ?? "";
     v[`summary_${l}`] = e.labels[l]?.summary ?? "";

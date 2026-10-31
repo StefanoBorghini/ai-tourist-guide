@@ -1043,6 +1043,17 @@ begin
       raise exception 'FALLITO: manca la migrazione 20261108000000_principal_not_single.sql (luogo principale solo intero)';
     end if;
 
+    -- Eventi ricorrenti (20261109000000_recurring_events.sql): colonne, regola, permessi.
+    if not exists (select 1 from information_schema.columns where table_name = 'local_events' and column_name = 'recurrence')
+       or to_regprocedure('studio_set_event_recurrence(uuid,jsonb)') is null
+       or not exists (select 1 from pg_trigger where tgname = 'local_events_15_recurrence_trg')
+       or not local_event_occurs('monthly', 1, '{}', 'last_weekday', '2030-06-30', '2030-07-28')
+       or has_function_privilege('anon', 'studio_set_event_recurrence(uuid,jsonb)', 'execute')
+       or has_function_privilege('anon', 'local_event_occurrences(local_events,date,date,text)', 'execute')
+       or position('local_event_occurrences' in pg_get_functiondef('public_local_events(text,date,date,text)'::regprocedure)) = 0 then
+      raise exception 'FALLITO: manca la migrazione 20261109000000_recurring_events.sql (eventi ricorrenti) o i suoi permessi';
+    end if;
+
     -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
     -- l'elenco dei controlli non verificati.
     raise exception 'VERIFICA_SUPERATA|%', array_to_string(nv, '; ');

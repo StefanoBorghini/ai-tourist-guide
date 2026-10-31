@@ -4,7 +4,8 @@
 --   E2 permessi: expert, translator, redattore di un'altra organizzazione e anon non leggono né scrivono;
 --   E3 pubblicazione: niente senza fonte e verifica, stato e verifica solo dallo Studio, modifiche che azzerano la
 --      verifica, annullamento senza ritiro, ritiro, eliminazione;
---   E4 lettura pubblica: solo pubblicati e non conclusi, solo campi pubblici, periodo massimo, lingua, isolamento;
+--   E4 lettura pubblica: solo pubblicati e non conclusi, solo campi pubblici (con eventId e recurrence di
+--      20261109000000), periodo massimo, lingua, isolamento;
 --   E5 fuso orario: valido, lo cambia solo l'amministratore, gli eventi si ricalcolano;
 --   E6 proprietà delle funzioni (definer, search_path, permessi).
 -- Usa territori propri (ze.*): non dipende dall'ordine rispetto agli altri file. Alla fine li ripulisce, così la
@@ -298,8 +299,9 @@ begin
   -- Solo i campi pubblici, elencati: nessun autore, nota interna, stato di pubblicazione o identificativo interno.
   ev := (select x from jsonb_array_elements(r -> 'events') x where x ->> 'slug' = 'concerto');
   if (select array_agg(k order by k) from jsonb_object_keys(ev) k) is distinct from array[
-       'category', 'description', 'end', 'endsAt', 'id', 'lang', 'languages', 'links', 'organizer', 'price', 'slug', 'start',
-       'startsAt', 'status', 'statusNote', 'summary', 'timeKnown', 'title', 'updatedAt', 'venue', 'verifiedAt'] then
+       'category', 'description', 'end', 'endsAt', 'eventId', 'id', 'lang', 'languages', 'links', 'organizer', 'price',
+       'recurrence', 'slug', 'start', 'startsAt', 'status', 'statusNote', 'summary', 'timeKnown', 'title', 'updatedAt', 'venue',
+       'verifiedAt'] then
     raise exception 'FALLITO E4: campi pubblici %', (select array_agg(k order by k) from jsonb_object_keys(ev) k);
   end if;
   if r::text like '%nota interna%' or r::text like '%9e000000-0000-0000-0000-000000000002%' or r::text like '%Controllato sul sito%' then

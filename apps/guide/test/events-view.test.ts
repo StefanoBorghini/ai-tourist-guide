@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  categoriesIn, countInRange, dayLabel, eventDays, eventsUrl, parseEventsData, rangeDates, stateFromResponse, timeLabel, verifiedDate,
+  categoriesIn, countInRange, dayLabel, eventDays, eventsUrl, parseEventsData, rangeDates, repeatLabel, stateFromResponse, timeLabel, verifiedDate,
   type EventsData, type PublicEvent,
 } from "../lib/events-view.ts";
 
@@ -150,5 +150,27 @@ describe("richiesta ed esiti", () => {
     expect(panel).not.toMatch(/credentials: "omit"/);
     const sw = readFileSync(resolve(root, "public/sw.js"), "utf8");
     expect(sw).toMatch(/url\.pathname\.startsWith\("\/api\/"\)/);
+  });
+});
+
+describe("eventi ricorrenti", () => {
+  const rec = { freq: "weekly", interval: 1, weekdays: [6, 7], monthly: "day", start: "2026-10-17", until: null };
+  const occ = (date: string, startsAt: string, endsAt: string) =>
+    raw({ id: `s1@${date}`, eventId: "s1", recurrence: rec, start: { date, time: "10:00" }, end: { date, time: "12:00" }, startsAt, endsAt });
+
+  it("ogni occorrenza è un evento a sé, con la regola in parole", () => {
+    const d = data([occ("2026-10-24", "2026-10-24T08:00:00Z", "2026-10-24T10:00:00Z"), occ("2026-10-25", "2026-10-25T09:00:00Z", "2026-10-25T11:00:00Z")]);
+    expect(d.events.map((e) => e.id)).toEqual(["s1@2026-10-24", "s1@2026-10-25"]);
+    expect(d.events[0]!.recurrence).toEqual(rec);
+    expect(repeatLabel(d.events[0]!, "it")).toBe("Ogni sabato e domenica");
+    expect(repeatLabel(d.events[0]!, "en")).toBe("Every Saturday and Sunday");
+    expect(countInRange(d, "week", now)).toBe(2);
+  });
+
+  it("evento singolo o regola malformata: nessuna riga «Ogni …», l'evento resta", () => {
+    expect(data([raw()]).events[0]!.recurrence).toBeNull();
+    expect(repeatLabel(data([raw()]).events[0]!, "it")).toBeNull();
+    const bad = data([raw({ recurrence: { ...rec, freq: "hourly" } }), raw({ id: "e2", recurrence: { ...rec, weekdays: [] } })]);
+    expect(bad.events.map((e) => [e.id, e.recurrence])).toEqual([["e1", null], ["e2", null]]);
   });
 });

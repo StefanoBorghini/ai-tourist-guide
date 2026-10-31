@@ -99,7 +99,7 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   i luoghi gratuiti (`config.access.freePlaces`, scelti nella scheda Vendita, migrazione `20261029000000_free_places.sql`) hanno tutti i racconti nel bundle pubblico e non si vendono;
   solo le destinazioni elencate in `territories/static-bundles.json` hanno bundle dai file, e non possono avere contenuti a pagamento
 - Eventi del giorno (dati operativi, fuori da Territory Pack, bundle e AI): tabella `local_events` e `destinations.timezone`
-  (migrazione `20261031000000_local_events.sql`; date nel fuso della destinazione, orari del cambio d'ora rifiutati, fonte https e
+  (migrazione `20261031000000_local_events.sql`; ricorrenze giornaliere, settimanali, mensili, annuali con fine e date escluse, calcolate alla lettura, migrazione `20261109000000_recurring_events.sql`, `docs/v0.3-platform/EVENTI-RICORRENTI.md`; date nel fuso della destinazione, orari del cambio d'ora rifiutati, fonte https e
   verifica obbligatorie per pubblicare, bozze solo a chi modifica il territorio, lettura pubblica solo con `public_local_events()`);
   la stessa logica di date e indirizzi in `apps/guide/lib/local-events.ts`; API pubblica `GET /api/v1/events`
   (`app/api/v1/events`, regole in `lib/events-api.ts`, client anonimo senza cookie in `lib/public-supabase.ts`, cache CDN 60 s);

@@ -1,5 +1,9 @@
 import { saveLocalEvent } from "../../actions-events";
-import { CATEGORY_LABELS, EVENT_CATEGORIES, EVENT_STATUS_LABELS, EVENT_STATUSES, PRICE_LABELS, PRICES, type FormValues } from "../../../../lib/studio/local-events";
+import {
+  CATEGORY_LABELS, EVENT_CATEGORIES, EVENT_STATUS_LABELS, EVENT_STATUSES, MONTHLY_LABELS, PRICE_LABELS, PRICES, RECURRENCE_LABELS,
+  WEEKDAY_LABELS, type FormValues,
+} from "../../../../lib/studio/local-events";
+import { MONTHLY_MODES } from "../../../../lib/local-events";
 
 /**
  * Modulo dell'evento, uguale per creazione e modifica. Date e orari sono quelli locali del territorio; i controlli
@@ -81,7 +85,56 @@ export function EventForm({ pack, id, values, locales, defaultLocale, places, pu
         </div>
         <p className="st-hint">
           Senza ora l&apos;evento vale per tutta la giornata («orario da confermare»). Per un evento oltre la mezzanotte
-          indica come data di fine il giorno dopo. Una manifestazione di più settimane si inserisce come appuntamenti separati.
+          indica come data di fine il giorno dopo. Se l&apos;evento si ripete, qui va la prima data: le altre le calcola la
+          ricorrenza qui sotto, con gli stessi orari.
+        </p>
+      </fieldset>
+
+      <fieldset disabled={readOnly}>
+        <legend>Si ripete</legend>
+        <div className="st-row">
+          <label>
+            Ricorrenza
+            <select name="recurrence" defaultValue={v("recurrence") || "none"}>
+              {(Object.keys(RECURRENCE_LABELS) as (keyof typeof RECURRENCE_LABELS)[]).map((r) => (
+                <option key={r} value={r}>{RECURRENCE_LABELS[r]}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Ogni quanti giorni, settimane, mesi o anni
+            <input name="recurrenceInterval" type="number" min={1} max={99} defaultValue={v("recurrenceInterval") || "1"} />
+          </label>
+          <label>
+            Fino al (facoltativo)
+            <input name="recurrenceUntil" type="date" defaultValue={v("recurrenceUntil")} />
+          </label>
+        </div>
+        <div className="st-row" role="group" aria-label="Giorni della settimana (ricorrenza settimanale)">
+          <span className="st-hint">Giorni della settimana (solo «Ogni settimana»; nessuno = il giorno della data di inizio):</span>
+          {WEEKDAY_LABELS.map((name, i) => (
+            <label key={name} className="st-inline">
+              <input type="checkbox" name={`weekday_${i + 1}`} defaultChecked={v(`weekday_${i + 1}`) === "on"} />
+              {name}
+            </label>
+          ))}
+        </div>
+        <label>
+          Ogni mese, ripeti (solo «Ogni mese»)
+          <select name="recurrenceMonthly" defaultValue={v("recurrenceMonthly") || "day"}>
+            {MONTHLY_MODES.map((m) => (
+              <option key={m} value={m}>{MONTHLY_LABELS[m]}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Date escluse (facoltative: es. 2027-08-15, 22/08/2027)
+          <textarea name="recurrenceExcept" rows={2} defaultValue={v("recurrenceExcept")} />
+        </label>
+        <p className="st-hint">
+          «Ogni 2» con «Ogni settimana» vuol dire una settimana sì e una no. Senza data di fine la serie continua finché non la
+          cambi. Annullato, rinviato e da confermare valgono per tutta la serie: per saltare una sola data aggiungila alle date
+          escluse. Dopo il salvataggio, in cima alla pagina trovi le prossime date calcolate.
         </p>
       </fieldset>
 
@@ -186,7 +239,7 @@ export function EventForm({ pack, id, values, locales, defaultLocale, places, pu
         </label>
         {published && (
           <p className="st-hint">
-            L&apos;evento è pubblicato: se cambi date, orari, luogo o fonte devi spuntare la verifica, altrimenti il
+            L&apos;evento è pubblicato: se cambi date, orari, ricorrenza, luogo o fonte devi spuntare la verifica, altrimenti il
             salvataggio viene rifiutato (in alternativa ritiralo prima).
           </p>
         )}

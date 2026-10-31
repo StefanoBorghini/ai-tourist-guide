@@ -9,8 +9,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  categoriesIn, countInRange, dayLabel, EVENTS_RANGES, eventDays, eventsUrl, stateFromResponse, timeLabel, verifiedDate,
-  type EventCategoryId, type EventsRange, type EventsState, type PublicEvent,
+  categoriesIn, countInRange, dayLabel, EVENTS_RANGES, eventDays, eventsUrl, repeatLabel, stateFromResponse, timeLabel,
+  verifiedDate, type EventCategoryId, type EventsRange, type EventsState, type PublicEvent,
 } from "../lib/events-view";
 import type { UiText } from "../lib/i18n";
 import { Icon } from "./Icon";
@@ -73,6 +73,7 @@ function EventCard({ e, day, locale, timezone, t }: { e: PublicEvent; day: strin
           <span className={`badge price-${e.price.kind}`}>{w.price[e.price.kind]}</span>
         </div>
         <strong className="event-title">{e.title}</strong>
+        {e.recurrence && <span className="event-repeat"><Icon name="calendar" size={15} /> {repeatLabel(e, locale)}</span>}
         <span className="event-venue"><Icon name="pin" size={15} /> {e.venue.name}{e.venue.address ? ` · ${e.venue.address}` : ""}</span>
         {e.statusNote && <p className="event-note">{e.statusNote}</p>}
         {e.summary && <p className="event-summary">{e.summary}</p>}

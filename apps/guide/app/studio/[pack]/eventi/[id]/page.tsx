@@ -4,6 +4,7 @@ import {
   EVENT_STATUS_LABELS, EVENT_STATUSES, eventTitle, eventWhen, formatStamp, formValuesFromEvent, publishBlockers, PUBLICATION_LABELS,
   type StudioEvent,
 } from "../../../../../lib/studio/local-events";
+import { nextOccurrences, recurrenceLabel, territoryToday } from "../../../../../lib/local-events";
 import { deleteLocalEvent, setLocalEventPublication, setLocalEventStatus, verifyLocalEvent } from "../../../actions-events";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../../ui";
 import { EventForm } from "../EventForm";
@@ -46,6 +47,17 @@ export default async function EventPage({ params, searchParams }: { params: Prom
           <p className="st-meta">
             {eventWhen(event)} · {event.venueName} · {event.slug} · fuso {tz}
           </p>
+          {event.recurrence && (
+            <p className="st-meta">
+              <strong>{recurrenceLabel(event.recurrence, event.startDate, "it")}</strong>
+              {(() => {
+                const next = nextOccurrences(event.recurrence, event.startDate, territoryToday(tz), 6);
+                const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+                return next.length > 0 ? ` · prossime date: ${next.map(fmt).join(", ")}` : " · nessuna data futura";
+              })()}
+              {event.recurrence.except.length > 0 && ` · escluse: ${event.recurrence.except.length}`}
+            </p>
+          )}
           <p className="st-badges">
             <span className={`st-status ${event.publication === "published" ? "st-verified" : event.publication === "withdrawn" ? "st-rejected" : "st-draft"}`}>
               {PUBLICATION_LABELS[event.publication]}

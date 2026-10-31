@@ -60,6 +60,14 @@ if "${PSQL[@]}" -f "$ROOT/rollback/$EVT.down.sql" 2>"$DATA/evt.err"; then echo "
 grep -q "REVOCA EVENTI interrotta, nulla è stato modificato" "$DATA/evt.err" || { cat "$DATA/evt.err"; exit 1; }
 "${PSQL[@]}" -At -c "select count(*) from local_events where pack_id = 'zz.revoca-eventi'" | grep -qx 1 || { echo "revoca eventi: evento toccato"; exit 1; }
 "${PSQL[@]}" -c "delete from local_events where pack_id = 'zz.revoca-eventi'"
+# La revoca delle ricorrenze non trasforma mai una serie in una data sola: con un evento ricorrente si ferma.
+REC=20261109000000_recurring_events
+echo "test revoca $REC con eventi ricorrenti"
+"${PSQL[@]}" -c "insert into local_events (pack_id, slug, labels, category, start_date, venue_name, recurrence) values ('zz.revoca-eventi', 'serie', '{\"it\":{\"title\":\"Serie\"}}', 'culture', '2030-01-01', 'Piazza', 'daily')"
+if "${PSQL[@]}" -f "$ROOT/rollback/$REC.down.sql" 2>"$DATA/rec.err"; then echo "la revoca delle ricorrenze doveva fermarsi"; exit 1; fi
+grep -q "REVOCA RICORRENZE interrotta, nulla è stato modificato" "$DATA/rec.err" || { cat "$DATA/rec.err"; exit 1; }
+"${PSQL[@]}" -At -c "select recurrence from local_events where pack_id = 'zz.revoca-eventi'" | grep -qx daily || { echo "revoca ricorrenze: evento toccato"; exit 1; }
+"${PSQL[@]}" -c "delete from local_events where pack_id = 'zz.revoca-eventi'"
 for f in $(ls "$ROOT"/rollback/*.down.sql 2>/dev/null | sort -r); do
   echo "revoca $(basename "$f")"
   "${PSQL[@]}" -f "$f"

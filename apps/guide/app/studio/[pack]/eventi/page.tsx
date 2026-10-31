@@ -6,6 +6,7 @@ import {
   type StudioEvent,
 } from "../../../../lib/studio/local-events";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../ui";
+import { recurrenceLabel } from "../../../../lib/local-events";
 
 /** Eventi del giorno del territorio: dati operativi, fuori dal Territory Pack. Li vede solo chi può modificarlo. */
 export default async function EventsPage({ params, searchParams }: { params: Promise<{ pack: string }>; searchParams: SearchParams }) {
@@ -51,7 +52,9 @@ export default async function EventsPage({ params, searchParams }: { params: Pro
           <li key={e.id}>
             <Link className="st-card" href={`${base}/${encodeURIComponent(e.id)}`}>
               <strong>{eventTitle(e, defaultLocale)}</strong>
-              <span className="st-meta">{eventWhen(e)} · {e.venueName}</span>
+              <span className="st-meta">
+                {e.recurrence ? `${recurrenceLabel(e.recurrence, e.startDate, "it")} · dal ${eventWhen(e)}` : eventWhen(e)} · {e.venueName}
+              </span>
               <span className="st-badges">
                 <span className={`st-status ${e.publication === "published" ? "st-verified" : e.publication === "withdrawn" ? "st-rejected" : "st-draft"}`}>
                   {PUBLICATION_LABELS[e.publication]}

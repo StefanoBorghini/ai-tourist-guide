@@ -291,3 +291,132 @@ export function safeHttpsUrl(input: unknown): string | null {
   if (href.length > MAX_URL_LENGTH || !PUBLIC_HTTPS_URL_RE.test(href)) return null;
   return href;
 }
+
+// ------------------------------------------------------------------------------------------------ ricorrenze
+
+/**
+ * Regola di ripetizione di un evento (migrazione 20261109000000_recurring_events.sql, `local_event_occurs`): la
+ * serie parte dalla data di inizio e ogni occorrenza ha gli stessi orari e la stessa durata della prima.
+ * - `weekdays`: giorni ISO (1 lunedì … 7 domenica), solo per la ripetizione settimanale;
+ * - `monthly`: `day` stesso giorno del mese (i mesi senza quel giorno si saltano), `weekday` stessa posizione del giorno
+ *   della settimana («il terzo sabato»), `last_weekday` l'ultimo di quel giorno nel mese;
+ * - `until`: ultima data possibile (inclusa), null senza fine; `except`: date tolte dalla serie.
+ */
+export const RECURRENCE_FREQS = ["daily", "weekly", "monthly", "yearly"] as const;
+export type RecurrenceFreq = (typeof RECURRENCE_FREQS)[number];
+export const MONTHLY_MODES = ["day", "weekday", "last_weekday"] as const;
+export type MonthlyMode = (typeof MONTHLY_MODES)[number];
+
+export interface Recurrence {
+  freq: RecurrenceFreq;
+  interval: number;
+  weekdays: number[];
+  monthly: MonthlyMode;
+  until: string | null;
+  except?: string[];
+}
+
+/** Giorno della settimana ISO di una data: 1 lunedì … 7 domenica. */
+export function isoWeekday(date: string): number {
+  const day = new Date(dateToUtcMs(date)).getUTCDay();
+  return day === 0 ? 7 : day;
+}
+
+const ymd = (date: string) => date.split("-").map(Number) as [number, number, number];
+
+/** Vero se la serie che parte da `start` ha un'occorrenza il giorno `d` (senza considerare fine e date escluse). */
+export function occursOn(r: Pick<Recurrence, "freq" | "interval" | "weekdays" | "monthly">, start: string, d: string): boolean {
+  const gap = daysBetween(start, d);
+  if (gap < 0) return false;
+  const interval = Math.max(1, Math.trunc(r.interval));
+  const [sy, sm, sd] = ymd(start);
+  const [y, m, dd] = ymd(d);
+  switch (r.freq) {
+    case "daily":
+      return gap % interval === 0;
+    case "weekly": {
+      if (!r.weekdays.includes(isoWeekday(d))) return false;
+      const weeks = daysBetween(addDays(start, 1 - isoWeekday(start)), addDays(d, 1 - isoWeekday(d))) / 7;
+      return weeks % interval === 0;
+    }
+    case "monthly": {
+      if (((y - sy) * 12 + m - sm) % interval !== 0) return false;
+      if (r.monthly === "day") return dd === sd;
+      if (isoWeekday(d) !== isoWeekday(start)) return false;
+      if (r.monthly === "weekday") return Math.floor((dd - 1) / 7) === Math.floor((sd - 1) / 7);
+      return ymd(addDays(d, 7))[1] !== m;
+    }
+    case "yearly":
+      return (y - sy) % interval === 0 && m === sm && dd === sd;
+  }
+}
+
+/**
+ * Le prossime `count` date della serie a partire da `from` (incluso), rispettando fine e date escluse. Cerca al
+ * massimo per dieci anni, il limite del database.
+ */
+export function nextOccurrences(r: Recurrence, start: string, from: string, count: number): string[] {
+  const out: string[] = [];
+  const except = new Set(r.except ?? []);
+  const last = r.until ?? addDays(start, 3653);
+  for (let d = daysBetween(start, from) > 0 ? from : start; out.length < count && daysBetween(d, last) >= 0; d = addDays(d, 1)) {
+    if (occursOn(r, start, d) && !except.has(d)) out.push(d);
+  }
+  return out;
+}
+
+const WEEKDAYS: Record<"it" | "en", string[]> = {
+  it: ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"],
+  en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+};
+const ORDINALS_IT = ["primo", "secondo", "terzo", "quarto", "quinto"];
+const ORDINALS_EN = ["first", "second", "third", "fourth", "fifth"];
+
+const joinList = (items: string[], and: string) =>
+  items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} ${and} ${items[items.length - 1]}`;
+
+/**
+ * La regola in parole: «Ogni sabato e domenica fino al 30 giugno 2030», «Ogni mese, la terza domenica»,
+ * «Every 2 weeks on Saturday». Italiano o inglese (le altre lingue usano l'inglese).
+ */
+export function recurrenceLabel(r: Recurrence, start: string, locale: string): string {
+  const it = locale === "it";
+  const lang = it ? "it" : "en";
+  const n = Math.max(1, Math.trunc(r.interval));
+  const wd = isoWeekday(start);
+  const dayName = WEEKDAYS[lang][wd - 1]!;
+  const [, , sd] = ymd(start);
+  const dateFmt = (d: string, withYear: boolean) =>
+    new Date(dateToUtcMs(d)).toLocaleDateString(it ? "it-IT" : "en-GB", {
+      day: "numeric", month: "long", ...(withYear ? { year: "numeric" } : {}), timeZone: "UTC",
+    });
+  let text: string;
+  switch (r.freq) {
+    case "daily":
+      text = it ? (n === 1 ? "Ogni giorno" : `Ogni ${n} giorni`) : n === 1 ? "Every day" : `Every ${n} days`;
+      break;
+    case "weekly": {
+      const days = joinList([...r.weekdays].sort((a, b) => a - b).map((d) => WEEKDAYS[lang][d - 1]!), it ? "e" : "and");
+      if (it) text = n === 1 ? `Ogni ${days}` : `Ogni ${n} settimane: ${days}`;
+      else text = n === 1 ? `Every ${days}` : `Every ${n} weeks on ${days}`;
+      break;
+    }
+    case "monthly": {
+      const every = it ? (n === 1 ? "Ogni mese" : `Ogni ${n} mesi`) : n === 1 ? "Every month" : `Every ${n} months`;
+      const sunday = wd === 7;
+      const pos = Math.floor((sd - 1) / 7);
+      let which: string;
+      if (r.monthly === "day") which = it ? `il giorno ${sd}` : `on day ${sd}`;
+      else if (r.monthly === "last_weekday") which = it ? `${sunday ? "l'ultima" : "l'ultimo"} ${dayName}` : `on the last ${dayName}`;
+      else if (it) which = `${sunday ? "la" : "il"} ${sunday ? ORDINALS_IT[pos]!.replace(/o$/, "a") : ORDINALS_IT[pos]} ${dayName}`;
+      else which = `on the ${ORDINALS_EN[pos]} ${dayName}`;
+      text = `${every}, ${which}`;
+      break;
+    }
+    case "yearly":
+      text = it ? `${n === 1 ? "Ogni anno" : `Ogni ${n} anni`}, il ${dateFmt(start, false)}` : `${n === 1 ? "Every year" : `Every ${n} years`} on ${dateFmt(start, false)}`;
+      break;
+  }
+  if (r.until) text += it ? ` fino al ${dateFmt(r.until, true)}` : ` until ${dateFmt(r.until, true)}`;
+  return text;
+}

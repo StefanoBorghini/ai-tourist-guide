@@ -1,0 +1,4 @@
+{
+  "_nota": "Destinazioni in evidenza, in ordine: vengono per prime nella scheda Esplora dell'app, e la prima che ha una copertina dà la foto della pagina iniziale. Le altre destinazioni seguono in ordine alfabetico. Un identificativo che non corrisponde a una destinazione pubblicata non ha effetto. Si applica al build dell'app (indice public/bundles/index.json).",
+  "destinations": ["it.liguria.sp.portovenere"]
+}

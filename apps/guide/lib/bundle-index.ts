@@ -23,6 +23,26 @@ export interface BundleIndexEntry {
 
 export interface BundleIndex {
   bundles: BundleIndexEntry[];
+  /**
+   * Destinazioni in evidenza (territories/featured-destinations.json, scritto nell'indice dei file al build): vengono
+   * per prime, in quest'ordine, nella scheda Esplora; la prima con una copertina dà la foto della pagina iniziale.
+   */
+  featured?: string[];
+}
+
+/** Elenco delle destinazioni in evidenza dal file di configurazione (o dall'indice): solo identificativi validi, senza doppioni. */
+export function parseFeatured(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : Array.isArray((raw as { destinations?: unknown })?.destinations) ? (raw as { destinations: unknown[] }).destinations : [];
+  return [...new Set(list.filter((d): d is string => typeof d === "string" && /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$/.test(d)))];
+}
+
+/** Voci con le destinazioni in evidenza per prime (nell'ordine dato); le altre restano nel loro ordine. */
+export function orderByFeatured<T extends { destination: string }>(entries: T[], featured: readonly string[]): T[] {
+  const rank = (d: string) => {
+    const i = featured.indexOf(d);
+    return i < 0 ? featured.length : i;
+  };
+  return entries.map((e, i) => ({ e, i })).sort((a, b) => rank(a.e.destination) - rank(b.e.destination) || a.i - b.i).map((x) => x.e);
 }
 
 export const STATIC_INDEX_URL = "/bundles/index.json";
@@ -205,12 +225,14 @@ export async function loadIndexes(
   staticUrl: string,
   pubUrl: string | null,
 ): Promise<{ entries: BundleIndexEntry[]; publishedOk: boolean }> {
-  const [statics, published] = await Promise.all([
+  const [staticIndex, published] = await Promise.all([
     fetchFn(staticUrl)
-      .then(async (r) => (r.ok ? ((JSON.parse(await r.text()) as BundleIndex).bundles ?? null) : null))
+      .then(async (r) => (r.ok ? (JSON.parse(await r.text()) as BundleIndex) : null))
       .catch(() => null),
     pubUrl ? fetchPublishedIndex(fetchFn, pubUrl) : Promise.resolve<PublishedIndexResult>({ ok: true, entries: [] }),
   ]);
+  const statics = staticIndex?.bundles;
   if (!Array.isArray(statics) && !published.ok) throw new Error(published.error);
-  return combineIndexes(Array.isArray(statics) ? statics : [], published);
+  const combined = combineIndexes(Array.isArray(statics) ? statics : [], published);
+  return { ...combined, entries: orderByFeatured(combined.entries, parseFeatured(staticIndex?.featured)) };
 }

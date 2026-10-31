@@ -131,9 +131,12 @@ export function onSale(p: CatalogProduct): boolean {
   return p.status === "active" && p.availability !== "hidden" && listPrice(p) !== null && p.problem === null;
 }
 
-/** Contenuti vendibili da soli (luoghi con almeno due contenuti) che non hanno ancora il loro prodotto. */
+/**
+ * Contenuti vendibili da soli che non hanno ancora il loro prodotto: solo sottoluoghi (un luogo principale si vende
+ * intero, migrazione 20261108000000), di luoghi con almeno due contenuti.
+ */
 export function unitsWithoutProduct(c: Pick<CatalogState, "places" | "products">): NonNullable<CatalogState["places"]> {
   const withProduct = new Set(c.products.filter((p) => p.kind === "unit" && p.status !== "retired").map((p) => p.place?.slug));
   const units = new Map((c.places ?? []).map((pl) => [pl.slug, pl.units ?? 0]));
-  return (c.places ?? []).filter((pl) => pl.isUnit && !withProduct.has(pl.slug) && (units.get(pl.parent ?? pl.slug) ?? 0) >= 2);
+  return (c.places ?? []).filter((pl) => pl.isUnit && pl.parent && !withProduct.has(pl.slug) && (units.get(pl.parent) ?? 0) >= 2);
 }

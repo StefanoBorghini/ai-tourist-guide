@@ -89,10 +89,10 @@ export async function CommerceSection({ pack, session }: { pack: string; session
         <div className="st-review" aria-labelledby="contenuti-singoli">
           <h3 id="contenuti-singoli">Contenuti singoli</h3>
           <p className="st-hint">
-            Ogni sottoluogo con racconti, e i racconti di un luogo principale oltre la panoramica gratuita, si possono
-            comprare anche da soli, al prezzo di listino del contenuto singolo. In questa destinazione i contenuti a
+            Ogni sottoluogo con racconti si può comprare anche da solo, al prezzo di listino del contenuto singolo. Un
+            luogo principale si compra solo intero, con i suoi sottoluoghi (i suoi racconti contano per lo sconto). In questa destinazione i contenuti a
             pagamento sono <strong>{catalog.units ?? 0}</strong>; in vendita da soli: <strong>{unitProducts}</strong>.
-            Un luogo con un solo contenuto non ha il singolo: si vende il luogo, allo stesso prezzo del singolo.
+            Se il luogo ha un solo contenuto il sottoluogo non si vende da solo: si vende il luogo, allo stesso prezzo del singolo.
             {toCreate.length > 0 && ` ${toCreate.length} contenuti non hanno ancora il loro prodotto.`}
             {" "}Dopo averli creati, in Panoramica «Ripubblica con le modifiche» perché l&apos;app riceva i loro file.
           </p>

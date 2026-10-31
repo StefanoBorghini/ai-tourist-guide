@@ -226,7 +226,11 @@ do $$
 declare r jsonb;
 begin
   r := studio_units_on_sale('zg.alfa');
-  if (r ->> 'created')::int <> 6 then raise exception 'FALLITO G2: contenuti singoli creati %', r; end if;
+  -- Solo i sottoluoghi (torre, chiesa, castello, tino): il luogo principale si vende intero (20261108000000).
+  if (r ->> 'created')::int <> 4 then raise exception 'FALLITO G2: contenuti singoli creati %', r; end if;
+  if catalog_problem_unit('zg.alfa', '9a000000-0000-0000-0000-0000000000a1') not like '%luogo principale%' then
+    raise exception 'FALLITO G2: il borgo (principale) non si vende come singolo';
+  end if;
   if (studio_units_on_sale('zg.alfa') ->> 'created')::int <> 0 then raise exception 'FALLITO G2: seconda messa in vendita non idempotente'; end if;
   perform studio_units_on_sale('zg.beta');
   -- Il singolo di un luogo con un solo contenuto non si attiva nemmeno a mano.
@@ -240,7 +244,7 @@ begin
 end $$;
 reset role;
 do $$ begin
-  if (select count(*) from jsonb_array_elements(public_catalog('zg.alfa')) x where x ->> 'kind' = 'unit') <> 6 then
+  if (select count(*) from jsonb_array_elements(public_catalog('zg.alfa')) x where x ->> 'kind' = 'unit') <> 4 then
     raise exception 'FALLITO G2: catalogo pubblico senza i contenuti singoli';
   end if;
   if (select x #>> '{price,amount}' from jsonb_array_elements(public_catalog('zg.alfa')) x where x ->> 'kind' = 'unit' and x ->> 'place' = 'torre') <> '99'
@@ -327,25 +331,24 @@ end $$;
 set role authenticated;
 set request.jwt.claim.sub = '9a000000-0000-0000-0000-000000000001';
 do $$ begin
-  perform studio_price_draft((select id from products where slug = 'zg-alfa-esplorazione'), 120);
+  perform studio_price_draft((select id from products where slug = 'zg-alfa-esplorazione'), 100);
   perform studio_prices_publish('zg.alfa');
 end $$;
 reset role;
 do $$
 declare q jsonb;
 begin
-  -- 1,20 € × 5/7 = 0,86 €: si vende ancora.
+  -- 1,00 € × 5/7 = 0,71 €: si vende ancora.
   q := pg_temp.quote('9a000000-0000-0000-0000-000000000002', (select id from products where slug = 'zg-alfa-esplorazione'));
-  if (q ->> 'amount')::int <> 86 or q ->> 'status' <> 'ok' then raise exception 'FALLITO G3: esplorazione a prezzo proprio %', q; end if;
+  if (q ->> 'amount')::int <> 71 or q ->> 'status' <> 'ok' then raise exception 'FALLITO G3: esplorazione a prezzo proprio %', q; end if;
   perform pg_temp.buy('9a000000-0000-0000-0000-000000000002', pg_temp.prod('unit', 'castello'));
   perform pg_temp.buy('9a000000-0000-0000-0000-000000000002', pg_temp.prod('unit', 'tino'));
-  perform pg_temp.buy('9a000000-0000-0000-0000-000000000002', pg_temp.prod('unit', 'palmaria'));
-  -- 5 su 7: 1,20 × 2/7 = 0,34 € → sotto il minimo: si comprano i singoli.
+  -- 4 su 7: 1,00 × 3/7 = 0,43 € → sotto il minimo: si comprano i singoli.
   q := pg_temp.quote('9a000000-0000-0000-0000-000000000002', (select id from products where slug = 'zg-alfa-esplorazione'));
-  if q ->> 'status' <> 'below_minimum' or (q ->> 'amount')::int <> 34 then raise exception 'FALLITO G3: sotto il minimo %', q; end if;
-  -- Palmaria completa con i singoli: il luogo risulta completo.
+  if q ->> 'status' <> 'below_minimum' or (q ->> 'amount')::int <> 43 then raise exception 'FALLITO G3: sotto il minimo %', q; end if;
+  -- Palmaria con tino: manca solo il principale, che si vende intero; il luogo costa quanto un singolo (0,99 €).
   q := pg_temp.quote('9a000000-0000-0000-0000-000000000002', pg_temp.prod('place', 'palmaria'));
-  if q ->> 'status' <> 'complete' then raise exception 'FALLITO G3: palmaria completa %', q; end if;
+  if q ->> 'status' <> 'ok' or (q ->> 'amount')::int <> 99 or (q ->> 'owned')::int <> 1 then raise exception 'FALLITO G3: palmaria %', q; end if;
 end $$;
 set role authenticated;
 set request.jwt.claim.sub = '9a000000-0000-0000-0000-000000000002';
@@ -356,10 +359,6 @@ exception when others then
   if sqlerrm like 'FALLITO%' then raise; end if;
   if sqlerrm not like '%0,50 €%' then raise exception 'FALLITO G3: messaggio sotto il minimo: %', sqlerrm; end if;
 end $$;
-do $$ begin
-  perform checkout_open(pg_temp.prod('place', 'palmaria'));
-  raise exception 'FALLITO G3: venduto un luogo già completo';
-exception when others then if sqlerrm like 'FALLITO%' then raise; end if; end $$;
 reset role;
 
 -- ---------------------------------------------------------------- G4: lo sconto non scende
@@ -424,7 +423,7 @@ begin
   -- Visibili solo i file dei singoli comprati (di tutte le pubblicazioni).
   select string_agg(distinct substring(name from '/unit-([a-z]+)\.'), ',') into v
   from storage.objects where bucket_id = 'premium' and name like 'zg.%';
-  if v is distinct from 'castello,chiesa,palmaria,tino,torre' then raise exception 'FALLITO G6: file visibili alla cliente: %', v; end if;
+  if v is distinct from 'castello,chiesa,tino,torre' then raise exception 'FALLITO G6: file visibili alla cliente: %', v; end if;
 end $$;
 set request.jwt.claim.sub = '9a000000-0000-0000-0000-000000000003';
 do $$ begin
@@ -539,7 +538,7 @@ set request.jwt.claim.sub = '9a000000-0000-0000-0000-000000000002';
 do $$
 declare v jsonb := my_commerce_quotes('zg.alfa');
 begin
-  if v -> 'ownedUnits' <> '["borgo", "castello", "chiesa", "mura", "palmaria", "tino", "torre"]' then
+  if v -> 'ownedUnits' <> '["borgo", "castello", "chiesa", "mura", "tino", "torre"]' then
     raise exception 'FALLITO G9: unità della cliente %', v -> 'ownedUnits';
   end if;
   if (select x ->> 'amount' from jsonb_array_elements(v -> 'quotes') x where x ->> 'kind' = 'place'

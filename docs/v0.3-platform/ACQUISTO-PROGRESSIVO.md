@@ -9,7 +9,7 @@ come sono.
 
 | Livello | Prodotto | Diritto | Comprende | Listino proposto |
 |---|---|---|---|---|
-| Contenuto singolo | `unit` | `unit` | un sottoluogo, oppure i racconti propri di un luogo principale oltre la panoramica | 0,99 € |
+| Contenuto singolo | `unit` | `unit` | un sottoluogo (un luogo principale si compra solo intero, migrazione `20261108000000`) | 0,99 € |
 | Luogo principale | `place` | `place` | il luogo e tutti i suoi sottoluoghi, **anche quelli aggiunti dopo** | 2,99 € |
 | Destinazione | `explore` | `explore` | ogni luogo della destinazione, anche quelli aggiunti dopo | 9,99 € |
 | Tutte le destinazioni | `all` (senza destinazione) | `all` | ogni destinazione con l'esplorazione a pagamento, **anche quelle pubblicate dopo** | 19,99 € |
@@ -118,3 +118,11 @@ sempre (rimborso totale). Lo stesso vale per una contestazione persa.
 - Portovenere: la ristrutturazione in luoghi principali (borgo, Le Grazie, Fezzano, Palmaria) e sottoluoghi è
   redazionale e si fa nello Studio (scheda del luogo, «È un sottoluogo di»). Nessun dato è stato cambiato dalla
   migrazione.
+
+## Luogo principale solo intero (01/11/2026, migrazione `20261108000000_principal_not_single.sql`)
+
+Un luogo principale non si vende come contenuto singolo: si compra intero, con i suoi sottoluoghi. Come contenuto
+singolo si vendono solo i sottoluoghi. I racconti propri del principale restano un'unità nel conteggio (comprati con il
+luogo, la destinazione o tutte) e nel tetto dei singoli valgono la tariffa del contenuto singolo. I prodotti «Contenuto
+singolo» di principali già creati escono subito dal listino; «Metti in vendita i contenuti singoli» li passa a
+«ritirato». Chi li ha già comprati tiene il diritto. Nell'app la scheda di un principale non propone mai «Solo …».

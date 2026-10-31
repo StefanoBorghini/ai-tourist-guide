@@ -62,6 +62,7 @@ describe("acquisto progressivo nello Studio", () => {
       { id: "5", slug: "lapide", name: "Lapide", sellable: false, parent: "borgo", isUnit: false, units: 0 },
     ];
     const products = [product({ kind: "unit", place: { id: "2", slug: "torre" } })];
-    expect(unitsWithoutProduct({ places, products }).map((p) => p.slug)).toEqual(["borgo", "chiesa"]);
+    // Mai il luogo principale (borgo): si vende intero.
+    expect(unitsWithoutProduct({ places, products }).map((p) => p.slug)).toEqual(["chiesa"]);
   });
 });

@@ -1038,6 +1038,11 @@ begin
       raise exception 'FALLITO: manca la migrazione 20261107000000_progressive_purchase.sql (acquisto progressivo) o i suoi permessi';
     end if;
 
+    -- Luogo principale solo intero (20261108000000_principal_not_single.sql).
+    if position('luogo principale: si vende il luogo intero' in pg_get_functiondef('catalog_problem_unit(text, uuid)'::regprocedure)) = 0 then
+      raise exception 'FALLITO: manca la migrazione 20261108000000_principal_not_single.sql (luogo principale solo intero)';
+    end if;
+
     -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
     -- l'elenco dei controlli non verificati.
     raise exception 'VERIFICA_SUPERATA|%', array_to_string(nv, '; ');

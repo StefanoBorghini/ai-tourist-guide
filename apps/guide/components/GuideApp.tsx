@@ -1586,8 +1586,9 @@ export function GuideApp() {
         }
         const n = subCount(principal);
         const buyLabel = freePrincipal ? t.buySubPlaces(principalName, paidSubs) : t.buyPrincipal(principalName, n);
-        // Contenuto singolo (acquisto progressivo): solo questo luogo, se si vende da solo.
-        const unitOffer = offers.units.get(cardRef);
+        // Contenuto singolo (acquisto progressivo): solo per un sottoluogo. Un luogo principale si compra intero, con i
+        // suoi sottoluoghi (migrazione 20261108000000).
+        const unitOffer = isSub ? offers.units.get(cardRef) : undefined;
         const cardName = placeByRef.get(cardRef)?.name ?? cardRef;
         return {
           ...(isSub ? { partOf: principalName } : {}),

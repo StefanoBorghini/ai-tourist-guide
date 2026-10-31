@@ -73,60 +73,15 @@ describe("geometria della mappa", () => {
   });
 });
 
-describe("zoom fluido", () => {
-  const view = { center: [9.85, 44.04] as [number, number], zoom: 16 };
-
-  it("pizzico continuo: raddoppiare la distanza tra le dita è un livello in più, entro i limiti", async () => {
-    const { pinchZoom, MAX_ZOOM, MIN_ZOOM } = await import("../lib/map-view.ts");
-    expect(pinchZoom(16, 100, 100)).toBe(16);
-    expect(pinchZoom(16, 100, 200)).toBeCloseTo(17);
-    expect(pinchZoom(16, 100, 141.42)).toBeCloseTo(16.5, 3);
-    expect(pinchZoom(16, 100, 50)).toBeCloseTo(15);
-    expect(pinchZoom(18.5, 100, 400)).toBe(MAX_ZOOM);
-    expect(pinchZoom(4, 100, 10)).toBe(MIN_ZOOM);
-    expect(pinchZoom(16, 0, 50)).toBe(16);
-  });
-
-  it("zoom intorno a un punto: il luogo sotto il dito resta sotto il dito", async () => {
-    const { zoomAround } = await import("../lib/map-view.ts");
-    const before = toScreen(view, 320, 260);
-    const target: [number, number] = [9.852, 44.041];
-    const p = before(target);
-    for (const z of [16.3, 17, 18.7, 14.2]) {
-      const after = toScreen(zoomAround(view, z, p.x, p.y, 320, 260), 320, 260)(target);
-      expect(after.x).toBeCloseTo(p.x, 6);
-      expect(after.y).toBeCloseTo(p.y, 6);
-    }
-    // Al centro del riquadro: cambia solo lo zoom.
-    const centered = zoomAround(view, 17.5, 160, 130, 320, 260);
-    expect(centered.center[0]).toBeCloseTo(view.center[0], 9);
-    expect(centered.center[1]).toBeCloseTo(view.center[1], 9);
-  });
-
-  it("tile a zoom frazionario: livello più vicino, scalati, contigui, coprono il riquadro", async () => {
-    const { tileLayers } = await import("../lib/map-view.ts");
-    for (const zoom of [16, 16.3, 16.49, 16.6, 17.9]) {
-      const tiles = visibleTiles({ ...view, zoom }, 320, 260);
-      const z = Math.round(zoom);
-      expect(tiles.every((t) => t.z === z)).toBe(true);
-      expect(tiles[0]!.size).toBeCloseTo(256 * 2 ** (zoom - z), -0.5);
-      expect(Math.min(...tiles.map((t) => t.left))).toBeLessThanOrEqual(0);
-      expect(Math.max(...tiles.map((t) => t.left + t.size))).toBeGreaterThanOrEqual(320);
-      expect(Math.min(...tiles.map((t) => t.top))).toBeLessThanOrEqual(0);
-      expect(Math.max(...tiles.map((t) => t.top + t.size))).toBeGreaterThanOrEqual(260);
-      // Nessuna fessura: il tile accanto comincia dove finisce il precedente.
-      const row = tiles.filter((t) => t.y === tiles[0]!.y).sort((a, b) => a.left - b.left);
-      for (let i = 1; i < row.length; i++) expect(row[i]!.left).toBe(row[i - 1]!.left + row[i - 1]!.size);
-      // Un luogo cade sullo stesso pixel della mappa e dello sfondo.
-      const placed = tiles.find((t) => t.x === Math.floor(project(view.center, z).x / 256) && t.y === Math.floor(project(view.center, z).y / 256))!;
-      const inTile = (project(view.center, z).x / 256 - placed.x) * placed.size;
-      expect(placed.left + inTile).toBeCloseTo(160, -0.5);
-    }
-    // A zoom intero, come prima: 256 px.
-    expect(visibleTiles(view, 320, 260).every((t) => t.size === 256)).toBe(true);
-    // Due strati: sotto il livello precedente, sopra quello giusto.
-    const layers = tileLayers({ ...view, zoom: 16.4 }, 320, 260);
-    expect([...new Set(layers.map((t) => t.z))]).toEqual([15, 16]);
+describe("pizzico", () => {
+  it("ignora i piccoli movimenti delle dita e fa uno scatto solo oltre la soglia", async () => {
+    const { pinchStep } = await import("../lib/map-view.ts");
+    expect(pinchStep(100, 120)).toBe(0);
+    expect(pinchStep(100, 150)).toBe(0);
+    expect(pinchStep(100, 160)).toBe(1);
+    expect(pinchStep(100, 70)).toBe(0);
+    expect(pinchStep(100, 62)).toBe(-1);
+    expect(pinchStep(0, 50)).toBe(0);
   });
 });
 

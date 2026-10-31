@@ -7,18 +7,16 @@ import type { UiText } from "../lib/i18n";
 import {
   MAX_ZOOM,
   MIN_ZOOM,
-  clampZoom,
   fitView,
   metersPerPixel,
   panBy,
-  pinchZoom,
+  pinchStep,
   placeLabels,
   scaleBar,
-  tileLayers,
   tileSourceFrom,
   tileUrl,
   toScreen,
-  zoomAround,
+  visibleTiles,
   type LabelCandidate,
   type LngLat,
   type MapViewState,
@@ -50,8 +48,6 @@ const PIN_PATH = "M0,0 C-1.5,-5 -7,-8 -7,-13 A7,7 0 1,1 7,-13 C7,-8 1.5,-5 0,0 Z
 const PIN_HEAD_Y = -13;
 /** Spostamento minimo (px) perché un tocco diventi un trascinamento. */
 const DRAG_THRESHOLD = 6;
-/** Durata dello zoom animato di pulsanti e doppio tocco. */
-const ZOOM_ANIMATION_MS = 240;
 /** Oltre questa distanza dalle tappe la posizione non entra nell'inquadratura del percorso (es. prove da casa). */
 const NEAR_ROUTE_M = 2000;
 /** Sfondo scelto al build (lib/map-view.ts): OpenStreetMap per le prove, uno stile con licenza in produzione. */
@@ -118,15 +114,7 @@ export function MapView(props: {
   const drag = useRef<{ x: number; y: number; moved: number } | null>(null);
   /** Dita appoggiate sulla mappa, per distinguere trascinamento (una) e pizzico (due). */
   const pointers = useRef(new Map<number, { x: number; y: number }>());
-  /** Inizio del pizzico: inquadratura, distanza e punto medio delle dita (in pixel del riquadro). */
-  const pinchStart = useRef<{ view: MapViewState; dist: number; mid: { x: number; y: number } } | null>(null);
-  // Movimenti fluidi: al massimo un aggiornamento per fotogramma. `pending` è l'inquadratura più recente non ancora
-  // disegnata, da cui ripartono i gesti successivi (così nessun movimento si perde tra due fotogrammi).
-  const pending = useRef<MapViewState | null>(null);
-  const frame = useRef<number | null>(null);
-  const animation = useRef<number | null>(null);
-  const viewRef = useRef<MapViewState | null>(null);
-  const sizeRef = useRef({ width: 320, height: HEIGHT });
+  const pinchBase = useRef<number | null>(null);
 
   useEffect(() => {
     const el = boxRef.current;
@@ -143,14 +131,12 @@ export function MapView(props: {
   const focusId = props.focus?.id;
   useEffect(() => {
     if (!props.focus) return;
-    stopMotion();
     setManual({ center: props.focus.location, zoom: Math.max(FOLLOW_ZOOM + 1, Math.min(MAX_ZOOM, 18)) });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- si ricentra solo a una nuova richiesta
   }, [focusId]);
 
   // Passando da un itinerario all'esplorazione la mappa torna a seguire il visitatore.
   useEffect(() => {
-    stopMotion();
     setMode(explore ? "me" : "route");
     setManual(null);
   }, [explore]);
@@ -171,77 +157,6 @@ export function MapView(props: {
       window.removeEventListener("popstate", onPop);
       if (window.history.state?.mapFullscreen) window.history.back();
     };
-  }, [fullscreen]);
-
-  /** Inquadratura più recente, anche se non ancora disegnata. */
-  const live = (): MapViewState => pending.current ?? viewRef.current ?? { center: [0, 0], zoom: MIN_ZOOM };
-  /** Disegna `v` al prossimo fotogramma (gli eventi del dito sono più fitti dei fotogrammi). */
-  const schedule = (v: MapViewState) => {
-    pending.current = v;
-    if (frame.current === null) {
-      frame.current = requestAnimationFrame(() => {
-        frame.current = null;
-        if (pending.current) setManual(pending.current);
-      });
-    }
-  };
-  const stopAnimation = () => {
-    if (animation.current !== null) cancelAnimationFrame(animation.current);
-    animation.current = null;
-  };
-  /** Ferma animazioni e aggiornamenti in sospeso (prima di un'inquadratura decisa altrove). */
-  function stopMotion() {
-    stopAnimation();
-    if (frame.current !== null) cancelAnimationFrame(frame.current);
-    frame.current = null;
-    pending.current = null;
-  }
-  /** Zoom animato (pulsanti, doppio tocco) verso `target`, tenendo fermo il punto (px, py) del riquadro. */
-  const animateZoom = (target: number, px?: number, py?: number) => {
-    stopAnimation();
-    const from = live();
-    const { width: w, height: h } = sizeRef.current;
-    const ax = px ?? w / 2;
-    const ay = py ?? h / 2;
-    const to = clampZoom(target);
-    if (Math.abs(to - from.zoom) < 0.001) return;
-    const t0 = performance.now();
-    const step = (now: number) => {
-      const k = Math.min(1, (now - t0) / ZOOM_ANIMATION_MS);
-      const ease = 1 - (1 - k) ** 3;
-      schedule(zoomAround(from, from.zoom + (to - from.zoom) * ease, ax, ay, w, h));
-      animation.current = k < 1 ? requestAnimationFrame(step) : null;
-    };
-    animation.current = requestAnimationFrame(step);
-  };
-  // I pulsanti portano al livello intero successivo: lo sfondo torna nitido.
-  const zoomBy = (d: number) => animateZoom(d > 0 ? Math.floor(live().zoom + 1e-6) + d : Math.ceil(live().zoom - 1e-6) + d);
-  // Inquadratura disegnata: gli aggiornamenti in sospeso sono arrivati.
-  useEffect(() => {
-    if (pending.current === manual) pending.current = null;
-  }, [manual]);
-  useEffect(() => () => {
-    if (frame.current !== null) cancelAnimationFrame(frame.current);
-    if (animation.current !== null) cancelAnimationFrame(animation.current);
-  }, []);
-  // Rotella del mouse e pizzico del touchpad (ctrlKey) sul computer: zoom continuo intorno al cursore. Ascoltatore
-  // non passivo, per non far scorrere la pagina.
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      stopAnimation();
-      const r = el.getBoundingClientRect();
-      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-      const dz = Math.max(-1, Math.min(1, (-e.deltaY * unit) / (e.ctrlKey ? 100 : 400)));
-      const { width: w, height: h } = sizeRef.current;
-      const from = live();
-      schedule(zoomAround(from, from.zoom + dz, e.clientX - r.left, e.clientY - r.top, w, h));
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- legge lo stato dai riferimenti
   }, [fullscreen]);
 
   const fix = runtime.lastFix;
@@ -267,9 +182,7 @@ export function MapView(props: {
   const screen = toScreen(view, width, mapHeight);
   const mpp = metersPerPixel(view.center[1], view.zoom);
   const showTiles = online && basemap && pixelRatio !== null;
-  const tiles = showTiles ? tileLayers(view, width, mapHeight) : [];
-  viewRef.current = view;
-  sizeRef.current = { width, height: mapHeight };
+  const tiles = showTiles ? visibleTiles(view, width, mapHeight) : [];
   const scale = scaleBar(view.center[1], view.zoom);
   const fences = runtime.debugSnapshot().places;
   // Tratteggiate solo le posizioni non verificate nemmeno su mappa (preliminari o da rivedere).
@@ -297,8 +210,8 @@ export function MapView(props: {
   ];
   const labels = placeLabels(labelCandidates, width, mapHeight);
 
+  const zoomBy = (d: number) => setManual({ ...view, zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, view.zoom + d)) });
   const choose = (m: Mode) => {
-    stopMotion();
     setMode(m);
     setManual(null);
   };
@@ -307,18 +220,11 @@ export function MapView(props: {
     const [a, b] = [...pointers.current.values()];
     return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
   };
-  /** Punto medio delle due dita, in pixel del riquadro della mappa. */
-  const pinchMid = () => {
-    const [a, b] = [...pointers.current.values()];
-    const r = boxRef.current?.getBoundingClientRect();
-    return a && b && r ? { x: (a.x + b.x) / 2 - r.left, y: (a.y + b.y) / 2 - r.top } : { x: width / 2, y: mapHeight / 2 };
-  };
   const onPointerDown = (e: ReactPointerEvent) => {
-    stopAnimation();
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 2) {
       // Inizia un pizzico: niente trascinamento finché ci sono due dita.
-      pinchStart.current = { view: live(), dist: pinchDistance(), mid: pinchMid() };
+      pinchBase.current = pinchDistance();
       drag.current = { x: e.clientX, y: e.clientY, moved: DRAG_THRESHOLD + 1 };
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } else if (pointers.current.size === 1) {
@@ -329,12 +235,13 @@ export function MapView(props: {
     if (!pointers.current.has(e.pointerId)) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size >= 2) {
-      // Pizzico continuo: lo zoom segue le dita, il punto tra le dita resta sotto le dita (e si sposta con loro).
-      const start = pinchStart.current;
-      if (!start) return;
-      const mid = pinchMid();
-      const zoomed = zoomAround(start.view, pinchZoom(start.view.zoom, start.dist, pinchDistance()), start.mid.x, start.mid.y, width, mapHeight);
-      schedule(panBy(zoomed, mid.x - start.mid.x, mid.y - start.mid.y));
+      const base = pinchBase.current;
+      if (base === null) return;
+      const step = pinchStep(base, pinchDistance());
+      if (step !== 0) {
+        setManual({ ...view, zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, view.zoom + step)) });
+        pinchBase.current = pinchDistance();
+      }
       return;
     }
     const d = drag.current;
@@ -348,12 +255,12 @@ export function MapView(props: {
       // La cattura parte solo quando è davvero un trascinamento: un tocco deve arrivare al simbolo.
       const el = e.currentTarget as HTMLElement;
       if (!el.hasPointerCapture(e.pointerId)) el.setPointerCapture(e.pointerId);
-      schedule(panBy(live(), dx, dy));
+      setManual(panBy(view, dx, dy));
     }
   };
   const onPointerUp = (e: ReactPointerEvent) => {
     pointers.current.delete(e.pointerId);
-    if (pointers.current.size < 2) pinchStart.current = null;
+    if (pointers.current.size < 2) pinchBase.current = null;
     const [rest] = [...pointers.current.values()];
     if (rest) {
       // Si è sollevato un dito del pizzico: il dito rimasto riparte da qui, senza salti.
@@ -394,10 +301,6 @@ export function MapView(props: {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onDoubleClick={(e) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          animateZoom(Math.floor(live().zoom + 1e-6) + 1, e.clientX - r.left, e.clientY - r.top);
-        }}
       >
         {tiles.map((tile) =>
           failedTiles.has(tile.key) ? null : (
@@ -407,7 +310,7 @@ export function MapView(props: {
               src={tileUrl(TILES, tile.z, tile.x, tile.y, pixelRatio ?? 1)}
               alt=""
               className="map-tile"
-              style={{ left: tile.left, top: tile.top, width: tile.size, height: tile.size }}
+              style={{ left: tile.left, top: tile.top }}
               draggable={false}
               onLoad={() => setLoadedTiles((n) => n + 1)}
               onError={() => setFailedTiles((s) => new Set(s).add(tile.key))}

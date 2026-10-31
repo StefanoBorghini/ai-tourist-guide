@@ -12,7 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildBundle } from "@guide/bundle";
 import { loadPacks } from "@guide/territory-pack";
-import { indexEntry, sortEntries, type BundleIndexEntry } from "../lib/bundle-index";
+import { indexEntry, parseFeatured, sortEntries, type BundleIndexEntry } from "../lib/bundle-index";
 import { parseStaticList, staticBuildPlan } from "../lib/static-bundles";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -60,4 +60,6 @@ for (const id of plan.build) {
 }
 
 mkdirSync(OUT, { recursive: true });
-writeFileSync(join(OUT, "index.json"), JSON.stringify({ bundles: sortEntries(index) }, null, 2));
+// Destinazioni in evidenza: prime nella scheda Esplora, e la prima con copertina dà la foto della pagina iniziale.
+const featured = parseFeatured(JSON.parse(readFileSync(join(TERRITORIES, "featured-destinations.json"), "utf8")));
+writeFileSync(join(OUT, "index.json"), JSON.stringify({ bundles: sortEntries(index), featured }, null, 2));

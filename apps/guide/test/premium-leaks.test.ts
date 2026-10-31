@@ -9,7 +9,10 @@ import { fileURLToPath } from "node:url";
 import type { TerritoryPack } from "@guide/domain";
 import { loadPacks, packToSnapshot } from "@guide/territory-pack";
 import { describe, expect, it } from "vitest";
-import { bundleBase, combineIndexes, currentIndexObject, fetchPublishedIndex, findEntry, loadIndexes, manifestPublication, mergeIndexes, type BundleIndexEntry } from "../lib/bundle-index";
+import {
+  bundleBase, combineIndexes, currentIndexObject, fetchPublishedIndex, findEntry, loadIndexes, manifestPublication, mergeIndexes, orderByFeatured,
+  parseFeatured, type BundleIndexEntry,
+} from "../lib/bundle-index";
 import { verifyBundle, verifyPremiumPart, type PremiumPart } from "@guide/bundle/client";
 import { parseStaticList, premiumBlockedByStatic, staticBuildPlan } from "../lib/static-bundles";
 import { compilePublication, removeDeadVersions, type CleanupBucket } from "../lib/studio/publish";
@@ -182,6 +185,31 @@ describe("indice pubblicato non disponibile (P2)", () => {
     const noSupabase = await loadIndexes(routes({ "/bundles/index.json": ok }), "/bundles/index.json", null);
     expect(noSupabase).toEqual({ entries: STATIC, publishedOk: true });
     await expect(loadIndexes(routes({}), "/bundles/index.json", "/pub/index.json")).rejects.toThrow(/assente/);
+  });
+
+  it("destinazioni in evidenza: prime nell'ordine indicato, anche quelle arrivate dallo Studio", async () => {
+    const entry = (destination: string, name: string, locale = "it") =>
+      ({ destination, name, locale, fictional: false, manifest: `/pub/${destination}/${locale}-full/manifest.json` }) as BundleIndexEntry;
+    const pub = [entry("z.alfa", "Alfa"), entry("z.beta", "Beta"), entry("z.beta", "Beta", "en"), entry("z.gamma", "Gamma")];
+    const routes = (featured: unknown) => (url: string) =>
+      Promise.resolve(new Response(url === "/pub/index.json" ? JSON.stringify({ bundles: pub }) : JSON.stringify({ bundles: [], featured })));
+    const order = async (featured: unknown) =>
+      (await loadIndexes(routes(featured), "/bundles/index.json", "/pub/index.json")).entries.map((e) => `${e.destination}/${e.locale}`);
+    expect(await order(undefined)).toEqual(["z.alfa/it", "z.beta/en", "z.beta/it", "z.gamma/it"]);
+    expect(await order(["z.gamma"])).toEqual(["z.gamma/it", "z.alfa/it", "z.beta/en", "z.beta/it"]);
+    expect(await order(["z.beta", "z.gamma", "z.sconosciuta"])).toEqual(["z.beta/en", "z.beta/it", "z.gamma/it", "z.alfa/it"]);
+    // Valori malformati: ignorati, ordine alfabetico come prima.
+    expect(await order("z.gamma")).toEqual(["z.alfa/it", "z.beta/en", "z.beta/it", "z.gamma/it"]);
+    expect(parseFeatured({ destinations: ["a.b", "a.b", "../x", 3, "c"] })).toEqual(["a.b", "c"]);
+    expect(orderByFeatured([], ["a"])).toEqual([]);
+  });
+
+  it("il file delle destinazioni in evidenza è valido e indica destinazioni esistenti", () => {
+    const file = JSON.parse(readFileSync(resolve(TERRITORIES, "featured-destinations.json"), "utf8"));
+    const featured = parseFeatured(file);
+    expect(featured).toEqual(file.destinations);
+    const packs = real();
+    for (const id of featured) expect(packs.get(id)?.manifest.kind, id).toBe("destination");
   });
 });
 

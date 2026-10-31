@@ -35,6 +35,6 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
     "tsx": "4.23.15",
-    "vitest": "4.0.18"
+    "vitest": "4.1.12"
   }
 }

@@ -10,6 +10,8 @@ Portovenere è il primo territorio e il laboratorio reale; l'engine non contiene
 | Documento | Contenuto |
 |---|---|
 | [v0.2 · Strategia di prodotto e architettura](docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHITECTURE.md) | **Documento di riferimento.** Analisi dei concorrenti, differenziazione, Territorial Knowledge Graph, Verified Knowledge, storytelling componibile, Tour Context Engine, Territory Pack, multi-territorio, CMS e curatela, MVP Portovenere, roadmap, KPI, modelli di business, rischi |
+| [v0.3 · Piattaforma](docs/v0.3-platform/PLATFORM-ARCHITECTURE.md) | Studio della redazione, pubblicazione, account, catalogo e pagamenti, contenuti a pagamento, eventi e attività locali: una pagina per argomento in `docs/v0.3-platform/` |
+| [v0.4 · Gaia](docs/v0.4-gaia/CHARACTER-BIBLE.md) | Identità e voce della guida, stile per lingua, rubriche ed esempi di riferimento |
 | [v0.1 · Architettura iniziale](docs/v0.1-architecture/ARCHITECTURE.md) | Primo passaggio (superato in parte dalla v0.2): GPS, geofencing, audio, offline, privacy, API |
 | [v0.1 · Schema database](docs/v0.1-architecture/schema.sql) | Schema Supabase/PostgreSQL della v0.1 (da rivedere secondo il modello dati v0.2) |
 | [v0.1 · Tool AI](docs/v0.1-architecture/ai-tools.ts) | Definizioni dei tool della guida AI |
@@ -17,7 +19,8 @@ Portovenere è il primo territorio e il laboratorio reale; l'engine non contiene
 ## Struttura del repository
 
 ```
-apps/guide                 app Next.js: walk mode, voce, simulatore di camminata, GPS (PWA, poi Capacitor)
+apps/guide                 app Next.js (PWA): la guida (esplorazione libera e percorsi guidati, voce, GPS, offline),
+                           lo Studio della redazione (/studio), account e acquisti, API pubbliche di eventi e attività
 packages/domain            identificativi, vocabolari, ontologia, schemi del Territory Pack
 packages/territory-pack    caricamento, validazione, CLI guide-pack
 packages/context-engine    posizione, geofence, movimento, pianificazione con ancora, monitor del tempo
@@ -25,7 +28,8 @@ packages/narrative-planner scelta delle unità narrative per tappa, prerequisiti
 packages/bundle            compilazione e lettura dei bundle scaricabili (offline), CLI guide-bundle
 territories/               Territory Pack (_synthetic/: territori inventati per i test;
                            it.liguria.sp.portovenere: primo territorio reale, in fase di ricerca)
-supabase/migrations/       schema del database v0.2
+supabase/migrations/       schema del database (redazione, pubblicazione, account, catalogo, ordini, eventi, attività);
+                           supabase/tests/ prove su un Postgres locale, supabase/rollback/ revoche
 ```
 
 ## Sviluppo
@@ -36,7 +40,9 @@ Requisiti: Node 22 o superiore.
 npm install
 npm run ci               # typecheck, test, validazione dei pack, controllo territori
 npm run packs:validate   # valida i Territory Pack
+npm run db:check         # migrazioni, policy, revoca e riapplicazione su un Postgres 16 + PostGIS locale
 npm run dev              # app in locale
+npm run build            # build di produzione
 npm run photos --workspace @guide/territory-pack -- <cartella-foto> --territories territories --pack <id>
                          # coordinate, quota e data dalle foto JPEG, con il luogo più vicino
 npm run field --workspace @guide/territory-pack -- <rilievi.json> --territories territories
@@ -53,30 +59,24 @@ le non commerciali solo se il territorio lo ammette (`config.media.allowNonComme
 
 ## Stato
 
-Fase 0 (fondazioni) in corso:
+Ottobre 2026. In produzione su Vercel dal ramo `commercio` (ogni push su quel ramo va in produzione; gli altri rami
+diventano anteprime).
 
-- [x] monorepo, app Next.js minima
-- [x] Territory Pack v1: schema, validatore, CLI `guide-pack`
-- [x] territorio sintetico di test e controllo "nessun codice per territorio"
-- [x] schema del database v0.2 (grafo, affermazioni con prove, narrazione, changeset)
-- [x] Tour Context Engine (posizione, geofence, movimento, tempo, ancore, pianificazione)
-- [x] Narrative Planner (narrazione componibile, memoria del tour, raccordi a modello)
-- [x] compilazione dei bundle di runtime (solo fatti raccontabili, deterministici, verificati all'apertura)
-- [x] prima app: runtime della guida, voce (sintesi del dispositivo), walk mode, simulatore, GPS
-- [x] immagini con licenza nei pack e nei bundle; coordinate dei luoghi lette dalle foto (EXIF)
-- [x] funzionamento offline: service worker e "Scarica per l'uso offline" (pagina, bundle, immagini)
-- [x] domande alla guida (`/api/guide/ask`): risponde prima con le affermazioni verificate del bundle, le cita; risposte
-      con citazioni inesistenti o numeri non presenti nelle fonti vengono scartate. Richiede `ANTHROPIC_API_KEY`
-      nelle variabili d'ambiente del progetto (senza, l'app funziona ma non risponde alle domande)
-- [x] approfondimento con ricerca web (strumento ufficiale dell'API Anthropic) quando la base non basta o su
-      richiesta, con fonti mostrate e marcate come non verificate; limiti, cache e log dei consumi: vedi
-      [Domande e ricerca web](#domande-e-ricerca-web)
-- [x] stadi di rilascio (ricerca, prova sul campo, produzione) e bundle di anteprima dichiarati come tali;
-      stato delle coordinate, curatela, informazioni pratiche datate, ipotesi, percorsi curati
-- [x] primo territorio reale: Portovenere (18 luoghi, in ricerca: vedi `territories/it.liguria.sp.portovenere/README.md`)
-- [x] modalità debug per il test sul campo (`?debug=1`): GPS, geofence, stati redazionali, rilievo delle posizioni
-- [ ] Portovenere verificato sul campo (coordinate, percorsi) e dalla redazione (affermazioni)
-- [ ] Studio minimo con changeset
+- **Motore**: Territory Pack con validatore e CLI, grafo e affermazioni con prove, Tour Context Engine, Narrative
+  Planner, bundle di runtime deterministici, nessun codice specifico per territorio (controllato in CI).
+- **Guida**: app a quattro schede (Home, Esplora, Percorsi, Profilo); esplorazione libera e percorsi guidati nella stessa
+  visita; esplorazione tematica «Storia e cultura» / «Locali e attività»; voce del dispositivo; uso offline; domande a
+  Gaia con citazioni ed emergenze riconosciute senza modello; eventi del giorno; directory gratuita delle attività
+  locali con foto, «Mostra sulla mappa» e descrizione letta da Gaia (senza AI).
+- **Studio** (`/studio`): territori, luoghi e sottoluoghi, affermazioni con verifica a quattro occhi (l'amministratore
+  può verificare le proprie), racconti, percorsi, foto, controllo di pubblicazione spiegato in parole semplici,
+  pubblicazione nell'app senza deploy, eventi, attività, domande senza risposta, scheda Vendita.
+- **Commerciale**: account dei visitatori, catalogo, acquisti con Stripe (solo modalità test), esplorazione, percorsi e
+  singoli luoghi a pagamento consegnati da un bucket privato.
+- **Primo territorio**: Portovenere, in fase di ricerca (18 luoghi; vedi `territories/it.liguria.sp.portovenere/README.md`).
+
+Da fare: verifica sul campo di Portovenere (coordinate, percorsi) e passaggio a `production`; fornitore di tile della
+mappa con licenza adeguata (`docs/v0.3-platform/MAPPA-SFONDO.md`); pagamenti in modalità live.
 
 ## Domande e ricerca web
 
@@ -84,7 +84,8 @@ Pipeline di `/api/guide/ask` (codice in `apps/guide/lib/ask.ts`, `ask-web.ts`, `
 
 1. **Base locale** — il modello riceve la base di conoscenza del bundle e risponde in JSON con le affermazioni
    citate; il sistema scarta citazioni inesistenti e numeri non presenti nelle fonti. Se la base risponde, finisce qui.
-2. **Ricerca web** — solo se la base risponde in parte o non risponde, o se il visitatore tocca «Approfondisci».
+2. **Ricerca web** — solo se il visitatore tocca «Approfondisci» (decisione del 24/10: in automatico costava molto e
+   spesso non trovava fonti; `ASK_WEB_AUTO=1` la riaccende quando la base risponde in parte o non risponde).
    Il modello riceve la stessa base, la risposta locale e lo strumento `web_search_20260318` (filtraggio dinamico dei
    risultati, nessun costo aggiuntivo per l'esecuzione del codice), con un numero massimo di ricerche e i domini
    esclusi. Le pagine trovate sono trattate come dati, mai come istruzioni.
@@ -125,6 +126,7 @@ Variabili d'ambiente (tutte facoltative tranne quelle del fornitore scelto):
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` | — | acquisti con Stripe, **solo modalità test** (una chiave live li spegne); solo server; configurazione in `docs/v0.3-platform/PAGAMENTI.md` |
 | `ASK_MAX_USD_PER_QUESTION` | — | obbligatoria per le domande: dollari massimi **stimati** per domanda (es. `0.15`, con il punto). Assente o non valida: domande spente. Non è un tetto assoluto: vedi `docs/v0.3-platform/COSTI-AI.md` |
 | `ASK_WEB_ENABLED` | `1` | `0` spegne la ricerca web (resta la base locale) |
+| `ASK_WEB_AUTO` | — | `1` fa partire la ricerca anche senza «Approfondisci», quando la base non basta |
 | `ASK_WEB_MAX_USES` | `3` | ricerche massime per domanda (1–10) |
 | `ASK_WEB_MODEL` | `claude-opus-5-5` | modello della risposta con ricerca (es. `claude-sonnet-5-5` per spendere meno) |
 | `ASK_WEB_EFFORT` | `medium` | `low` / `medium` / `high` |

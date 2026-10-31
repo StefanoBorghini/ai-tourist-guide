@@ -524,6 +524,7 @@ export function GuideApp() {
     setProposal(null);
     setComplete(false);
     setSelected(null);
+    setPinnedVenue(null);
     setFlash(null);
     setWalking(true);
     setShowHub(false);
@@ -548,6 +549,7 @@ export function GuideApp() {
     setProposal(null);
     setComplete(false);
     setSelected(null);
+    setPinnedVenue(null);
     stopSimulation();
     setFlash(t.switchKeeps);
     setTab(options ? "percorsi" : "esplora");
@@ -1620,7 +1622,8 @@ export function GuideApp() {
     if (id) requestAnimationFrame(() => document.querySelector(".venue-detail")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   };
   const venueLayerOn = exploring && theme === "venues";
-  const pinned = !venueLayerOn && pinnedVenue && businessesState.kind === "ok"
+  // Solo nei percorsi guidati: passando all'esplorazione l'attività evidenziata non resta tra i luoghi.
+  const pinned = !exploring && pinnedVenue && businessesState.kind === "ok"
     ? venueMarkers(listBusinesses(businessesState.data, null, null)).find((m) => m.id === pinnedVenue) ?? null
     : null;
   // Centra la mappa della guida sull'attività e la porta in vista; nei percorsi guidati la evidenzia tra i luoghi.

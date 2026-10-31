@@ -420,6 +420,20 @@ export class GuideRuntime {
   }
 
   /**
+   * Riascolto di un luogo già raccontato: i suoi racconti nel contenuto di adesso (quindi nella lingua in uso e con le
+   * parti acquistate nel frattempo), nell'ordine dei tipi (apertura, contesto, dettaglio…). Non cambia la memoria del
+   * giro: non sono racconti nuovi. Vuoto se il luogo non ha racconti.
+   */
+  retell(placeRef: string): NarrationSegment[] {
+    const order = ["opening", "context", "detail", "curiosity", "legend", "closing", "transition"];
+    const own = [...this.library.units.values()].filter((u) => u.anchor === placeRef);
+    const general = own.filter((u) => u.audience === "general");
+    return (general.length > 0 ? general : own)
+      .sort((a, b) => order.indexOf(a.unitType) - order.indexOf(b.unitType) || a.ref.localeCompare(b.ref))
+      .map((u) => ({ id: `retell:${u.ref}`, kind: "unit" as const, text: u.text, placeRef }));
+  }
+
+  /**
    * Luoghi ordinati per distanza dall'ultima posizione (in linea d'aria, dalle coordinate del pack:
    * finché non sono verificate sul campo sono indicative). Vuoto senza posizione.
    */

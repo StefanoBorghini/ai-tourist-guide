@@ -512,6 +512,8 @@ export function GuideApp() {
       setWalking(true);
       return;
     }
+    // La stessa visita che continua (altra lingua, parti appena acquistate) tiene il testo già ascoltato.
+    const sameVisit = !!state && !!current && current.content.destination === tourContent.destination;
     const runtime = new GuideRuntime(tourContent, tourMode);
     runtime.inviteQuestions = online && askAvailable;
     if (options) runtime.startTour(options);
@@ -529,7 +531,7 @@ export function GuideApp() {
           setSpeech({ state, currentId: current?.id ?? null, ...(current?.title ? { title: current.title } : {}) });
         })
       : null;
-    setTranscript([]);
+    if (!sameVisit) setTranscript([]);
     setProposal(null);
     setComplete(false);
     setSelected(null);
@@ -618,10 +620,14 @@ export function GuideApp() {
     if (!runtime) return;
     setFlash(null);
     if (runtime.wasNarrated(placeRef)) {
-      // Già raccontato: si riascolta lo stesso testo (la memoria del giro non lo ripete come nuovo).
-      const told = transcript.filter((s) => s.placeRef === placeRef);
+      // Già raccontato: si riascoltano i racconti del luogo nel contenuto di adesso (lingua in uso, parti acquistate),
+      // anche se il testo trascritto non c'è più (app riaperta); la memoria del giro non li conta come nuovi.
+      const stamp = Date.now();
+      const again = runtime.retell(placeRef).map((s) => ({ ...s, id: `${s.id}@${stamp}` }));
+      const told = again.length > 0 ? again : transcript.filter((s) => s.placeRef === placeRef);
       if (told.length === 0) return setFlash(t.alreadyTold);
       voiceRef.current?.stop();
+      if (again.length > 0) setTranscript((prev) => [...prev, ...again]);
       voiceRef.current?.enqueue(told.map((s) => ({ id: s.id, text: s.text, title: runtime.name(placeRef) })));
       return;
     }

@@ -359,6 +359,34 @@ describe("esplorazione libera", () => {
     expect(next.filter((e) => e.type === "proposal").map((e) => (e as { placeRef: string }).placeRef)).toEqual([b!.ref]);
   });
 
+  it("riascolto: i racconti del luogo già ascoltato, anche nella lingua cambiata dopo, senza contarli come nuovi", () => {
+    const { packs } = loadPacks(resolve(here, "../../../territories/_synthetic"));
+    const dest = [...packs.values()].find((p) => p.manifest.kind === "destination")!;
+    const en = buildBundle(packs, { destination: dest.manifest.id, locale: "en", allowFictional: true }).content;
+    // Un luogo con racconti in entrambe le lingue.
+    const place = content.places.find((p) => content.units.some((u) => u.anchor === p.ref) && en.units.some((u) => u.anchor === p.ref))!.ref;
+    const runtime = new GuideRuntime(content, "auto");
+    runtime.startExplore();
+    runtime.narrate(place, T0);
+    expect(runtime.wasNarrated(place)).toBe(true);
+    const again = runtime.retell(place);
+    expect(again.length).toBe(content.units.filter((u) => u.anchor === place && u.audience === "general").length);
+    expect(again.every((s) => s.placeRef === place && s.kind === "unit")).toBe(true);
+    const memory = JSON.stringify(runtime.memory);
+    runtime.retell(place);
+    expect(JSON.stringify(runtime.memory)).toBe(memory);
+    // Cambio di lingua: stesso stato, contenuto inglese; il riascolto usa i testi inglesi.
+    const english = new GuideRuntime(en, "auto");
+    english.startExplore();
+    english.restoreState(runtime.exportState());
+    expect(english.wasNarrated(place)).toBe(true);
+    const enTexts = english.retell(place).map((s) => s.text);
+    const enUnits = en.units.filter((u) => u.anchor === place).map((u) => u.text);
+    expect(enTexts.length).toBeGreaterThan(0);
+    expect(enTexts.every((t) => enUnits.includes(t))).toBe(true);
+    expect(runtime.retell("pack:inesistente")).toEqual([]);
+  });
+
   it("dal percorso si passa all'esplorazione senza perdere ciò che è stato raccontato", () => {
     const route = content.routes[0]!;
     const runtime = new GuideRuntime(content, "ask");

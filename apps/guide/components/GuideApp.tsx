@@ -12,7 +12,7 @@ import { simulateWalk, type SimStop } from "../lib/simulator";
 import { GuideVoice, type SpeechState } from "../lib/speech";
 import { uiFor, type UiText } from "../lib/i18n";
 import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker } from "../lib/offline";
-import { formatPrice, lockedPlaceRefs, offersFor, type CatalogItem, type Offer } from "../lib/shop";
+import { formatPrice, lockedPlaceRefs, offersFor, type CatalogItem, type Offer, type Quote } from "../lib/shop";
 import { localPremium, syncPremium } from "../lib/premium-client";
 import { asNavState, HOME, initialStack, navStateOf, navStep, navUrl, readNavUrl, type NavState } from "../lib/nav-history";
 import { clearPurchaseWatch, markPurchaseStarted, PURCHASE_DONE_KEY, PURCHASE_POLL_MS, purchaseStamps, watchingPurchase } from "../lib/purchase-watch";
@@ -108,7 +108,7 @@ export function GuideApp() {
   const [progress, setProgress] = useState(0);
   const [online, setOnline] = useState(true);
   // Listino pubblico della destinazione aperta (solo se ha contenuti a pagamento e gli acquisti sono attivi).
-  const [catalog, setCatalog] = useState<{ pack: string; enabled: boolean; items: CatalogItem[] } | null>(null);
+  const [catalog, setCatalog] = useState<{ pack: string; enabled: boolean; items: CatalogItem[]; quotes: Quote[] } | null>(null);
   const [askAvailable, setAskAvailable] = useState(false);
   /** Impronte dei bundle con cui risponde il server delle domande (per il debug). */
   const [webAvailable, setWebAvailable] = useState(false);
@@ -318,21 +318,30 @@ export function GuideApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshPremium legge solo ref e setter stabili
   }, []);
 
-  // Prezzi dei contenuti a pagamento: solo online, con acquisti attivi e se la destinazione ne ha.
+  // Prezzi dei contenuti a pagamento: solo online, con acquisti attivi e se la destinazione ne ha. Si rileggono quando
+  // cambia ciò che è bloccato (dopo un acquisto): il preventivo personale cambia con i contenuti posseduti.
   const lockedPack = content?.locked ? content.destination : null;
+  const lockedKey = content?.locked ? JSON.stringify(content.locked.places ?? []) + String(content.locked.explore) : "";
   useEffect(() => {
     if (!ACCOUNTS || !online || !lockedPack) return;
     let alive = true;
     fetch(`/api/catalog?destinazione=${encodeURIComponent(lockedPack)}`, { cache: "no-store" })
       .then((r) => r.json())
-      .then((d: { enabled?: boolean; items?: CatalogItem[] }) => {
-        if (alive) setCatalog({ pack: lockedPack, enabled: d.enabled === true, items: Array.isArray(d.items) ? d.items : [] });
+      .then((d: { enabled?: boolean; items?: CatalogItem[]; quotes?: Quote[] }) => {
+        if (alive) {
+          setCatalog({
+            pack: lockedPack,
+            enabled: d.enabled === true,
+            items: Array.isArray(d.items) ? d.items : [],
+            quotes: Array.isArray(d.quotes) ? d.quotes : [],
+          });
+        }
       })
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [lockedPack, online]);
+  }, [lockedPack, lockedKey, online]);
 
   // Si invita a fare domande solo quando si possono davvero fare.
   useEffect(() => {
@@ -1358,11 +1367,20 @@ export function GuideApp() {
   const publicAnchors = new Set(content.units.map((u) => u.anchor));
   // Un luogo si offre da solo solo se la pubblicazione ha il suo file a pagamento (altrimenti non riceverebbe nulla).
   const placeParts = new Set((opened?.manifest.premium ?? []).flatMap((f) => (f.kind === "place" && f.ref ? [f.ref] : [])));
-  const offers = offersFor(content.locked, shopOn ? catalog.items : [], content.locale, {
-    destination: content.destination,
-    // I luoghi principali che hanno un file a pagamento: anche quelli gratuiti con sottoluoghi a pagamento.
-    refs: [...placeParts],
-  });
+  const unitParts = new Set((opened?.manifest.premium ?? []).flatMap((f) => (f.kind === "unit" && f.ref ? [f.ref] : [])));
+  const offers = offersFor(
+    content.locked,
+    shopOn ? catalog.items : [],
+    content.locale,
+    {
+      destination: content.destination,
+      // I luoghi principali che hanno un file a pagamento: anche quelli gratuiti con sottoluoghi a pagamento.
+      refs: [...placeParts],
+      // Contenuti singoli (acquisto progressivo): solo quelli con il loro file nella pubblicazione.
+      unitRefs: [...unitParts],
+    },
+    shopOn ? catalog.quotes : [],
+  );
   // Immagine per i percorsi a pagamento (il bundle pubblico non ne descrive le tappe): la copertina della destinazione.
   const lockedCover = (() => {
     const cover = content.media.find((m) => m.cover && m.kind !== "video") ?? content.media.find((m) => m.kind !== "video");
@@ -1374,15 +1392,28 @@ export function GuideApp() {
     ) : !offer ? (
       <p className="muted small">{t.notOnSale}</p>
     ) : (
+      offer.belowMinimum ? (
+        <p className="muted small">{t.belowMinimum(formatPrice(offer.amount, content.locale))}</p>
+      ) : (
       <form action="/api/checkout" method="post" className="buy-form" onSubmit={() => markPurchaseStarted()}>
         <input type="hidden" name="prodotto" value={offer.productId} />
         <input type="hidden" name="destinazione" value={content.destination} />
+        {offer.list !== undefined && (
+          // Acquisto progressivo: quanto possiede già e il prezzo pieno barrato.
+          <p className="price-progress small">
+            {offer.progress && <span className="muted">{t.progressOwned(offer.progress.owned, offer.progress.total)} </span>}
+            <span className="muted">{t.listPrice} <s>{formatPrice(offer.list, content.locale)}</s></span>
+            {" · "}
+            <strong>{t.yourPrice} {formatPrice(offer.amount, content.locale)}</strong>
+          </p>
+        )}
         <button className="button primary big block" type="submit">
           <Icon name="lock" /> {label} · {formatPrice(offer.amount, content.locale)}
         </button>
         {offer.bundle && <p className="muted small">{t.inBundle(offer.name)}</p>}
         <p className="muted small">{t.testPayment}</p>
       </form>
+      )
     );
 
 
@@ -1555,6 +1586,9 @@ export function GuideApp() {
         }
         const n = subCount(principal);
         const buyLabel = freePrincipal ? t.buySubPlaces(principalName, paidSubs) : t.buyPrincipal(principalName, n);
+        // Contenuto singolo (acquisto progressivo): solo questo luogo, se si vende da solo.
+        const unitOffer = offers.units.get(cardRef);
+        const cardName = placeByRef.get(cardRef)?.name ?? cardRef;
         return {
           ...(isSub ? { partOf: principalName } : {}),
           // La panoramica gratuita si ascolta anche senza acquisto (solo dei luoghi principali).
@@ -1566,6 +1600,7 @@ export function GuideApp() {
                   ? t.lockedSubHint(principalName)
                   : publicAnchors.has(cardRef) ? t.lockedPrincipalHint(principalName, n) : t.lockedPrincipalNoOverview(principalName, n)}
               </p>
+              {unitOffer && buy(unitOffer, t.buyOnlyThis(cardName))}
               {buy(offer, buyLabel)}
               {offers.explore && buy(offers.explore, t.buyAllPlaces)}
             </>
@@ -2054,6 +2089,12 @@ export function GuideApp() {
                   <h2>{t.fullExplore}</h2>
                   <p className="muted">{t.fullExploreHint}</p>
                   {buy(offers.explore)}
+                  {offers.all && (
+                    <>
+                      <p className="muted">{t.allDestinationsHint}</p>
+                      {buy(offers.all, t.buyAllDestinations)}
+                    </>
+                  )}
                 </section>
               ) : (!ACCOUNTS || catalog?.pack === content.destination) && (
                 // Non in vendita (o acquisti spenti): si dice solo che arriverà, senza prezzi né «a pagamento».

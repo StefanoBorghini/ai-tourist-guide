@@ -33,6 +33,16 @@ export function formatEuro(cents: number): string {
 
 export const PRODUCT_KIND_LABELS: Record<string, string> = {
   explore: "Esplorazione", route: "Percorso", bundle: "Pacchetto di percorsi", place: "Luogo principale",
+  unit: "Contenuto singolo", all: "Tutte le destinazioni",
+};
+/** Livelli del listino centrale (migrazione 20261107000000_progressive_purchase.sql), dal più piccolo. */
+export const TIER_KINDS = ["unit", "place", "explore", "all"] as const;
+export type TierKind = (typeof TIER_KINDS)[number];
+export const TIER_LABELS: Record<TierKind, string> = {
+  unit: "Contenuto singolo (sottoluogo, o i racconti propri di un luogo)",
+  place: "Luogo principale con i suoi sottoluoghi",
+  explore: "Destinazione completa",
+  all: "Tutte le destinazioni",
 };
 /** Prezzo proposto per un luogo principale, con i suoi sottoluoghi (decisione del 2026-10-22). */
 export const PLACE_DEFAULT_CENTS = 199;
@@ -42,7 +52,7 @@ export const AVAILABILITY_LABELS: Record<string, string> = { available: "Disponi
 export interface CatalogProduct {
   id: string;
   slug: string;
-  kind: "explore" | "route" | "bundle" | "place";
+  kind: "explore" | "route" | "bundle" | "place" | "unit" | "all";
   labels: { it?: { name?: string; description?: string }; en?: { name?: string; description?: string } };
   status: "draft" | "active" | "retired";
   availability: "available" | "hidden" | "sold_out";
@@ -53,6 +63,8 @@ export interface CatalogProduct {
   routes: string[];
   published: { amount: number; at: string } | null;
   draft: { amount: number } | null;
+  /** Tariffa pubblicata del suo livello: vale se il prodotto non ha un prezzo proprio pubblicato. */
+  tier?: { amount: number } | null;
   paidOrders: number;
   problem: string | null;
 }
@@ -66,9 +78,37 @@ export interface CatalogState {
    * gratuito); «parent» il luogo principale di un sottoluogo, «subPlaces» quanti sottoluoghi ha un principale
    * (migrazione 20261101000000).
    */
-  places?: { id: string; slug: string; name: string; sellable: boolean; parent?: string | null; subPlaces?: number }[];
+  places?: {
+    id: string; slug: string; name: string; sellable: boolean; parent?: string | null; subPlaces?: number;
+    /** Acquisto progressivo: è un contenuto vendibile da solo; quanti contenuti ha il luogo principale. */
+    isUnit?: boolean; units?: number;
+  }[];
+  /** Contenuti a pagamento della destinazione (unità dell'acquisto progressivo). */
+  units?: number;
   products: CatalogProduct[];
   drafts: number;
+}
+
+/** Listino centrale, «Tutte le destinazioni» e ordini da rivedere (studio_commerce). */
+export interface CommerceState {
+  tiers: { kind: TierKind; published: { amount: number; at: string } | null; draft: { amount: number } | null }[];
+  all: {
+    product: { id: string; slug: string; status: "draft" | "active" | "retired"; paidOrders: number } | null;
+    problem: string | null;
+    destinations: string[];
+    units: number;
+  };
+  reviews: {
+    id: string; product: string; kind: string; status: string; amount: number; list: number | null;
+    paidAt: string | null; reason: string; at: string;
+  }[];
+}
+
+/** Prezzo di listino effettivo: il prezzo proprio pubblicato, altrimenti la tariffa del livello. */
+export function listPrice(p: Pick<CatalogProduct, "published" | "tier">): { amount: number; source: "own" | "tier" } | null {
+  if (p.published) return { amount: p.published.amount, source: "own" };
+  if (p.tier) return { amount: p.tier.amount, source: "tier" };
+  return null;
 }
 
 /** Luoghi vendibili che non hanno ancora un prodotto (non ritirato): quelli che «Metti in vendita i luoghi» crea. */
@@ -83,7 +123,17 @@ export function subPlaceProducts(c: Pick<CatalogState, "places" | "products">): 
   return c.products.filter((p) => p.kind === "place" && p.status !== "retired" && p.place && subs.has(p.place.slug));
 }
 
-/** In vendita davvero: attivo, non nascosto, con un prezzo pubblicato e coerente con l'accesso (come public_catalog). */
+/**
+ * In vendita davvero: attivo, non nascosto, con un prezzo (proprio o di listino) pubblicato e coerente con l'accesso
+ * (come public_catalog).
+ */
 export function onSale(p: CatalogProduct): boolean {
-  return p.status === "active" && p.availability !== "hidden" && p.published !== null && p.problem === null;
+  return p.status === "active" && p.availability !== "hidden" && listPrice(p) !== null && p.problem === null;
+}
+
+/** Contenuti vendibili da soli (luoghi con almeno due contenuti) che non hanno ancora il loro prodotto. */
+export function unitsWithoutProduct(c: Pick<CatalogState, "places" | "products">): NonNullable<CatalogState["places"]> {
+  const withProduct = new Set(c.products.filter((p) => p.kind === "unit" && p.status !== "retired").map((p) => p.place?.slug));
+  const units = new Map((c.places ?? []).map((pl) => [pl.slug, pl.units ?? 0]));
+  return (c.places ?? []).filter((pl) => pl.isUnit && !withProduct.has(pl.slug) && (units.get(pl.parent ?? pl.slug) ?? 0) >= 2);
 }

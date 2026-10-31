@@ -139,6 +139,8 @@ export const ERRORS = {
   "esaurito": "Questo contenuto al momento non è acquistabile.",
   "non-pubblicata": "Questa destinazione non è ancora disponibile per gli acquisti.",
   "non-in-vendita": "Questo contenuto non è in vendita.",
+  "gia-completo": "Hai già tutti i contenuti compresi in questo pacchetto.",
+  "sotto-minimo": "Quello che ti manca costa meno di 0,50 €, il minimo per un pagamento: acquista i contenuti che mancano uno per uno.",
   "acquisti-spenti": "Gli acquisti non sono ancora attivi.",
   "pagamento-in-corso": "C'è un pagamento appena concluso per questo contenuto: attendi la conferma in «I miei acquisti».",
 } as const;

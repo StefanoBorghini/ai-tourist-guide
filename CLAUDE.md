@@ -67,7 +67,16 @@ Documento di riferimento: `docs/v0.2-product-strategy/PRODUCT-STRATEGY-AND-ARCHI
   (prodotti e prezzi in bozza/pubblicati, solo amministratore; listino pubblico `public_catalog()`; vedi `docs/v0.3-platform/CATALOGO.md`);
   `lib/payments/` e `app/api/checkout`, `app/api/stripe/webhook`, `app/account/acquista`, `app/account/ordine` gli acquisti con Stripe, che partono anche dalla guida (schede Percorsi ed Esplora: `lib/shop.ts`, listino da `app/api/catalog`); dopo il pagamento la guida aperta si sblocca da sola, senza ricaricare (`lib/purchase-watch.ts`: richieste a intervalli per 15 minuti dopo la partenza verso la cassa e segnale dalla pagina dell'ordine)
   (solo modalità test; il browser invia solo il prodotto, prezzo dal database; diritti solo dal webhook firmato, che usa la
-  chiave di servizio solo per le funzioni `payment_*`; vedi `docs/v0.3-platform/PAGAMENTI.md`)
+  chiave di servizio solo per le funzioni `payment_*`; vedi `docs/v0.3-platform/PAGAMENTI.md`);
+  acquisto progressivo (migrazione `20261107000000_progressive_purchase.sql`, `docs/v0.3-platform/ACQUISTO-PROGRESSIVO.md`):
+  livelli contenuto singolo (`unit`), luogo, destinazione, tutte le destinazioni (`all`, anche future), listino centrale
+  `price_tiers` (nasce in bozza; un prezzo proprio pubblicato resta finché «Segui il listino»), prezzo a conteggio delle
+  unità già possedute calcolato solo da `commerce_quote` (unità = solo contenuti della pubblicazione in linea con il file
+  `unit-` nel bucket e almeno un racconto verificato, conteggi `stories`/`verifiedStories` nel manifest; sconto che non
+  scende, mai sopra la somma dei prezzi effettivi dei singoli, solo con la tariffa del singolo pubblicata, sotto 0,50 € si
+  comprano i singoli; percorsi esclusi), preventivo personale nell'app da `/api/catalog` (`my_commerce_quotes`),
+  file privati `unit-<luogo>` letti solo con il diritto `unit`, rimborsi che segnano «da rivedere» gli acquisti scontati
+  (sezione 3 della scheda Vendita, `app/studio/[pack]/vendita/commerce-section.tsx`, `app/studio/actions-commerce.ts`)
 - `packages/domain` — identificativi, vocabolari, ontologia, schemi zod del Territory Pack
 - `packages/territory-pack` — caricamento, validazione e CLI `guide-pack` (`validate`, `photos`: coordinate dall'EXIF,
   `field`: revisione dei rilievi sul campo, formato `guide-field-points/2` in `packages/domain/src/field-points.ts`;

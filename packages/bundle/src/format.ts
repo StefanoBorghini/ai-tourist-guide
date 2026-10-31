@@ -218,11 +218,13 @@ export interface BundleLocked {
 /**
  * Parte a pagamento di un bundle: mai nei file pubblici. "explore" contiene i racconti dell'esplorazione
  * completa; "route" un percorso premium con i racconti delle sue tappe che non sono già pubblici; "place" i racconti
- * di un luogo principale e dei suoi sottoluoghi, oltre alla panoramica pubblica (solo con l'esplorazione a pagamento).
+ * di un luogo principale e dei suoi sottoluoghi, oltre alla panoramica pubblica (solo con l'esplorazione a pagamento);
+ * "unit" un contenuto singolo (acquisto progressivo, migrazione 20261107000000): i racconti a pagamento di un solo luogo,
+ * il sottoluogo o i racconti propri del principale oltre la panoramica.
  */
 export interface PremiumPart {
-  kind: "explore" | "route" | "place";
-  /** Percorso per le parti "route", luogo per le parti "place". */
+  kind: "explore" | "route" | "place" | "unit";
+  /** Percorso per le parti "route", luogo per le parti "place" e "unit". */
   ref?: string;
   units: BundleUnit[];
   assertions: BundleAssertion[];
@@ -257,10 +259,17 @@ export interface BundleManifest {
 
 export interface PremiumFile {
   kind: PremiumPart["kind"];
-  /** Percorso per i file «route», luogo per i file «place». */
+  /** Percorso per i file «route», luogo per i file «place» e «unit». */
   ref?: string;
-  /** Percorso nel bucket «premium»: `<destinazione>/<lingua>/<pubblicazione>/(explore|route-<percorso>|place-<luogo>).<impronta>.json`. */
+  /** Percorso nel bucket «premium»: `<destinazione>/<lingua>/<pubblicazione>/(explore|route-<percorso>|place-<luogo>|unit-<luogo>).<impronta>.json`. */
   path: string;
+  /**
+   * Solo per i file «unit»: racconti propri del luogo nel file e, fra questi, quelli con tutte le affermazioni
+   * verificate. Il database conta come acquistabile un contenuto solo con almeno un racconto verificato
+   * (commerce_units, migrazione 20261107000000). Solo numeri: nessun testo a pagamento nel manifest pubblico.
+   */
+  stories?: number;
+  verifiedStories?: number;
   sha256: string;
   bytes: number;
 }

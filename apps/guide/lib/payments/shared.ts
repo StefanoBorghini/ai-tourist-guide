@@ -65,6 +65,8 @@ export const CHECKOUT_MINUTES = 30;
 export function checkoutErrorCode(message: string | undefined): string {
   const m = message ?? "";
   if (/già acquistato/.test(m)) return "gia-acquistato";
+  if (/già tutti i contenuti/.test(m)) return "gia-completo";
+  if (/0,50 €/.test(m)) return "sotto-minimo";
   if (/esaurito/.test(m)) return "esaurito";
   if (/non ancora pubblicata/.test(m)) return "non-pubblicata";
   if (/non in vendita|senza prezzo/.test(m)) return "non-in-vendita";

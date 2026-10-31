@@ -1,6 +1,6 @@
 import { mergePremium, type BundleContent, type PremiumPart } from "@guide/bundle/client";
 import { describe, expect, it } from "vitest";
-import { formatPrice, lockedPlaceRefs, offersFor, type CatalogItem } from "../lib/shop";
+import { formatPrice, lockedPlaceRefs, offersFor, type CatalogItem, type Quote } from "../lib/shop";
 
 const item = (over: Partial<CatalogItem> & Pick<CatalogItem, "id" | "kind">): CatalogItem => ({
   labels: { it: { name: `Prodotto ${over.id}` }, en: { name: `Product ${over.id}` } },
@@ -18,6 +18,34 @@ const locked = {
 };
 
 describe("vendita nell'app", () => {
+  it("acquisto progressivo: prezzo personale con lo sconto, niente offerta per ciò che si ha già, sotto il minimo i singoli", () => {
+    const items = [
+      item({ id: "e", kind: "explore", price: { amount: 999, currency: "EUR" } }),
+      item({ id: "a", kind: "all", price: { amount: 1999, currency: "EUR" } }),
+      item({ id: "p", kind: "place", place: "borgo", price: { amount: 299, currency: "EUR" } }),
+      item({ id: "u1", kind: "unit", place: "torre", principal: "borgo", price: { amount: 99, currency: "EUR" } }),
+      item({ id: "u2", kind: "unit", place: "chiesa", principal: "borgo", price: { amount: 99, currency: "EUR" } }),
+    ];
+    const q = (product: string, status: Quote["status"], amount: number | null, list: number, owned: number, total: number): Quote =>
+      ({ product, kind: "place", status, amount, list, owned, total });
+    const quotes = [q("p", "ok", 150, 299, 2, 4), q("e", "below_minimum", 34, 120, 5, 7), q("u1", "owned", null, 99, 1, 1), q("a", "ok", 1999, 1999, 0, 9)];
+    const places = { destination: "it.test.borgo", refs: ["it.test.borgo:borgo"], unitRefs: ["it.test.borgo:torre", "it.test.borgo:chiesa"] };
+    const o = offersFor(locked, items, "it", places, quotes);
+    expect(o.places.get("it.test.borgo:borgo")).toEqual({
+      productId: "p", name: "Prodotto p", amount: 150, bundle: false, list: 299, progress: { owned: 2, total: 4 },
+    });
+    expect(o.explore).toMatchObject({ amount: 34, belowMinimum: true });
+    // La torre è già sua: nessuna offerta; la chiesa sì, al listino (nessun preventivo).
+    expect(o.units.has("it.test.borgo:torre")).toBe(false);
+    expect(o.units.get("it.test.borgo:chiesa")).toEqual({ productId: "u2", name: "Prodotto u2", amount: 99, bundle: false });
+    // Nessuno sconto: niente prezzo barrato.
+    expect(o.all).toEqual({ productId: "a", name: "Prodotto a", amount: 1999, bundle: false });
+    // Senza account (nessun preventivo): listino.
+    expect(offersFor(locked, items, "it", places).places.get("it.test.borgo:borgo")?.amount).toBe(299);
+    // Livello completo: nessuna offerta.
+    expect(offersFor(locked, items, "it", places, [q("p", "complete", null, 299, 4, 4)]).places.has("it.test.borgo:borgo")).toBe(false);
+  });
+
   it("abbina esplorazione, percorso singolo e pacchetto (il più economico)", () => {
     const o = offersFor(locked, [
       item({ id: "e", kind: "explore", price: { amount: 999, currency: "EUR" } }),

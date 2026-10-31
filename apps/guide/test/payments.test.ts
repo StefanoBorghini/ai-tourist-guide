@@ -33,6 +33,8 @@ describe("regole pure", () => {
   it("errori del database → codici, mai il testo", () => {
     expect(checkoutErrorCode("hai già acquistato questo contenuto")).toBe("gia-acquistato");
     expect(checkoutErrorCode("prodotto esaurito")).toBe("esaurito");
+    expect(checkoutErrorCode("hai già tutti i contenuti di questo pacchetto")).toBe("gia-completo");
+    expect(checkoutErrorCode("quello che resta costa meno di 0,50 €, il minimo per un pagamento: acquista i contenuti singoli che mancano")).toBe("sotto-minimo");
     expect(checkoutErrorCode("destinazione non ancora pubblicata")).toBe("non-pubblicata");
     expect(checkoutErrorCode("prodotto senza prezzo pubblicato")).toBe("non-in-vendita");
     expect(checkoutErrorCode("errore qualsiasi")).toBe("servizio");

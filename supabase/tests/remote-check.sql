@@ -1021,6 +1021,23 @@ begin
       raise exception 'FALLITO: manca la migrazione 20261106000000_business_photos.sql (foto delle attività) o i suoi permessi';
     end if;
 
+    -- Acquisto progressivo (20261107000000_progressive_purchase.sql): listino, preventivo solo dal server, nuovi tipi.
+    if to_regclass('public.price_tiers') is null
+       or has_table_privilege('anon', 'price_tiers', 'insert')
+       or has_function_privilege('authenticated', 'commerce_quote(uuid, uuid)', 'execute')
+       or has_function_privilege('authenticated', 'commerce_coverage(uuid, text, text, uuid)', 'execute')
+       or has_function_privilege('anon', 'my_commerce_quotes(text)', 'execute')
+       or not has_function_privilege('authenticated', 'my_commerce_quotes(text)', 'execute')
+       or has_function_privilege('authenticated', 'commerce_flag_dependents(uuid, text)', 'execute')
+       or has_function_privilege('authenticated', 'commerce_covers(text, text, uuid, text, uuid, uuid)', 'execute')
+       or to_regprocedure('commerce_single_price(uuid)') is null
+       or position('verifiedStories' in pg_get_functiondef('commerce_units(text)'::regprocedure)) = 0
+       or not exists (select 1 from pg_constraint where conname = 'entitlements_pack_target')
+       or not exists (select 1 from information_schema.columns where table_name = 'purchases' and column_name = 'review_reason')
+       or not premium_object_name_ok('a.b/it/00000000-0000-0000-0000-000000000000/unit-torre.0123456789abcdef.json') then
+      raise exception 'FALLITO: manca la migrazione 20261107000000_progressive_purchase.sql (acquisto progressivo) o i suoi permessi';
+    end if;
+
     -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
     -- l'elenco dei controlli non verificati.
     raise exception 'VERIFICA_SUPERATA|%', array_to_string(nv, '; ');

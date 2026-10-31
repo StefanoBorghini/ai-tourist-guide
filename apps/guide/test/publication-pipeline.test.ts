@@ -29,7 +29,7 @@ const LOCALES = ["it", "en"];
 const folder = (loc: string) => `${VILLAGE}/${loc}-full`;
 const UUID = /^[^/]+\/[a-z]{2}-full\/([0-9a-f-]{36})\/(manifest\.json|content\.[0-9a-f]+\.json)$/;
 /** Cartella di una pubblicazione nel bucket privato «premium». */
-const PREMIUM_NS = /^[^/]+\/[a-z]{2}\/([0-9a-f-]{36})\/(explore|(?:route|place)-[a-z0-9-]+)\.[0-9a-f]{16,64}\.json$/;
+const PREMIUM_NS = /^[^/]+\/[a-z]{2}\/([0-9a-f-]{36})\/(explore|(?:route|place|unit)-[a-z0-9-]+)\.[0-9a-f]{16,64}\.json$/;
 
 function snapshots() {
   const packs = structuredClone(loadPacks(TERRITORIES).packs);

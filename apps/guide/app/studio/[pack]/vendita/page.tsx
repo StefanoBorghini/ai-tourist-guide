@@ -2,6 +2,7 @@ import { requireStaff } from "../../../../lib/studio/server";
 import { Notice, one, PackTabs, StudioHeader, type SearchParams } from "../../ui";
 import { AccessSection } from "./access-section";
 import { CatalogSection } from "./catalog-section";
+import { CommerceSection } from "./commerce-section";
 
 /**
  * Vendita: in una sola pagina cosa è a pagamento (accesso) e cosa si vende a quale prezzo (catalogo).
@@ -23,6 +24,7 @@ export default async function SalePage({ params, searchParams }: { params: Promi
       </p>
       <AccessSection pack={pack} session={session} />
       <CatalogSection pack={pack} session={session} />
+      <CommerceSection pack={pack} session={session} />
     </main>
   );
 }

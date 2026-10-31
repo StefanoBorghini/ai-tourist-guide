@@ -6,7 +6,7 @@
  * nell'esplorazione libera, non solo dentro il percorso. Così chi ha comprato un percorso ritrova quei luoghi
  * sbloccati quando esplora, e un acquisto successivo dell'esplorazione non gli ridà gli stessi racconti come nuovi.
  * Un luogo principale comprato (parte "place") porta i suoi racconti e quelli dei suoi sottoluoghi: l'esplorazione
- * resta bloccata, quei luoghi no.
+ * resta bloccata, quei luoghi no. Un contenuto singolo (parte "unit") sblocca solo il suo luogo.
  */
 import type { BundleContent, PremiumPart } from "./format.ts";
 
@@ -32,7 +32,13 @@ export function mergePremium(content: BundleContent, parts: readonly PremiumPart
   const subPlaces = (ref: string) => content.places.filter((pl) => pl.partOf === ref).map((pl) => pl.ref);
   const ownedPlaces = new Set(
     parts.flatMap((p) =>
-      p.kind === "place" && p.ref ? [p.ref, ...subPlaces(p.ref)] : p.kind === "route" ? p.routes.flatMap((r) => r.stops.map((s) => s.place)) : [],
+      p.kind === "place" && p.ref
+        ? [p.ref, ...subPlaces(p.ref)]
+        : p.kind === "unit" && p.ref
+          ? [p.ref]
+          : p.kind === "route"
+            ? p.routes.flatMap((r) => r.stops.map((s) => s.place))
+            : [],
     ),
   );
   const lockedPlaces = content.locked?.places?.filter((ref) => !ownedPlaces.has(ref));

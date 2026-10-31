@@ -8,7 +8,7 @@
  * descritto (autore, licenza, luoghi) non si pubblica.
  */
 import { createHash } from "node:crypto";
-import { buildBundle, BundleBuildError, type BundleManifest, type PremiumFile } from "@guide/bundle";
+import { buildBundle, BundleBuildError, unitStoryCounts, type BundleManifest, type PremiumFile } from "@guide/bundle";
 import { MEDIA_FILES_DIR, type Locale, type TerritoryPack } from "@guide/domain";
 import { SnapshotError, snapshotToPack } from "@guide/territory-pack";
 import { bundleFolder, indexEntry, manifestPublication, pubBase, type BundleIndexEntry } from "../bundle-index";
@@ -185,7 +185,15 @@ export function compilePublication(
           const hash = sha256(data);
           const path = `${target}/${locale}/${publication}/${part.kind === "explore" ? "explore" : `${part.kind}-${slug}`}.${hash.slice(0, 16)}.json`;
           premium.set(path, data);
-          listed.push({ kind: part.kind, ...(part.ref ? { ref: part.ref } : {}), path, sha256: hash, bytes: data.byteLength });
+          listed.push({
+            kind: part.kind,
+            ...(part.ref ? { ref: part.ref } : {}),
+            path,
+            sha256: hash,
+            bytes: data.byteLength,
+            // Contenuto singolo: quanti racconti ha e quanti sono verificati (solo numeri, per il database).
+            ...(part.kind === "unit" ? unitStoryCounts(part) : {}),
+          });
         }
         manifest = { ...manifest, premium: listed };
         manifestJson = JSON.stringify(manifest, null, 2);
@@ -296,7 +304,7 @@ export async function removeDeadPremium(
   }
   return warnings;
 }
-const PREMIUM_FILE = /^(explore|(route|place)-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;
+const PREMIUM_FILE = /^(explore|(route|place|unit)-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;
 
 /**
  * Errori temporanei dello Storage di Supabase (sovraccarico: «Too many connections issued to the database», tempi

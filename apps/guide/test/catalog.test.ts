@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatEuro, onSale, parseEuro, priceProblem, type CatalogProduct } from "../lib/studio/catalog.ts";
+import { formatEuro, listPrice, onSale, parseEuro, priceProblem, unitsWithoutProduct, type CatalogProduct } from "../lib/studio/catalog.ts";
 
 describe("prezzi in euro", () => {
   it("da euro scritti a mano a centesimi interi", () => {
@@ -39,5 +39,29 @@ describe("in vendita", () => {
     expect(onSale({ ...p, availability: "sold_out" })).toBe(true);
     expect(onSale({ ...p, published: null, draft: { amount: 499 } })).toBe(false);
     expect(onSale({ ...p, problem: "esplorazione gratuita" })).toBe(false);
+  });
+});
+
+describe("acquisto progressivo nello Studio", () => {
+  const product = (over: Partial<CatalogProduct>): CatalogProduct => ({
+    id: "p", slug: "p", kind: "place", labels: {}, status: "active", availability: "available", sortOrder: 0, route: null,
+    routes: [], published: null, draft: null, paidOrders: 0, problem: null, ...over,
+  });
+  it("prezzo di listino: il prezzo proprio pubblicato prima della tariffa; senza nessuno dei due non è in vendita", () => {
+    expect(listPrice(product({ published: { amount: 199, at: "x" }, tier: { amount: 299 } }))).toEqual({ amount: 199, source: "own" });
+    expect(listPrice(product({ tier: { amount: 299 } }))).toEqual({ amount: 299, source: "tier" });
+    expect(onSale(product({ tier: { amount: 299 } }))).toBe(true);
+    expect(onSale(product({}))).toBe(false);
+  });
+  it("contenuti singoli da creare: solo nei luoghi con almeno due contenuti e senza prodotto", () => {
+    const places = [
+      { id: "1", slug: "borgo", name: "Borgo", sellable: true, isUnit: true, units: 3 },
+      { id: "2", slug: "torre", name: "Torre", sellable: false, parent: "borgo", isUnit: true, units: 0 },
+      { id: "3", slug: "chiesa", name: "Chiesa", sellable: false, parent: "borgo", isUnit: true, units: 0 },
+      { id: "4", slug: "grazie", name: "Grazie", sellable: true, isUnit: true, units: 1 },
+      { id: "5", slug: "lapide", name: "Lapide", sellable: false, parent: "borgo", isUnit: false, units: 0 },
+    ];
+    const products = [product({ kind: "unit", place: { id: "2", slug: "torre" } })];
+    expect(unitsWithoutProduct({ places, products }).map((p) => p.slug)).toEqual(["borgo", "chiesa"]);
   });
 });

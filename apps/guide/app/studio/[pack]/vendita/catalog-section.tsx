@@ -1,10 +1,11 @@
 import {
-  AVAILABILITY_LABELS, formatEuro, onSale, PLACE_DEFAULT_CENTS, placesWithoutProduct, PRODUCT_KIND_LABELS, PRODUCT_STATUS_LABELS, subPlaceProducts,
+  AVAILABILITY_LABELS, formatEuro, listPrice, onSale, PLACE_DEFAULT_CENTS, placesWithoutProduct, PRODUCT_KIND_LABELS, PRODUCT_STATUS_LABELS, subPlaceProducts,
   type CatalogProduct, type CatalogState,
 } from "../../../../lib/studio/catalog";
 import { rpc, type StudioSession } from "../../../../lib/studio/server";
 import { friendlyError } from "../../../../lib/studio/shared";
 import { placesOnSale, publishPrices, saveProduct, setDraftPrice } from "../../actions";
+import { followTier } from "../../actions-commerce";
 import { Notice } from "../../ui";
 
 /**
@@ -128,12 +129,14 @@ export async function CatalogSection({ pack, session }: { pack: string; session:
   );
 }
 
+const TIERED = new Set(["unit", "place", "explore", "all"]);
+
 function ProductCard({ pack, p, routes, routeName, placeName }: {
   pack: string; p: CatalogProduct; routes: CatalogState["routes"]; routeName: Map<string, string>; placeName: Map<string, string>;
 }) {
   const name = p.labels.it?.name ?? p.slug;
   const what = p.kind === "route" && p.route ? `: ${routeName.get(p.route.slug) ?? p.route.slug}`
-    : p.kind === "place" && p.place ? `: ${placeName.get(p.place.slug) ?? p.place.slug}`
+    : (p.kind === "place" || p.kind === "unit") && p.place ? `: ${placeName.get(p.place.slug) ?? p.place.slug}`
     : p.kind === "bundle" ? `: ${p.routes.map((r) => routeName.get(r) ?? r).join(", ") || "nessun percorso"}` : "";
   const retired = p.status === "retired";
   return (
@@ -149,9 +152,18 @@ function ProductCard({ pack, p, routes, routeName, placeName }: {
       </div>
       <p className="st-notes">
         {retired ? "Ultimo prezzo pubblicato" : "Prezzo pubblicato"}: <strong>{p.published ? formatEuro(p.published.amount) : "nessuno"}</strong>
+        {!p.published && listPrice(p) && <> · segue il listino: <strong>{formatEuro(listPrice(p)!.amount)}</strong></>}
         {p.draft && <> · in bozza: <strong>{formatEuro(p.draft.amount)}</strong></>}
         {p.paidOrders > 0 && <> · acquisti: {p.paidOrders}</>}
       </p>
+      {!retired && p.published && p.tier && TIERED.has(p.kind) && (
+        // Acquisto progressivo: il prezzo proprio resta finché non si sceglie il listino.
+        <form action={followTier} className="st-review">
+          <input type="hidden" name="pack" value={pack} />
+          <input type="hidden" name="product" value={p.id} />
+          <button className="st-btn" type="submit">Segui il listino ({formatEuro(p.tier.amount)})</button>
+        </form>
+      )}
       {p.problem && <p className="st-notice st-warn" role="note">Non vendibile: {p.problem}.</p>}
       {!retired && (
         <div className="st-review">

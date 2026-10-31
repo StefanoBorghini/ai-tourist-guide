@@ -1105,6 +1105,9 @@ details.card[open] > summary::after { content: "–"; }
 /* Contenuti a pagamento nella guida: percorso bloccato e acquisto diretto. */
 .route-card.locked .route-cover { display: grid; place-items: center; background: var(--surface-2, #1e1e1e); color: var(--sand); }
 .meta-line .paid { color: var(--sand); font-weight: 600; }
+/* Acquisto progressivo: contenuti già posseduti e prezzo pieno barrato sopra il pulsante. */
+.price-progress { margin: 0 0 8px; line-height: 1.45; }
+.price-progress s { text-decoration-thickness: 1px; }
 .buy-form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .buy-form .muted.small { margin: 0; }
 .paid-explore { margin-top: 16px; }

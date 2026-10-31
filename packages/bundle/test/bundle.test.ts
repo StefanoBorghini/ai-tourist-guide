@@ -18,7 +18,9 @@ import {
   libraryFromBundle,
   verifyBundle,
   type BuiltBundle,
+  type PremiumPart,
   type Right,
+  unitStoryCounts,
 } from "../src/index.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -494,6 +496,14 @@ describe("diritti e parti a pagamento", () => {
   it("esplorazione e percorso insieme: entrambe le parti", () => {
     expect(kinds([{ scope: "explore", destination: D }, { scope: "route", route: ref("giro-breve") }])).toEqual(["explore:", `route:${ref("giro-breve")}`]);
   });
+
+  it("un contenuto singolo dà solo la sua parte; «tutte le destinazioni» dà l'esplorazione", () => {
+    const unit = parts().find((p) => p.kind === "unit")!;
+    expect(kinds([{ scope: "unit", place: unit.ref! }])).toEqual([`unit:${unit.ref}`]);
+    expect(kinds([{ scope: "all" }])).toEqual(["explore:"]);
+    // Chi ha il luogo riceve la parte del luogo, non i singoli (stessi racconti).
+    expect(kinds([{ scope: "place", place: unit.ref! }]).some((k) => k.startsWith("unit:"))).toBe(false);
+  });
 });
 
 describe("unione dei contenuti acquistati (mergePremium)", () => {
@@ -564,13 +574,54 @@ describe("unione dei contenuti acquistati (mergePremium)", () => {
     expect(all.locked).toEqual({ explore: false, routes: [{ ref: ref("giro-breve"), name: expect.any(String), durationMin: expect.any(Number) }] });
   });
 
+  it("contenuti singoli: una parte per ogni luogo a pagamento con i soli suoi racconti; sblocca solo quel luogo", () => {
+    const b = built();
+    const units = b.premium.filter((p) => p.kind === "unit");
+    expect(units.map((p) => p.ref)).toEqual([
+      ref("belvedere"), ref("carrugio-centrale"), ref("chiesa-di-san-test"), ref("porta-del-borgo"), ref("torre-di-prova"),
+    ]);
+    const publicRefs = new Set(b.content.units.map((u) => u.ref));
+    for (const part of units) {
+      // Nessun racconto pubblico (la panoramica resta gratuita) e nessun racconto di un altro luogo, salvo i prerequisiti.
+      expect(part.units.some((u) => publicRefs.has(u.ref))).toBe(false);
+      const place = b.premium.find((p) => p.kind === "place" && (p.ref === part.ref || p.units.some((u) => u.anchor === part.ref)));
+      if (place) for (const u of part.units) expect(place.units.some((x) => x.ref === u.ref)).toBe(true);
+    }
+    // Il sottoluogo comprato da solo: sbloccato lui, non il suo principale né gli altri.
+    const carrugio = units.find((p) => p.ref === ref("carrugio-centrale"))!;
+    const merged = mergePremium(b.content, [carrugio]);
+    expect(merged.locked?.places).not.toContain(ref("carrugio-centrale"));
+    expect(merged.locked?.places).toContain(ref("porta-del-borgo"));
+    expect(merged.locked?.places?.length).toBe(b.content.locked!.places!.length - 1);
+    for (const u of carrugio.units.filter((u) => u.anchor === ref("carrugio-centrale"))) expect(merged.units.some((x) => x.ref === u.ref)).toBe(true);
+    // Conteggi per il database (criterio rigoroso): solo i racconti propri del luogo; verificati solo quelli senza
+    // affermazioni in revisione.
+    for (const part of units) {
+      const c = unitStoryCounts(part);
+      expect(c.stories).toBe(part.units.filter((u) => u.anchor === part.ref).length);
+      expect(c.verifiedStories).toBeLessThanOrEqual(c.stories);
+    }
+    const { inReview: _flag, ...plain } = b.content.assertions[0]!;
+    const story = { ...carrugio.units[0]!, anchor: carrugio.ref!, assertions: ["a:1"] };
+    const inReview: PremiumPart = { ...carrugio, units: [story], assertions: [{ ...plain, ref: "a:1", inReview: true }] };
+    expect(unitStoryCounts(inReview)).toEqual({ stories: 1, verifiedStories: 0 });
+    const verified: PremiumPart = { ...inReview, assertions: [{ ...plain, ref: "a:1" }] };
+    expect(unitStoryCounts(verified)).toEqual({ stories: 1, verifiedStories: 1 });
+    expect(unitStoryCounts({ ...verified, units: [{ ...story, assertions: [] }] })).toEqual({ stories: 1, verifiedStories: 0 });
+    // Poi il luogo intero: nessun racconto doppio, sbloccati principale e sottoluoghi.
+    const porta = b.premium.find((p) => p.kind === "place" && p.ref === ref("porta-del-borgo"))!;
+    const both = mergePremium(merged, [porta]);
+    expect(new Set(both.units.map((u) => u.ref)).size).toBe(both.units.length);
+    expect(both.locked?.places).not.toContain(ref("porta-del-borgo"));
+  });
+
   it("luogo gratuito: tutti i suoi racconti nel bundle pubblico, nessuna parte a pagamento, mai bloccato", () => {
     const copy = withOpenings(packs);
     copy.get(D)!.config.access = { ...ACCESS, freePlaces: ["belvedere"] };
     const b = buildBundle(copy, { destination: D, locale: "it", allowFictional: true });
     const belvedere = b.content.units.filter((u) => u.anchor === ref("belvedere"));
     expect(belvedere.length).toBeGreaterThan(1);
-    expect(b.premium.some((p) => p.kind === "place" && p.ref === ref("belvedere"))).toBe(false);
+    expect(b.premium.some((p) => (p.kind === "place" || p.kind === "unit") && p.ref === ref("belvedere"))).toBe(false);
     expect(b.content.locked?.places).not.toContain(ref("belvedere"));
     expect(b.premium.find((p) => p.kind === "explore")!.units.some((u) => u.anchor === ref("belvedere"))).toBe(false);
   });

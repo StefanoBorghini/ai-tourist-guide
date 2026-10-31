@@ -293,10 +293,10 @@ describe("pubblicazioni immutabili (R2)", () => {
 
 describe("parti a pagamento nel bucket privato (consegna, migrazione 20261027000000)", () => {
   // Stesso nome che le policy del bucket «premium» accettano (premium_object_name_ok).
-  const NAME = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*\/[a-z]{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(explore|(route|place)-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;
+  const NAME = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*\/[a-z]{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(explore|(route|place|unit)-[a-z0-9]+(-[a-z0-9]+)*)\.[0-9a-f]{16,64}\.json$/;
   const PUB = "0a0b0c0d-0000-4000-8000-000000000001";
 
-  it("con l'esplorazione e un percorso a pagamento: un file per l'esplorazione, uno per il percorso e uno per ogni luogo principale", () => {
+  it("con l'esplorazione e un percorso a pagamento: un file per l'esplorazione, uno per il percorso, uno per ogni luogo principale e uno per ogni contenuto singolo", () => {
     const r = compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set(), PUB);
     expect(r.errors).toEqual([]);
     for (const b of r.bundles) {
@@ -310,7 +310,10 @@ describe("parti a pagamento nel bucket privato (consegna, migrazione 20261027000
       if (b.locale === "it") expect(places.length).toBeGreaterThan(0);
       if (b.locale === "it") expect(places.some((n) => n.includes("/place-porta-del-borgo."))).toBe(true);
       expect(places.some((n) => n.includes("/place-carrugio-centrale."))).toBe(false);
-      expect(names).toHaveLength(2 + places.length);
+      // Contenuti singoli (migrazione 20261107000000): uno per ogni luogo a pagamento, anche il carrugio.
+      const units = names.filter((n) => n.includes(`/${b.locale}/${PUB}/unit-`));
+      if (b.locale === "it") expect(units.some((n) => n.includes("/unit-carrugio-centrale."))).toBe(true);
+      expect(names).toHaveLength(2 + places.length + units.length);
     }
   });
 
@@ -333,6 +336,33 @@ describe("parti a pagamento nel bucket privato (consegna, migrazione 20261027000
     // La porta ha solo la panoramica (pubblica) e il carrugio, suo sottoluogo, non ha racconti: il file c'è, vuoto.
     const porta = listed.find((f) => f.kind === "place" && f.ref?.endsWith(":porta-del-borgo"));
     expect(porta && (JSON.parse(textOf(b.premium.get(porta.path)!)) as PremiumPart).units).toEqual([]);
+  });
+
+  it("il file di un contenuto singolo ha solo i racconti di quel luogo (e i loro prerequisiti), mai quelli di altri luoghi", () => {
+    const r = compilePublication(VILLAGE, studioSnapshots(PREMIUM), new Map(), new Set(), PUB);
+    const b = r.bundles.find((x) => x.locale === "it")!;
+    const listed = b.manifest.premium ?? [];
+    const explore = JSON.parse(textOf(b.premium.get(listed.find((f) => f.kind === "explore")!.path)!)) as PremiumPart;
+    const exploreUnits = new Set(explore.units.map((u) => u.ref));
+    const units = listed.filter((f) => f.kind === "unit");
+    expect(units.length).toBeGreaterThan(0);
+    for (const f of units) {
+      const part = JSON.parse(textOf(b.premium.get(f.path)!)) as PremiumPart;
+      expect(part.kind).toBe("unit");
+      // Nel manifest pubblico solo i conteggi (criterio rigoroso del database), coerenti con il file.
+      expect(f.stories).toBe(part.units.filter((u) => u.anchor === f.ref).length);
+      expect(f.verifiedStories).toBeGreaterThanOrEqual(0);
+      expect(f.verifiedStories).toBeLessThanOrEqual(f.stories!);
+      expect(part.ref).toBe(f.ref);
+      expect(part.routes).toEqual([]);
+      for (const u of part.units) expect(exploreUnits.has(u.ref)).toBe(true);
+      // Racconti di altri luoghi solo se sono prerequisiti di uno di questo luogo.
+      const own = part.units.filter((u) => u.anchor === f.ref);
+      const needed = new Set(own.flatMap((u) => u.requires));
+      for (const u of part.units.filter((u) => u.anchor !== f.ref)) {
+        expect(u.introduces.some((c) => needed.has(c)) || own.length === 0).toBe(true);
+      }
+    }
   });
 
   it("il manifest pubblico elenca solo nomi e impronte; i testi a pagamento stanno solo nei file privati", async () => {

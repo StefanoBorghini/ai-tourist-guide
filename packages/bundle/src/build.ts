@@ -424,6 +424,13 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
       const placeUnits = withPrerequisites(safeUnits.filter((u) => members.has(u.anchor)), safeUnits).filter((u) => !publicUnitRefs.has(u.ref));
       premium.push(part("place", placeUnits, [], p.ref));
     }
+    // Contenuto singolo (acquisto progressivo, migrazione 20261107000000): ogni luogo non gratuito ha anche la parte con
+    // i soli suoi racconti a pagamento (per un principale quelli oltre la panoramica), più ciò che serve a capirli. Si
+    // compra da sola; le parti «place» restano per chi ha comprato il luogo e per le app precedenti.
+    for (const p of places.filter((p) => destPlaceRefs.has(p.ref) && !freePlaces.has(p.ref)).sort(byRef)) {
+      const own = withPrerequisites(safeUnits.filter((u) => u.anchor === p.ref), safeUnits).filter((u) => !publicUnitRefs.has(u.ref));
+      premium.push(part("unit", own, [], p.ref));
+    }
   }
 
   const content: BundleContent = {

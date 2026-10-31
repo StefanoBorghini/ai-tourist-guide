@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatEuro, listPrice, onSale, parseEuro, priceProblem, unitsWithoutProduct, type CatalogProduct } from "../lib/studio/catalog.ts";
+import { formatEuro, listPrice, onSale, parseEuro, priceProblem, subPlaceSaleRows, unitsWithoutProduct, type CatalogProduct } from "../lib/studio/catalog.ts";
 
 describe("prezzi in euro", () => {
   it("da euro scritti a mano a centesimi interi", () => {
@@ -64,5 +64,46 @@ describe("acquisto progressivo nello Studio", () => {
     const products = [product({ kind: "unit", place: { id: "2", slug: "torre" } })];
     // Mai il luogo principale (borgo): si vende intero.
     expect(unitsWithoutProduct({ places, products }).map((p) => p.slug)).toEqual(["chiesa"]);
+  });
+});
+
+describe("stato di vendita dei sottoluoghi (scheda Vendita)", () => {
+  const product = (over: Partial<CatalogProduct>): CatalogProduct => ({
+    id: "p", slug: "p", kind: "unit", labels: {}, status: "active", availability: "available", sortOrder: 0, route: null,
+    routes: [], published: null, draft: null, paidOrders: 0, problem: null, ...over,
+  });
+  const D = "it.prova";
+  const places = [
+    { id: "1", slug: "borgo", name: "Borgo", sellable: true, isUnit: false, units: 3 },
+    { id: "2", slug: "torre", name: "Torre", sellable: false, parent: "borgo", isUnit: true, units: 0 },
+    { id: "3", slug: "chiesa", name: "Chiesa", sellable: false, parent: "borgo", isUnit: true, units: 0 },
+    { id: "4", slug: "piazza", name: "Piazza", sellable: false, parent: "borgo", isUnit: false, units: 0 },
+    { id: "5", slug: "forte", name: "Forte", sellable: false, parent: "borgo", isUnit: false, units: 0 },
+    { id: "6", slug: "lapide", name: "Lapide", sellable: false, parent: "borgo", isUnit: false, units: 0 },
+    { id: "7", slug: "grazie", name: "Grazie", sellable: true, isUnit: true, units: 2 },
+    { id: "8", slug: "santuario", name: "Santuario", sellable: false, parent: "grazie", isUnit: true, units: 0 },
+  ];
+  const files = [
+    { ref: `${D}:torre`, stories: 2, verifiedStories: 2 },
+    { ref: `${D}:chiesa`, stories: 1, verifiedStories: 1 },
+    { ref: `${D}:piazza`, stories: 0, verifiedStories: 0 },
+    { ref: `${D}:forte`, stories: 2, verifiedStories: 0 },
+    { ref: `${D}:santuario`, stories: 1, verifiedStories: 1 },
+  ];
+  it("spiega per ogni sottoluogo perché si vende o non si vende da solo", () => {
+    const rows = subPlaceSaleRows({ places, products: [product({ place: { id: "2", slug: "torre" } })] }, files, D);
+    const state = Object.fromEntries(rows.map((r) => [r.slug, r.state]));
+    expect(state).toEqual({
+      torre: "on_sale", chiesa: "ready", piazza: "no_stories", forte: "in_review", lapide: "free", santuario: "ready",
+    });
+    // Santuario: il suo luogo (grazie) ha 2 contenuti; con uno solo si venderebbe il luogo.
+    const solo = subPlaceSaleRows({ places: places.map((p) => (p.slug === "grazie" ? { ...p, units: 1 } : p)), products: [] }, files, D);
+    expect(solo.find((r) => r.slug === "santuario")!.state).toBe("only_content");
+    // Ordinati per luogo e nome; conteggi dal manifest.
+    expect(rows.map((r) => r.slug)).toEqual(["chiesa", "forte", "lapide", "piazza", "torre", "santuario"]);
+    expect(rows.find((r) => r.slug === "forte")).toMatchObject({ stories: 2, verified: 0, parentName: "Borgo" });
+  });
+  it("senza una pubblicazione con i file dei contenuti singoli: da ripubblicare", () => {
+    expect(subPlaceSaleRows({ places, products: [] }, [], D).find((r) => r.slug === "piazza")!.state).toBe("not_published");
   });
 });

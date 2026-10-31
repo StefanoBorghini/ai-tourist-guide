@@ -1,5 +1,6 @@
 import {
-  formatEuro, TIER_LABELS, unitsWithoutProduct, type CatalogState, type CommerceState,
+  formatEuro, SUB_PLACE_SALE_LABELS, subPlaceSaleRows, TIER_LABELS, unitsWithoutProduct,
+  type CatalogState, type CommerceState, type PublishedUnitFile,
 } from "../../../../lib/studio/catalog";
 import { rpc, type StudioSession } from "../../../../lib/studio/server";
 import { friendlyError } from "../../../../lib/studio/shared";
@@ -7,6 +8,23 @@ import { publishTiers, reviewDone, setAllProduct, setTierDraft, unitsOnSale } fr
 import { Notice } from "../../ui";
 
 const euroInput = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
+
+/**
+ * File «unit» dell'ultima pubblicazione riuscita (la stessa dell'indice pubblico), nella lingua principale: solo
+ * riferimenti e conteggi dal manifest. Letto con la sessione dell'amministratore (policy di lettura della redazione).
+ */
+async function publishedUnitFiles(session: StudioSession, pack: string): Promise<PublishedUnitFile[]> {
+  const sb = session.supabase;
+  const { data: pk } = await sb.from("packs").select("default_locale").eq("id", pack).maybeSingle();
+  const { data: pub } = await sb.from("publications").select("bundle_ids").eq("pack_id", pack).eq("status", "published")
+    .order("finished_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+  const ids = (pub?.bundle_ids ?? []) as string[];
+  if (ids.length === 0) return [];
+  const { data: bundles } = await sb.from("bundles").select("locale, manifest").in("id", ids);
+  const rows = (bundles ?? []) as { locale: string; manifest: { premium?: (PublishedUnitFile & { kind?: string })[] } }[];
+  const main = rows.find((b) => b.locale === pk?.default_locale) ?? rows[0];
+  return (main?.manifest?.premium ?? []).filter((f) => f.kind === "unit");
+}
 
 /**
  * Acquisto progressivo (docs/v0.3-platform/ACQUISTO-PROGRESSIVO.md): listino centrale per livello, contenuti singoli,
@@ -30,6 +48,9 @@ export async function CommerceSection({ pack, session }: { pack: string; session
     );
   }
   const catalog = cat.data;
+  const subRows = catalog?.isDestination && catalog.explore === "premium"
+    ? subPlaceSaleRows(catalog, await publishedUnitFiles(session, pack), pack)
+    : [];
   const drafts = c.tiers.filter((t) => t.draft).length;
   const toCreate = catalog && catalog.isDestination ? unitsWithoutProduct(catalog) : [];
   const unitProducts = (catalog?.products ?? []).filter((p) => p.kind === "unit" && p.status !== "retired").length;
@@ -105,6 +126,33 @@ export async function CommerceSection({ pack, session }: { pack: string; session
             <input type="hidden" name="pack" value={pack} />
             <button className="st-btn" type="submit">Metti in vendita i contenuti singoli</button>
           </form>
+          {subRows.length > 0 && (
+            <details open={subRows.some((r) => r.state !== "on_sale")}>
+              <summary>
+                Sottoluoghi: {subRows.filter((r) => r.state === "on_sale").length} in vendita da soli su {subRows.length}
+              </summary>
+              <p className="st-hint">
+                Dall&apos;ultima pubblicazione: racconti a pagamento di ciascun sottoluogo e quanti hanno tutte le affermazioni
+                verificate. Un sottoluogo si vende da solo solo con almeno un racconto verificato.
+              </p>
+              <table className="st-table">
+                <thead>
+                  <tr><th>Sottoluogo</th><th>Luogo</th><th>Racconti</th><th>Verificati</th><th>Stato</th></tr>
+                </thead>
+                <tbody>
+                  {subRows.map((r) => (
+                    <tr key={r.slug}>
+                      <td>{r.name}</td>
+                      <td>{r.parentName}</td>
+                      <td>{r.stories ?? "—"}</td>
+                      <td>{r.verified ?? "—"}</td>
+                      <td className={r.state === "on_sale" ? "st-verified" : undefined}>{SUB_PLACE_SALE_LABELS[r.state]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          )}
         </div>
       )}
 

@@ -39,7 +39,7 @@ export const PRODUCT_KIND_LABELS: Record<string, string> = {
 export const TIER_KINDS = ["unit", "place", "explore", "all"] as const;
 export type TierKind = (typeof TIER_KINDS)[number];
 export const TIER_LABELS: Record<TierKind, string> = {
-  unit: "Contenuto singolo (sottoluogo, o i racconti propri di un luogo)",
+  unit: "Contenuto singolo (un sottoluogo)",
   place: "Luogo principale con i suoi sottoluoghi",
   explore: "Destinazione completa",
   all: "Tutte le destinazioni",
@@ -139,4 +139,79 @@ export function unitsWithoutProduct(c: Pick<CatalogState, "places" | "products">
   const withProduct = new Set(c.products.filter((p) => p.kind === "unit" && p.status !== "retired").map((p) => p.place?.slug));
   const units = new Map((c.places ?? []).map((pl) => [pl.slug, pl.units ?? 0]));
   return (c.places ?? []).filter((pl) => pl.isUnit && pl.parent && !withProduct.has(pl.slug) && (units.get(pl.parent) ?? 0) >= 2);
+}
+
+/** File «unit» dell'ultima pubblicazione (manifest pubblico): solo riferimento e conteggi. */
+export interface PublishedUnitFile {
+  ref?: string;
+  stories?: number;
+  verifiedStories?: number;
+}
+
+export type SubPlaceSaleState =
+  | "on_sale" // in vendita da solo
+  | "ready" // vendibile: manca il prodotto («Metti in vendita i contenuti singoli»)
+  | "only_content" // unico contenuto del suo luogo: si vende con il luogo, allo stesso prezzo
+  | "no_stories" // nessun racconto pubblicato
+  | "in_review" // racconti pubblicati ma con affermazioni in revisione
+  | "not_published" // non c'è nell'ultima pubblicazione
+  | "free"; // gratuito o comunque non a pagamento
+
+export interface SubPlaceSaleRow {
+  slug: string;
+  name: string;
+  parent: string;
+  parentName: string;
+  stories: number | null;
+  verified: number | null;
+  state: SubPlaceSaleState;
+}
+
+export const SUB_PLACE_SALE_LABELS: Record<SubPlaceSaleState, string> = {
+  on_sale: "In vendita da solo",
+  ready: "Pronto: premi «Metti in vendita i contenuti singoli»",
+  only_content: "Unico contenuto del suo luogo: si vende con il luogo, allo stesso prezzo del singolo",
+  no_stories: "Nessun racconto pubblicato: aggiungi un racconto (le affermazioni in bozza non entrano mai), poi ripubblica",
+  in_review: "Racconti in revisione: verifica i fatti, poi ripubblica",
+  not_published: "Non è nell'ultima pubblicazione: ripubblica",
+  free: "Gratuito o non a pagamento",
+};
+
+/**
+ * Stato di vendita di ogni sottoluogo (acquisto progressivo, criterio rigoroso): perché si vende o non si vende da solo.
+ * Usa i luoghi del catalogo dello Studio (studio_catalog), i suoi prodotti e i conteggi dei file «unit» dell'ultima
+ * pubblicazione. Le regole sono quelle del database (commerce_units, catalog_problem_unit): qui servono solo a spiegare.
+ */
+export function subPlaceSaleRows(
+  c: Pick<CatalogState, "places" | "products">,
+  files: readonly PublishedUnitFile[],
+  destination: string,
+): SubPlaceSaleRow[] {
+  const places = c.places ?? [];
+  const nameOf = new Map(places.map((pl) => [pl.slug, pl.name]));
+  const unitsOf = new Map(places.map((pl) => [pl.slug, pl.units ?? 0]));
+  const fileOf = new Map(files.flatMap((f) => (f.ref ? [[f.ref, f] as const] : [])));
+  const onSale = new Set(c.products.filter((p) => p.kind === "unit" && p.status === "active" && p.place).map((p) => p.place!.slug));
+  return places
+    .filter((pl) => pl.parent)
+    .map((pl): SubPlaceSaleRow => {
+      const f = fileOf.get(`${destination}:${pl.slug}`);
+      const stories = f?.stories ?? null;
+      const verified = f?.verifiedStories ?? null;
+      const state: SubPlaceSaleState = pl.isUnit
+        ? onSale.has(pl.slug)
+          ? "on_sale"
+          : (unitsOf.get(pl.parent!) ?? 0) < 2
+            ? "only_content"
+            : "ready"
+        : !f
+          ? files.length > 0 ? "free" : "not_published"
+          : (stories ?? 0) === 0
+            ? "no_stories"
+            : (verified ?? 0) === 0
+              ? "in_review"
+              : "free";
+      return { slug: pl.slug, name: pl.name, parent: pl.parent!, parentName: nameOf.get(pl.parent!) ?? pl.parent!, stories, verified, state };
+    })
+    .sort((a, b) => a.parentName.localeCompare(b.parentName, "it") || a.name.localeCompare(b.name, "it"));
 }

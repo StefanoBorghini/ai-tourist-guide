@@ -74,9 +74,8 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         const quote = quotes.get(item.id);
         // Il prezzo per questo utente (con lo sconto): lo stesso che il server addebiterà al checkout.
         const amount = quote?.amount ?? item.price.amount;
-        // Prezzo barrato solo con qualcosa già posseduto (come nella guida, lib/shop.ts).
-        const discounted = quote?.status === "ok" && quote.amount !== null && quote.owned > 0
-          && quote.amount < (quote.list ?? item.price.amount);
+        // Prezzo originale barrato quando si paga meno del listino; «Hai già…» solo con qualcosa già posseduto.
+        const discounted = quote?.status === "ok" && quote.amount !== null && quote.amount < (quote.list ?? item.price.amount);
         return (
           <section key={item.id} className="card flat acc-product">
             <p className="muted small">{PRODUCT_KIND_LABELS[item.kind] ?? item.kind}</p>
@@ -84,7 +83,10 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
             {item.labels.it?.description && <p className="small">{item.labels.it.description}</p>}
             {discounted ? (
               <p className="acc-price">
-                <span className="muted small">Hai già {quote!.owned} contenut{quote!.owned === 1 ? "o" : "i"} su {quote!.total}. Prezzo originale </span>
+                {quote!.owned > 0 && (
+                  <span className="muted small">Hai già {quote!.owned} contenut{quote!.owned === 1 ? "o" : "i"} su {quote!.total}. </span>
+                )}
+                <span className="muted small">Prezzo originale </span>
                 <s className="muted small">{formatEuro(quote!.list ?? item.price.amount)}</s>
                 <span className="muted small"> · il tuo prezzo </span>{formatEuro(amount)}
               </p>

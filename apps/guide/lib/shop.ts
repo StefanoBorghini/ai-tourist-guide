@@ -83,10 +83,10 @@ function priced(item: CatalogItem, locale: string, quotes: ReadonlyMap<string, Q
   return {
     ...o,
     amount: q.amount,
-    // Prezzo barrato e «Hai già scoperto…» solo se l'utente possiede già qualcosa del livello. Senza, un prezzo sotto
-    // il listino viene dal tetto dei singoli (per esempio un luogo con un solo contenuto costa quanto il singolo): è
-    // il prezzo per tutti, non uno sconto personale.
-    ...(q.amount < list && q.owned > 0 ? { list, progress: { owned: q.owned, total: q.total } } : {}),
+    // Prezzo originale barrato ogni volta che si paga meno del listino; «Hai già scoperto N su M» solo se l'utente
+    // possiede già qualcosa del livello (senza, il prezzo più basso viene dal tetto dei singoli).
+    ...(q.amount < list ? { list } : {}),
+    ...(q.amount < list && q.owned > 0 ? { progress: { owned: q.owned, total: q.total } } : {}),
     ...(q.status === "below_minimum" ? { belowMinimum: true as const } : {}),
   };
 }

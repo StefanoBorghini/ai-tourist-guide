@@ -11,6 +11,7 @@ import {
   fitView,
   metersPerPixel,
   panBy,
+  layerTransform,
   pinchZoom,
   placeLabels,
   scaleBar,
@@ -18,6 +19,7 @@ import {
   tileSourceFrom,
   tileUrl,
   toScreen,
+  releaseVelocity,
   zoomAround,
   type LabelCandidate,
   type LngLat,
@@ -56,6 +58,18 @@ const DRAG_THRESHOLD = 6;
  * semitrasparente tra un tile e l'altro, che si vede come una riga sottile sulla mappa.
  */
 const TILE_OVERLAP = 1;
+/**
+ * Durante un gesto lo sfondo resta quello disegnato all'inizio e si sposta come un'immagine sola (scheda grafica):
+ * si ridisegna quando lo zoom cambia di più di mezzo livello o la mappa si sposta oltre il margine già disegnato,
+ * e nitido a gesto finito, dopo GESTURE_SETTLE_MS.
+ */
+const TILE_MARGIN = 0.25;
+const REFREEZE_ZOOM = 0.5;
+const GESTURE_SETTLE_MS = 120;
+/** Inerzia dopo un trascinamento: velocità minima per partire (px/ms), attrito per millisecondo, velocità massima. */
+const INERTIA_MIN_SPEED = 0.25;
+const INERTIA_FRICTION = 0.995;
+const INERTIA_MAX_SPEED = 3;
 /** Durata dello zoom animato di pulsanti e doppio tocco. */
 const ZOOM_ANIMATION_MS = 240;
 /** Oltre questa distanza dalle tappe la posizione non entra nell'inquadratura del percorso (es. prove da casa). */
@@ -124,6 +138,12 @@ export function MapView(props: {
   const drag = useRef<{ x: number; y: number; moved: number } | null>(null);
   /** Dita appoggiate sulla mappa, per distinguere trascinamento (una) e pizzico (due). */
   const pointers = useRef(new Map<number, { x: number; y: number }>());
+  /** Ultimi punti del dito che trascina, per la velocità dell'inerzia. */
+  const samples = useRef<{ t: number; x: number; y: number }[]>([]);
+  /** Inquadratura con cui è disegnato lo sfondo durante un gesto (null: segue l'inquadratura). */
+  const [tileView, setTileView] = useState<MapViewState | null>(null);
+  const tileViewRef = useRef<MapViewState | null>(null);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Inizio del pizzico: inquadratura, distanza e punto medio delle dita (in pixel del riquadro). */
   const pinchStart = useRef<{ view: MapViewState; dist: number; mid: { x: number; y: number } } | null>(null);
   // Movimenti fluidi: al massimo un aggiornamento per fotogramma. `pending` è l'inquadratura più recente non ancora
@@ -187,7 +207,19 @@ export function MapView(props: {
     if (frame.current === null) {
       frame.current = requestAnimationFrame(() => {
         frame.current = null;
-        if (pending.current) setManual(pending.current);
+        const v = pending.current;
+        if (!v) return;
+        setManual(v);
+        // Zoom cambiato troppo o mappa spostata oltre il margine: si ridisegna lo sfondo per la nuova inquadratura.
+        const base = tileViewRef.current;
+        if (base) {
+          const { width: w, height: h } = sizeRef.current;
+          const t = layerTransform(base, v, w, h);
+          if (Math.abs(v.zoom - base.zoom) > REFREEZE_ZOOM || Math.abs(t.x + (w * (t.scale - 1)) / 2) > w * TILE_MARGIN || Math.abs(t.y + (h * (t.scale - 1)) / 2) > h * TILE_MARGIN) {
+            tileViewRef.current = v;
+            setTileView(v);
+          }
+        }
       });
     }
   };
@@ -195,13 +227,59 @@ export function MapView(props: {
     if (animation.current !== null) cancelAnimationFrame(animation.current);
     animation.current = null;
   };
+  /** Inizio di un gesto: lo sfondo resta quello di adesso e si muove come un'immagine sola. */
+  const freeze = () => {
+    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    settleTimer.current = null;
+    if (!tileViewRef.current) {
+      tileViewRef.current = live();
+      setTileView(tileViewRef.current);
+    }
+  };
+  /** Fine di un gesto: poco dopo lo sfondo si ridisegna nitido (se nel frattempo non ne è iniziato un altro). */
+  const release = () => {
+    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => {
+      settleTimer.current = null;
+      if (pointers.current.size > 0 || animation.current !== null) return;
+      tileViewRef.current = null;
+      setTileView(null);
+    }, GESTURE_SETTLE_MS);
+  };
   /** Ferma animazioni e aggiornamenti in sospeso (prima di un'inquadratura decisa altrove). */
   function stopMotion() {
     stopAnimation();
+    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    settleTimer.current = null;
+    tileViewRef.current = null;
+    setTileView(null);
     if (frame.current !== null) cancelAnimationFrame(frame.current);
     frame.current = null;
     pending.current = null;
   }
+  /** Inerzia: la mappa continua a scorrere alla velocità del dito e rallenta fino a fermarsi. */
+  const glide = (vx0: number, vy0: number) => {
+    stopAnimation();
+    const speed = Math.hypot(vx0, vy0);
+    const cap = speed > INERTIA_MAX_SPEED ? INERTIA_MAX_SPEED / speed : 1;
+    let vx = vx0 * cap;
+    let vy = vy0 * cap;
+    let last = performance.now();
+    const step = (now: number) => {
+      const dt = Math.min(32, now - last);
+      last = now;
+      const decay = INERTIA_FRICTION ** dt;
+      vx *= decay;
+      vy *= decay;
+      schedule(panBy(live(), vx * dt, vy * dt));
+      if (Math.hypot(vx, vy) > 0.02) animation.current = requestAnimationFrame(step);
+      else {
+        animation.current = null;
+        release();
+      }
+    };
+    animation.current = requestAnimationFrame(step);
+  };
   /** Zoom animato (pulsanti, doppio tocco) verso `target`, tenendo fermo il punto (px, py) del riquadro. */
   const animateZoom = (target: number, px?: number, py?: number) => {
     stopAnimation();
@@ -211,12 +289,14 @@ export function MapView(props: {
     const ay = py ?? h / 2;
     const to = clampZoom(target);
     if (Math.abs(to - from.zoom) < 0.001) return;
+    freeze();
     const t0 = performance.now();
     const step = (now: number) => {
       const k = Math.min(1, (now - t0) / ZOOM_ANIMATION_MS);
       const ease = 1 - (1 - k) ** 3;
       schedule(zoomAround(from, from.zoom + (to - from.zoom) * ease, ax, ay, w, h));
       animation.current = k < 1 ? requestAnimationFrame(step) : null;
+      if (k >= 1) release();
     };
     animation.current = requestAnimationFrame(step);
   };
@@ -229,6 +309,7 @@ export function MapView(props: {
   useEffect(() => () => {
     if (frame.current !== null) cancelAnimationFrame(frame.current);
     if (animation.current !== null) cancelAnimationFrame(animation.current);
+    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
   }, []);
   // Rotella del mouse e pizzico del touchpad (ctrlKey) sul computer: zoom continuo intorno al cursore. Ascoltatore
   // non passivo, per non far scorrere la pagina.
@@ -238,6 +319,8 @@ export function MapView(props: {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       stopAnimation();
+      freeze();
+      release();
       const r = el.getBoundingClientRect();
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
       const dz = Math.max(-1, Math.min(1, (-e.deltaY * unit) / (e.ctrlKey ? 100 : 400)));
@@ -275,8 +358,18 @@ export function MapView(props: {
   const showTiles = online && basemap && pixelRatio !== null;
   // Posizione del riquadro nella pagina, letta a ogni disegno: i tile si allineano ai pixel fisici della pagina.
   const boxRect = showTiles ? boxRef.current?.getBoundingClientRect() : undefined;
-  const grid = { ratio: pixelRatio ?? 1, originX: (boxRect?.left ?? 0) + (typeof window !== "undefined" ? window.scrollX : 0), originY: (boxRect?.top ?? 0) + (typeof window !== "undefined" ? window.scrollY : 0) };
-  const tiles = showTiles ? tileLayers(view, width, mapHeight, grid) : [];
+  const originX = (boxRect?.left ?? 0) + (typeof window !== "undefined" ? window.scrollX : 0);
+  const originY = (boxRect?.top ?? 0) + (typeof window !== "undefined" ? window.scrollY : 0);
+  // Lo sfondo si disegna per l'inquadratura di inizio gesto (o per quella attuale), con un margine intorno: durante il
+  // gesto lo sposta la trasformazione dello strato, senza ridisegnare le immagini.
+  const tileBase = tileView ?? view;
+  const mw = Math.round(width * TILE_MARGIN);
+  const mh = Math.round(mapHeight * TILE_MARGIN);
+  const tiles = showTiles
+    ? tileLayers(tileBase, width + 2 * mw, mapHeight + 2 * mh, { ratio: pixelRatio ?? 1, originX: originX - mw, originY: originY - mh })
+        .map((t) => ({ ...t, left: t.left - mw, top: t.top - mh }))
+    : [];
+  const layer = tileView ? layerTransform(tileView, view, width, mapHeight) : null;
   viewRef.current = view;
   sizeRef.current = { width, height: mapHeight };
   const scale = scaleBar(view.center[1], view.zoom);
@@ -324,6 +417,8 @@ export function MapView(props: {
   };
   const onPointerDown = (e: ReactPointerEvent) => {
     stopAnimation();
+    freeze();
+    samples.current = [{ t: e.timeStamp, x: e.clientX, y: e.clientY }];
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 2) {
       // Inizia un pizzico: niente trascinamento finché ci sono due dita.
@@ -338,6 +433,7 @@ export function MapView(props: {
     if (!pointers.current.has(e.pointerId)) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size >= 2) {
+      samples.current = [];
       // Pizzico continuo: lo zoom segue le dita, il punto tra le dita resta sotto le dita (e si sposta con loro).
       const start = pinchStart.current;
       if (!start) return;
@@ -353,6 +449,8 @@ export function MapView(props: {
     d.moved += Math.abs(dx) + Math.abs(dy);
     d.x = e.clientX;
     d.y = e.clientY;
+    samples.current.push({ t: e.timeStamp, x: e.clientX, y: e.clientY });
+    if (samples.current.length > 12) samples.current.shift();
     if (d.moved > DRAG_THRESHOLD) {
       // La cattura parte solo quando è davvero un trascinamento: un tocco deve arrivare al simbolo.
       const el = e.currentTarget as HTMLElement;
@@ -368,7 +466,13 @@ export function MapView(props: {
       // Si è sollevato un dito del pizzico: il dito rimasto riparte da qui, senza salti.
       drag.current = { x: rest.x, y: rest.y, moved: DRAG_THRESHOLD + 1 };
     } else {
+      const dragged = drag.current !== null && drag.current.moved > DRAG_THRESHOLD;
       setTimeout(() => (drag.current = null), 0);
+      // Lasciata andare con un po' di velocità, la mappa continua a scorrere (non dopo un pizzico).
+      const { vx, vy } = releaseVelocity(samples.current);
+      samples.current = [];
+      if (dragged && Math.hypot(vx, vy) > INERTIA_MIN_SPEED) glide(vx, vy);
+      else release();
     }
   };
   const select = (ref: string) => {
@@ -408,6 +512,10 @@ export function MapView(props: {
           animateZoom(Math.floor(live().zoom + 1e-6) + 1, e.clientX - r.left, e.clientY - r.top);
         }}
       >
+        <div
+          className="map-tiles"
+          style={layer ? { transform: `translate(${layer.x}px, ${layer.y}px) scale(${layer.scale})` } : undefined}
+        >
         {tiles.map((tile) =>
           failedTiles.has(tile.key) ? null : (
             // eslint-disable-next-line @next/next/no-img-element -- tile cartografici esterni, non ottimizzabili da Next
@@ -423,6 +531,7 @@ export function MapView(props: {
             />
           ),
         )}
+        </div>
         <svg width={width} height={mapHeight} className="map-svg" role="img" aria-label={t.map.aria}>
           {debug &&
             fences.map((p) => {

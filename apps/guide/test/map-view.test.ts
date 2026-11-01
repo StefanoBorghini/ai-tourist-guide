@@ -141,6 +141,36 @@ describe("zoom fluido", () => {
   });
 });
 
+describe("sfondo durante il gesto e inerzia", () => {
+  it("la trasformazione dello strato porta ogni luogo dove sta nella nuova inquadratura", async () => {
+    const { layerTransform, zoomAround } = await import("../lib/map-view.ts");
+    const from = { center: [9.85, 44.04] as [number, number], zoom: 16 };
+    const targets: [number, number][] = [[9.852, 44.041], [9.847, 44.038], [9.85, 44.04]];
+    for (const to of [zoomAround(from, 16.7, 100, 80, 320, 260), panBy(from, 40, -25), zoomAround(panBy(from, -30, 10), 15.2, 250, 200, 320, 260), from]) {
+      const t = layerTransform(from, to, 320, 260);
+      const a = toScreen(from, 320, 260);
+      const b = toScreen(to, 320, 260);
+      for (const p of targets) {
+        expect(t.x + t.scale * a(p).x).toBeCloseTo(b(p).x, 6);
+        expect(t.y + t.scale * a(p).y).toBeCloseTo(b(p).y, 6);
+      }
+    }
+    expect(layerTransform(from, from, 320, 260)).toEqual({ x: 0, y: 0, scale: 1 });
+  });
+
+  it("velocità al rilascio: solo gli ultimi istanti del dito", async () => {
+    const { releaseVelocity } = await import("../lib/map-view.ts");
+    expect(releaseVelocity([])).toEqual({ vx: 0, vy: 0 });
+    expect(releaseVelocity([{ t: 0, x: 0, y: 0 }])).toEqual({ vx: 0, vy: 0 });
+    // Movimento lento all'inizio, veloce alla fine: conta la fine.
+    const v = releaseVelocity([{ t: 0, x: 0, y: 0 }, { t: 200, x: 10, y: 0 }, { t: 240, x: 50, y: 20 }, { t: 280, x: 90, y: 40 }]);
+    expect(v.vx).toBeCloseTo(1, 6);
+    expect(v.vy).toBeCloseTo(0.5, 6);
+    // Dito fermo prima di alzarlo: nessuna inerzia.
+    expect(releaseVelocity([{ t: 0, x: 0, y: 0 }, { t: 40, x: 50, y: 0 }, { t: 300, x: 50, y: 0 }])).toEqual({ vx: 0, vy: 0 });
+  });
+});
+
 describe("etichette e simboli", () => {
   it("un'etichetta non copre il simbolo di un altro luogo", async () => {
     const { placeLabels } = await import("../lib/map-view.ts");

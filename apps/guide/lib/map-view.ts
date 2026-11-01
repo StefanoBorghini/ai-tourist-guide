@@ -154,6 +154,29 @@ export function visibleTiles(view: MapViewState, width: number, height: number, 
 }
 
 /**
+ * Trasformazione CSS (traslazione, poi scala, origine in alto a sinistra) che porta ciò che è disegnato per
+ * l'inquadratura `from` dove starebbe con l'inquadratura `to`. Durante un gesto lo sfondo non si ridisegna: si
+ * sposta e si ingrandisce tutto insieme con la scheda grafica, e si ridisegna nitido solo a gesto finito.
+ */
+export function layerTransform(from: MapViewState, to: MapViewState, width: number, height: number): { x: number; y: number; scale: number } {
+  const scale = 2 ** (to.zoom - from.zoom);
+  const a = project(from.center, to.zoom);
+  const b = project(to.center, to.zoom);
+  return { x: a.x - b.x + (width / 2) * (1 - scale), y: a.y - b.y + (height / 2) * (1 - scale), scale };
+}
+
+/** Velocità di un trascinamento (px/ms) dagli ultimi campioni del dito, solo quelli degli ultimi `windowMs`. */
+export function releaseVelocity(samples: readonly { t: number; x: number; y: number }[], windowMs = 90): { vx: number; vy: number } {
+  if (samples.length < 2) return { vx: 0, vy: 0 };
+  const last = samples[samples.length - 1]!;
+  const recent = samples.filter((s) => last.t - s.t <= windowMs);
+  const first = recent[0]!;
+  const dt = last.t - first.t;
+  if (recent.length < 2 || dt <= 0) return { vx: 0, vy: 0 };
+  return { vx: (last.x - first.x) / dt, vy: (last.y - first.y) / dt };
+}
+
+/**
  * Sfondo in due strati: sotto il livello precedente (pochi tile, quasi sempre già scaricati), sopra quello giusto.
  * Mentre si ingrandisce, i tile nuovi compaiono sopra un'immagine già presente invece che su un riquadro vuoto.
  */

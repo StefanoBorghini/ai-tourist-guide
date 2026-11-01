@@ -75,6 +75,29 @@ export function panBy(view: MapViewState, dx: number, dy: number): MapViewState 
   return { ...view, center: unproject({ x: c.x - dx, y: c.y - dy }, view.zoom) };
 }
 
+/** Zoom dentro i limiti della mappa (anche frazionario: lo zoom con le dita è continuo). */
+export const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
+
+/**
+ * Cambia lo zoom tenendo fermo il punto della mappa che sta sotto (px, py) dello schermo: il punto tra le dita del
+ * pizzico, il cursore con la rotella, il dito del doppio tocco.
+ */
+export function zoomAround(view: MapViewState, zoom: number, px: number, py: number, width: number, height: number): MapViewState {
+  const z = clampZoom(zoom);
+  const dx = px - width / 2;
+  const dy = py - height / 2;
+  const c0 = project(view.center, view.zoom);
+  const under = unproject({ x: c0.x + dx, y: c0.y + dy }, view.zoom);
+  const p1 = project(under, z);
+  return { center: unproject({ x: p1.x - dx, y: p1.y - dy }, z), zoom: z };
+}
+
+/** Zoom del pizzico: continuo, proporzionale a quanto si allargano o stringono le dita rispetto all'inizio. */
+export function pinchZoom(startZoom: number, startDistance: number, distance: number): number {
+  if (startDistance <= 0 || distance <= 0) return clampZoom(startZoom);
+  return clampZoom(startZoom + Math.log2(distance / startDistance));
+}
+
 export interface TilePlacement {
   key: string;
   x: number;
@@ -82,24 +105,45 @@ export interface TilePlacement {
   z: number;
   left: number;
   top: number;
+  /** Lato sullo schermo: 256 px a zoom intero, ingrandito o ridotto tra un livello e l'altro. */
+  size: number;
 }
 
-/** Tile che coprono il riquadro, con la loro posizione sullo schermo. */
-export function visibleTiles(view: MapViewState, width: number, height: number): TilePlacement[] {
-  const z = Math.round(view.zoom);
+/**
+ * Tile che coprono il riquadro, con la loro posizione sullo schermo. A zoom frazionario si usano i tile del livello
+ * più vicino (o di `level`, se indicato), scalati: posizioni e lati arrotondati al pixel e contigui, senza fessure.
+ */
+export function visibleTiles(view: MapViewState, width: number, height: number, level?: number): TilePlacement[] {
+  const z = Math.max(0, Math.min(MAX_ZOOM, level ?? Math.round(view.zoom)));
+  const s = 2 ** (view.zoom - z);
   const c = project(view.center, z);
-  const x0 = c.x - width / 2;
-  const y0 = c.y - height / 2;
+  const x0 = c.x - width / 2 / s;
+  const y0 = c.y - height / 2 / s;
+  const x1 = c.x + width / 2 / s;
+  const y1 = c.y + height / 2 / s;
   const n = 2 ** z;
+  const sx = (wx: number) => Math.round((wx - x0) * s);
+  const sy = (wy: number) => Math.round((wy - y0) * s);
   const tiles: TilePlacement[] = [];
-  for (let tx = Math.floor(x0 / TILE_SIZE); tx <= Math.floor((x0 + width) / TILE_SIZE); tx++) {
-    for (let ty = Math.floor(y0 / TILE_SIZE); ty <= Math.floor((y0 + height) / TILE_SIZE); ty++) {
+  for (let tx = Math.floor(x0 / TILE_SIZE); tx <= Math.floor(x1 / TILE_SIZE); tx++) {
+    for (let ty = Math.floor(y0 / TILE_SIZE); ty <= Math.floor(y1 / TILE_SIZE); ty++) {
       if (ty < 0 || ty >= n) continue;
       const wx = ((tx % n) + n) % n;
-      tiles.push({ key: `${z}/${wx}/${ty}`, x: wx, y: ty, z, left: tx * TILE_SIZE - x0, top: ty * TILE_SIZE - y0 });
+      const left = sx(tx * TILE_SIZE);
+      const top = sy(ty * TILE_SIZE);
+      tiles.push({ key: `${z}/${wx}/${ty}`, x: wx, y: ty, z, left, top, size: sx((tx + 1) * TILE_SIZE) - left });
     }
   }
   return tiles;
+}
+
+/**
+ * Sfondo in due strati: sotto il livello precedente (pochi tile, quasi sempre già scaricati), sopra quello giusto.
+ * Mentre si ingrandisce, i tile nuovi compaiono sopra un'immagine già presente invece che su un riquadro vuoto.
+ */
+export function tileLayers(view: MapViewState, width: number, height: number): TilePlacement[] {
+  const z = Math.round(view.zoom);
+  return [...(z > 0 ? visibleTiles(view, width, height, z - 1) : []), ...visibleTiles(view, width, height, z)];
 }
 
 /** Scala grafica "tonda" (1, 2, 5 × 10ⁿ metri) lunga al massimo maxPx pixel. */
@@ -163,19 +207,6 @@ export function placeLabels(candidates: LabelCandidate[], width: number, height:
     }
   }
   return placed;
-}
-
-/**
- * Pizzico con due dita, volutamente "duro": uno scatto di zoom solo quando la distanza tra le dita
- * cresce o cala di almeno il 60% rispetto all'ultimo scatto. Evita gli zoom involontari.
- */
-export const PINCH_STEP_RATIO = 1.6;
-export function pinchStep(baseDistance: number, distance: number): -1 | 0 | 1 {
-  if (baseDistance <= 0) return 0;
-  const ratio = distance / baseDistance;
-  if (ratio >= PINCH_STEP_RATIO) return 1;
-  if (ratio <= 1 / PINCH_STEP_RATIO) return -1;
-  return 0;
 }
 
 /**

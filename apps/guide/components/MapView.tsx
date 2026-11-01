@@ -50,6 +50,12 @@ const PIN_PATH = "M0,0 C-1.5,-5 -7,-8 -7,-13 A7,7 0 1,1 7,-13 C7,-8 1.5,-5 0,0 Z
 const PIN_HEAD_Y = -13;
 /** Spostamento minimo (px) perché un tocco diventi un trascinamento. */
 const DRAG_THRESHOLD = 6;
+/**
+ * Ogni tile copre di un pixel il vicino a destra e in basso. Sugli schermi con densità non intera (2,625 su molti
+ * Android) e a zoom frazionario i bordi cadono a metà di un pixel fisico: senza sovrapposizione resta un filo
+ * semitrasparente tra un tile e l'altro, che si vede come una riga sottile sulla mappa.
+ */
+const TILE_OVERLAP = 1;
 /** Durata dello zoom animato di pulsanti e doppio tocco. */
 const ZOOM_ANIMATION_MS = 240;
 /** Oltre questa distanza dalle tappe la posizione non entra nell'inquadratura del percorso (es. prove da casa). */
@@ -267,7 +273,10 @@ export function MapView(props: {
   const screen = toScreen(view, width, mapHeight);
   const mpp = metersPerPixel(view.center[1], view.zoom);
   const showTiles = online && basemap && pixelRatio !== null;
-  const tiles = showTiles ? tileLayers(view, width, mapHeight) : [];
+  // Posizione del riquadro nella pagina, letta a ogni disegno: i tile si allineano ai pixel fisici della pagina.
+  const boxRect = showTiles ? boxRef.current?.getBoundingClientRect() : undefined;
+  const grid = { ratio: pixelRatio ?? 1, originX: (boxRect?.left ?? 0) + (typeof window !== "undefined" ? window.scrollX : 0), originY: (boxRect?.top ?? 0) + (typeof window !== "undefined" ? window.scrollY : 0) };
+  const tiles = showTiles ? tileLayers(view, width, mapHeight, grid) : [];
   viewRef.current = view;
   sizeRef.current = { width, height: mapHeight };
   const scale = scaleBar(view.center[1], view.zoom);
@@ -388,7 +397,7 @@ export function MapView(props: {
       </div>
       <div
         ref={boxRef}
-        className="map-box"
+        className={showTiles ? "map-box with-tiles" : "map-box"}
         style={fullscreen ? undefined : props.tall ? TALL_STYLE : { height: HEIGHT }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -407,7 +416,7 @@ export function MapView(props: {
               src={tileUrl(TILES, tile.z, tile.x, tile.y, pixelRatio ?? 1)}
               alt=""
               className="map-tile"
-              style={{ left: tile.left, top: tile.top, width: tile.size, height: tile.size }}
+              style={{ left: tile.left, top: tile.top, width: tile.size + TILE_OVERLAP, height: tile.size + TILE_OVERLAP }}
               draggable={false}
               onLoad={() => setLoadedTiles((n) => n + 1)}
               onError={() => setFailedTiles((s) => new Set(s).add(tile.key))}

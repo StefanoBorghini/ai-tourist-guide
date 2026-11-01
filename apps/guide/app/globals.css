@@ -919,6 +919,8 @@ details.card[open] > summary::after { content: "–"; }
   user-select: none;
   cursor: grab;
 }
+/* Con lo sfondo cartografico il fondo ha il colore della terra delle mappe: un filo tra due tile non fa contrasto. */
+.map-box.with-tiles { background: #f2efe9; }
 .map-tile { position: absolute; width: 256px; height: 256px; pointer-events: none; }
 .map-svg { position: absolute; inset: 0; }
 .map-route { fill: none; stroke: var(--route); stroke-width: 3.5; stroke-dasharray: 7 6; stroke-linecap: round; }

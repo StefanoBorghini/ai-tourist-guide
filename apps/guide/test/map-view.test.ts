@@ -122,6 +122,17 @@ describe("zoom fluido", () => {
       const inTile = (project(view.center, z).x / 256 - placed.x) * placed.size;
       expect(placed.left + inTile).toBeCloseTo(160, -0.5);
     }
+    // Densità non intera e riquadro a metà di un pixel fisico nella pagina: i bordi cadono sui pixel fisici della
+    // pagina (multipli di 1/2,625 px CSS contando la posizione del riquadro), sempre contigui.
+    const grid = { ratio: 2.625, originX: 16.2, originY: 438.9375 };
+    const dense = visibleTiles({ ...view, zoom: 16.37 }, 320, 260, undefined, grid);
+    const onGrid = (v: number) => Math.abs(v * 2.625 - Math.round(v * 2.625)) < 1e-6;
+    for (const t of dense) {
+      expect(onGrid(grid.originX + t.left) && onGrid(grid.originX + t.left + t.size)).toBe(true);
+      expect(onGrid(grid.originY + t.top) && onGrid(grid.originY + t.top + t.size)).toBe(true);
+    }
+    const denseRow = dense.filter((t) => t.y === dense[0]!.y).sort((a, b) => a.left - b.left);
+    for (let i = 1; i < denseRow.length; i++) expect(denseRow[i]!.left).toBeCloseTo(denseRow[i - 1]!.left + denseRow[i - 1]!.size, 9);
     // A zoom intero, come prima: 256 px.
     expect(visibleTiles(view, 320, 260).every((t) => t.size === 256)).toBe(true);
     // Due strati: sotto il livello precedente, sopra quello giusto.

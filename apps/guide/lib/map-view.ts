@@ -109,11 +109,23 @@ export interface TilePlacement {
   size: number;
 }
 
+/** Come arrotondare le posizioni: densità dello schermo e posizione del riquadro nella pagina, in pixel CSS. */
+export interface PixelGrid {
+  /** Pixel fisici per pixel CSS (2,625 su molti Android). */
+  ratio: number;
+  /** Posizione del riquadro della mappa nella pagina (può cadere a metà di un pixel fisico, per esempio 438,94). */
+  originX: number;
+  originY: number;
+}
+const NO_GRID: PixelGrid = { ratio: 1, originX: 0, originY: 0 };
+
 /**
  * Tile che coprono il riquadro, con la loro posizione sullo schermo. A zoom frazionario si usano i tile del livello
- * più vicino (o di `level`, se indicato), scalati: posizioni e lati arrotondati al pixel e contigui, senza fessure.
+ * più vicino (o di `level`, se indicato), scalati: i bordi cadono sui pixel fisici della pagina (`grid`: densità e
+ * posizione del riquadro) e sono contigui, senza fessure. Un bordo a metà di un pixel fisico verrebbe sfumato dal
+ * browser e si vedrebbe come una riga sottile.
  */
-export function visibleTiles(view: MapViewState, width: number, height: number, level?: number): TilePlacement[] {
+export function visibleTiles(view: MapViewState, width: number, height: number, level?: number, grid: PixelGrid = NO_GRID): TilePlacement[] {
   const z = Math.max(0, Math.min(MAX_ZOOM, level ?? Math.round(view.zoom)));
   const s = 2 ** (view.zoom - z);
   const c = project(view.center, z);
@@ -122,8 +134,12 @@ export function visibleTiles(view: MapViewState, width: number, height: number, 
   const x1 = c.x + width / 2 / s;
   const y1 = c.y + height / 2 / s;
   const n = 2 ** z;
-  const sx = (wx: number) => Math.round((wx - x0) * s);
-  const sy = (wy: number) => Math.round((wy - y0) * s);
+  const r = grid.ratio > 0 && Number.isFinite(grid.ratio) ? grid.ratio : 1;
+  const ox = Number.isFinite(grid.originX) ? grid.originX : 0;
+  const oy = Number.isFinite(grid.originY) ? grid.originY : 0;
+  // Si arrotonda la posizione nella pagina, non quella nel riquadro: è la pagina a stare sulla griglia dei pixel fisici.
+  const sx = (wx: number) => Math.round(((wx - x0) * s + ox) * r) / r - ox;
+  const sy = (wy: number) => Math.round(((wy - y0) * s + oy) * r) / r - oy;
   const tiles: TilePlacement[] = [];
   for (let tx = Math.floor(x0 / TILE_SIZE); tx <= Math.floor(x1 / TILE_SIZE); tx++) {
     for (let ty = Math.floor(y0 / TILE_SIZE); ty <= Math.floor(y1 / TILE_SIZE); ty++) {
@@ -141,9 +157,9 @@ export function visibleTiles(view: MapViewState, width: number, height: number, 
  * Sfondo in due strati: sotto il livello precedente (pochi tile, quasi sempre già scaricati), sopra quello giusto.
  * Mentre si ingrandisce, i tile nuovi compaiono sopra un'immagine già presente invece che su un riquadro vuoto.
  */
-export function tileLayers(view: MapViewState, width: number, height: number): TilePlacement[] {
+export function tileLayers(view: MapViewState, width: number, height: number, grid: PixelGrid = NO_GRID): TilePlacement[] {
   const z = Math.round(view.zoom);
-  return [...(z > 0 ? visibleTiles(view, width, height, z - 1) : []), ...visibleTiles(view, width, height, z)];
+  return [...(z > 0 ? visibleTiles(view, width, height, z - 1, grid) : []), ...visibleTiles(view, width, height, z, grid)];
 }
 
 /** Scala grafica "tonda" (1, 2, 5 × 10ⁿ metri) lunga al massimo maxPx pixel. */

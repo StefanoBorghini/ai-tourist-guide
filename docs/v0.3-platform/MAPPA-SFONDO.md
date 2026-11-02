@@ -39,3 +39,12 @@ C'è anche un secondo motivo. La politica d'uso dei tile di openstreetmap.org no
 La chiave nel modello è pubblica per natura: la vede chiunque usi l'app. La protezione è la limitazione ai domini, al punto 5. Non va mai usata una chiave con permessi di gestione dell'account.
 
 Costi: MapTiler ha un piano gratuito con un limite di caricamenti di mappe al mese, poi è a pagamento. Prima della produzione va controllato il piano adatto al traffico previsto e il suo uso commerciale. Alternative equivalenti: Stadia Maps, Thunderforest.
+
+## Motore della mappa: MapLibre GL (dal 2026-11-02)
+
+Sfondo e gesti (pizzico, trascinamento con inerzia, rotella, doppio tocco) li gestisce MapLibre GL (`maplibre-gl`,
+licenza BSD-3), con la scheda grafica: niente più righe, fasce vuote o lampi tra un tile e l'altro durante lo zoom,
+che il motore scritto a mano mostrava su alcuni telefoni. Il modello dei tile resta quello di
+`NEXT_PUBLIC_MAP_TILES_URL` (sorgente raster da 256 px; `{r}` si risolve con `rasterTemplate()`). Con un fornitore
+che offre uno stile vettoriale (per esempio MapTiler) si potrà in seguito passare all'URL dello stile, senza cambiare
+il resto della guida. Spilli, tappe, nomi, percorso e posizione restano disegnati dalla guida sopra la mappa.

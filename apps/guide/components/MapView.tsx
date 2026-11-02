@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import type { Map as GlMap, StyleSpecification } from "maplibre-gl";
 import type { BundleContent } from "@guide/bundle/client";
 import { distanceM } from "@guide/context-engine";
 import type { UiText } from "../lib/i18n";
@@ -8,21 +9,18 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   clampZoom,
-  backdropTiles,
   fitView,
+  fromGlZoom,
+  hitTarget,
   metersPerPixel,
   panBy,
-  layerCovers,
-  layerTransform,
-  pinchZoom,
   placeLabels,
+  rasterTemplate,
   scaleBar,
-  tileLayers,
   tileSourceFrom,
-  tileUrl,
+  toGlZoom,
   toScreen,
-  releaseVelocity,
-  zoomAround,
+  type HitTarget,
   type LabelCandidate,
   type LngLat,
   type MapViewState,
@@ -30,9 +28,11 @@ import {
 import type { GuideRuntime } from "../lib/runtime";
 
 /**
- * Mappa del giro: proiezione Web Mercator, sfondo OpenStreetMap quando c'è rete (senza rete resta
- * la mappa schematica), tappe numerate nell'ordine del piano, posizione con la sua precisione,
- * geofence in modalità debug. Le posizioni provvisorie sono tratteggiate: non vanno prese per buone.
+ * Mappa del giro: sfondo e gesti (trascinamento con inerzia, pizzico, rotella, doppio tocco) con MapLibre GL, che
+ * disegna con la scheda grafica; sopra, in SVG, ciò che è della guida: tappe numerate nell'ordine del piano, spilli
+ * dei luoghi, etichette senza sovrapposizioni, posizione con la sua precisione, geofence in modalità debug. Le
+ * posizioni provvisorie sono tratteggiate: non vanno prese per buone. Senza rete (o senza WebGL) resta la mappa
+ * schematica, con trascinamento e pulsanti.
  *
  * In esplorazione non ci sono tappe: tutti i luoghi sono spilli, la mappa segue il visitatore
  * (punto blu, inconfondibile con gli spilli) finché non la sposta, e «Centra su di me» la riaggancia.
@@ -52,39 +52,14 @@ const FOLLOW_ZOOM = 17;
 /** Spillo con la punta nel punto (0,0): alto 20 px. */
 const PIN_PATH = "M0,0 C-1.5,-5 -7,-8 -7,-13 A7,7 0 1,1 7,-13 C7,-8 1.5,-5 0,0 Z";
 const PIN_HEAD_Y = -13;
-/** Spostamento minimo (px) perché un tocco diventi un trascinamento. */
+/** Spostamento minimo (px) perché un tocco diventi un trascinamento (mappa schematica, senza MapLibre). */
 const DRAG_THRESHOLD = 6;
-/**
- * Ogni tile copre di un pixel il vicino a destra e in basso. Sugli schermi con densità non intera (2,625 su molti
- * Android) e a zoom frazionario i bordi cadono a metà di un pixel fisico: senza sovrapposizione resta un filo
- * semitrasparente tra un tile e l'altro, che si vede come una riga sottile sulla mappa.
- */
-const TILE_OVERLAP = 1;
-// I tile si decodificano subito (decoding="sync"): su Android un'immagine appena inserita, anche se già scaricata,
-// altrimenti resta trasparente per un fotogramma, e quando lo sfondo si ridisegna l'intera mappa lampeggia vuota.
-/**
- * Durante un gesto lo sfondo resta quello disegnato all'inizio e si sposta come un'immagine sola (scheda grafica):
- * si ridisegna quando lo zoom cambia di più di mezzo livello o quando un lato sta per restare scoperto (scorta
- * REFREEZE_SLACK del margine, così i tile nuovi arrivano prima di servire), e nitido a gesto finito, dopo
- * GESTURE_SETTLE_MS. Il margine disegnato oltre il riquadro è metà del riquadro per lato: rimpicciolendo in fretta
- * (anche con le dita lontane dal centro) non compaiono fasce vuote.
- */
-const TILE_MARGIN = 0.5;
-const REFREEZE_SLACK = 0.4;
-const REFREEZE_ZOOM = 0.5;
-const GESTURE_SETTLE_MS = 120;
-/** Al più per quanto lo strato di sotto aspetta le immagini nitide dopo un gesto (rete lenta o tile che non arrivano). */
-const UNDER_MAX_MS = 2000;
-/** Inerzia dopo un trascinamento: velocità minima per partire (px/ms), attrito per millisecondo, velocità massima. */
-const INERTIA_MIN_SPEED = 0.25;
-const INERTIA_FRICTION = 0.995;
-const INERTIA_MAX_SPEED = 3;
-/** Durata dello zoom animato di pulsanti e doppio tocco. */
-const ZOOM_ANIMATION_MS = 240;
 /** Oltre questa distanza dalle tappe la posizione non entra nell'inquadratura del percorso (es. prove da casa). */
 const NEAR_ROUTE_M = 2000;
 /** Sfondo scelto al build (lib/map-view.ts): OpenStreetMap per le prove, uno stile con licenza in produzione. */
 const TILES = tileSourceFrom(process.env.NEXT_PUBLIC_MAP_TILES_URL, process.env.NEXT_PUBLIC_MAP_TILES_ATTRIBUTION);
+/** Colore della terra delle mappe: dove un tile non è ancora arrivato non si vede un buco nero. */
+const LAND = "#f2efe9";
 
 type Mode = "route" | "me" | "all";
 
@@ -94,6 +69,20 @@ export interface MapVenue {
   name: string;
   location: LngLat;
   category: string;
+}
+
+/** Stile MapLibre: solo il fondo color terra e i tile raster del fornitore scelto (nessun testo né icona di MapLibre). */
+function glStyle(pixelRatio: number): StyleSpecification {
+  return {
+    version: 8,
+    sources: {
+      base: { type: "raster", tiles: [rasterTemplate(TILES, pixelRatio)], tileSize: 256, maxzoom: 19 },
+    },
+    layers: [
+      { id: "land", type: "background", paint: { "background-color": LAND } },
+      { id: "base", type: "raster", source: "base", paint: { "raster-fade-duration": 0 } },
+    ],
+  };
 }
 
 export function MapView(props: {
@@ -128,48 +117,31 @@ export function MapView(props: {
   const venues = venuesLayer ? (props.venues ?? []) : props.pinnedVenue ? [props.pinnedVenue] : [];
   const selectedVenue = venuesLayer ? (props.selectedVenue ?? null) : (props.pinnedVenue?.id ?? null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const glRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<GlMap | null>(null);
   const [width, setWidth] = useState(320);
   const [measuredHeight, setMeasuredHeight] = useState(HEIGHT);
   const [fullscreen, setFullscreen] = useState(false);
   const [mode, setMode] = useState<Mode>(explore ? "me" : "route");
+  /** Inquadratura scelta a mano (trascinando, ingrandendo); null: la mappa segue l'inquadratura automatica. */
   const [manual, setManual] = useState<MapViewState | null>(null);
+  /** Inquadratura di MapLibre, letta a ogni fotogramma del movimento: gli strati SVG la seguono. */
+  const [cam, setCam] = useState<MapViewState | null>(null);
+  /** MapLibre pronto; false se il dispositivo non ha WebGL (si usa la mappa schematica). */
+  const [gl, setGl] = useState<"loading" | "ready" | "unavailable">("loading");
   const [ownSelected, setOwnSelected] = useState<string | null>(null);
   const controlled = props.onSelect !== undefined;
   const selected = controlled ? (props.selected ?? null) : ownSelected;
   const setSelected = (ref: string | null) => (controlled ? props.onSelect!(ref) : setOwnSelected(ref));
   const [basemap, setBasemap] = useState(true);
-  const [failedTiles, setFailedTiles] = useState<Set<string>>(new Set());
-  const [loadedTiles, setLoadedTiles] = useState(0);
-  // Densità dello schermo letta dopo il montaggio (sul server non c'è): serve ai modelli con {r}. Finché non si
-  // conosce, niente sfondo: altrimenti i primi tile si scaricherebbero due volte (normali, poi @2x).
-  const [pixelRatio, setPixelRatio] = useState<number | null>(null);
-  useEffect(() => setPixelRatio(window.devicePixelRatio || 1), []);
+  const [tilesOk, setTilesOk] = useState(false);
+  const [tileErrors, setTileErrors] = useState(0);
   const drag = useRef<{ x: number; y: number; moved: number } | null>(null);
-  /** Dita appoggiate sulla mappa, per distinguere trascinamento (una) e pizzico (due). */
-  const pointers = useRef(new Map<number, { x: number; y: number }>());
-  /** Ultimi punti del dito che trascina, per la velocità dell'inerzia. */
-  const samples = useRef<{ t: number; x: number; y: number }[]>([]);
-  /** Inquadratura con cui è disegnato lo sfondo durante un gesto (null: segue l'inquadratura). */
-  const [tileView, setTileView] = useState<MapViewState | null>(null);
-  /**
-   * Inquadratura di inizio gesto: il suo sfondo (già scaricato) resta sotto per tutto il gesto e anche dopo, finché
-   * le immagini nitide della nuova inquadratura non sono caricate (al più UNDER_MAX_MS): mai un istante senza sfondo.
-   */
-  const [gestureBase, setGestureBase] = useState<MapViewState | null>(null);
-  const gestureBaseRef = useRef<MapViewState | null>(null);
-  const underWatch = useRef<number | null>(null);
-  const tilesRef = useRef<HTMLDivElement | null>(null);
-  const tileViewRef = useRef<MapViewState | null>(null);
-  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Inizio del pizzico: inquadratura, distanza e punto medio delle dita (in pixel del riquadro). */
-  const pinchStart = useRef<{ view: MapViewState; dist: number; mid: { x: number; y: number } } | null>(null);
-  // Movimenti fluidi: al massimo un aggiornamento per fotogramma. `pending` è l'inquadratura più recente non ancora
-  // disegnata, da cui ripartono i gesti successivi (così nessun movimento si perde tra due fotogrammi).
-  const pending = useRef<MapViewState | null>(null);
-  const frame = useRef<number | null>(null);
-  const animation = useRef<number | null>(null);
-  const viewRef = useRef<MapViewState | null>(null);
-  const sizeRef = useRef({ width: 320, height: HEIGHT });
+  /** Un tocco che ha spostato la mappa non seleziona lo spillo su cui è finito. */
+  const movedAt = useRef(0);
+  /** Simboli e nomi toccabili, con la loro posizione di adesso, e cosa fare quando se ne tocca uno. */
+  const hitsRef = useRef<HitTarget[]>([]);
+  const onHitRef = useRef<(hit: { id: string; kind: "place" | "venue" }) => void>(() => undefined);
 
   useEffect(() => {
     const el = boxRef.current;
@@ -177,23 +149,92 @@ export function MapView(props: {
     const ro = new ResizeObserver(([entry]) => {
       setWidth(Math.max(200, Math.round(entry!.contentRect.width)));
       setMeasuredHeight(Math.max(200, Math.round(entry!.contentRect.height)));
+      mapRef.current?.resize();
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, [fullscreen]);
 
+  // MapLibre si carica solo nel browser (usa WebGL) e solo quando serve la mappa.
+  useEffect(() => {
+    let cancelled = false;
+    let map: GlMap | null = null;
+    (async () => {
+      try {
+        const maplibre = await import("maplibre-gl");
+        if (cancelled || !glRef.current) return;
+        // Il worker di MapLibre lo copia in public/vendor/ lo script di build (scripts/copy-vendor.mjs).
+        maplibre.setWorkerUrl(`/vendor/maplibre-gl-worker.mjs?v=${maplibre.getVersion()}`);
+        const created = new maplibre.Map({
+          container: glRef.current,
+          style: glStyle(window.devicePixelRatio || 1),
+          center: [0, 0],
+          zoom: 1,
+          minZoom: toGlZoom(MIN_ZOOM),
+          maxZoom: toGlZoom(MAX_ZOOM),
+          attributionControl: false,
+          dragRotate: false,
+          pitchWithRotate: false,
+          touchPitch: false,
+          maxPitch: 0,
+          renderWorldCopies: true,
+          fadeDuration: 0,
+        });
+        map = created;
+        created.touchZoomRotate.disableRotation();
+        created.keyboard.disableRotation();
+        const read = () => {
+          const c = created.getCenter();
+          return { center: [c.lng, c.lat] as LngLat, zoom: fromGlZoom(created.getZoom()) };
+        };
+        created.on("move", () => setCam(read()));
+        // Movimento fatto dal visitatore (dita, rotella, tastiera): la mappa smette di seguire l'inquadratura automatica.
+        created.on("movestart", (e) => {
+          if ((e as { originalEvent?: Event }).originalEvent) {
+            movedAt.current = performance.now();
+            setManual(read());
+          }
+        });
+        created.on("moveend", (e) => {
+          if ((e as { originalEvent?: Event }).originalEvent) movedAt.current = performance.now();
+        });
+        created.on("data", (e) => {
+          if ((e as { dataType?: string; tile?: unknown }).dataType === "source" && (e as { tile?: unknown }).tile) setTilesOk(true);
+        });
+        created.on("error", () => setTileErrors((n) => n + 1));
+        // Tocco semplice riconosciuto dalla mappa (non un trascinamento né un pizzico): cosa c'è sotto il dito.
+        created.on("click", (e) => {
+          const hit = hitTarget({ x: e.point.x, y: e.point.y }, hitsRef.current);
+          if (hit) onHitRef.current(hit);
+        });
+        mapRef.current = created;
+        // Modalità debug (?debug=1): la mappa si può ispezionare dalla console e dalle prove automatiche.
+        if (new URLSearchParams(window.location.search).has("debug")) (window as unknown as { __guideMap?: GlMap }).__guideMap = created;
+        setCam(read());
+        setGl("ready");
+      } catch {
+        if (!cancelled) setGl("unavailable");
+      }
+    })();
+    return () => {
+      cancelled = true;
+      map?.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
   // «Mostra sulla mappa»: inquadratura ferma sul punto (come uno spostamento a mano), abbastanza vicina da riconoscerlo.
   const focusId = props.focus?.id;
   useEffect(() => {
     if (!props.focus) return;
-    stopMotion();
-    setManual({ center: props.focus.location, zoom: Math.max(FOLLOW_ZOOM + 1, Math.min(MAX_ZOOM, 18)) });
+    const target = { center: props.focus.location, zoom: Math.max(FOLLOW_ZOOM + 1, Math.min(MAX_ZOOM, 18)) };
+    setManual(target);
+    mapRef.current?.easeTo({ center: [...target.center] as [number, number], zoom: toGlZoom(target.zoom), duration: 400 });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- si ricentra solo a una nuova richiesta
   }, [focusId]);
 
   // Passando da un itinerario all'esplorazione la mappa torna a seguire il visitatore.
   useEffect(() => {
-    stopMotion();
     setMode(explore ? "me" : "route");
     setManual(null);
   }, [explore]);
@@ -216,184 +257,6 @@ export function MapView(props: {
     };
   }, [fullscreen]);
 
-  /** Inquadratura più recente, anche se non ancora disegnata. */
-  const live = (): MapViewState => pending.current ?? viewRef.current ?? { center: [0, 0], zoom: MIN_ZOOM };
-  /** Disegna `v` al prossimo fotogramma (gli eventi del dito sono più fitti dei fotogrammi). */
-  const schedule = (v: MapViewState) => {
-    pending.current = v;
-    if (frame.current === null) {
-      frame.current = requestAnimationFrame(() => {
-        frame.current = null;
-        const v = pending.current;
-        if (!v) return;
-        setManual(v);
-        // Zoom cambiato troppo o mappa spostata oltre il margine: si ridisegna lo sfondo per la nuova inquadratura.
-        const base = tileViewRef.current;
-        if (base) {
-          const { width: w, height: h } = sizeRef.current;
-          const t = layerTransform(base, v, w, h);
-          const mx = Math.round(w * TILE_MARGIN);
-          const my = Math.round(h * TILE_MARGIN);
-          if (Math.abs(v.zoom - base.zoom) > REFREEZE_ZOOM || !layerCovers(t, w, h, mx, my, Math.min(mx, my) * REFREEZE_SLACK)) {
-            tileViewRef.current = v;
-            setTileView(v);
-          }
-        }
-      });
-    }
-  };
-  const stopAnimation = () => {
-    if (animation.current !== null) cancelAnimationFrame(animation.current);
-    animation.current = null;
-  };
-  /** Inizio di un gesto: lo sfondo resta quello di adesso e si muove come un'immagine sola. */
-  const freeze = () => {
-    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
-    settleTimer.current = null;
-    if (!tileViewRef.current) {
-      tileViewRef.current = live();
-      setTileView(tileViewRef.current);
-      // Se lo strato di sotto del gesto precedente è ancora lì (immagini nuove non ancora arrivate), resta quello.
-      if (underWatch.current !== null) cancelAnimationFrame(underWatch.current);
-      underWatch.current = null;
-      if (!gestureBaseRef.current) {
-        gestureBaseRef.current = tileViewRef.current;
-        setGestureBase(tileViewRef.current);
-      }
-    }
-  };
-  /** Toglie lo strato di sotto quando le immagini visibili dello sfondo nitido sono caricate (o dopo UNDER_MAX_MS). */
-  const dropUnderWhenLoaded = () => {
-    if (underWatch.current !== null) cancelAnimationFrame(underWatch.current);
-    const t0 = performance.now();
-    let ready = 0;
-    const check = () => {
-      underWatch.current = null;
-      if (tileViewRef.current) return; // è iniziato un altro gesto: lo strato serve ancora
-      const box = boxRef.current?.getBoundingClientRect();
-      const level = String(Math.round((viewRef.current ?? { zoom: 0 }).zoom));
-      const pending = box
-        ? [...(tilesRef.current?.querySelectorAll<HTMLImageElement>(`img[data-z="${level}"]`) ?? [])].some((img) => {
-            const r = img.getBoundingClientRect();
-            const visible = r.right > box.left && r.left < box.right && r.bottom > box.top && r.top < box.bottom;
-            return visible && !img.complete;
-          })
-        : false;
-      // Caricate da due fotogrammi di seguito: il tempo di dipingerle prima di togliere quelle di sotto.
-      ready = pending ? 0 : ready + 1;
-      if (ready < 2 && performance.now() - t0 < UNDER_MAX_MS) {
-        underWatch.current = requestAnimationFrame(check);
-        return;
-      }
-      gestureBaseRef.current = null;
-      setGestureBase(null);
-    };
-    // Si controlla dal fotogramma dopo il ridisegno nitido, quando le immagini nuove sono già nella pagina.
-    underWatch.current = requestAnimationFrame(() => (underWatch.current = requestAnimationFrame(check)));
-  };
-  /** Fine di un gesto: poco dopo lo sfondo si ridisegna nitido (se nel frattempo non ne è iniziato un altro). */
-  const release = () => {
-    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
-    settleTimer.current = setTimeout(() => {
-      settleTimer.current = null;
-      if (pointers.current.size > 0 || animation.current !== null) return;
-      tileViewRef.current = null;
-      setTileView(null);
-      dropUnderWhenLoaded();
-    }, GESTURE_SETTLE_MS);
-  };
-  /** Ferma animazioni e aggiornamenti in sospeso (prima di un'inquadratura decisa altrove). */
-  function stopMotion() {
-    stopAnimation();
-    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
-    settleTimer.current = null;
-    tileViewRef.current = null;
-    setTileView(null);
-    if (underWatch.current !== null) cancelAnimationFrame(underWatch.current);
-    underWatch.current = null;
-    gestureBaseRef.current = null;
-    setGestureBase(null);
-    if (frame.current !== null) cancelAnimationFrame(frame.current);
-    frame.current = null;
-    pending.current = null;
-  }
-  /** Inerzia: la mappa continua a scorrere alla velocità del dito e rallenta fino a fermarsi. */
-  const glide = (vx0: number, vy0: number) => {
-    stopAnimation();
-    const speed = Math.hypot(vx0, vy0);
-    const cap = speed > INERTIA_MAX_SPEED ? INERTIA_MAX_SPEED / speed : 1;
-    let vx = vx0 * cap;
-    let vy = vy0 * cap;
-    let last = performance.now();
-    const step = (now: number) => {
-      const dt = Math.min(32, now - last);
-      last = now;
-      const decay = INERTIA_FRICTION ** dt;
-      vx *= decay;
-      vy *= decay;
-      schedule(panBy(live(), vx * dt, vy * dt));
-      if (Math.hypot(vx, vy) > 0.02) animation.current = requestAnimationFrame(step);
-      else {
-        animation.current = null;
-        release();
-      }
-    };
-    animation.current = requestAnimationFrame(step);
-  };
-  /** Zoom animato (pulsanti, doppio tocco) verso `target`, tenendo fermo il punto (px, py) del riquadro. */
-  const animateZoom = (target: number, px?: number, py?: number) => {
-    stopAnimation();
-    const from = live();
-    const { width: w, height: h } = sizeRef.current;
-    const ax = px ?? w / 2;
-    const ay = py ?? h / 2;
-    const to = clampZoom(target);
-    if (Math.abs(to - from.zoom) < 0.001) return;
-    freeze();
-    const t0 = performance.now();
-    const step = (now: number) => {
-      const k = Math.min(1, (now - t0) / ZOOM_ANIMATION_MS);
-      const ease = 1 - (1 - k) ** 3;
-      schedule(zoomAround(from, from.zoom + (to - from.zoom) * ease, ax, ay, w, h));
-      animation.current = k < 1 ? requestAnimationFrame(step) : null;
-      if (k >= 1) release();
-    };
-    animation.current = requestAnimationFrame(step);
-  };
-  // I pulsanti portano al livello intero successivo: lo sfondo torna nitido.
-  const zoomBy = (d: number) => animateZoom(d > 0 ? Math.floor(live().zoom + 1e-6) + d : Math.ceil(live().zoom - 1e-6) + d);
-  // Inquadratura disegnata: gli aggiornamenti in sospeso sono arrivati.
-  useEffect(() => {
-    if (pending.current === manual) pending.current = null;
-  }, [manual]);
-  useEffect(() => () => {
-    if (frame.current !== null) cancelAnimationFrame(frame.current);
-    if (animation.current !== null) cancelAnimationFrame(animation.current);
-    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
-    if (underWatch.current !== null) cancelAnimationFrame(underWatch.current);
-  }, []);
-  // Rotella del mouse e pizzico del touchpad (ctrlKey) sul computer: zoom continuo intorno al cursore. Ascoltatore
-  // non passivo, per non far scorrere la pagina.
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      stopAnimation();
-      freeze();
-      release();
-      const r = el.getBoundingClientRect();
-      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-      const dz = Math.max(-1, Math.min(1, (-e.deltaY * unit) / (e.ctrlKey ? 100 : 400)));
-      const { width: w, height: h } = sizeRef.current;
-      const from = live();
-      schedule(zoomAround(from, from.zoom + dz, e.clientX - r.left, e.clientY - r.top, w, h));
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- legge lo stato dai riferimenti
-  }, [fullscreen]);
-
   const fix = runtime.lastFix;
   const mapHeight = fullscreen || props.tall ? measuredHeight : HEIGHT;
   const placeByRef = useMemo(() => new Map(content.places.map((p) => [p.ref, p])), [content]);
@@ -413,35 +276,46 @@ export function MapView(props: {
     if (fix && pts.some((p) => distanceM(p, fix.location) < NEAR_ROUTE_M)) pts.push(fix.location);
     return fitView(pts, width, mapHeight);
   };
-  const view = manual ?? auto();
+  const target = manual ?? auto();
+  const targetKey = manual ? "" : `${target.center[0].toFixed(6)},${target.center[1].toFixed(6)},${target.zoom.toFixed(3)}`;
+  const firstJump = useRef(true);
+  // Inquadratura automatica → MapLibre: la prima volta di colpo, poi con un breve movimento (segue il GPS).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (gl !== "ready" || !map) return;
+    if (manual) {
+      // Inquadratura scelta prima che MapLibre fosse pronto (es. «Mostra sulla mappa»): ci si va subito.
+      if (firstJump.current) {
+        firstJump.current = false;
+        map.jumpTo({ center: [...manual.center] as [number, number], zoom: toGlZoom(manual.zoom) });
+      }
+      return;
+    }
+    const opts = { center: [...target.center] as [number, number], zoom: toGlZoom(target.zoom) };
+    if (firstJump.current) {
+      firstJump.current = false;
+      map.jumpTo(opts);
+    } else {
+      map.easeTo({ ...opts, duration: 350 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- si muove solo quando cambia l'inquadratura automatica
+  }, [gl, targetKey, manual === null]);
+
+  // Con MapLibre gli strati SVG seguono la sua telecamera; senza, l'inquadratura scelta (schematica).
+  const view = gl === "ready" && cam ? cam : target;
   const screen = toScreen(view, width, mapHeight);
   const mpp = metersPerPixel(view.center[1], view.zoom);
-  const showTiles = online && basemap && pixelRatio !== null;
-  // Posizione del riquadro nella pagina, letta a ogni disegno: i tile si allineano ai pixel fisici della pagina.
-  const boxRect = showTiles ? boxRef.current?.getBoundingClientRect() : undefined;
-  const originX = (boxRect?.left ?? 0) + (typeof window !== "undefined" ? window.scrollX : 0);
-  const originY = (boxRect?.top ?? 0) + (typeof window !== "undefined" ? window.scrollY : 0);
-  // Lo sfondo si disegna per l'inquadratura di inizio gesto (o per quella attuale), con un margine intorno: durante il
-  // gesto lo sposta la trasformazione dello strato, senza ridisegnare le immagini.
-  const mw = Math.round(width * TILE_MARGIN);
-  const mh = Math.round(mapHeight * TILE_MARGIN);
-  /** Tutti i tile dello sfondo per un'inquadratura: fondo largo a bassa risoluzione, livello precedente, livello giusto. */
-  const tilesFor = (base: MapViewState) => [
-    // Due livelli di fondo: rimpicciolendo di un livello, il «quattro sotto» nuovo è il «tre sotto» di prima.
-    ...backdropTiles(base, width, mapHeight, { ratio: pixelRatio ?? 1, originX, originY }, 4),
-    ...backdropTiles(base, width, mapHeight, { ratio: pixelRatio ?? 1, originX, originY }, 3),
-    ...tileLayers(base, width + 2 * mw, mapHeight + 2 * mh, { ratio: pixelRatio ?? 1, originX: originX - mw, originY: originY - mh })
-      .map((t) => ({ ...t, left: t.left - mw, top: t.top - mh })),
-  ];
-  const tiles = showTiles ? tilesFor(tileView ?? view) : [];
-  const layer = tileView ? layerTransform(tileView, view, width, mapHeight) : null;
-  // Sotto, per tutto il gesto, lo sfondo com'era all'inizio (già scaricato): quando lo sfondo sopra si ridisegna più
-  // volte di seguito rimpicciolendo in fretta, i suoi tile nuovi arrivano su un'immagine già presente, mai sul vuoto.
-  // Montato già a inizio gesto (le stesse immagini, dalla cache), così è pronto quando serve.
-  const underTiles = showTiles && gestureBase ? tilesFor(gestureBase) : [];
-  const under = underTiles.length > 0 && gestureBase ? layerTransform(gestureBase, view, width, mapHeight) : null;
-  viewRef.current = view;
-  sizeRef.current = { width, height: mapHeight };
+  const showTiles = online && basemap && gl === "ready";
+  useEffect(() => {
+    const map = mapRef.current;
+    if (gl !== "ready" || !map) return;
+    const apply = () => {
+      map.setLayoutProperty("base", "visibility", showTiles ? "visible" : "none");
+      map.setLayoutProperty("land", "visibility", showTiles ? "visible" : "none");
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once("load", apply);
+  }, [gl, showTiles]);
   const scale = scaleBar(view.center[1], view.zoom);
   const fences = runtime.debugSnapshot().places;
   // Tratteggiate solo le posizioni non verificate nemmeno su mappa (preliminari o da rivedere).
@@ -469,91 +343,72 @@ export function MapView(props: {
   ];
   const labels = placeLabels(labelCandidates, width, mapHeight);
 
+  const zoomBy = (d: number) => {
+    const map = mapRef.current;
+    if (gl === "ready" && map) {
+      setManual(view);
+      map.easeTo({ zoom: Math.round(map.getZoom()) + d, duration: 250 });
+    } else {
+      setManual({ ...view, zoom: clampZoom(Math.round(view.zoom) + d) });
+    }
+  };
   const choose = (m: Mode) => {
-    stopMotion();
     setMode(m);
     setManual(null);
   };
 
-  const pinchDistance = () => {
-    const [a, b] = [...pointers.current.values()];
-    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
-  };
-  /** Punto medio delle due dita, in pixel del riquadro della mappa. */
-  const pinchMid = () => {
-    const [a, b] = [...pointers.current.values()];
-    const r = boxRef.current?.getBoundingClientRect();
-    return a && b && r ? { x: (a.x + b.x) / 2 - r.left, y: (a.y + b.y) / 2 - r.top } : { x: width / 2, y: mapHeight / 2 };
-  };
+  // Mappa schematica (senza WebGL): trascinamento con un dito; lo zoom si fa con i pulsanti.
   const onPointerDown = (e: ReactPointerEvent) => {
-    stopAnimation();
-    freeze();
-    samples.current = [{ t: e.timeStamp, x: e.clientX, y: e.clientY }];
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.current.size === 2) {
-      // Inizia un pizzico: niente trascinamento finché ci sono due dita.
-      pinchStart.current = { view: live(), dist: pinchDistance(), mid: pinchMid() };
-      drag.current = { x: e.clientX, y: e.clientY, moved: DRAG_THRESHOLD + 1 };
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } else if (pointers.current.size === 1) {
-      drag.current = { x: e.clientX, y: e.clientY, moved: 0 };
-    }
+    if (gl === "ready") return;
+    drag.current = { x: e.clientX, y: e.clientY, moved: 0 };
   };
   const onPointerMove = (e: ReactPointerEvent) => {
-    if (!pointers.current.has(e.pointerId)) return;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.current.size >= 2) {
-      samples.current = [];
-      // Pizzico continuo: lo zoom segue le dita, il punto tra le dita resta sotto le dita (e si sposta con loro).
-      const start = pinchStart.current;
-      if (!start) return;
-      const mid = pinchMid();
-      const zoomed = zoomAround(start.view, pinchZoom(start.view.zoom, start.dist, pinchDistance()), start.mid.x, start.mid.y, width, mapHeight);
-      schedule(panBy(zoomed, mid.x - start.mid.x, mid.y - start.mid.y));
-      return;
-    }
     const d = drag.current;
-    if (!d) return;
+    if (gl === "ready" || !d) return;
     const dx = e.clientX - d.x;
     const dy = e.clientY - d.y;
     d.moved += Math.abs(dx) + Math.abs(dy);
     d.x = e.clientX;
     d.y = e.clientY;
-    samples.current.push({ t: e.timeStamp, x: e.clientX, y: e.clientY });
-    if (samples.current.length > 12) samples.current.shift();
     if (d.moved > DRAG_THRESHOLD) {
-      // La cattura parte solo quando è davvero un trascinamento: un tocco deve arrivare al simbolo.
       const el = e.currentTarget as HTMLElement;
       if (!el.hasPointerCapture(e.pointerId)) el.setPointerCapture(e.pointerId);
-      schedule(panBy(live(), dx, dy));
+      movedAt.current = performance.now();
+      setManual(panBy(view, dx, dy));
     }
   };
-  const onPointerUp = (e: ReactPointerEvent) => {
-    pointers.current.delete(e.pointerId);
-    if (pointers.current.size < 2) pinchStart.current = null;
-    const [rest] = [...pointers.current.values()];
-    if (rest) {
-      // Si è sollevato un dito del pizzico: il dito rimasto riparte da qui, senza salti.
-      drag.current = { x: rest.x, y: rest.y, moved: DRAG_THRESHOLD + 1 };
-    } else {
-      const dragged = drag.current !== null && drag.current.moved > DRAG_THRESHOLD;
-      setTimeout(() => (drag.current = null), 0);
-      // Lasciata andare con un po' di velocità, la mappa continua a scorrere (non dopo un pizzico).
-      const { vx, vy } = releaseVelocity(samples.current);
-      samples.current = [];
-      if (dragged && Math.hypot(vx, vy) > INERTIA_MIN_SPEED) glide(vx, vy);
-      else release();
-    }
+  const onPointerUp = () => {
+    drag.current = null;
   };
+  /** Vero subito dopo un trascinamento o un pizzico: il dito alzato non è una scelta. */
+  const justMoved = () => performance.now() - movedAt.current < 250;
   const select = (ref: string) => {
-    if (drag.current && drag.current.moved > DRAG_THRESHOLD) return;
+    if (justMoved()) return;
     setSelected(selected === ref ? null : ref);
   };
   const venueIds = new Set(venues.map((v) => v.id));
   const selectVenue = (id: string) => {
-    if (drag.current && drag.current.moved > DRAG_THRESHOLD) return;
+    if (justMoved()) return;
     props.onSelectVenue?.(selectedVenue === id ? null : id);
   };
+  // Con MapLibre i tocchi arrivano tutti alla mappa; i simboli si riconoscono qui, dalla loro posizione.
+  hitsRef.current = [
+    ...(!venuesLayer
+      ? content.places
+          .filter((p) => !stopIndex.has(p.ref) && !props.locked?.has(p.ref))
+          .map((p) => { const s = screen(p.location); return { id: p.ref, kind: "place" as const, x: s.x, y: s.y + PIN_HEAD_Y + 2, r: 18 }; })
+      : []),
+    ...(!venuesLayer ? stops.map((p) => { const s = screen(p.location); return { id: p.ref, kind: "place" as const, x: s.x, y: s.y, r: 16 }; }) : []),
+    ...venues.map((v) => { const s = screen(v.location); return { id: v.id, kind: "venue" as const, x: s.x, y: s.y, r: 18 }; }),
+    ...labels
+      .filter((l) => placeByRef.has(l.id) || venueIds.has(l.id))
+      .map((l) => {
+        const w = l.text.length * 5.6;
+        const x0 = l.anchor === "start" ? l.x : l.x - w;
+        return { id: l.id, kind: venueIds.has(l.id) ? ("venue" as const) : ("place" as const), box: { x0: x0 - 4, y0: l.y - 14, x1: x0 + w + 4, y1: l.y + 4 } };
+      }),
+  ];
+  onHitRef.current = (hit) => (hit.kind === "venue" ? props.onSelectVenue?.(selectedVenue === hit.id ? null : hit.id) : setSelected(selected === hit.id ? null : hit.id));
   const modes: Mode[] = explore ? ["me", "all"] : ["route", "me", "all"];
   const following = mode === "me" && !manual && !!fix;
 
@@ -577,53 +432,12 @@ export function MapView(props: {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onDoubleClick={(e) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          animateZoom(Math.floor(live().zoom + 1e-6) + 1, e.clientX - r.left, e.clientY - r.top);
-        }}
       >
-        {under && (
-          <div className="map-tiles" aria-hidden="true" style={{ transform: `translate(${under.x}px, ${under.y}px) scale(${under.scale})` }}>
-            {underTiles.map((tile) =>
-              failedTiles.has(tile.key) ? null : (
-                // eslint-disable-next-line @next/next/no-img-element -- tile cartografici esterni, non ottimizzabili da Next
-                <img
-                  key={tile.key}
-                  src={tileUrl(TILES, tile.z, tile.x, tile.y, pixelRatio ?? 1)}
-                  alt=""
-                  className="map-tile"
-                  decoding="sync"
-                  style={{ left: tile.left, top: tile.top, width: tile.size + TILE_OVERLAP, height: tile.size + TILE_OVERLAP }}
-                  draggable={false}
-                />
-              ),
-            )}
-          </div>
-        )}
-        <div
-          ref={tilesRef}
-          className="map-tiles"
-          style={layer ? { transform: `translate(${layer.x}px, ${layer.y}px) scale(${layer.scale})` } : undefined}
-        >
-        {tiles.map((tile) =>
-          failedTiles.has(tile.key) ? null : (
-            // eslint-disable-next-line @next/next/no-img-element -- tile cartografici esterni, non ottimizzabili da Next
-            <img
-              key={tile.key}
-              src={tileUrl(TILES, tile.z, tile.x, tile.y, pixelRatio ?? 1)}
-              alt=""
-              className="map-tile"
-              decoding="sync"
-              data-z={tile.z}
-              style={{ left: tile.left, top: tile.top, width: tile.size + TILE_OVERLAP, height: tile.size + TILE_OVERLAP }}
-              draggable={false}
-              onLoad={() => setLoadedTiles((n) => n + 1)}
-              onError={() => setFailedTiles((s) => new Set(s).add(tile.key))}
-            />
-          ),
-        )}
-        </div>
-        <svg width={width} height={mapHeight} className="map-svg" role="img" aria-label={t.map.aria}>
+        {/* Sfondo e gesti: MapLibre (scheda grafica). */}
+        <div ref={glRef} className="map-gl" aria-hidden="true" />
+        {/* Ciò che è della guida, sopra: segue la telecamera di MapLibre a ogni fotogramma. Solo i simboli ricevono i
+            tocchi; il resto passa alla mappa sotto. */}
+        <svg width={width} height={mapHeight} className={gl === "ready" ? "map-svg" : "map-svg interactive"} role="img" aria-label={t.map.aria}>
           {debug &&
             fences.map((p) => {
               const place = placeByRef.get(p.ref);
@@ -756,7 +570,7 @@ export function MapView(props: {
           <span style={{ width: scale.px }} />
           {scale.label}
         </div>
-        {showTiles && loadedTiles > 0 && (
+        {showTiles && tilesOk && (
           // Attribuzione richiesta dalla licenza dei dati (ODbL) e del fornitore: solo testo, senza link (decisione del 2026-10-18).
           <span className="map-attrib">{TILES.attribution}</span>
         )}
@@ -781,7 +595,7 @@ export function MapView(props: {
         {venuesLayer && <span className="muted small"><span className="legend-venue" aria-hidden="true" /> {t.map.legendVenues}</span>}
         {!venuesLayer && preliminary && <span className="muted small">{t.map.legendProvisional}</span>}
         {!venuesLayer && notFieldVerified && <span className="muted small">{t.map.legendMapVerified}</span>}
-        {showTiles && loadedTiles === 0 && failedTiles.size > 0 && <span className="muted small">{t.map.noBasemap}</span>}
+        {online && basemap && (gl === "unavailable" || (!tilesOk && tileErrors > 0)) && <span className="muted small">{t.map.noBasemap}</span>}
         {online ? (
           <label className="check small">
             <input type="checkbox" checked={basemap} onChange={(e) => setBasemap(e.target.checked)} />

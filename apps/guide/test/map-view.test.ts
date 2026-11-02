@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitView, metersPerPixel, panBy, placeLabels, project, scaleBar, toScreen, unproject, visibleTiles } from "../lib/map-view.ts";
+import { fitView, metersPerPixel, panBy, placeLabels, project, scaleBar, toScreen, unproject } from "../lib/map-view.ts";
 
 describe("geometria della mappa", () => {
   it("proietta e riproietta senza errori apprezzabili", () => {
@@ -37,14 +37,6 @@ describe("geometria della mappa", () => {
     expect(moved.center[0]).toBeLessThan(view.center[0]);
   });
 
-  it("i tile visibili coprono tutto il riquadro", () => {
-    const tiles = visibleTiles({ center: [9.85, 44.04], zoom: 16 }, 320, 260);
-    expect(Math.min(...tiles.map((t) => t.left))).toBeLessThanOrEqual(0);
-    expect(Math.max(...tiles.map((t) => t.left + 256))).toBeGreaterThanOrEqual(320);
-    expect(Math.min(...tiles.map((t) => t.top))).toBeLessThanOrEqual(0);
-    expect(Math.max(...tiles.map((t) => t.top + 256))).toBeGreaterThanOrEqual(260);
-  });
-
   it("la scala grafica usa valori tondi e rispetta la lunghezza massima", () => {
     const s = scaleBar(44, 17, 90);
     expect([1, 2, 5].some((k) => Number((s.meters / 10 ** Math.floor(Math.log10(s.meters))).toFixed(6)) === k)).toBe(true);
@@ -73,129 +65,38 @@ describe("geometria della mappa", () => {
   });
 });
 
-describe("zoom fluido", () => {
-  const view = { center: [9.85, 44.04] as [number, number], zoom: 16 };
-
-  it("pizzico continuo: raddoppiare la distanza tra le dita è un livello in più, entro i limiti", async () => {
-    const { pinchZoom, MAX_ZOOM, MIN_ZOOM } = await import("../lib/map-view.ts");
-    expect(pinchZoom(16, 100, 100)).toBe(16);
-    expect(pinchZoom(16, 100, 200)).toBeCloseTo(17);
-    expect(pinchZoom(16, 100, 141.42)).toBeCloseTo(16.5, 3);
-    expect(pinchZoom(16, 100, 50)).toBeCloseTo(15);
-    expect(pinchZoom(18.5, 100, 400)).toBe(MAX_ZOOM);
-    expect(pinchZoom(4, 100, 10)).toBe(MIN_ZOOM);
-    expect(pinchZoom(16, 0, 50)).toBe(16);
-  });
-
-  it("zoom intorno a un punto: il luogo sotto il dito resta sotto il dito", async () => {
-    const { zoomAround } = await import("../lib/map-view.ts");
-    const before = toScreen(view, 320, 260);
-    const target: [number, number] = [9.852, 44.041];
-    const p = before(target);
-    for (const z of [16.3, 17, 18.7, 14.2]) {
-      const after = toScreen(zoomAround(view, z, p.x, p.y, 320, 260), 320, 260)(target);
-      expect(after.x).toBeCloseTo(p.x, 6);
-      expect(after.y).toBeCloseTo(p.y, 6);
-    }
-    // Al centro del riquadro: cambia solo lo zoom.
-    const centered = zoomAround(view, 17.5, 160, 130, 320, 260);
-    expect(centered.center[0]).toBeCloseTo(view.center[0], 9);
-    expect(centered.center[1]).toBeCloseTo(view.center[1], 9);
-  });
-
-  it("tile a zoom frazionario: livello più vicino, scalati, contigui, coprono il riquadro", async () => {
-    const { tileLayers } = await import("../lib/map-view.ts");
-    for (const zoom of [16, 16.3, 16.49, 16.6, 17.9]) {
-      const tiles = visibleTiles({ ...view, zoom }, 320, 260);
-      const z = Math.round(zoom);
-      expect(tiles.every((t) => t.z === z)).toBe(true);
-      expect(tiles[0]!.size).toBeCloseTo(256 * 2 ** (zoom - z), -0.5);
-      expect(Math.min(...tiles.map((t) => t.left))).toBeLessThanOrEqual(0);
-      expect(Math.max(...tiles.map((t) => t.left + t.size))).toBeGreaterThanOrEqual(320);
-      expect(Math.min(...tiles.map((t) => t.top))).toBeLessThanOrEqual(0);
-      expect(Math.max(...tiles.map((t) => t.top + t.size))).toBeGreaterThanOrEqual(260);
-      // Nessuna fessura: il tile accanto comincia dove finisce il precedente.
-      const row = tiles.filter((t) => t.y === tiles[0]!.y).sort((a, b) => a.left - b.left);
-      for (let i = 1; i < row.length; i++) expect(row[i]!.left).toBe(row[i - 1]!.left + row[i - 1]!.size);
-      // Un luogo cade sullo stesso pixel della mappa e dello sfondo.
-      const placed = tiles.find((t) => t.x === Math.floor(project(view.center, z).x / 256) && t.y === Math.floor(project(view.center, z).y / 256))!;
-      const inTile = (project(view.center, z).x / 256 - placed.x) * placed.size;
-      expect(placed.left + inTile).toBeCloseTo(160, -0.5);
-    }
-    // Densità non intera e riquadro a metà di un pixel fisico nella pagina: i bordi cadono sui pixel fisici della
-    // pagina (multipli di 1/2,625 px CSS contando la posizione del riquadro), sempre contigui.
-    const grid = { ratio: 2.625, originX: 16.2, originY: 438.9375 };
-    const dense = visibleTiles({ ...view, zoom: 16.37 }, 320, 260, undefined, grid);
-    const onGrid = (v: number) => Math.abs(v * 2.625 - Math.round(v * 2.625)) < 1e-6;
-    for (const t of dense) {
-      expect(onGrid(grid.originX + t.left) && onGrid(grid.originX + t.left + t.size)).toBe(true);
-      expect(onGrid(grid.originY + t.top) && onGrid(grid.originY + t.top + t.size)).toBe(true);
-    }
-    const denseRow = dense.filter((t) => t.y === dense[0]!.y).sort((a, b) => a.left - b.left);
-    for (let i = 1; i < denseRow.length; i++) expect(denseRow[i]!.left).toBeCloseTo(denseRow[i - 1]!.left + denseRow[i - 1]!.size, 9);
-    // A zoom intero, come prima: 256 px.
-    expect(visibleTiles(view, 320, 260).every((t) => t.size === 256)).toBe(true);
-    // Due strati: sotto il livello precedente, sopra quello giusto.
-    const layers = tileLayers({ ...view, zoom: 16.4 }, 320, 260);
-    expect([...new Set(layers.map((t) => t.z))]).toEqual([15, 16]);
+describe("tocchi sui simboli", () => {
+  it("il simbolo più vicino entro il suo raggio, poi il nome, altrimenti niente", async () => {
+    const { hitTarget } = await import("../lib/map-view.ts");
+    const targets = [
+      { id: "a", kind: "place" as const, x: 100, y: 100, r: 18 },
+      { id: "b", kind: "place" as const, x: 120, y: 100, r: 18 },
+      { id: "v", kind: "venue" as const, x: 200, y: 200, r: 16 },
+      { id: "a", kind: "place" as const, box: { x0: 125, y0: 80, x1: 190, y1: 92 } },
+    ];
+    expect(hitTarget({ x: 104, y: 101 }, targets)).toEqual({ id: "a", kind: "place" });
+    expect(hitTarget({ x: 116, y: 100 }, targets)).toEqual({ id: "b", kind: "place" });
+    expect(hitTarget({ x: 205, y: 195 }, targets)).toEqual({ id: "v", kind: "venue" });
+    expect(hitTarget({ x: 170, y: 85 }, targets)).toEqual({ id: "a", kind: "place" });
+    expect(hitTarget({ x: 300, y: 300 }, targets)).toBeNull();
   });
 });
 
-describe("sfondo durante il gesto e inerzia", () => {
-  it("la trasformazione dello strato porta ogni luogo dove sta nella nuova inquadratura", async () => {
-    const { layerTransform, zoomAround } = await import("../lib/map-view.ts");
-    const from = { center: [9.85, 44.04] as [number, number], zoom: 16 };
-    const targets: [number, number][] = [[9.852, 44.041], [9.847, 44.038], [9.85, 44.04]];
-    for (const to of [zoomAround(from, 16.7, 100, 80, 320, 260), panBy(from, 40, -25), zoomAround(panBy(from, -30, 10), 15.2, 250, 200, 320, 260), from]) {
-      const t = layerTransform(from, to, 320, 260);
-      const a = toScreen(from, 320, 260);
-      const b = toScreen(to, 320, 260);
-      for (const p of targets) {
-        expect(t.x + t.scale * a(p).x).toBeCloseTo(b(p).x, 6);
-        expect(t.y + t.scale * a(p).y).toBeCloseTo(b(p).y, 6);
-      }
-    }
-    expect(layerTransform(from, from, 320, 260)).toEqual({ x: 0, y: 0, scale: 1 });
+describe("MapLibre", () => {
+  it("zoom: MapLibre conta in tile da 512 px, un livello in meno", async () => {
+    const { toGlZoom, fromGlZoom, metersPerPixel } = await import("../lib/map-view.ts");
+    expect(toGlZoom(17)).toBe(16);
+    expect(fromGlZoom(toGlZoom(15.37))).toBeCloseTo(15.37, 12);
+    // Stessa scala: a zoom 17 (256) = zoom 16 (512) un pixel vale gli stessi metri.
+    expect(metersPerPixel(44, 17)).toBeCloseTo((40075016.686 * Math.cos((44 * Math.PI) / 180)) / (512 * 2 ** toGlZoom(17)), 6);
   });
 
-  it("copertura dello strato: fermo, spostato, rimpicciolito vicino al bordo", async () => {
-    const { layerCovers, layerTransform, zoomAround } = await import("../lib/map-view.ts");
-    const from = { center: [9.85, 44.04] as [number, number], zoom: 14 };
-    const [w, h, mx, my] = [320, 260, 160, 130];
-    expect(layerCovers(layerTransform(from, from, w, h), w, h, mx, my, 50)).toBe(true);
-    // Spostato di poco: coperto; oltre il margine: scoperto.
-    expect(layerCovers(layerTransform(from, panBy(from, 100, 0), w, h), w, h, mx, my, 50)).toBe(true);
-    expect(layerCovers(layerTransform(from, panBy(from, 150, 0), w, h), w, h, mx, my, 50)).toBe(false);
-    // Rimpicciolito di 0,4 livelli con le dita al centro: coperto; con le dita sul bordo sinistro: il lato destro
-    // si scopre prima.
-    expect(layerCovers(layerTransform(from, zoomAround(from, 13.6, 160, 130, w, h), w, h), w, h, mx, my, 50)).toBe(true);
-    expect(layerCovers(layerTransform(from, zoomAround(from, 13.6, 0, 130, w, h), w, h), w, h, mx, my, 50)).toBe(false);
-  });
-
-  it("fondo a bassa risoluzione: pochi tile, tre livelli sotto, coprono cinque volte il riquadro", async () => {
-    const { backdropTiles } = await import("../lib/map-view.ts");
-    const view = { center: [9.85, 44.04] as [number, number], zoom: 15.4 };
-    const tiles = backdropTiles(view, 380, 380);
-    expect(tiles.length).toBeGreaterThan(0);
-    expect(tiles.length).toBeLessThanOrEqual(9);
-    expect(new Set(tiles.map((t) => t.z))).toEqual(new Set([12]));
-    expect(Math.min(...tiles.map((t) => t.left))).toBeLessThanOrEqual(-760);
-    expect(Math.max(...tiles.map((t) => t.left + t.size))).toBeGreaterThanOrEqual(380 + 760);
-    expect(Math.min(...tiles.map((t) => t.top))).toBeLessThanOrEqual(-760);
-    expect(Math.max(...tiles.map((t) => t.top + t.size))).toBeGreaterThanOrEqual(380 + 760);
-    expect(backdropTiles({ ...view, zoom: 2 }, 380, 380)).toEqual([]);
-  });
-
-  it("velocità al rilascio: solo gli ultimi istanti del dito", async () => {
-    const { releaseVelocity } = await import("../lib/map-view.ts");
-    expect(releaseVelocity([])).toEqual({ vx: 0, vy: 0 });
-    expect(releaseVelocity([{ t: 0, x: 0, y: 0 }])).toEqual({ vx: 0, vy: 0 });
-    // Movimento lento all'inizio, veloce alla fine: conta la fine.
-    const v = releaseVelocity([{ t: 0, x: 0, y: 0 }, { t: 200, x: 10, y: 0 }, { t: 240, x: 50, y: 20 }, { t: 280, x: 90, y: 40 }]);
-    expect(v.vx).toBeCloseTo(1, 6);
-    expect(v.vy).toBeCloseTo(0.5, 6);
-    // Dito fermo prima di alzarlo: nessuna inerzia.
-    expect(releaseVelocity([{ t: 0, x: 0, y: 0 }, { t: 40, x: 50, y: 0 }, { t: 300, x: 50, y: 0 }])).toEqual({ vx: 0, vy: 0 });
+  it("modello dei tile: {z}/{x}/{y} restano a MapLibre, {r} si risolve con la densità", async () => {
+    const { rasterTemplate, OSM_TILES } = await import("../lib/map-view.ts");
+    const hd = { template: "https://tiles.example.com/{z}/{x}/{y}{r}.png?key=k", attribution: "© Esempio" };
+    expect(rasterTemplate(hd, 2.625)).toBe("https://tiles.example.com/{z}/{x}/{y}@2x.png?key=k");
+    expect(rasterTemplate(hd, 1)).toBe("https://tiles.example.com/{z}/{x}/{y}.png?key=k");
+    expect(rasterTemplate(OSM_TILES, 3)).toBe("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
   });
 });
 

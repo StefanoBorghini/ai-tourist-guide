@@ -1,6 +1,7 @@
 /**
- * Geometria della mappa: proiezione Web Mercator (la stessa dei tile), inquadratura, tile da
- * caricare, scala grafica, posizionamento delle etichette senza sovrapposizioni.
+ * Geometria della mappa: proiezione Web Mercator (la stessa dei tile e di MapLibre), inquadratura, scala grafica,
+ * posizionamento delle etichette senza sovrapposizioni, sfondo (fornitore dei tile) e conversione dello zoom per
+ * MapLibre, che disegna sfondo e gesti.
  * Logica pura, testata; il componente MapView la usa per disegnare.
  */
 
@@ -78,145 +79,28 @@ export function panBy(view: MapViewState, dx: number, dy: number): MapViewState 
 /** Zoom dentro i limiti della mappa (anche frazionario: lo zoom con le dita è continuo). */
 export const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
 
-/**
- * Cambia lo zoom tenendo fermo il punto della mappa che sta sotto (px, py) dello schermo: il punto tra le dita del
- * pizzico, il cursore con la rotella, il dito del doppio tocco.
- */
-export function zoomAround(view: MapViewState, zoom: number, px: number, py: number, width: number, height: number): MapViewState {
-  const z = clampZoom(zoom);
-  const dx = px - width / 2;
-  const dy = py - height / 2;
-  const c0 = project(view.center, view.zoom);
-  const under = unproject({ x: c0.x + dx, y: c0.y + dy }, view.zoom);
-  const p1 = project(under, z);
-  return { center: unproject({ x: p1.x - dx, y: p1.y - dy }, z), zoom: z };
-}
-
-/** Zoom del pizzico: continuo, proporzionale a quanto si allargano o stringono le dita rispetto all'inizio. */
-export function pinchZoom(startZoom: number, startDistance: number, distance: number): number {
-  if (startDistance <= 0 || distance <= 0) return clampZoom(startZoom);
-  return clampZoom(startZoom + Math.log2(distance / startDistance));
-}
-
-export interface TilePlacement {
-  key: string;
-  x: number;
-  y: number;
-  z: number;
-  left: number;
-  top: number;
-  /** Lato sullo schermo: 256 px a zoom intero, ingrandito o ridotto tra un livello e l'altro. */
-  size: number;
-}
-
-/** Come arrotondare le posizioni: densità dello schermo e posizione del riquadro nella pagina, in pixel CSS. */
-export interface PixelGrid {
-  /** Pixel fisici per pixel CSS (2,625 su molti Android). */
-  ratio: number;
-  /** Posizione del riquadro della mappa nella pagina (può cadere a metà di un pixel fisico, per esempio 438,94). */
-  originX: number;
-  originY: number;
-}
-const NO_GRID: PixelGrid = { ratio: 1, originX: 0, originY: 0 };
+/** Qualcosa da toccare sulla mappa: un cerchio (spillo, tappa, attività) o un rettangolo (nome del luogo). */
+export type HitTarget =
+  | { id: string; kind: "place" | "venue"; x: number; y: number; r: number }
+  | { id: string; kind: "place" | "venue"; box: { x0: number; y0: number; x1: number; y1: number } };
 
 /**
- * Tile che coprono il riquadro, con la loro posizione sullo schermo. A zoom frazionario si usano i tile del livello
- * più vicino (o di `level`, se indicato), scalati: i bordi cadono sui pixel fisici della pagina (`grid`: densità e
- * posizione del riquadro) e sono contigui, senza fessure. Un bordo a metà di un pixel fisico verrebbe sfumato dal
- * browser e si vedrebbe come una riga sottile.
+ * Cosa c'è sotto il dito. Tutti i tocchi vanno alla mappa (così un pizzico che parte da uno spillo o da un nome
+ * resta un pizzico); quando la mappa riconosce un tocco semplice si cerca qui il simbolo più vicino entro il suo
+ * raggio, poi un nome che contenga il punto. Null: nessuno.
  */
-export function visibleTiles(view: MapViewState, width: number, height: number, level?: number, grid: PixelGrid = NO_GRID): TilePlacement[] {
-  const z = Math.max(0, Math.min(MAX_ZOOM, level ?? Math.round(view.zoom)));
-  const s = 2 ** (view.zoom - z);
-  const c = project(view.center, z);
-  const x0 = c.x - width / 2 / s;
-  const y0 = c.y - height / 2 / s;
-  const x1 = c.x + width / 2 / s;
-  const y1 = c.y + height / 2 / s;
-  const n = 2 ** z;
-  const r = grid.ratio > 0 && Number.isFinite(grid.ratio) ? grid.ratio : 1;
-  const ox = Number.isFinite(grid.originX) ? grid.originX : 0;
-  const oy = Number.isFinite(grid.originY) ? grid.originY : 0;
-  // Si arrotonda la posizione nella pagina, non quella nel riquadro: è la pagina a stare sulla griglia dei pixel fisici.
-  const sx = (wx: number) => Math.round(((wx - x0) * s + ox) * r) / r - ox;
-  const sy = (wy: number) => Math.round(((wy - y0) * s + oy) * r) / r - oy;
-  const tiles: TilePlacement[] = [];
-  for (let tx = Math.floor(x0 / TILE_SIZE); tx <= Math.floor(x1 / TILE_SIZE); tx++) {
-    for (let ty = Math.floor(y0 / TILE_SIZE); ty <= Math.floor(y1 / TILE_SIZE); ty++) {
-      if (ty < 0 || ty >= n) continue;
-      const wx = ((tx % n) + n) % n;
-      const left = sx(tx * TILE_SIZE);
-      const top = sy(ty * TILE_SIZE);
-      tiles.push({ key: `${z}/${wx}/${ty}`, x: wx, y: ty, z, left, top, size: sx((tx + 1) * TILE_SIZE) - left });
-    }
+export function hitTarget(p: Pixel, targets: readonly HitTarget[]): { id: string; kind: "place" | "venue" } | null {
+  let best: { id: string; kind: "place" | "venue"; d: number } | null = null;
+  for (const t of targets) {
+    if (!("r" in t)) continue;
+    const d = Math.hypot(p.x - t.x, p.y - t.y);
+    if (d <= t.r && (!best || d < best.d)) best = { id: t.id, kind: t.kind, d };
   }
-  return tiles;
-}
-
-/**
- * Trasformazione CSS (traslazione, poi scala, origine in alto a sinistra) che porta ciò che è disegnato per
- * l'inquadratura `from` dove starebbe con l'inquadratura `to`. Durante un gesto lo sfondo non si ridisegna: si
- * sposta e si ingrandisce tutto insieme con la scheda grafica, e si ridisegna nitido solo a gesto finito.
- */
-export function layerTransform(from: MapViewState, to: MapViewState, width: number, height: number): { x: number; y: number; scale: number } {
-  const scale = 2 ** (to.zoom - from.zoom);
-  const a = project(from.center, to.zoom);
-  const b = project(to.center, to.zoom);
-  return { x: a.x - b.x + (width / 2) * (1 - scale), y: a.y - b.y + (height / 2) * (1 - scale), scale };
-}
-
-/**
- * Vero se lo strato disegnato per un'inquadratura (riquadro più un margine `marginX`/`marginY` per lato, in pixel),
- * spostato con la trasformazione `t`, copre ancora tutto il riquadro con almeno `slack` pixel di scorta per lato.
- * Quando non è più vero si ridisegna lo sfondo, prima che compaia una fascia vuota.
- */
-export function layerCovers(
-  t: { x: number; y: number; scale: number },
-  width: number,
-  height: number,
-  marginX: number,
-  marginY: number,
-  slack = 0,
-): boolean {
-  const left = t.x - t.scale * marginX;
-  const right = t.x + t.scale * (width + marginX);
-  const top = t.y - t.scale * marginY;
-  const bottom = t.y + t.scale * (height + marginY);
-  return left <= -slack && top <= -slack && right >= width + slack && bottom >= height + slack;
-}
-
-/** Velocità di un trascinamento (px/ms) dagli ultimi campioni del dito, solo quelli degli ultimi `windowMs`. */
-export function releaseVelocity(samples: readonly { t: number; x: number; y: number }[], windowMs = 90): { vx: number; vy: number } {
-  if (samples.length < 2) return { vx: 0, vy: 0 };
-  const last = samples[samples.length - 1]!;
-  const recent = samples.filter((s) => last.t - s.t <= windowMs);
-  const first = recent[0]!;
-  const dt = last.t - first.t;
-  if (recent.length < 2 || dt <= 0) return { vx: 0, vy: 0 };
-  return { vx: (last.x - first.x) / dt, vy: (last.y - first.y) / dt };
-}
-
-/**
- * Fondo a bassa risoluzione, sotto tutti gli altri strati: tile di `levelsBelow` livelli più in basso che coprono
- * `spread` volte il riquadro per lato. Sono pochi (4-9) e già scaricati prima di un gesto: rimpicciolendo in fretta,
- * dove i tile nuovi non sono ancora arrivati si vede la mappa sfocata invece di una fascia vuota.
- */
-export function backdropTiles(view: MapViewState, width: number, height: number, grid: PixelGrid = NO_GRID, levelsBelow = 3, spread = 2): TilePlacement[] {
-  const level = Math.round(view.zoom) - levelsBelow;
-  if (level < 0) return [];
-  const bw = Math.round(width * spread);
-  const bh = Math.round(height * spread);
-  return visibleTiles(view, width + 2 * bw, height + 2 * bh, level, { ...grid, originX: grid.originX - bw, originY: grid.originY - bh })
-    .map((t) => ({ ...t, left: t.left - bw, top: t.top - bh }));
-}
-
-/**
- * Sfondo in due strati: sotto il livello precedente (pochi tile, quasi sempre già scaricati), sopra quello giusto.
- * Mentre si ingrandisce, i tile nuovi compaiono sopra un'immagine già presente invece che su un riquadro vuoto.
- */
-export function tileLayers(view: MapViewState, width: number, height: number, grid: PixelGrid = NO_GRID): TilePlacement[] {
-  const z = Math.round(view.zoom);
-  return [...(z > 0 ? visibleTiles(view, width, height, z - 1, grid) : []), ...visibleTiles(view, width, height, z, grid)];
+  if (best) return { id: best.id, kind: best.kind };
+  for (const t of targets) {
+    if ("box" in t && p.x >= t.box.x0 && p.x <= t.box.x1 && p.y >= t.box.y0 && p.y <= t.box.y1) return { id: t.id, kind: t.kind };
+  }
+  return null;
 }
 
 /** Scala grafica "tonda" (1, 2, 5 × 10ⁿ metri) lunga al massimo maxPx pixel. */
@@ -314,4 +198,16 @@ export function tileUrl(source: TileSource, z: number, x: number, y: number, pix
     .replaceAll("{x}", String(x))
     .replaceAll("{y}", String(y))
     .replaceAll("{r}", pixelRatio > 1 ? "@2x" : "");
+}
+
+/**
+ * MapLibre misura lo zoom in tile da 512 px, questa libreria (e le coordinate di project/toScreen) in tile da 256:
+ * lo stesso ingrandimento è un livello in meno per MapLibre.
+ */
+export const toGlZoom = (zoom: number) => zoom - 1;
+export const fromGlZoom = (glZoom: number) => glZoom + 1;
+
+/** Modello dei tile per MapLibre: {z}, {x} e {y} restano (li riempie MapLibre), {r} si risolve qui. */
+export function rasterTemplate(source: TileSource, pixelRatio = 1): string {
+  return source.template.replaceAll("{r}", pixelRatio > 1 ? "@2x" : "");
 }

@@ -11,3 +11,4 @@ coverage/
 
 # Bundle generati al build dell'app
 apps/guide/public/bundles/
+apps/guide/public/vendor/

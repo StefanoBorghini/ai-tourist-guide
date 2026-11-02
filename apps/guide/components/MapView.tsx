@@ -60,6 +60,8 @@ const DRAG_THRESHOLD = 6;
  * semitrasparente tra un tile e l'altro, che si vede come una riga sottile sulla mappa.
  */
 const TILE_OVERLAP = 1;
+// I tile si decodificano subito (decoding="sync"): su Android un'immagine appena inserita, anche se già scaricata,
+// altrimenti resta trasparente per un fotogramma, e quando lo sfondo si ridisegna l'intera mappa lampeggia vuota.
 /**
  * Durante un gesto lo sfondo resta quello disegnato all'inizio e si sposta come un'immagine sola (scheda grafica):
  * si ridisegna quando lo zoom cambia di più di mezzo livello o quando un lato sta per restare scoperto (scorta
@@ -71,6 +73,8 @@ const TILE_MARGIN = 0.5;
 const REFREEZE_SLACK = 0.4;
 const REFREEZE_ZOOM = 0.5;
 const GESTURE_SETTLE_MS = 120;
+/** Al più per quanto lo strato di sotto aspetta le immagini nitide dopo un gesto (rete lenta o tile che non arrivano). */
+const UNDER_MAX_MS = 2000;
 /** Inerzia dopo un trascinamento: velocità minima per partire (px/ms), attrito per millisecondo, velocità massima. */
 const INERTIA_MIN_SPEED = 0.25;
 const INERTIA_FRICTION = 0.995;
@@ -147,8 +151,14 @@ export function MapView(props: {
   const samples = useRef<{ t: number; x: number; y: number }[]>([]);
   /** Inquadratura con cui è disegnato lo sfondo durante un gesto (null: segue l'inquadratura). */
   const [tileView, setTileView] = useState<MapViewState | null>(null);
-  /** Inquadratura di inizio gesto: il suo sfondo (già scaricato) resta sotto per tutto il gesto. */
+  /**
+   * Inquadratura di inizio gesto: il suo sfondo (già scaricato) resta sotto per tutto il gesto e anche dopo, finché
+   * le immagini nitide della nuova inquadratura non sono caricate (al più UNDER_MAX_MS): mai un istante senza sfondo.
+   */
   const [gestureBase, setGestureBase] = useState<MapViewState | null>(null);
+  const gestureBaseRef = useRef<MapViewState | null>(null);
+  const underWatch = useRef<number | null>(null);
+  const tilesRef = useRef<HTMLDivElement | null>(null);
   const tileViewRef = useRef<MapViewState | null>(null);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Inizio del pizzico: inquadratura, distanza e punto medio delle dita (in pixel del riquadro). */
@@ -243,8 +253,43 @@ export function MapView(props: {
     if (!tileViewRef.current) {
       tileViewRef.current = live();
       setTileView(tileViewRef.current);
-      setGestureBase(tileViewRef.current);
+      // Se lo strato di sotto del gesto precedente è ancora lì (immagini nuove non ancora arrivate), resta quello.
+      if (underWatch.current !== null) cancelAnimationFrame(underWatch.current);
+      underWatch.current = null;
+      if (!gestureBaseRef.current) {
+        gestureBaseRef.current = tileViewRef.current;
+        setGestureBase(tileViewRef.current);
+      }
     }
+  };
+  /** Toglie lo strato di sotto quando le immagini visibili dello sfondo nitido sono caricate (o dopo UNDER_MAX_MS). */
+  const dropUnderWhenLoaded = () => {
+    if (underWatch.current !== null) cancelAnimationFrame(underWatch.current);
+    const t0 = performance.now();
+    let ready = 0;
+    const check = () => {
+      underWatch.current = null;
+      if (tileViewRef.current) return; // è iniziato un altro gesto: lo strato serve ancora
+      const box = boxRef.current?.getBoundingClientRect();
+      const level = String(Math.round((viewRef.current ?? { zoom: 0 }).zoom));
+      const pending = box
+        ? [...(tilesRef.current?.querySelectorAll<HTMLImageElement>(`img[data-z="${level}"]`) ?? [])].some((img) => {
+            const r = img.getBoundingClientRect();
+            const visible = r.right > box.left && r.left < box.right && r.bottom > box.top && r.top < box.bottom;
+            return visible && !img.complete;
+          })
+        : false;
+      // Caricate da due fotogrammi di seguito: il tempo di dipingerle prima di togliere quelle di sotto.
+      ready = pending ? 0 : ready + 1;
+      if (ready < 2 && performance.now() - t0 < UNDER_MAX_MS) {
+        underWatch.current = requestAnimationFrame(check);
+        return;
+      }
+      gestureBaseRef.current = null;
+      setGestureBase(null);
+    };
+    // Si controlla dal fotogramma dopo il ridisegno nitido, quando le immagini nuove sono già nella pagina.
+    underWatch.current = requestAnimationFrame(() => (underWatch.current = requestAnimationFrame(check)));
   };
   /** Fine di un gesto: poco dopo lo sfondo si ridisegna nitido (se nel frattempo non ne è iniziato un altro). */
   const release = () => {
@@ -254,7 +299,7 @@ export function MapView(props: {
       if (pointers.current.size > 0 || animation.current !== null) return;
       tileViewRef.current = null;
       setTileView(null);
-      setGestureBase(null);
+      dropUnderWhenLoaded();
     }, GESTURE_SETTLE_MS);
   };
   /** Ferma animazioni e aggiornamenti in sospeso (prima di un'inquadratura decisa altrove). */
@@ -264,6 +309,9 @@ export function MapView(props: {
     settleTimer.current = null;
     tileViewRef.current = null;
     setTileView(null);
+    if (underWatch.current !== null) cancelAnimationFrame(underWatch.current);
+    underWatch.current = null;
+    gestureBaseRef.current = null;
     setGestureBase(null);
     if (frame.current !== null) cancelAnimationFrame(frame.current);
     frame.current = null;
@@ -322,6 +370,7 @@ export function MapView(props: {
     if (frame.current !== null) cancelAnimationFrame(frame.current);
     if (animation.current !== null) cancelAnimationFrame(animation.current);
     if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    if (underWatch.current !== null) cancelAnimationFrame(underWatch.current);
   }, []);
   // Rotella del mouse e pizzico del touchpad (ctrlKey) sul computer: zoom continuo intorno al cursore. Ascoltatore
   // non passivo, per non far scorrere la pagina.
@@ -543,6 +592,7 @@ export function MapView(props: {
                   src={tileUrl(TILES, tile.z, tile.x, tile.y, pixelRatio ?? 1)}
                   alt=""
                   className="map-tile"
+                  decoding="sync"
                   style={{ left: tile.left, top: tile.top, width: tile.size + TILE_OVERLAP, height: tile.size + TILE_OVERLAP }}
                   draggable={false}
                 />
@@ -551,6 +601,7 @@ export function MapView(props: {
           </div>
         )}
         <div
+          ref={tilesRef}
           className="map-tiles"
           style={layer ? { transform: `translate(${layer.x}px, ${layer.y}px) scale(${layer.scale})` } : undefined}
         >
@@ -562,6 +613,8 @@ export function MapView(props: {
               src={tileUrl(TILES, tile.z, tile.x, tile.y, pixelRatio ?? 1)}
               alt=""
               className="map-tile"
+              decoding="sync"
+              data-z={tile.z}
               style={{ left: tile.left, top: tile.top, width: tile.size + TILE_OVERLAP, height: tile.size + TILE_OVERLAP }}
               draggable={false}
               onLoad={() => setLoadedTiles((n) => n + 1)}

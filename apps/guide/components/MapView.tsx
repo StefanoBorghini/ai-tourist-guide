@@ -329,7 +329,8 @@ export function MapView(props: {
   });
   const labelCandidates: LabelCandidate[] = venuesLayer ? venueLabels : [
     ...venueLabels,
-    ...content.places.map((p) => {
+    // Come gli spilli: niente nome per i luoghi a pagamento non acquistati (le tappe restano).
+    ...content.places.filter((p) => stopIndex.has(p.ref) || !props.locked?.has(p.ref)).map((p) => {
       const s = screen(p.location);
       const i = stopIndex.get(p.ref);
       const priority =

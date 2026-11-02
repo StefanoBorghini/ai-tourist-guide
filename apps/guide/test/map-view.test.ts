@@ -158,6 +158,34 @@ describe("sfondo durante il gesto e inerzia", () => {
     expect(layerTransform(from, from, 320, 260)).toEqual({ x: 0, y: 0, scale: 1 });
   });
 
+  it("copertura dello strato: fermo, spostato, rimpicciolito vicino al bordo", async () => {
+    const { layerCovers, layerTransform, zoomAround } = await import("../lib/map-view.ts");
+    const from = { center: [9.85, 44.04] as [number, number], zoom: 14 };
+    const [w, h, mx, my] = [320, 260, 160, 130];
+    expect(layerCovers(layerTransform(from, from, w, h), w, h, mx, my, 50)).toBe(true);
+    // Spostato di poco: coperto; oltre il margine: scoperto.
+    expect(layerCovers(layerTransform(from, panBy(from, 100, 0), w, h), w, h, mx, my, 50)).toBe(true);
+    expect(layerCovers(layerTransform(from, panBy(from, 150, 0), w, h), w, h, mx, my, 50)).toBe(false);
+    // Rimpicciolito di 0,4 livelli con le dita al centro: coperto; con le dita sul bordo sinistro: il lato destro
+    // si scopre prima.
+    expect(layerCovers(layerTransform(from, zoomAround(from, 13.6, 160, 130, w, h), w, h), w, h, mx, my, 50)).toBe(true);
+    expect(layerCovers(layerTransform(from, zoomAround(from, 13.6, 0, 130, w, h), w, h), w, h, mx, my, 50)).toBe(false);
+  });
+
+  it("fondo a bassa risoluzione: pochi tile, tre livelli sotto, coprono cinque volte il riquadro", async () => {
+    const { backdropTiles } = await import("../lib/map-view.ts");
+    const view = { center: [9.85, 44.04] as [number, number], zoom: 15.4 };
+    const tiles = backdropTiles(view, 380, 380);
+    expect(tiles.length).toBeGreaterThan(0);
+    expect(tiles.length).toBeLessThanOrEqual(9);
+    expect(new Set(tiles.map((t) => t.z))).toEqual(new Set([12]));
+    expect(Math.min(...tiles.map((t) => t.left))).toBeLessThanOrEqual(-760);
+    expect(Math.max(...tiles.map((t) => t.left + t.size))).toBeGreaterThanOrEqual(380 + 760);
+    expect(Math.min(...tiles.map((t) => t.top))).toBeLessThanOrEqual(-760);
+    expect(Math.max(...tiles.map((t) => t.top + t.size))).toBeGreaterThanOrEqual(380 + 760);
+    expect(backdropTiles({ ...view, zoom: 2 }, 380, 380)).toEqual([]);
+  });
+
   it("velocità al rilascio: solo gli ultimi istanti del dito", async () => {
     const { releaseVelocity } = await import("../lib/map-view.ts");
     expect(releaseVelocity([])).toEqual({ vx: 0, vy: 0 });

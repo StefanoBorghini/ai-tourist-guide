@@ -8,9 +8,11 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   clampZoom,
+  backdropTiles,
   fitView,
   metersPerPixel,
   panBy,
+  layerCovers,
   layerTransform,
   pinchZoom,
   placeLabels,
@@ -60,10 +62,13 @@ const DRAG_THRESHOLD = 6;
 const TILE_OVERLAP = 1;
 /**
  * Durante un gesto lo sfondo resta quello disegnato all'inizio e si sposta come un'immagine sola (scheda grafica):
- * si ridisegna quando lo zoom cambia di più di mezzo livello o la mappa si sposta oltre il margine già disegnato,
- * e nitido a gesto finito, dopo GESTURE_SETTLE_MS.
+ * si ridisegna quando lo zoom cambia di più di mezzo livello o quando un lato sta per restare scoperto (scorta
+ * REFREEZE_SLACK del margine, così i tile nuovi arrivano prima di servire), e nitido a gesto finito, dopo
+ * GESTURE_SETTLE_MS. Il margine disegnato oltre il riquadro è metà del riquadro per lato: rimpicciolendo in fretta
+ * (anche con le dita lontane dal centro) non compaiono fasce vuote.
  */
-const TILE_MARGIN = 0.25;
+const TILE_MARGIN = 0.5;
+const REFREEZE_SLACK = 0.4;
 const REFREEZE_ZOOM = 0.5;
 const GESTURE_SETTLE_MS = 120;
 /** Inerzia dopo un trascinamento: velocità minima per partire (px/ms), attrito per millisecondo, velocità massima. */
@@ -142,6 +147,8 @@ export function MapView(props: {
   const samples = useRef<{ t: number; x: number; y: number }[]>([]);
   /** Inquadratura con cui è disegnato lo sfondo durante un gesto (null: segue l'inquadratura). */
   const [tileView, setTileView] = useState<MapViewState | null>(null);
+  /** Inquadratura di inizio gesto: il suo sfondo (già scaricato) resta sotto per tutto il gesto. */
+  const [gestureBase, setGestureBase] = useState<MapViewState | null>(null);
   const tileViewRef = useRef<MapViewState | null>(null);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Inizio del pizzico: inquadratura, distanza e punto medio delle dita (in pixel del riquadro). */
@@ -215,7 +222,9 @@ export function MapView(props: {
         if (base) {
           const { width: w, height: h } = sizeRef.current;
           const t = layerTransform(base, v, w, h);
-          if (Math.abs(v.zoom - base.zoom) > REFREEZE_ZOOM || Math.abs(t.x + (w * (t.scale - 1)) / 2) > w * TILE_MARGIN || Math.abs(t.y + (h * (t.scale - 1)) / 2) > h * TILE_MARGIN) {
+          const mx = Math.round(w * TILE_MARGIN);
+          const my = Math.round(h * TILE_MARGIN);
+          if (Math.abs(v.zoom - base.zoom) > REFREEZE_ZOOM || !layerCovers(t, w, h, mx, my, Math.min(mx, my) * REFREEZE_SLACK)) {
             tileViewRef.current = v;
             setTileView(v);
           }
@@ -234,6 +243,7 @@ export function MapView(props: {
     if (!tileViewRef.current) {
       tileViewRef.current = live();
       setTileView(tileViewRef.current);
+      setGestureBase(tileViewRef.current);
     }
   };
   /** Fine di un gesto: poco dopo lo sfondo si ridisegna nitido (se nel frattempo non ne è iniziato un altro). */
@@ -244,6 +254,7 @@ export function MapView(props: {
       if (pointers.current.size > 0 || animation.current !== null) return;
       tileViewRef.current = null;
       setTileView(null);
+      setGestureBase(null);
     }, GESTURE_SETTLE_MS);
   };
   /** Ferma animazioni e aggiornamenti in sospeso (prima di un'inquadratura decisa altrove). */
@@ -253,6 +264,7 @@ export function MapView(props: {
     settleTimer.current = null;
     tileViewRef.current = null;
     setTileView(null);
+    setGestureBase(null);
     if (frame.current !== null) cancelAnimationFrame(frame.current);
     frame.current = null;
     pending.current = null;
@@ -362,14 +374,23 @@ export function MapView(props: {
   const originY = (boxRect?.top ?? 0) + (typeof window !== "undefined" ? window.scrollY : 0);
   // Lo sfondo si disegna per l'inquadratura di inizio gesto (o per quella attuale), con un margine intorno: durante il
   // gesto lo sposta la trasformazione dello strato, senza ridisegnare le immagini.
-  const tileBase = tileView ?? view;
   const mw = Math.round(width * TILE_MARGIN);
   const mh = Math.round(mapHeight * TILE_MARGIN);
-  const tiles = showTiles
-    ? tileLayers(tileBase, width + 2 * mw, mapHeight + 2 * mh, { ratio: pixelRatio ?? 1, originX: originX - mw, originY: originY - mh })
-        .map((t) => ({ ...t, left: t.left - mw, top: t.top - mh }))
-    : [];
+  /** Tutti i tile dello sfondo per un'inquadratura: fondo largo a bassa risoluzione, livello precedente, livello giusto. */
+  const tilesFor = (base: MapViewState) => [
+    // Due livelli di fondo: rimpicciolendo di un livello, il «quattro sotto» nuovo è il «tre sotto» di prima.
+    ...backdropTiles(base, width, mapHeight, { ratio: pixelRatio ?? 1, originX, originY }, 4),
+    ...backdropTiles(base, width, mapHeight, { ratio: pixelRatio ?? 1, originX, originY }, 3),
+    ...tileLayers(base, width + 2 * mw, mapHeight + 2 * mh, { ratio: pixelRatio ?? 1, originX: originX - mw, originY: originY - mh })
+      .map((t) => ({ ...t, left: t.left - mw, top: t.top - mh })),
+  ];
+  const tiles = showTiles ? tilesFor(tileView ?? view) : [];
   const layer = tileView ? layerTransform(tileView, view, width, mapHeight) : null;
+  // Sotto, per tutto il gesto, lo sfondo com'era all'inizio (già scaricato): quando lo sfondo sopra si ridisegna più
+  // volte di seguito rimpicciolendo in fretta, i suoi tile nuovi arrivano su un'immagine già presente, mai sul vuoto.
+  // Montato già a inizio gesto (le stesse immagini, dalla cache), così è pronto quando serve.
+  const underTiles = showTiles && gestureBase ? tilesFor(gestureBase) : [];
+  const under = underTiles.length > 0 && gestureBase ? layerTransform(gestureBase, view, width, mapHeight) : null;
   viewRef.current = view;
   sizeRef.current = { width, height: mapHeight };
   const scale = scaleBar(view.center[1], view.zoom);
@@ -512,6 +533,23 @@ export function MapView(props: {
           animateZoom(Math.floor(live().zoom + 1e-6) + 1, e.clientX - r.left, e.clientY - r.top);
         }}
       >
+        {under && (
+          <div className="map-tiles" aria-hidden="true" style={{ transform: `translate(${under.x}px, ${under.y}px) scale(${under.scale})` }}>
+            {underTiles.map((tile) =>
+              failedTiles.has(tile.key) ? null : (
+                // eslint-disable-next-line @next/next/no-img-element -- tile cartografici esterni, non ottimizzabili da Next
+                <img
+                  key={tile.key}
+                  src={tileUrl(TILES, tile.z, tile.x, tile.y, pixelRatio ?? 1)}
+                  alt=""
+                  className="map-tile"
+                  style={{ left: tile.left, top: tile.top, width: tile.size + TILE_OVERLAP, height: tile.size + TILE_OVERLAP }}
+                  draggable={false}
+                />
+              ),
+            )}
+          </div>
+        )}
         <div
           className="map-tiles"
           style={layer ? { transform: `translate(${layer.x}px, ${layer.y}px) scale(${layer.scale})` } : undefined}

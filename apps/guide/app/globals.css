@@ -923,7 +923,9 @@ details.card[open] > summary::after { content: "–"; }
 .map-box.with-tiles { background: #f2efe9; }
 /* Strato dello sfondo: durante un gesto si sposta e si ingrandisce come un'immagine sola (scheda grafica). */
 .map-tiles { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; pointer-events: none; }
-.map-tile { position: absolute; width: 256px; height: 256px; pointer-events: none; }
+/* max-width: none: la regola generale delle immagini (max-width: 100%) ridurrebbe i tile più larghi del riquadro
+   (fondo a bassa risoluzione, tile a mezzo livello di zoom) lasciando buchi nello sfondo. */
+.map-tile { position: absolute; width: 256px; height: 256px; max-width: none; max-height: none; pointer-events: none; }
 .map-svg { position: absolute; inset: 0; }
 .map-route { fill: none; stroke: var(--route); stroke-width: 3.5; stroke-dasharray: 7 6; stroke-linecap: round; }
 .map-poi { fill: var(--surface); stroke: var(--muted); stroke-width: 2; cursor: pointer; }

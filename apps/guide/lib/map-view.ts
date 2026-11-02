@@ -165,6 +165,26 @@ export function layerTransform(from: MapViewState, to: MapViewState, width: numb
   return { x: a.x - b.x + (width / 2) * (1 - scale), y: a.y - b.y + (height / 2) * (1 - scale), scale };
 }
 
+/**
+ * Vero se lo strato disegnato per un'inquadratura (riquadro più un margine `marginX`/`marginY` per lato, in pixel),
+ * spostato con la trasformazione `t`, copre ancora tutto il riquadro con almeno `slack` pixel di scorta per lato.
+ * Quando non è più vero si ridisegna lo sfondo, prima che compaia una fascia vuota.
+ */
+export function layerCovers(
+  t: { x: number; y: number; scale: number },
+  width: number,
+  height: number,
+  marginX: number,
+  marginY: number,
+  slack = 0,
+): boolean {
+  const left = t.x - t.scale * marginX;
+  const right = t.x + t.scale * (width + marginX);
+  const top = t.y - t.scale * marginY;
+  const bottom = t.y + t.scale * (height + marginY);
+  return left <= -slack && top <= -slack && right >= width + slack && bottom >= height + slack;
+}
+
 /** Velocità di un trascinamento (px/ms) dagli ultimi campioni del dito, solo quelli degli ultimi `windowMs`. */
 export function releaseVelocity(samples: readonly { t: number; x: number; y: number }[], windowMs = 90): { vx: number; vy: number } {
   if (samples.length < 2) return { vx: 0, vy: 0 };
@@ -174,6 +194,20 @@ export function releaseVelocity(samples: readonly { t: number; x: number; y: num
   const dt = last.t - first.t;
   if (recent.length < 2 || dt <= 0) return { vx: 0, vy: 0 };
   return { vx: (last.x - first.x) / dt, vy: (last.y - first.y) / dt };
+}
+
+/**
+ * Fondo a bassa risoluzione, sotto tutti gli altri strati: tile di `levelsBelow` livelli più in basso che coprono
+ * `spread` volte il riquadro per lato. Sono pochi (4-9) e già scaricati prima di un gesto: rimpicciolendo in fretta,
+ * dove i tile nuovi non sono ancora arrivati si vede la mappa sfocata invece di una fascia vuota.
+ */
+export function backdropTiles(view: MapViewState, width: number, height: number, grid: PixelGrid = NO_GRID, levelsBelow = 3, spread = 2): TilePlacement[] {
+  const level = Math.round(view.zoom) - levelsBelow;
+  if (level < 0) return [];
+  const bw = Math.round(width * spread);
+  const bh = Math.round(height * spread);
+  return visibleTiles(view, width + 2 * bw, height + 2 * bh, level, { ...grid, originX: grid.originX - bw, originY: grid.originY - bh })
+    .map((t) => ({ ...t, left: t.left - bw, top: t.top - bh }));
 }
 
 /**

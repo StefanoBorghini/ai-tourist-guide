@@ -45,7 +45,7 @@ diritti) è in `ACCESSO-CONTENUTI.md`; pagamenti in `PAGAMENTI.md`; progetto in 
    che non è più concesso (rimborso), unisce con `mergePremium`. Una visita in corso non cambia a metà. La pagina
    dell'ordine riuscito ha «Apri nella guida». Mappa dell'esplorazione libera: spillo e nome di tutti i luoghi principali,
    anche quelli a pagamento (toccandoli, la scheda propone «Sblocca»; decisione del 7/11, prima la mappa mostrava solo
-   i gratuiti o acquistati); i sottoluoghi compaiono avvicinandosi (`SUB_PLACE_MIN_ZOOM` in `lib/map-view.ts`).
+   i gratuiti o acquistati); avvicinandosi i sottoluoghi prendono il posto del loro principale (`SUB_PLACE_MIN_ZOOM` in `lib/map-view.ts`).
    Elenco e «Vicino a te» mostrano anche quelli a pagamento, con «Sblocca». Quali luoghi sono a pagamento lo decide lo
    Studio (`content.locked.places`): tutti quelli della destinazione tranne gli introduttivi e i gratuiti, anche se
    non hanno ancora racconti; dopo un acquisto escono dall'elenco il luogo comprato e le tappe dei percorsi comprati. La scheda di un luogo bloccato offre

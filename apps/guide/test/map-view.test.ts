@@ -128,10 +128,11 @@ describe("placesOnMap: principali sempre, sottoluoghi avvicinandosi", () => {
   it("da lontano solo i principali (anche un partOf verso sé stesso o verso un luogo assente)", () => {
     expect(refs(14)).toEqual(["castello", "chiesa", "orfano"]);
   });
-  it("da SUB_PLACE_MIN_ZOOM in su anche i sottoluoghi", () => {
-    expect(refs(SUB_PLACE_MIN_ZOOM)).toEqual(["castello", "torre", "chiesa", "orfano"]);
+  it("da SUB_PLACE_MIN_ZOOM in su i sottoluoghi prendono il posto del principale; gli altri principali restano", () => {
+    expect(refs(SUB_PLACE_MIN_ZOOM)).toEqual(["torre", "chiesa", "orfano"]);
   });
-  it("il sottoluogo selezionato resta a ogni zoom", () => {
+  it("il luogo selezionato resta a ogni zoom, sottoluogo o principale", () => {
     expect(refs(12, new Set(["torre"]))).toContain("torre");
+    expect(refs(SUB_PLACE_MIN_ZOOM, new Set(["castello"]))).toEqual(["castello", "torre", "chiesa", "orfano"]);
   });
 });

@@ -19,9 +19,13 @@ Riga discreta in fondo alla scheda del luogo («Racconta *luogo* su Instagram ·
 che apre un foglio dal basso:
 
 1. **Testo pronto** (`📍 Luogo · Destinazione` e `@account #hashtag`) con «Copia il testo».
-2. **Telefono**: «Scegli una foto o un video» (il testo si copia in quel momento), poi «Condividi su Instagram» apre il
-   menu del sistema; nel menu si sceglie Instagram e poi Post, Reel o Storia, e si incolla il testo.
-3. **«Apri Instagram»**: il profilo dell'account (sul telefono si apre nell'app); copia anche il testo.
+2. **Telefono**: «Scatta una foto» o «Gira un video» aprono direttamente la fotocamera posteriore (`capture` del campo
+   file, Android e iPhone), «Dalla galleria» sceglie una foto o un video già fatti; il testo si copia in quel momento.
+   Appena scattato o scelto si apre subito il menu del sistema con lo scatto (se il browser non lo concede, perché è
+   passato troppo tempo dal tocco, resta il pulsante «Pubblica su Instagram»; lo scatto si può anche rifare); nel menu si sceglie Instagram e poi Post, Reel o Storia, e si incolla il testo.
+3. **«Apri Instagram»** (solo dove il telefono non passa file a Instagram, per esempio da computer): il profilo
+   dell'account; copia anche il testo. Dal menu «Condividi» non si può saltare la scelta di Instagram né riempire la
+   didascalia: sono gli unici due tocchi che restano al visitatore prima di pubblicare.
 4. **«Copia il link del luogo»**: indirizzo della guida con `?d=<destinazione>&p=<luogo>`, utile per l'adesivo «Link»
    delle Storie. Il link apre la destinazione con la scheda di quel luogo.
 5. **Computer** (niente menu «Condividi» con file): restano copia e «Apri Instagram», con l'indicazione di incollare.

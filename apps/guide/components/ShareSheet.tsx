@@ -31,13 +31,16 @@ export function ShareInvite(props: { ig: InstagramShare; placeName: string; dest
   );
 }
 
+type Source = "photo" | "video" | "gallery";
+
 function ShareSheet({ ig, placeName, destinationName, placeUrl, t, onClose }: Parameters<typeof ShareInvite>[0] & { onClose: () => void }) {
   const caption = shareCaption(ig, placeName, destinationName);
   const [copied, setCopied] = useState<"text" | "link" | "failed" | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [shared, setShared] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const inputs = useRef<Partial<Record<Source, HTMLInputElement | null>>>({});
+  const [source, setSource] = useState<Source>("photo");
   const sheet = useRef<HTMLDivElement>(null);
   // Il menu «Condividi» con un file: c'è sui telefoni (Android, iPhone), quasi mai sui computer.
   const [fileShare, setFileShare] = useState(false);
@@ -70,26 +73,34 @@ function ShareSheet({ ig, placeName, destinationName, placeUrl, t, onClose }: Pa
       return false;
     }
   };
-  const pick = () => {
-    // Il testo si copia ora, durante il tocco: dopo la scelta della foto il browser potrebbe non permetterlo più.
+  /**
+   * Fotocamera (foto o video) o galleria. Sul telefono `capture` apre direttamente la fotocamera posteriore (Android e
+   * iPhone); dove non c'è (computer) si sceglie un file. Lo scatto resta sul dispositivo finché non lo si condivide.
+   */
+  const pick = (source: Source) => {
+    // Il testo si copia ora, durante il tocco: dopo lo scatto o la scelta il browser potrebbe non permetterlo più.
     void copy(caption, "text");
-    fileInput.current?.click();
+    setSource(source);
+    inputs.current[source]?.click();
   };
   const onFile = (f: File | undefined) => {
     if (!f) return;
     setFile(f);
     setShared(false);
     setPreview(f.type.startsWith("image/") ? URL.createObjectURL(f) : null);
+    // Subito il menu «Condividi» con lo scatto: si sceglie Instagram e si arriva alla sua pubblicazione. Il browser lo
+    // permette solo poco dopo un tocco: dopo la fotocamera può rifiutare, e allora resta il pulsante «Pubblica».
+    void share(f);
   };
-  const share = async () => {
-    if (!file) return;
+  const share = async (f: File | null = file) => {
+    if (!f) return;
     void copy(caption, "text");
     try {
       // Solo il file: su iOS testo e file insieme possono far perdere il file, e Instagram il testo lo ignora comunque.
-      await navigator.share({ files: [file] });
+      await navigator.share({ files: [f] });
       setShared(true);
     } catch {
-      // Menu chiuso dal visitatore o condivisione non riuscita: si può ritentare o aprire Instagram.
+      // Menu chiuso dal visitatore o non concesso senza un tocco recente: resta il pulsante per riprovare.
     }
   };
 
@@ -118,18 +129,45 @@ function ShareSheet({ ig, placeName, destinationName, placeUrl, t, onClose }: Pa
 
         {fileShare && (
           <div className="share-step">
-            <input ref={fileInput} type="file" accept="image/*,video/*" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+            {(["photo", "video", "gallery"] as const).map((k) => (
+              <input
+                key={k}
+                ref={(el) => { inputs.current[k] = el; }}
+                type="file"
+                accept={k === "photo" ? "image/*" : k === "video" ? "video/*" : "image/*,video/*"}
+                {...(k !== "gallery" ? { capture: "environment" as const } : {})}
+                hidden
+                data-source={k}
+                onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }}
+              />
+            ))}
             {file ? (
               <div className="share-picked">
-                {preview ? <img src={preview} alt="" /> : <span className="share-video"><Icon name="camera" /></span>}
+                {preview ? <img src={preview} alt="" /> : <span className="share-video"><Icon name="video" /></span>}
                 <button type="button" className="button primary big" onClick={() => void share()}>
                   <Icon name="camera" /> {t.share.share}
                 </button>
-                <button type="button" className="button small" onClick={pick}>{t.share.change}</button>
+                <button type="button" className="button small" onClick={() => pick(source)}>
+                  {source === "gallery" ? t.share.change : t.share.retake}
+                </button>
               </div>
+            ) : mobile ? (
+              <>
+                <button type="button" className="button primary big" onClick={() => pick("photo")}>
+                  <Icon name="camera" /> {t.share.takePhoto}
+                </button>
+                <div className="share-row">
+                  <button type="button" className="button" onClick={() => pick("video")}>
+                    <Icon name="video" size={18} /> {t.share.takeVideo}
+                  </button>
+                  <button type="button" className="button" onClick={() => pick("gallery")}>
+                    <Icon name="image" size={18} /> {t.share.fromGallery}
+                  </button>
+                </div>
+              </>
             ) : (
-              <button type="button" className="button primary big" onClick={pick}>
-                <Icon name="camera" /> {t.share.pick}
+              <button type="button" className="button primary big" onClick={() => pick("gallery")}>
+                <Icon name="image" /> {t.share.pick}
               </button>
             )}
             {(file || shared) && <p className="share-note" role="status">{t.share.sharing}</p>}
@@ -137,15 +175,12 @@ function ShareSheet({ ig, placeName, destinationName, placeUrl, t, onClose }: Pa
         )}
 
         <div className="share-row">
-          <a
-            className={`button ${fileShare ? "" : "primary"}`}
-            href={profileUrl(ig.handle)}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => void copy(caption, "text")}
-          >
-            <Icon name="external" size={18} /> {t.share.openApp}
-          </a>
+          {/* Dove il telefono passa lo scatto a Instagram non serve: si va diretti alla pubblicazione. */}
+          {!fileShare && (
+            <a className="button primary" href={profileUrl(ig.handle)} target="_blank" rel="noopener noreferrer" onClick={() => void copy(caption, "text")}>
+              <Icon name="external" size={18} /> {t.share.openApp}
+            </a>
+          )}
           <button type="button" className="button" onClick={() => void copy(placeUrl, "link")}>
             <Icon name={copied === "link" ? "check" : "link"} size={18} /> {copied === "link" ? t.share.linkCopied : t.share.copyLink}
           </button>

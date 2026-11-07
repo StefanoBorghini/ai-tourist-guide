@@ -44,6 +44,28 @@ nel database, nessun token, nessuna raccolta automatica di post.
 - App: `lib/share-instagram.ts` (logica pura, testata), `components/ShareSheet.tsx`, riga in `components/PlaceCard.tsx`,
   `?p=` in `lib/nav-history.ts` e `components/GuideApp.tsx`.
 
+## Da fare con l'app nativa (Capacitor): Storia, Post e Reel diretti
+
+Decisione del 2026-11-07. Dal sito e dalla PWA il percorso resta: scatto → menu «Condividi» del telefono → Instagram →
+Storia, Post o Reel (il menu è del sistema; una pagina web non può scegliere l'app di destinazione, e i collegamenti che
+aprono Instagram non possono passargli un file). Android a volte propone da solo la scorciatoia «Instagram Stories» nella
+prima riga del menu.
+
+Con l'app nativa il foglio di condivisione avrà tre pulsanti, **Storia**, **Post** e **Reel**, che aprono Instagram
+direttamente sulla schermata giusta con lo scatto, senza il menu del sistema:
+
+- **Storia**: documentazione Meta «Sharing to Stories» (Android: intent `com.instagram.share.ADD_TO_STORY`; iPhone:
+  `instagram-stories://share` con i dati negli appunti), con l'ID dell'app Meta (`source_application`).
+- **Reel**: documentazione Meta «Sharing to Reels» per Android (intent `com.instagram.share.ADD_TO_REEL`, pacchetto
+  `com.instagram.android`, ID dell'app Meta nell'extra `com.instagram.platform.extra.APPLICATION_ID`, permesso di lettura
+  del file); per iPhone da verificare sulla documentazione al momento dello sviluppo.
+- **Post**: su Android `ACTION_SEND` verso il pacchetto `com.instagram.android`; per iPhone da verificare l'opzione
+  ufficiale al momento dello sviluppo (niente collegamenti non documentati).
+
+Requisiti: app pubblicata su Google Play e App Store; app Meta registrata, con il suo ID, e messa in linea («Go Live»)
+come richiede Meta. La didascalia resta da incollare: Instagram non la fa precompilare nemmeno alle app (il testo si
+copia come oggi). Dove Instagram non è installato, o sul web, resta il percorso attuale.
+
 ## Contest «La foto del mese» (non implementato)
 
 Proposta in attesa del parere legale (concorsi a premio, DPR 430/2001; regole di Instagram per le promozioni;

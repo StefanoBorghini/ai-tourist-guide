@@ -4,7 +4,8 @@
  *
  * Tre livelli, come in un'app nativa: 0 la Home; 1 una scheda (elenco delle Destinazioni, Percorsi, Profilo);
  * 2 la visita in corso. Si scende di un livello alla volta con il back; i cambi allo stesso livello sostituiscono la
- * voce invece di aggiungerne (niente cronologie lunghe né cicli). Nell'indirizzo solo `v` (scheda) e `d` (destinazione).
+ * voce invece di aggiungerne (niente cronologie lunghe né cicli). Nell'indirizzo solo `v` (scheda), `d` (destinazione)
+ * e, nella visita, `p` (il luogo aperto: si cambia senza aggiungere voci, e un link con `p` apre la sua scheda).
  * Logica pura, testata; GuideApp la applica con history.pushState/replaceState/go.
  */
 
@@ -44,21 +45,31 @@ export function asNavState(x: unknown): NavState | null {
   return { depth: s.depth, tab: s.tab as NavTab, d };
 }
 
-/** Scheda e destinazione dall'indirizzo; valori sconosciuti ignorati. */
-export function readNavUrl(search: string): { v: NavTab | null; d: string | null } {
+/** Luogo nell'indirizzo: lo slug (luogo della destinazione) o «pack:slug» (come PLACE_PARAM_RE di lib/share-instagram.ts). */
+const PLACE_RE = /^[a-z0-9][a-z0-9.-]{0,120}(:[a-z0-9][a-z0-9-]{0,80})?$/;
+
+/** Scheda, destinazione e luogo dall'indirizzo; valori sconosciuti ignorati (il luogo solo con la destinazione). */
+export function readNavUrl(search: string): { v: NavTab | null; d: string | null; p: string | null } {
   const q = new URLSearchParams(search);
   const v = q.get("v");
   const d = q.get("d");
-  return { v: v && TABS.includes(v as NavTab) && v !== "home" ? (v as NavTab) : null, d: d && DEST_RE.test(d) ? d : null };
+  const p = q.get("p");
+  const dest = d && DEST_RE.test(d) ? d : null;
+  return { v: v && TABS.includes(v as NavTab) && v !== "home" ? (v as NavTab) : null, d: dest, p: dest && p && PLACE_RE.test(p) ? p : null };
 }
 
-/** Indirizzo (solo la parte dopo il percorso) per uno stato; gli altri parametri (es. debug) restano. */
-export function navUrl(state: NavState, search: string): string {
+/**
+ * Indirizzo (solo la parte dopo il percorso) per uno stato; gli altri parametri (es. debug) restano. `place` è il
+ * luogo aperto nella visita (valore per `p`): fuori dalla visita non c'è.
+ */
+export function navUrl(state: NavState, search: string, place: string | null = null): string {
   const q = new URLSearchParams(search);
   q.delete("v");
   q.delete("d");
+  q.delete("p");
   if (state.tab !== "home") q.set("v", state.tab);
   if (state.d) q.set("d", state.d);
+  if (state.depth === 2 && place && PLACE_RE.test(place)) q.set("p", place);
   const s = q.toString();
   return s ? `?${s}` : "";
 }

@@ -3,7 +3,7 @@ import { checkReadiness, requireStaff, rpc } from "../../../../lib/studio/server
 import { explainIssues } from "../../../../lib/studio/explain";
 import type { ReadinessReport } from "../../../../lib/studio/readiness";
 import { deleteHref, friendlyError } from "../../../../lib/studio/shared";
-import { republishPack, setPackStatus, updatePack } from "../../actions";
+import { republishPack, setPackStatus, setSocial, updatePack } from "../../actions";
 import { KIND_LABELS, Notice, one, PackStatus, PackTabs, STAGE_LABELS, StudioHeader, type SearchParams } from "../../ui";
 import { formatStudioTime } from "../../../../lib/format";
 
@@ -45,12 +45,13 @@ export default async function OverviewPage({ params, searchParams }: { params: P
   const { pack } = await params;
   const q = await searchParams;
   const session = await requireStaff();
-  const [{ data: k, error }, all, events, businesses] = await Promise.all([
+  const [{ data: k, error }, all, events, businesses, social] = await Promise.all([
     rpc<PackDetail>(session.supabase, "studio_pack", { p_pack: pack }),
     rpc<{ id: string; kind: string; title: Record<string, string> }[]>(session.supabase, "studio_packs"),
     // Dati operativi (fuori dal pack): solo chi può modificare il territorio li vede; altrimenti la riga non compare.
     rpc<{ publication: string; endsAt: string }[]>(session.supabase, "studio_local_events", { p_pack: pack }),
     rpc<{ publication: string }[]>(session.supabase, "studio_local_businesses", { p_pack: pack }),
+    rpc<{ handle: string; hashtags: string[]; isDestination: boolean; canEdit: boolean }>(session.supabase, "studio_social", { p_pack: pack }),
   ]);
   if (!k) {
     return (
@@ -247,6 +248,37 @@ export default async function OverviewPage({ params, searchParams }: { params: P
           </div>
         )}
       </form>
+
+      {isDestination && social.data && (
+        <form action={setSocial} className="st-form">
+          <input type="hidden" name="pack" value={pack} />
+          <h2>Condivisione su Instagram</h2>
+          <p className="st-hint">
+            Nella scheda di ogni luogo la guida invita a raccontarlo su Instagram: copia un testo con il nome del luogo,
+            l&apos;account da taggare e gli hashtag, e apre la condivisione del telefono. Instagram non permette di
+            precompilare un post: il visitatore incolla il testo. Account vuoto = nessun invito. Nell&apos;app cambia alla
+            prossima pubblicazione.
+          </p>
+          {!social.data.canEdit && <p className="st-hint">Sola lettura: l&apos;account lo cambia chi pubblica il territorio.</p>}
+          <fieldset disabled={!social.data.canEdit}>
+            <div className="st-row">
+              <label>
+                Account da taggare (senza @)
+                <input name="handle" defaultValue={social.data.handle} maxLength={31} placeholder="es. nome_account" autoComplete="off" />
+              </label>
+              <label>
+                Hashtag suggeriti (al massimo 5, separati da spazi)
+                <input name="hashtags" defaultValue={social.data.hashtags.map((h) => `#${h}`).join(" ")} maxLength={320} placeholder="es. #NomeLuogo" autoComplete="off" />
+              </label>
+            </div>
+          </fieldset>
+          {social.data.canEdit && (
+            <div className="st-actions">
+              <button className="st-btn st-primary" type="submit">Salva la condivisione</button>
+            </div>
+          )}
+        </form>
+      )}
 
       {session.me.admin && (
         <p>

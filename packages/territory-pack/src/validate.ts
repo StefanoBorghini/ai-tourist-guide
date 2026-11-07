@@ -62,6 +62,7 @@ export function validatePacks(
     checkUnits(pack, ctx);
     checkRoutes(pack, ctx);
     checkAccess(pack, ctx);
+    checkSocial(pack, ctx);
     checkMedia(pack, ctx);
   }
   return out.issues;
@@ -626,6 +627,19 @@ function checkRoutes(pack: TerritoryPack, ctx: Context): void {
       ctx.out.error({ code: "ROUTE_NOT_CALIBRATED", packId, ...where, message: "percorso non ancora calibrato sul posto" });
     }
   }
+}
+
+// ------------------------------------------------------------------ condivisione
+
+/** L'invito a condividere sui social è della destinazione (è lei ad avere un account), non dei pack che usa. */
+function checkSocial(pack: TerritoryPack, ctx: Context): void {
+  if (!pack.config.social || pack.manifest.kind === "destination") return;
+  ctx.out.error({
+    code: "SOCIAL_NOT_DESTINATION",
+    packId: pack.manifest.id,
+    file: PACK_FILES.config.path,
+    message: "la condivisione sui social si configura solo sulle destinazioni",
+  });
 }
 
 // ------------------------------------------------------------------ accesso

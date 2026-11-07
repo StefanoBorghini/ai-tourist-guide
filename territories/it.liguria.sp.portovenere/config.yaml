@@ -8,3 +8,9 @@ narration:
 guide:
   defaultMode: ask
   maxProposalsPer10Min: 2
+# Invito a condividere su Instagram nella scheda di ogni luogo (decisione del 2026-11-07).
+social:
+  instagram:
+    handle: portovenere_com
+    hashtags:
+    - Portovenere

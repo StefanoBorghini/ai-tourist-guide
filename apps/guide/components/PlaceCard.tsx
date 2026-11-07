@@ -6,6 +6,8 @@ import { bearingDeg, distanceM, type Fix } from "@guide/context-engine";
 import { compass, formatDistance } from "../lib/format";
 import type { UiText } from "../lib/i18n";
 import { Icon } from "./Icon";
+import { instagramOf, placeShareUrl } from "../lib/share-instagram";
+import { ShareInvite } from "./ShareSheet";
 
 /** Immagini e video di un luogo, nell'ordine del bundle. */
 export function placeMedia(content: BundleContent, placeRef: string): BundleMedia[] {
@@ -68,6 +70,8 @@ export function PlaceCard(props: {
   const d = fix ? distanceM(fix.location, place.location) : null;
   const media = placeMedia(content, place.ref);
   const verified = place.coordinateStatus === "field_verified";
+  // Invito a raccontare il luogo su Instagram, se la destinazione ha un account (config.social).
+  const ig = typeof window !== "undefined" ? instagramOf(content) : null;
   return (
     <section className="card place-card" aria-label={place.name}>
       <div className={`place-media ${props.locked ? "locked" : ""}`}>
@@ -155,6 +159,15 @@ export function PlaceCard(props: {
           <span className="dot" />
           {verified ? t.map.verified : place.coordinateStatus === "map_verified" ? t.map.mapVerified : t.map.provisional}
         </p>
+        {ig && (
+          <ShareInvite
+            ig={ig}
+            placeName={place.name}
+            destinationName={content.name}
+            placeUrl={placeShareUrl(window.location.origin, window.location.pathname, content.destination, place.ref)}
+            t={t}
+          />
+        )}
       </div>
     </section>
   );

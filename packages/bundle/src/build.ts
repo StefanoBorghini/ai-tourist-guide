@@ -448,6 +448,10 @@ export function buildBundle(packs: ReadonlyMap<string, TerritoryPack>, options: 
     safetyNotes: dest.config.safetyNotes
       .map((n) => ({ id: n.id, text: pick(n.text, dest.manifest.defaultLocale)?.value ?? "" }))
       .filter((n) => n.text),
+    // Solo se configurato: i bundle delle destinazioni senza restano identici (stesso hash).
+    ...(dest.config.social?.instagram
+      ? { social: { instagram: { handle: dest.config.social.instagram.handle, hashtags: [...dest.config.social.instagram.hashtags] } } }
+      : {}),
     places: places.sort(byRef),
     anchors: anchors.sort(byRef),
     nodes: publicNodes.sort(byRef),

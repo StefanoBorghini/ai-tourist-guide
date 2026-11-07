@@ -10,3 +10,8 @@ safetyNotes:
     text:
       it: Il sentiero del belvedere costeggia una scogliera senza parapetto.
       en: The belvedere path runs along a cliff with no railing.
+# Account inventato, solo per le prove dell'invito a condividere su Instagram.
+social:
+  instagram:
+    handle: borgo_di_prova
+    hashtags: [BorgoDiProva]

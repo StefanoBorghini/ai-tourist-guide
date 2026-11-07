@@ -188,6 +188,8 @@ export interface BundleContent {
   packVersions: Record<string, string>;
   guide: { defaultMode: "auto" | "ask" | "silent"; maxProposalsPer10Min: number };
   safetyNotes: { id: string; text: string }[];
+  /** Invito a condividere (config.social della destinazione); assente se non configurato. */
+  social?: { instagram?: { handle: string; hashtags: string[] } };
   places: BundlePlace[];
   anchors: BundleAnchor[];
   nodes: BundleNode[];

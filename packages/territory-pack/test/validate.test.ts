@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import type { TerritoryPack } from "@guide/domain";
+import { HASHTAG_PATTERN, INSTAGRAM_HANDLE_PATTERN, type TerritoryPack } from "@guide/domain";
 import { describe, expect, it } from "vitest";
 import { loadPacks } from "../src/load.ts";
 import { validatePacks } from "../src/validate.ts";
@@ -361,6 +361,29 @@ describe("verifica cartografica delle coordinate", () => {
     // In produzione la verifica su mappa non basta.
     village(packs).manifest.releaseStage = "production";
     expect(errorCodes(packs)).toContain("COORDINATES_NOT_VERIFIED");
+  });
+});
+
+describe("condivisione sui social", () => {
+  it("accetta account e hashtag sulla destinazione", () => {
+    const packs = loadSynthetic();
+    village(packs).config.social = { instagram: { handle: "borgo_di.prova", hashtags: ["BorgoDiProva", "Città_2026"] } };
+    expect(errorCodes(packs)).toEqual([]);
+  });
+
+  it("rifiuta la condivisione su un pack che non è una destinazione", () => {
+    const packs = loadSynthetic();
+    packs.get(AREA)!.config.social = { instagram: { handle: "area", hashtags: [] } };
+    expect(errorCodes(packs)).toContain("SOCIAL_NOT_DESTINATION");
+  });
+
+  it("il formato rifiuta account con @ e hashtag con #", () => {
+    expect(INSTAGRAM_HANDLE_PATTERN.test("portovenere_com")).toBe(true);
+    for (const bad of ["@portovenere_com", ".inizio", "fine.", "due..punti", "con spazio", "a".repeat(31)]) {
+      expect(INSTAGRAM_HANDLE_PATTERN.test(bad), bad).toBe(false);
+    }
+    expect(HASHTAG_PATTERN.test("Portovenere")).toBe(true);
+    for (const bad of ["#Portovenere", "1234", "con spazio", ""]) expect(HASHTAG_PATTERN.test(bad), bad).toBe(false);
   });
 });
 

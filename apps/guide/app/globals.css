@@ -1323,3 +1323,53 @@ html { -webkit-tap-highlight-color: transparent; }
 .venue-close { position: absolute; top: -4px; right: -6px; }
 .venue-detail .event-title { padding-right: 40px; }
 .venue-detail.empty p { margin: 0 0 6px; display: flex; gap: 8px; align-items: flex-start; }
+
+/* ------------------------------------------------------------------ invito a raccontare un luogo su Instagram */
+/* Una riga discreta nella scheda del luogo (non un pulsante social): apre un foglio dal basso. */
+.share-invite {
+  appearance: none; width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer;
+  margin-top: 4px; padding: 12px 14px; border-radius: var(--r-md);
+  background: transparent; border: 1px solid var(--line); color: var(--ink); font: inherit;
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+}
+.share-invite:hover, .share-invite:focus-visible { border-color: var(--line-strong); background: var(--sea-soft); }
+.share-invite > .icon:first-child { color: var(--sand); flex: none; }
+.share-invite > span { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.share-invite strong { font-family: var(--font-display); font-weight: 600; font-size: 16px; line-height: 1.25; }
+.share-invite .muted { font-size: 13px; }
+.share-chevron { color: var(--muted); flex: none; }
+.share-backdrop {
+  position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: share-fade 0.2s var(--ease) both;
+}
+.share-sheet {
+  width: 100%; max-width: 520px; max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border: 1px solid var(--line-strong); border-bottom: 0;
+  border-radius: var(--r-xl) var(--r-xl) 0 0; box-shadow: var(--shadow-lg);
+  padding: 20px var(--gutter) calc(20px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 14px;
+  animation: share-in 0.32s var(--ease) both;
+}
+@media (min-width: 640px) { .share-backdrop { align-items: center; } .share-sheet { border-radius: var(--r-xl); border-bottom: 1px solid var(--line-strong); } }
+@keyframes share-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes share-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .share-sheet, .share-backdrop { animation: none; } }
+.share-head { display: flex; align-items: flex-start; gap: 12px; }
+.share-head > div { flex: 1; }
+.share-head h2 { margin: 2px 0 0; font-size: 24px; line-height: 1.2; }
+.share-close { appearance: none; background: none; border: 0; color: var(--muted); padding: 6px; cursor: pointer; min-width: 44px; min-height: 44px; }
+.share-body { margin: 0; color: var(--ink-soft); line-height: 1.5; }
+.share-caption { margin: 0; padding: 12px 14px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.share-caption figcaption { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+.share-caption pre { margin: 0; font-family: var(--font-ui); font-size: 15px; white-space: pre-wrap; word-break: break-word; color: var(--ink); user-select: all; -webkit-user-select: all; }
+.share-caption .button { align-self: flex-start; }
+.share-step { display: flex; flex-direction: column; gap: 10px; }
+.share-picked { display: grid; grid-template-columns: 64px 1fr; grid-template-rows: auto auto; gap: 8px 12px; align-items: center; }
+.share-picked img, .share-video { grid-row: span 2; width: 64px; height: 64px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); display: grid; place-items: center; }
+.share-picked .button.small { justify-self: start; }
+.share-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.share-row .button { flex: 1 1 180px; justify-content: center; }
+.share-note { margin: 0; font-size: 13px; line-height: 1.5; }
+.share-note.warn { color: var(--warn); }
+.share-row a.button { text-decoration: none; }

@@ -1054,6 +1054,13 @@ begin
       raise exception 'FALLITO: manca la migrazione 20261109000000_recurring_events.sql (eventi ricorrenti) o i suoi permessi';
     end if;
 
+    -- Condivisione su Instagram (20261110000000_social_sharing.sql): funzioni dello Studio e permessi.
+    if to_regprocedure('studio_set_social(text,jsonb)') is null or to_regprocedure('studio_social(text)') is null
+       or has_function_privilege('anon', 'studio_set_social(text,jsonb)', 'execute')
+       or position('can_publish_pack' in pg_get_functiondef('studio_set_social(text,jsonb)'::regprocedure)) = 0 then
+      raise exception 'FALLITO: manca la migrazione 20261110000000_social_sharing.sql (condivisione su Instagram) o i suoi permessi';
+    end if;
+
     -- Tutto superato: si annullano i dati di prova uscendo con un errore intercettato qui sotto, che porta fuori
     -- l'elenco dei controlli non verificati.
     raise exception 'VERIFICA_SUPERATA|%', array_to_string(nv, '; ');

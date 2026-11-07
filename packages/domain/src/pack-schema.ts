@@ -49,6 +49,10 @@ import {
 export const PACK_SCHEMA_VERSION = 1;
 
 const slug = z.string().regex(SLUG_PATTERN, "slug non valido (minuscole, cifre, trattini)");
+/** Account Instagram: come le regole di Instagram (fino a 30 caratteri, niente punto all'inizio o alla fine). */
+export const INSTAGRAM_HANDLE_PATTERN = /^(?!\.)(?!.*\.$)(?!.*\.\.)[A-Za-z0-9._]{1,30}$/;
+/** Hashtag: lettere (anche accentate), cifre e trattini bassi, almeno una lettera. */
+export const HASHTAG_PATTERN = /^(?=.*\p{L})[\p{L}\p{N}_]{1,60}$/u;
 const ref = z.string().regex(REF_PATTERN, "riferimento non valido: usare 'slug' o 'pack.id:slug'");
 const locale = z.enum(LOCALES);
 const localized = z.partialRecord(locale, z.string().trim().min(1));
@@ -114,6 +118,25 @@ export const territoryConfigSchema = z.strictObject({
     })
     .default({ allowNonCommercial: false }),
   safetyNotes: z.array(z.strictObject({ id: slug, text: localized })).default([]),
+  /**
+   * Condivisione sui social (solo destinazioni). Assente = nessun invito a condividere, come prima.
+   * `instagram.handle` è l'account da taggare (senza «@»), `hashtags` quelli suggeriti (senza «#»). Instagram non
+   * permette di precompilare un post: l'app copia il testo e apre la condivisione del telefono (vedi
+   * docs/v0.3-platform/CONDIVISIONE-INSTAGRAM.md).
+   */
+  social: z
+    .strictObject({
+      instagram: z
+        .strictObject({
+          handle: z.string().regex(INSTAGRAM_HANDLE_PATTERN, "account Instagram non valido (lettere, cifre, punti, trattini bassi; senza @)"),
+          hashtags: z
+            .array(z.string().regex(HASHTAG_PATTERN, "hashtag non valido (lettere, cifre, trattini bassi; senza #)"))
+            .max(5)
+            .default([]),
+        })
+        .optional(),
+    })
+    .optional(),
   /**
    * Accesso ai contenuti (solo destinazioni). Assente = tutto gratuito, come prima.
    * Con l'esplorazione a pagamento restano gratuiti mappa, luoghi, percorsi non premium e il racconto

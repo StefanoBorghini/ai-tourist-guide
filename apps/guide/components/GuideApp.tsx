@@ -15,6 +15,7 @@ import { downloadBundle, isBundleCached, offlineSupported, registerServiceWorker
 import { formatPrice, lockedPlaceRefs, offersFor, type CatalogItem, type Offer, type Quote } from "../lib/shop";
 import { localPremium, syncPremium } from "../lib/premium-client";
 import { asNavState, HOME, initialStack, navStateOf, navStep, navUrl, readNavUrl, type NavState } from "../lib/nav-history";
+import { placeFromParam, placeParam } from "../lib/share-instagram";
 import { clearPurchaseWatch, markPurchaseStarted, PURCHASE_DONE_KEY, PURCHASE_POLL_MS, purchaseStamps, watchingPurchase } from "../lib/purchase-watch";
 import { AskBox } from "./AskBox";
 import { bundleBase as bundleBaseOf, loadIndexes, PUB_INDEX_URL, publishedOrigin, STATIC_INDEX_URL, type BundleIndexEntry } from "../lib/bundle-index";
@@ -972,10 +973,16 @@ export function GuideApp() {
   };
   const applyNavRef = useRef(applyNav);
   applyNavRef.current = applyNav;
+  // Luogo aperto nella visita, per l'indirizzo (?p=): un link con il luogo apre la sua scheda.
+  const placeKey = inVisit && selected && runtime ? placeParam(selected, runtime.content.destination) : null;
+  const placeKeyRef = useRef(placeKey);
+  placeKeyRef.current = placeKey;
+  /** Luogo di un link (?d=…&p=…) da aprire appena la visita di quella destinazione è pronta. */
+  const pendingPlaceRef = useRef<{ d: string; p: string } | null>(null);
   const writeNav = (st: NavState, push: boolean) => {
     // Lo stato del router di Next resta: si aggiunge solo la nostra chiave.
     const state = { ...(window.history.state ?? {}), guideNav: st };
-    const url = window.location.pathname + navUrl(st, window.location.search);
+    const url = window.location.pathname + navUrl(st, window.location.search, st.depth === 2 ? placeKeyRef.current : null);
     if (push) window.history.pushState(state, "", url);
     else window.history.replaceState(state, "", url);
   };
@@ -995,6 +1002,7 @@ export function GuideApp() {
     let target: NavState = existing ?? (url.d ? { depth: 2, tab: "esplora", d: url.d } : url.v ? { depth: 1, tab: url.v, d: null } : HOME);
     // Destinazione sconosciuta (link vecchio o sbagliato): si mostra l'elenco.
     if (target.d && !byDestination.has(target.d)) target = { depth: 1, tab: "esplora", d: null };
+    if (url.p && url.d && target.depth === 2 && target.d === url.d) pendingPlaceRef.current = { d: url.d, p: url.p };
     if (!existing) {
       const [first, ...rest] = initialStack(target);
       writeNav(first!, false);
@@ -1054,6 +1062,27 @@ export function GuideApp() {
     return () => window.removeEventListener("popstate", onPop);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- writeNav usa solo window
   }, []);
+  // Link con un luogo: appena la visita della sua destinazione è aperta, si apre la scheda del luogo.
+  const visitDest = inVisit && runtime ? runtime.content.destination : null;
+  useEffect(() => {
+    const pending = pendingPlaceRef.current;
+    const rt = runtimeRef.current;
+    if (!pending || !visitDest || !rt) return;
+    pendingPlaceRef.current = null;
+    if (pending.d !== visitDest) return;
+    const ref = placeFromParam(pending.p, visitDest, rt.content.places.map((p) => p.ref));
+    if (!ref) return;
+    setSelected(ref);
+    requestAnimationFrame(() => document.querySelector(".place-card")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+  }, [visitDest]);
+  // Nella visita l'indirizzo segue il luogo aperto, senza aggiungere voci alla cronologia.
+  useEffect(() => {
+    if (!navReadyRef.current || navRestoringRef.current || navPendingRef.current) return;
+    const st = asNavState((window.history.state as { guideNav?: unknown } | null)?.guideNav);
+    if (!st || st.depth !== 2) return;
+    window.history.replaceState(window.history.state, "", window.location.pathname + navUrl(st, window.location.search, placeKey));
+  }, [placeKey]);
+
   /**
    * Cambio di scheda. Percorsi ha bisogno di una destinazione, e il Profilo la offre per l'uso offline: senza,
    * si apre quella in evidenza. Esplora elenca le destinazioni e non ne apre nessuna da sola.

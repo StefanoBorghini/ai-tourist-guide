@@ -278,6 +278,19 @@ export async function setAccess(form: FormData) {
   back(path, { ok: "Accesso salvato. Nell'app cambia alla prossima pubblicazione." });
 }
 
+/** Account Instagram e hashtag della destinazione, per l'invito a condividere nella guida (lo cambia chi pubblica). */
+export async function setSocial(form: FormData) {
+  const { supabase } = await requireStaff();
+  const pack = text(form, "pack");
+  const path = `${packPath(pack)}/panoramica`;
+  // Hashtag scritti in una riga: separati da spazi o virgole, «#» facoltativo (lo toglie il database).
+  const hashtags = text(form, "hashtags").split(/[\s,]+/).filter(Boolean);
+  const { error } = await rpc(supabase, "studio_set_social", { p_pack: pack, p: { handle: text(form, "handle"), hashtags } });
+  if (error) back(path, { errore: friendlyError(error) });
+  revalidatePath("/studio", "layout");
+  back(path, { ok: "Condivisione su Instagram salvata. Nell'app cambia alla prossima pubblicazione." });
+}
+
 // ---------------------------------------------------------------- catalogo (solo amministratore, regole nel database)
 
 export async function saveProduct(form: FormData) {

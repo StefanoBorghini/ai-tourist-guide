@@ -43,10 +43,21 @@ describe("indirizzo", () => {
   });
 
   it("valori sconosciuti o strani ignorati", () => {
-    expect(readNavUrl("?v=esplora&d=it.liguria.sp.portovenere")).toEqual({ v: "esplora", d: "it.liguria.sp.portovenere" });
-    expect(readNavUrl("?v=admin&d=../x")).toEqual({ v: null, d: null });
-    expect(readNavUrl("?v=home")).toEqual({ v: null, d: null });
-    expect(readNavUrl("?d=<script>")).toEqual({ v: null, d: null });
+    expect(readNavUrl("?v=esplora&d=it.liguria.sp.portovenere")).toEqual({ v: "esplora", d: "it.liguria.sp.portovenere", p: null });
+    expect(readNavUrl("?v=admin&d=../x")).toEqual({ v: null, d: null, p: null });
+    expect(readNavUrl("?v=home")).toEqual({ v: null, d: null, p: null });
+    expect(readNavUrl("?d=<script>")).toEqual({ v: null, d: null, p: null });
+  });
+
+  it("luogo (p): solo nella visita, solo con la destinazione, solo in forma valida", () => {
+    expect(readNavUrl("?d=it.liguria.sp.portovenere&p=castello-doria").p).toBe("castello-doria");
+    expect(readNavUrl("?d=a.b&p=altro.pack:torre").p).toBe("altro.pack:torre");
+    expect(readNavUrl("?p=castello-doria").p).toBeNull();
+    for (const bad of ["../x", "<b>", "Castello", "a:b:c", ""]) expect(readNavUrl(`?d=a.b&p=${encodeURIComponent(bad)}`).p, bad).toBeNull();
+    expect(navUrl(visit("a.b"), "?debug=1", "torre")).toBe("?debug=1&v=esplora&d=a.b&p=torre");
+    // Fuori dalla visita il luogo sparisce; un valore non valido non entra.
+    expect(navUrl(LIST, "?d=a.b&p=torre", "torre")).toBe("?v=esplora");
+    expect(navUrl(visit("a.b"), "?p=vecchio", "<x>")).toBe("?v=esplora&d=a.b");
   });
 
   it("stato letto dalla cronologia: solo forme valide", () => {

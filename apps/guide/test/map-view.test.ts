@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitView, metersPerPixel, panBy, placeLabels, project, scaleBar, toScreen, unproject } from "../lib/map-view.ts";
+import { fitView, metersPerPixel, panBy, placeLabels, placesOnMap, project, SUB_PLACE_MIN_ZOOM, scaleBar, toScreen, unproject } from "../lib/map-view.ts";
 
 describe("geometria della mappa", () => {
   it("proietta e riproietta senza errori apprezzabili", () => {
@@ -114,5 +114,24 @@ describe("etichette e simboli", () => {
     );
     const a = placed.find((p) => p.id === "A");
     expect(a?.anchor).toBe("end");
+  });
+});
+
+describe("placesOnMap: principali sempre, sottoluoghi avvicinandosi", () => {
+  const places = [
+    { ref: "castello" },
+    { ref: "torre", partOf: "castello" },
+    { ref: "chiesa", partOf: "chiesa" },
+    { ref: "orfano", partOf: "assente" },
+  ];
+  const refs = (z: number, keep?: Set<string>) => placesOnMap(places, z, keep).map((p) => p.ref);
+  it("da lontano solo i principali (anche un partOf verso sé stesso o verso un luogo assente)", () => {
+    expect(refs(14)).toEqual(["castello", "chiesa", "orfano"]);
+  });
+  it("da SUB_PLACE_MIN_ZOOM in su anche i sottoluoghi", () => {
+    expect(refs(SUB_PLACE_MIN_ZOOM)).toEqual(["castello", "torre", "chiesa", "orfano"]);
+  });
+  it("il sottoluogo selezionato resta a ogni zoom", () => {
+    expect(refs(12, new Set(["torre"]))).toContain("torre");
   });
 });

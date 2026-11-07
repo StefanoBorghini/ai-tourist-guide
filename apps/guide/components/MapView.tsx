@@ -11,6 +11,7 @@ import {
   clampZoom,
   fitView,
   fromGlZoom,
+  placesOnMap,
   hitTarget,
   metersPerPixel,
   panBy,
@@ -96,8 +97,6 @@ export function MapView(props: {
   selected?: string | null;
   onSelect?: (ref: string | null) => void;
   tall?: boolean;
-  /** Luoghi a pagamento non ancora acquistati: non compaiono sulla mappa (restano nell'elenco, con «Sblocca»). */
-  locked?: ReadonlySet<string>;
   /** Cosa mostra la mappa: i luoghi del territorio (predefinito) o le attività della directory. */
   layer?: "places" | "venues";
   venues?: readonly MapVenue[];
@@ -304,6 +303,11 @@ export function MapView(props: {
   // Con MapLibre gli strati SVG seguono la sua telecamera; senza, l'inquadratura scelta (schematica).
   const view = gl === "ready" && cam ? cam : target;
   const screen = toScreen(view, width, mapHeight);
+  // Tutti i luoghi principali, anche quelli a pagamento (la scheda propone «Sblocca»); i sottoluoghi avvicinandosi.
+  const onMap = new Set(
+    placesOnMap(content.places, view.zoom, new Set([selected, runtime.currentPlaceRef].filter((r): r is string => !!r))).map((p) => p.ref),
+  );
+  const pinPlaces = content.places.filter((p) => !stopIndex.has(p.ref) && onMap.has(p.ref));
   const mpp = metersPerPixel(view.center[1], view.zoom);
   const showTiles = online && basemap && gl === "ready";
   useEffect(() => {
@@ -330,7 +334,7 @@ export function MapView(props: {
   const labelCandidates: LabelCandidate[] = venuesLayer ? venueLabels : [
     ...venueLabels,
     // Come gli spilli: niente nome per i luoghi a pagamento non acquistati (le tappe restano).
-    ...content.places.filter((p) => stopIndex.has(p.ref) || !props.locked?.has(p.ref)).map((p) => {
+    ...content.places.filter((p) => stopIndex.has(p.ref) || onMap.has(p.ref)).map((p) => {
       const s = screen(p.location);
       const i = stopIndex.get(p.ref);
       const priority =
@@ -395,8 +399,7 @@ export function MapView(props: {
   // Con MapLibre i tocchi arrivano tutti alla mappa; i simboli si riconoscono qui, dalla loro posizione.
   hitsRef.current = [
     ...(!venuesLayer
-      ? content.places
-          .filter((p) => !stopIndex.has(p.ref) && !props.locked?.has(p.ref))
+      ? pinPlaces
           .map((p) => { const s = screen(p.location); return { id: p.ref, kind: "place" as const, x: s.x, y: s.y + PIN_HEAD_Y + 2, r: 18 }; })
       : []),
     ...(!venuesLayer ? stops.map((p) => { const s = screen(p.location); return { id: p.ref, kind: "place" as const, x: s.x, y: s.y, r: 16 }; }) : []),
@@ -458,8 +461,7 @@ export function MapView(props: {
             const s = screen(a.location);
             return <rect key={a.ref} x={s.x - 6} y={s.y - 6} width={12} height={12} className="map-anchor" />;
           })}
-          {!venuesLayer && content.places
-            .filter((p) => !stopIndex.has(p.ref) && !props.locked?.has(p.ref))
+          {!venuesLayer && pinPlaces
             .map((p) => {
               const s = screen(p.location);
               const state = [

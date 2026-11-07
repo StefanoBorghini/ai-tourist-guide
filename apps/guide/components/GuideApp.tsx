@@ -1702,7 +1702,6 @@ export function GuideApp() {
       selected={selected}
       onSelect={(ref) => (ref ? choosePlace(ref) : setSelected(null))}
       tall={exploring}
-      locked={lockedPlaces}
       layer={venueLayerOn ? "venues" : "places"}
       venues={venueMarkers(venueRows)}
       selectedVenue={selectedVenue}

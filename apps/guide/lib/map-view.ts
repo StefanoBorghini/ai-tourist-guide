@@ -77,6 +77,26 @@ export function panBy(view: MapViewState, dx: number, dy: number): MapViewState 
 }
 
 /** Zoom dentro i limiti della mappa (anche frazionario: lo zoom con le dita è continuo). */
+/**
+ * Zoom (della guida) da cui compaiono i sottoluoghi: più lontano la mappa mostra solo i luoghi principali, per non
+ * affollarsi; avvicinandosi compaiono anche i luoghi che ne fanno parte (`partOf`).
+ */
+export const SUB_PLACE_MIN_ZOOM = 16.5;
+
+/** È un sottoluogo: fa parte di un altro luogo presente nello stesso elenco. */
+export function isSubPlace(p: { ref: string; partOf?: string }, refs: ReadonlySet<string>): boolean {
+  return !!p.partOf && p.partOf !== p.ref && refs.has(p.partOf);
+}
+
+/**
+ * Luoghi da disegnare sulla mappa allo zoom dato: i principali sempre, i sottoluoghi da SUB_PLACE_MIN_ZOOM in su.
+ * Quelli in `keep` (il luogo selezionato, quello dove si è) restano a ogni zoom.
+ */
+export function placesOnMap<P extends { ref: string; partOf?: string }>(places: readonly P[], zoom: number, keep: ReadonlySet<string> = new Set()): P[] {
+  const refs = new Set(places.map((p) => p.ref));
+  return places.filter((p) => zoom >= SUB_PLACE_MIN_ZOOM || keep.has(p.ref) || !isSubPlace(p, refs));
+}
+
 export const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
 
 /** Qualcosa da toccare sulla mappa: un cerchio (spillo, tappa, attività) o un rettangolo (nome del luogo). */
